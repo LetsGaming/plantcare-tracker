@@ -1,4 +1,6 @@
-require('dotenv').config();
+const loadEnv = require("../utils/envUtils");
+
+loadEnv();
 
 module.exports = {
   JWT_SECRET: process.env.JWT_SECRET,
