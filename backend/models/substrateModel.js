@@ -1,6 +1,10 @@
-const pool = require('../config/db');
+const pool = require("../config/db");
 
-const getSubstrates = () => pool.query('SELECT * FROM substrates');
-const addSubstrate = (name) => pool.query('INSERT INTO substrates (name) VALUES (?)', [name]);
+const selectSubstrates = () => pool.query("SELECT * FROM substrates");
+const selectSubstrate = (id) =>
+  pool.query("SELECT * FROM substrates WHERE id = ?", [id]);
 
-module.exports = { getSubstrates, addSubstrate };
+const insertSubstrate = (name) =>
+  pool.query("INSERT INTO substrates (name) VALUES (?)", [name]);
+
+module.exports = { selectSubstrates, selectSubstrate, insertSubstrate };

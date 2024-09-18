@@ -1,25 +1,35 @@
-const pool = require('../config/db');
+const { selectPlants, selectPlant, insertPlant } = require("../models/plantModel")
 
 const getPlants = async (req, res) => {
   try {
-    const [plants] = await pool.query('SELECT * FROM plants');
-    res.json(plants);
+    const [plants] = await selectPlants();
+    res.status(201).json(plants);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
+const getPlant = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [plant] = await selectPlant(id);
+    if (!plant) {
+      return res.status(404).json({ message: "Plant not found" });
+    }
+    res.status(201).json(plant);
+  } catch {
+    res.status(500).json({ error: "Error fetching plant" });
+  }
+}
+
 const addPlant = async (req, res) => {
   const { name, species, substrateId } = req.body;
   try {
-    const [result] = await pool.query(
-      'INSERT INTO plants (name, species, substrate_id) VALUES (?, ?, ?)',
-      [name, species, substrateId]
-    );
+    const [result] = await insertPlant(name, species, substrateId);
     res.status(201).json({ id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-module.exports = { getPlants, addPlant };
+module.exports = { getPlants, getPlant, addPlant };

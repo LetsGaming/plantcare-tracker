@@ -6,16 +6,6 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabelle für Pflanzen
-CREATE TABLE plants (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  species VARCHAR(255),
-  substrate_id INT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (substrate_id) REFERENCES substrates(id)
-);
-
 -- Tabelle für Substrate
 CREATE TABLE substrates (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -28,7 +18,17 @@ CREATE TABLE substrate_components (
   substrate_id INT,
   component_name VARCHAR(255),
   percentage DECIMAL(5,2),
-  FOREIGN KEY (substrate_id) REFERENCES substrates(id)
+  FOREIGN KEY (substrate_id) REFERENCES substrates(id) ON DELETE CASCADE
+);
+
+-- Tabelle für Pflanzen
+CREATE TABLE plants (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  species VARCHAR(255),
+  substrate_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (substrate_id) REFERENCES substrates(id) ON DELETE SET NULL
 );
 
 -- Tabelle für Pflanzbilder
@@ -37,7 +37,7 @@ CREATE TABLE plant_images (
   plant_id INT,
   image_url VARCHAR(255),
   upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (plant_id) REFERENCES plants(id)
+  FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE
 );
 
 -- Tabelle für Gießaufzeichnungen
@@ -46,5 +46,5 @@ CREATE TABLE watering_records (
   plant_id INT,
   date DATETIME DEFAULT CURRENT_TIMESTAMP,
   amount DECIMAL(10,2),
-  FOREIGN KEY (plant_id) REFERENCES plants(id)
+  FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE
 );
