@@ -1,10 +1,12 @@
 const { selectSubstrates, selectSubstrate, insertSubstrate } = require('../models/substrateModel');
+const logger = require('../utils/logger');
 
 const getSubstrates = async (req, res) => {
   try {
     const [substrates] = await selectSubstrates();
     res.json(substrates);
   } catch (err) {
+    logger.error(err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -18,6 +20,7 @@ const getSubstrate = async (req, res) => {
     }
     res.status(201).json(substrate);
   } catch (err) {
+    logger.error(err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -28,6 +31,7 @@ const addSubstrate = async (req, res) => {
     const [result] = await insertSubstrate(name);
     res.status(201).json({ id: result.insertId });
   } catch (err) {
+    logger.error(err);
     res.status(500).json({ error: err.message });
   }
 };

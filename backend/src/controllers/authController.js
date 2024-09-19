@@ -1,7 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 const { JWT_SECRET, JWT_EXPIRATION } = require('../config/jwtConfig');
 const pool = require('../config/db');
+
 
 const register = async (req, res) => {
   const { username, password } = req.body;
@@ -13,6 +15,7 @@ const register = async (req, res) => {
     );
     res.status(201).json({ id: result.insertId, username });
   } catch (err) {
+    logger.error(err.message);
     res.status(500).json({ error: err.message });
   }
 };
@@ -33,6 +36,7 @@ const login = async (req, res) => {
 
     res.json({ token });
   } catch (err) {
+    logger.error(err.message);
     res.status(500).json({ error: err.message });
   }
 };
