@@ -1,4 +1,5 @@
 const path = require("path");
+const logger = require('../utils/logger');
 const loadEnv = require("../utils/envUtils.js");
 const { insertImage, selectImage, selectImages } = require("../models/imageModel");
 
@@ -6,7 +7,7 @@ loadEnv();
 
 const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 const NAS_PATH = process.env.NAS_PATH || null; // Set NAS path if available
-const uploadDir = NAS_PATH || "/uploads"; // Use NAS_PATH or local 'uploads' folder
+const uploadDir = NAS_PATH || path.resolve(__dirname, '../../uploads'); // Use NAS_PATH or local 'uploads' folder
 
 const uploadImage = async (req, res) => {
   try {
@@ -43,7 +44,7 @@ const uploadImage = async (req, res) => {
     // Respond with success message
     res.status(200).json({ message: "Image uploaded successfully", filePath });
   } catch (err) {
-    console.error("Error during image upload:", err);
+    logger.error("Error during image upload", err.message);
     res.status(500).json({
       message: "An error occurred while uploading the image.",
       error: err.message,
@@ -56,6 +57,7 @@ const getImages = async (req, res) => {
     const [images] = await selectImages();
     res.status(201).json(images);
   } catch (err) {
+    logger.error(err.message);
     res.status(500).json({ error: err.message });
   }
 };
@@ -66,6 +68,7 @@ const getImage = async (req, res) => {
     const [result] = await selectImage(plantId);
     res.status(201).json(result);
   } catch (err) {
+    logger.error(err.message);
     res.status(500).json({ error: err.message });
   }
 };
