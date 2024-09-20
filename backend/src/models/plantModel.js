@@ -34,9 +34,6 @@ const selectPlants = async (conditions = {}, params = []) => {
   const whereSQL = whereClauses.length ? ` WHERE ${whereClauses.join(' AND ')}` : '';
   const query = `${selectPlantsQuery} ${whereSQL}`;
 
-  console.log('Executing query:', query); // Debugging logs
-  console.log('With params:', params);
-
   // First, fetch the plant data
   const [plantsRows] = await pool.query(query, params);
 
@@ -55,8 +52,7 @@ const selectPlants = async (conditions = {}, params = []) => {
       };
     })
   );
-
-  console.log('Final structured output:', plantsWithSubstrates); // Debug log to check final output
+  
   return plantsWithSubstrates;
 };
 
