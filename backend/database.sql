@@ -27,8 +27,11 @@ CREATE TABLE plants (
   name VARCHAR(255) NOT NULL,
   species VARCHAR(255),
   substrate_id INT,
+  user_id INT NOT NULL,
+  is_public BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (substrate_id) REFERENCES substrates(id) ON DELETE SET NULL
+  FOREIGN KEY (substrate_id) REFERENCES substrates(id) ON DELETE SET NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE  -- Delete plant if the associated user is deleted
 );
 
 -- Tabelle für Pflanzbilder
