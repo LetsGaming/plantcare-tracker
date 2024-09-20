@@ -2,41 +2,39 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
-const authenticateToken = require("../middlewares/authMiddleware.js");
+const { authenticateToken } = require("../middlewares/authMiddleware");
 const {
   uploadImage,
   getImages,
   getImage,
 } = require("../controllers/imageController");
 
-const loadEnv = require("../utils/envUtils.js");
+const loadEnv = require("../utils/envUtils");
 loadEnv();
 
 const router = express.Router();
+
 // Configure Multer for file upload handling
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    // Set upload directory; can be NAS_PATH or local uploads folder
-    const NAS_PATH = process.env.NAS_PATH || null; // Set NAS path if available
+  destination: (req, file, cb) => {
+    const NAS_PATH = process.env.NAS_PATH || null;
     const uploadDir = NAS_PATH || path.resolve(__dirname, "../../uploads");
 
-    // Ensure the directory exists
     if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true }); // Create the directory if it doesn't exist
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
 
     cb(null, uploadDir);
   },
-  filename: function (req, file, cb) {
-    // Generate a unique filename based on date and original filename
+  filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + file.originalname;
     cb(null, uniqueSuffix);
   },
 });
 
 const upload = multer({
-  storage: storage,
-  fileFilter: function (req, file, cb) {
+  storage,
+  fileFilter: (req, file, cb) => {
     const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg"];
     if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -46,13 +44,13 @@ const upload = multer({
   },
 });
 
-router.post(
-  "/:plantId",
-  authenticateToken,
-  upload.single("image"),
-  uploadImage
-);
+// Upload image for a specific plant
+router.post("/:plantId", authenticateToken, upload.single("image"), uploadImage);
+
+// Get all images (authenticated)
 router.get("/", authenticateToken, getImages);
+
+// Get a specific image for a plant (authenticated)
 router.get("/:plantId", authenticateToken, getImage);
 
 module.exports = router;
