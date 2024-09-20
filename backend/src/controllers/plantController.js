@@ -10,27 +10,23 @@ const logger = require("../utils/logger");
 const getPrivatePlants = async (req, res) => {
   try {
     const userId = req.body.userId;
-
     const [plants] = await selectPrivatePlants(userId);
     res.status(200).json(plants);
   } catch (err) {
     logger.error(err);
     res.status(500).json({ error: err.message });
   }
-}
+};
 
-// Get a specific private plant for the authenticated user
 const getPrivatePlant = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.userId || null;
+
   try {
-    const { id } = req.params;
-    const userId = req.userId || null;
-
     const [plant] = await selectPrivatePlant(id, userId);
-
     if (!plant) {
       return res.status(404).json({ message: "Plant not found" });
     }
-
     res.status(200).json(plant);
   } catch (err) {
     logger.error(err);
@@ -38,7 +34,6 @@ const getPrivatePlant = async (req, res) => {
   }
 };
 
-// Get all public plants
 const getPublicPlants = async (req, res) => {
   try {
     const [plants] = await selectPublicPlants();
@@ -49,17 +44,14 @@ const getPublicPlants = async (req, res) => {
   }
 };
 
-// Get a specific public plant
 const getPublicPlant = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-
     const [plant] = await selectPublicPlant(id);
-
     if (!plant) {
       return res.status(404).json({ message: "Plant not found" });
     }
-
     res.status(200).json(plant);
   } catch (err) {
     logger.error(err);
@@ -67,12 +59,16 @@ const getPublicPlant = async (req, res) => {
   }
 };
 
-// Insert a plant (remains unchanged)
 const addPlant = async (req, res) => {
   const { name, species, substrateId } = req.body;
+  if (!name || !species || !substrateId) {
+    return res.status(400).json({ error: "Name, species, and substrateId are required." });
+  }
+
   try {
-    const [result] = await insertPlant(name, species, substrateId);
-    res.status(201).json({ id: result.insertId });
+    const user = req.user;
+    const [plant] = await insertPlant(name, species, substrateId, user.id);
+    res.status(201).json({ id: plant.insertId });
   } catch (err) {
     logger.error(err);
     res.status(500).json({ error: err.message });
