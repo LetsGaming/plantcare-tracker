@@ -1,2 +1,144 @@
-/* For information on how to create your own theme, please see:
-http://ionicframework.com/docs/theming/ */
+/* Ionic Variables and Theming with Planty Theme. */
+
+/** Ionic CSS Variables **/
+:root {
+    /** primary - Lush Green **/
+    --ion-color-primary: #228B22; /* Forest Green */
+    --ion-color-primary-rgb: 34, 139, 34;
+    --ion-color-primary-contrast: #ffffff;
+    --ion-color-primary-contrast-rgb: 255, 255, 255;
+    --ion-color-primary-shade: #1e7b1e;
+    --ion-color-primary-tint: #32a832;
+  
+    /** secondary - Earthy Brown **/
+    --ion-color-secondary: #8B4513; /* Saddle Brown */
+    --ion-color-secondary-rgb: 139, 69, 19;
+    --ion-color-secondary-contrast: #ffffff;
+    --ion-color-secondary-contrast-rgb: 255, 255, 255;
+    --ion-color-secondary-shade: #7a3d11;
+    --ion-color-secondary-tint: #9d5326;
+  
+    /** tertiary - Leaf Green **/
+    --ion-color-tertiary: #6B8E23; /* Olive Drab */
+    --ion-color-tertiary-rgb: 107, 142, 35;
+    --ion-color-tertiary-contrast: #ffffff;
+    --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+    --ion-color-tertiary-shade: #5f7e1e;
+    --ion-color-tertiary-tint: #7c9c3d;
+  
+    /** success - Fresh Mint **/
+    --ion-color-success: #2E8B57; /* Sea Green */
+    --ion-color-success-rgb: 46, 139, 87;
+    --ion-color-success-contrast: #ffffff;
+    --ion-color-success-contrast-rgb: 255, 255, 255;
+    --ion-color-success-shade: #297a4e;
+    --ion-color-success-tint: #3ca96d;
+  
+    /** warning - Sunflower Yellow **/
+    --ion-color-warning: #FFD700; /* Gold */
+    --ion-color-warning-rgb: 255, 215, 0;
+    --ion-color-warning-contrast: #000000;
+    --ion-color-warning-contrast-rgb: 0, 0, 0;
+    --ion-color-warning-shade: #e6c200;
+    --ion-color-warning-tint: #ffda22;
+  
+    /** danger - Rust Red **/
+    --ion-color-danger: #A52A2A; /* Brown */
+    --ion-color-danger-rgb: 165, 42, 42;
+    --ion-color-danger-contrast: #ffffff;
+    --ion-color-danger-contrast-rgb: 255, 255, 255;
+    --ion-color-danger-shade: #922626;
+    --ion-color-danger-tint: #b64040;
+  
+    /** dark - Rich Soil **/
+    --ion-color-dark: #2F4F4F; /* Dark Slate Gray */
+    --ion-color-dark-rgb: 47, 79, 79;
+    --ion-color-dark-contrast: #ffffff;
+    --ion-color-dark-contrast-rgb: 255, 255, 255;
+    --ion-color-dark-shade: #294545;
+    --ion-color-dark-tint: #436b6b;
+  
+    /** medium - Moss Green **/
+    --ion-color-medium: #556B2F; /* Dark Olive Green */
+    --ion-color-medium-rgb: 85, 107, 47;
+    --ion-color-medium-contrast: #ffffff;
+    --ion-color-medium-contrast-rgb: 255, 255, 255;
+    --ion-color-medium-shade: #4b5f2a;
+    --ion-color-medium-tint: #677d36;
+  
+    /** light - Pale Fern **/
+    --ion-color-light: #F5FFFA; /* Mint Cream */
+    --ion-color-light-rgb: 245, 255, 250;
+    --ion-color-light-contrast: #000000;
+    --ion-color-light-contrast-rgb: 0, 0, 0;
+    --ion-color-light-shade: #d7e6da;
+    --ion-color-light-tint: #f6fffb;
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    body {
+      --ion-color-primary: #2E8B57; /* Sea Green */
+      --ion-color-primary-rgb: 46, 139, 87;
+      --ion-color-primary-contrast: #ffffff;
+      --ion-color-primary-contrast-rgb: 255, 255, 255;
+      --ion-color-primary-shade: #297a4e;
+      --ion-color-primary-tint: #3ca96d;
+  
+      --ion-color-secondary: #8B4513; /* Saddle Brown */
+      --ion-color-secondary-rgb: 139, 69, 19;
+      --ion-color-secondary-contrast: #ffffff;
+      --ion-color-secondary-contrast-rgb: 255, 255, 255;
+      --ion-color-secondary-shade: #7a3d11;
+      --ion-color-secondary-tint: #9d5326;
+  
+      --ion-color-tertiary: #556B2F; /* Dark Olive Green */
+      --ion-color-tertiary-rgb: 85, 107, 47;
+      --ion-color-tertiary-contrast: #ffffff;
+      --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+      --ion-color-tertiary-shade: #4b5f2a;
+      --ion-color-tertiary-tint: #677d36;
+  
+      --ion-color-success: #2E8B57; /* Sea Green */
+      --ion-color-success-rgb: 46, 139, 87;
+      --ion-color-success-contrast: #000000;
+      --ion-color-success-contrast-rgb: 0, 0, 0;
+      --ion-color-success-shade: #297a4e;
+      --ion-color-success-tint: #3ca96d;
+  
+      --ion-color-warning: #FFD700; /* Gold */
+      --ion-color-warning-rgb: 255, 215, 0;
+      --ion-color-warning-contrast: #000000;
+      --ion-color-warning-contrast-rgb: 0, 0, 0;
+      --ion-color-warning-shade: #e6c200;
+      --ion-color-warning-tint: #ffda22;
+  
+      --ion-color-danger: #A52A2A; /* Brown */
+      --ion-color-danger-rgb: 165, 42, 42;
+      --ion-color-danger-contrast: #ffffff;
+      --ion-color-danger-contrast-rgb: 255, 255, 255;
+      --ion-color-danger-shade: #922626;
+      --ion-color-danger-tint: #b64040;
+  
+      --ion-color-dark: #2F4F4F; /* Dark Slate Gray */
+      --ion-color-dark-rgb: 47, 79, 79;
+      --ion-color-dark-contrast: #ffffff;
+      --ion-color-dark-contrast-rgb: 255, 255, 255;
+      --ion-color-dark-shade: #294545;
+      --ion-color-dark-tint: #436b6b;
+  
+      --ion-color-medium: #556B2F; /* Dark Olive Green */
+      --ion-color-medium-rgb: 85, 107, 47;
+      --ion-color-medium-contrast: #000000;
+      --ion-color-medium-contrast-rgb: 0, 0, 0;
+      --ion-color-medium-shade: #4b5f2a;
+      --ion-color-medium-tint: #677d36;
+  
+      --ion-color-light: #F5FFFA; /* Mint Cream */
+      --ion-color-light-rgb: 245, 255, 250;
+      --ion-color-light-contrast: #000000;
+      --ion-color-light-contrast-rgb: 0, 0, 0;
+      --ion-color-light-shade: #d7e6da;
+      --ion-color-light-tint: #f6fffb;
+    }
+  }
+  

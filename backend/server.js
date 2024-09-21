@@ -13,6 +13,11 @@ const loadEnv = require('./src/utils/envUtils');
 
 const { versionPath } = require('./package.json');
 
+const allowedOrigins = [
+  'http://localhost:8100',
+  // Add more origins as needed
+];
+
 loadEnv();
 
 const app = express();
@@ -23,7 +28,17 @@ app.use(errorHandler);
 
 // Middleware setup
 const middlewareSetup = () => {
-  app.use(cors());
+  const corsOptions = {
+    origin: (origin, callback) => {
+      if (allowedOrigins.includes(origin) || !origin) {
+        callback(null, true); // Allow the request
+      } else {
+        callback(new Error('Not allowed by CORS')); // Reject the request
+      }
+    },
+    credentials: true, // Allows credentials
+  };
+  app.use(cors(corsOptions));
   app.use(bodyParser.json());
   app.use(cookieParser());
 };

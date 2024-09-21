@@ -42,7 +42,7 @@ const register = async (req, res) => {
     const [result] = await pool.query("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword]);
     res.status(201).json({ id: result.insertId, username });
   } catch (err) {
-    logger.error(err.message);
+    logger.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -72,7 +72,7 @@ const login = async (req, res) => {
 
     res.json({ accessToken });
   } catch (err) {
-    logger.error(err.message);
+    logger.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };

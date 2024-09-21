@@ -43,7 +43,7 @@ const getImages = async (req, res) => {
     const [images] = await selectImages();
     res.status(200).json(images);
   } catch (err) {
-    logger.error(err.message);
+    logger.error(err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -57,7 +57,7 @@ const getImage = async (req, res) => {
     }
     res.status(200).json(result);
   } catch (err) {
-    logger.error(err.message);
+    logger.error(err);
     res.status(500).json({ error: err.message });
   }
 };
