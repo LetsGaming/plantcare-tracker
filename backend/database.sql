@@ -12,8 +12,9 @@ CREATE TABLE substrates (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   user_id INT NOT NULL,  -- Verknüpfung mit dem Benutzer
+  is_public BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE  -- Substrat wird gelöscht, wenn der Benutzer gelöscht wird
+  FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 -- Tabelle für Komponenten (mit Feinheit)

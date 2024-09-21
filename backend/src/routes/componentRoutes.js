@@ -4,7 +4,7 @@ const { authenticateToken, isAdmin } = require("../middlewares/authMiddleware");
 const {
   addComponent,
   updateComponent,
-} = require("../controllers/substrateController");
+} = require("../controllers/componentController");
 
 // Admin routes for component management
 router.post("/admin", authenticateToken, isAdmin, addComponent);
