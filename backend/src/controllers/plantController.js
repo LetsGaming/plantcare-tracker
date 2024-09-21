@@ -5,7 +5,14 @@ const {
   selectPublicPlant,
   insertPlant,
 } = require("../models/plantModel");
-const logger = require("../utils/logger");
+
+const { errorResponse } = require("../utils/responseUtils");
+
+const validatePlantData = (name, species, substrateId) => {
+  if (!name || !species || !substrateId) {
+    throw new Error("Name, species, and substrateId are required.");
+  }
+};
 
 const getPrivatePlants = async (req, res) => {
   try {
@@ -13,8 +20,7 @@ const getPrivatePlants = async (req, res) => {
     const [plants] = await selectPrivatePlants(userId);
     res.status(200).json(plants);
   } catch (err) {
-    logger.error(err);
-    res.status(500).json({ error: err.message });
+    errorResponse(res, err);
   }
 };
 
@@ -29,8 +35,7 @@ const getPrivatePlant = async (req, res) => {
     }
     res.status(200).json(plant);
   } catch (err) {
-    logger.error(err);
-    res.status(500).json({ error: "Error fetching plant" });
+    errorResponse(res, err, 500, "Error fetching plant");
   }
 };
 
@@ -39,8 +44,7 @@ const getPublicPlants = async (req, res) => {
     const [plants] = await selectPublicPlants();
     res.status(200).json(plants);
   } catch (err) {
-    logger.error(err);
-    res.status(500).json({ error: err.message });
+    errorResponse(res, err);
   }
 };
 
@@ -54,24 +58,20 @@ const getPublicPlant = async (req, res) => {
     }
     res.status(200).json(plant);
   } catch (err) {
-    logger.error(err);
-    res.status(500).json({ error: "Error fetching plant" });
+    errorResponse(res, err, 500, "Error fetching plant");
   }
 };
 
 const addPlant = async (req, res) => {
   const { name, species, substrateId } = req.body;
-  if (!name || !species || !substrateId) {
-    return res.status(400).json({ error: "Name, species, and substrateId are required." });
-  }
 
   try {
+    validatePlantData(name, species, substrateId);
     const user = req.user;
     const [plant] = await insertPlant(name, species, substrateId, user.id);
     res.status(201).json({ id: plant.insertId });
   } catch (err) {
-    logger.error(err);
-    res.status(500).json({ error: err.message });
+    errorResponse(res, err, err.message === "Name, species, and substrateId are required." ? 400 : 500);
   }
 };
 

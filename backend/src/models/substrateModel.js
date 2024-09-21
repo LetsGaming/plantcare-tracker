@@ -8,7 +8,8 @@ const selectSubstratesQuery = `
     components.id as component_id,
     components.name as component_name,
     components.fineness as component_fineness,
-    substrate_components.parts as parts
+    substrate_components.parts as parts,
+    substrates.user_id as user_id
   FROM substrates
   LEFT JOIN substrate_components ON substrates.id = substrate_components.substrate_id
   LEFT JOIN components ON substrate_components.component_id = components.id
@@ -19,15 +20,16 @@ const selectSubstrates = (conditions = {}, params = []) => {
   let whereClauses = [];
 
   if (conditions.id) {
-    whereClauses.push('substrates.id = ?');
+    whereClauses.push("substrates.id = ?");
     params.push(conditions.id);
   }
 
-  const whereSQL = whereClauses.length ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+  const whereSQL = whereClauses.length
+    ? `WHERE ${whereClauses.join(" AND ")}`
+    : "";
   const query = `${selectSubstratesQuery} ${whereSQL}`;
 
-  return pool.query(query, params).then(([rows]) => { // Extract only the first element from the result
-
+  return pool.query(query, params).then(([rows]) => {
     const substrates = rows.reduce((acc, row) => {
       const {
         substrate_id,
@@ -35,31 +37,27 @@ const selectSubstrates = (conditions = {}, params = []) => {
         component_id,
         component_name,
         component_fineness,
-        parts
+        parts,
       } = row;
 
-      // Find the substrate or create it if it doesn't exist
-      let substrate = acc.find(s => s.substrate_id === substrate_id);
+      let substrate = acc.find((s) => s.substrate_id === substrate_id);
       if (!substrate) {
         substrate = {
           substrate_id,
           substrate_name,
-          components: []
+          components: [],
         };
         acc.push(substrate);
       }
 
-      // Create the component object
       const component = {
         component_id,
         component_name,
         component_fineness,
-        parts
+        parts,
       };
 
-      // Push the component to the substrate's components array
       substrate.components.push(component);
-
       return acc;
     }, []);
 
@@ -84,26 +82,26 @@ const insertSubstrateComponent = (substrate_id, component_id, parts) =>
     [substrate_id, component_id, parts]
   );
 
-// Insert a component
-const insertComponent = (name, fineness) =>
-  pool.query("INSERT INTO components (name, fineness) VALUES (?, ?)", [
+// Update a substrate
+const updateSubstrate = (id, name, user_id) => 
+  pool.query("UPDATE substrates SET name = ? WHERE id = ? AND user_id = ?", [
     name,
-    fineness,
+    id,
+    user_id,
   ]);
 
-// Update a component by ID
-const updateComponentById = (id, name, fineness) =>
-  pool.query("UPDATE components SET name = ?, fineness = ? WHERE id = ?", [
-    name,
-    fineness,
-    id,
-  ]);
+// Update a substrate component
+const updateSubstrateComponent = (substrate_id, component_id, parts) =>
+  pool.query(
+    "UPDATE substrate_components SET parts = ? WHERE substrate_id = ? AND component_id = ?",
+    [parts, substrate_id, component_id]
+  );
 
 module.exports = {
   selectSubstrates,
   selectSubstrate,
   insertSubstrate,
   insertSubstrateComponent,
-  insertComponent,
-  updateComponentById,
+  updateSubstrate,
+  updateSubstrateComponent,
 };
