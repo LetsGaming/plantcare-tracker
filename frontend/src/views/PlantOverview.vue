@@ -112,8 +112,7 @@ export default {
     },
     async viewPlant(plantId: number) {
       try {
-        const data = await PlantService.getPlantById(plantId, this.isPublic);
-        this.selectedPlant = data[0];
+        this.selectedPlant = await PlantService.getPlantById(plantId, this.isPublic);
       } catch (error) {
         console.error("Error fetching plant details:", error);
       }

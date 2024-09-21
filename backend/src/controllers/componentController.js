@@ -3,7 +3,7 @@ const {
   updateComponentById,
 } = require("../models/componentModel");
 
-const { errorResponse } = require("../utils/responseUtils");
+const { errorResponse, successResponse } = require("../utils/responseUtils");
 
 const validateComponentData = (name, fineness) => {
   if (!name || !["Grob", "Mittel", "Fein"].includes(fineness)) {
@@ -38,7 +38,7 @@ const updateComponent = async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Component not found" });
     }
-    res.status(200).json({ message: "Component updated successfully" });
+    successResponse(res, { message: "Component updated successfully" });
   } catch (error) {
     errorResponse(
       res,
