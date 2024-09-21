@@ -6,7 +6,7 @@ const {
   insertPlant,
 } = require("../models/plantModel");
 
-const { errorResponse } = require("../utils/responseUtils");
+const { errorResponse, successResponse } = require("../utils/responseUtils");
 
 const validatePlantData = (name, species, substrateId) => {
   if (!name || !species || !substrateId) {
@@ -18,7 +18,7 @@ const getPrivatePlants = async (req, res) => {
   try {
     const userId = req.body.userId;
     const [plants] = await selectPrivatePlants(userId);
-    res.status(200).json(plants);
+    successResponse(res, plants);
   } catch (err) {
     errorResponse(res, err);
   }
@@ -33,7 +33,7 @@ const getPrivatePlant = async (req, res) => {
     if (!plant) {
       return res.status(404).json({ message: "Plant not found" });
     }
-    res.status(200).json(plant);
+    successResponse(res, plant);
   } catch (err) {
     errorResponse(res, err, 500, "Error fetching plant");
   }
@@ -42,7 +42,7 @@ const getPrivatePlant = async (req, res) => {
 const getPublicPlants = async (req, res) => {
   try {
     const [plants] = await selectPublicPlants();
-    res.status(200).json(plants);
+    successResponse(res, plants);
   } catch (err) {
     errorResponse(res, err);
   }
@@ -56,7 +56,7 @@ const getPublicPlant = async (req, res) => {
     if (!plant) {
       return res.status(404).json({ message: "Plant not found" });
     }
-    res.status(200).json(plant);
+    successResponse(res, plant);
   } catch (err) {
     errorResponse(res, err, 500, "Error fetching plant");
   }
@@ -69,9 +69,19 @@ const addPlant = async (req, res) => {
     validatePlantData(name, species, substrateId);
     const user = req.user;
     const [plant] = await insertPlant(name, species, substrateId, user.id);
-    res.status(201).json({ id: plant.insertId });
+    const plantId = plant.insertId;
+    const data = {
+      data: {
+        plantId,
+      },
+    };
+    res.status(201).json(data);
   } catch (err) {
-    errorResponse(res, err, err.message === "Name, species, and substrateId are required." ? 400 : 500);
+    errorResponse(
+      res,
+      err,
+      err.message === "Name, species, and substrateId are required." ? 400 : 500
+    );
   }
 };
 

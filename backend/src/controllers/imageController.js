@@ -2,6 +2,7 @@ const path = require("path");
 const logger = require('../utils/logger');
 const loadEnv = require("../utils/envUtils.js");
 const { insertImage, selectImage, selectImages } = require("../models/imageModel");
+const { successResponse, errorResponse } = require("../utils/responseUtils.js");
 
 loadEnv();
 
@@ -30,21 +31,20 @@ const uploadImage = async (req, res) => {
 
     const filePath = path.join(uploadDir, imageFile.filename);
     await insertImage(plantId, filePath, parsedDate);
-
-    res.status(200).json({ message: "Image uploaded successfully", filePath });
+    successResponse(res, { message: "Image uploaded successfully.", path: filePath });
   } catch (err) {
     logger.error("Error during image upload", err.message);
-    res.status(500).json({ message: "An error occurred while uploading the image.", error: err.message });
+    errorResponse(res, "An error occurred while uploading the image.");
   }
 };
 
 const getImages = async (req, res) => {
   try {
     const [images] = await selectImages();
-    res.status(200).json(images);
+    successResponse(res, images);
   } catch (err) {
     logger.error(err);
-    res.status(500).json({ error: err.message });
+    errorResponse(res, `Internal Server Error while getting images`);
   }
 };
 
@@ -55,10 +55,10 @@ const getImage = async (req, res) => {
     if (!result) {
       return res.status(404).json({ message: "Image not found" });
     }
-    res.status(200).json(result);
+    successResponse(res, result);
   } catch (err) {
     logger.error(err);
-    res.status(500).json({ error: err.message });
+    errorResponse(res, `Internal Server Error while getting image`);
   }
 };
 
