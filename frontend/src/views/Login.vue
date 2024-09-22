@@ -136,7 +136,7 @@ export default defineComponent({
         // Call the AuthUtils login method
         const response = await AuthUtils.login(data);
         console.log("Logged in successfully:", response);
-        this.$router.push("/tabs");
+        this.$router.push("/plants");
       } catch (error) {
         // Show error message if login fails
         ToastService.showError("Invalid username or password", undefined, "top", "login-button");

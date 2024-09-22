@@ -10,13 +10,14 @@
         <ion-segment v-model="showPublic" @ionChange="fetchPlants">
           <ion-segment-button value="public">
             <ion-icon :icon="peopleCircle" />
-            <ion-label>Public</ion-label>
+            <ion-label>Öffentlich</ion-label>
           </ion-segment-button>
           <ion-segment-button value="private">
             <ion-icon :icon="personCircle" />
-            <ion-label>Private</ion-label>
+            <ion-label>Persönlich</ion-label>
           </ion-segment-button>
         </ion-segment>
+        <ion-icon :icon="addCircle" style="width: 32px; height: 32px;" slot="end" @click="navigateToPlantAdding()"></ion-icon>
       </ion-toolbar>
     </ion-header>
 
@@ -31,7 +32,7 @@
             v-for="plant in plants"
             :key="plant.id"
           >
-            <ion-card class="plant-card" @click="navigateTo(plant.id)">
+            <ion-card class="plant-card" @click="navigateToPlant(plant.id)">
               <ion-img
                 :src="plant.imageUrl || '../../public/no-image.png'"
                 alt="Plant Image"
@@ -74,7 +75,7 @@ import {
   IonText,
   IonImg
 } from "@ionic/vue";
-import { peopleCircle, personCircle } from "ionicons/icons";
+import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
 export default {
   name: "PlantOverview",
@@ -111,6 +112,7 @@ export default {
     return {
       peopleCircle,
       personCircle,
+      addCircle
     };
   },
   mounted() {
@@ -129,8 +131,11 @@ export default {
         console.error("Error fetching plants:", error);
       }
     },
-    navigateTo(id: number) {
+    navigateToPlant(id: number) {
       this.$router.push({ name: "plant", params: { id }});
+    },
+    navigateToPlantAdding() {
+      this.$router.push({ name: "plant-adding" });
     }
   },
 };

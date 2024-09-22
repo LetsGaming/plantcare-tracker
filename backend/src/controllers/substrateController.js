@@ -25,7 +25,7 @@ const validateSubstrateComponents = (substrateId, components) => {
 
 const getSubstrates = async (req, res) => {
   try {
-    const [substrates] = await selectSubstrates();
+    const substrates = await selectSubstrates();
     successResponse(res, substrates);
   } catch (err) {
     errorResponse(res, err);
