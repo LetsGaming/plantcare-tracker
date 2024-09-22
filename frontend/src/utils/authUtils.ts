@@ -1,5 +1,6 @@
 import ToastService from '@/services/ToastService';
 import ApiService from './apiUtils';
+import storageService from '@/services/StorageService';
 
 const TOKEN_KEY = 'authToken';
 
@@ -10,31 +11,32 @@ const AuthUtils = {
 
   async login(data: LoginData): Promise<AuthResponse> {
     const response = await ApiService.post<LoginData, AuthResponse>('/auth/login', data);
-    localStorage.setItem(TOKEN_KEY, response.accessToken);
+    await storageService.set(TOKEN_KEY, response.accessToken); // Use StorageService to store the token
     return response;
   },
 
   async logout(): Promise<void> {
     await ApiService.post<null, { message: string }>('/auth/logout', null);
-    localStorage.removeItem(TOKEN_KEY);
+    await storageService.remove(TOKEN_KEY); // Use StorageService to remove the token
   },
 
   async refreshToken(): Promise<void> {
     try {
       const response = await ApiService.post<null, { accessToken: string }>('/auth/refresh-token', null);
-      localStorage.setItem(TOKEN_KEY, response.accessToken); // Update token
+      await storageService.set(TOKEN_KEY, response.accessToken); // Update token using StorageService
     } catch (error) {
       ToastService.showError(`Failed to refresh token: ${error}`);
       throw new Error('Token refresh failed');
     }
   },
 
-  getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+  async getToken(): Promise<string | null> {
+    return await storageService.get<string>(TOKEN_KEY); // Get token using StorageService
   },
 
-  isAuthenticated(): boolean {
-    return this.getToken() !== null;
+  async isAuthenticated(): Promise<boolean> {
+    const token = await this.getToken();
+    return token !== null; // Check if token exists
   }
 };
 

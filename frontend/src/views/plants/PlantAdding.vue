@@ -5,21 +5,21 @@
         <ion-buttons slot="start">
           <ion-back-button text="Zurück"></ion-back-button>
         </ion-buttons>
-        <IonTitle>Add New Plant</IonTitle>
+        <IonTitle>Neue Pflanze hinzufügen</IonTitle>
       </IonToolbar>
     </IonHeader>
     <IonContent>
       <div class="form-container">
         <IonCard>
           <IonCardHeader>
-            <IonCardTitle>Plant Information</IonCardTitle>
+            <IonCardTitle>Pflanzen Informationen</IonCardTitle>
           </IonCardHeader>
           <IonCardContent v-if="plant">
             <!-- Plant Name -->
             <IonItem>
               <IonInput
                 v-model="plant.name"
-                label="Pflanzen Name"
+                label="Name"
                 label-placement="floating"
                 required
               />
@@ -29,7 +29,7 @@
             <IonItem>
               <IonInput
                 v-model="plant.species"
-                label="Pflanzen Spezies"
+                label="Spezies"
                 label-placement="floating"
                 required
               />
@@ -50,7 +50,7 @@
 
             <!-- Plant Visibility (Public/Private Radio Buttons) -->
             <IonItem>
-              <IonLabel>Plant Visibility</IonLabel>
+              <IonLabel>Sichtbarkeit</IonLabel>
               <IonRadioGroup v-model="plant.isPublic">
                 <IonItem>
                   <IonRadio slot="start" :value="true">Öffentlich</IonRadio>
