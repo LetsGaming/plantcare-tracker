@@ -1,40 +1,52 @@
 <template>
   <ion-page>
+    <!-- Sticky Header with Filters -->
     <ion-header>
-      <ion-toolbar>
+      <ion-toolbar class="header-toolbar">
         <ion-title>Plants</ion-title>
       </ion-toolbar>
-    </ion-header>
 
-    <ion-content>
-      <!-- Public/Private Toggle -->
-      <ion-toolbar>
-        <ion-segment v-model="showPublic" @ionChange="fetchPlants" style="width: 100%">
+      <ion-toolbar class="segment-toolbar">
+        <ion-segment v-model="showPublic" @ionChange="fetchPlants">
           <ion-segment-button value="public">
             <ion-icon :icon="peopleCircle" />
-            <ion-label>Public Plants</ion-label>
+            <ion-label>Public</ion-label>
           </ion-segment-button>
           <ion-segment-button value="private">
             <ion-icon :icon="personCircle" />
-            <ion-label>Private Plants</ion-label>
+            <ion-label>Private</ion-label>
           </ion-segment-button>
         </ion-segment>
       </ion-toolbar>
+    </ion-header>
 
-      <!-- Plant Cards Grid -->
-      <ion-row class="plant-list">
-        <ion-col size="4" v-for="plant in plants" :key="plant.id">
-          <ion-card @click="viewPlant(plant.id)" class="plant-card">
-            <ion-card-header>
-              <ion-card-title>{{ plant.name }}</ion-card-title>
-            </ion-card-header>
-            <ion-card-content>
-              <ion-text color="medium">Click for details</ion-text>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-      </ion-row>
-      <PlantDetails :selectedPlant="selectedPlant"></PlantDetails>
+    <!-- Content Area -->
+    <ion-content>
+      <ion-grid class="plant-grid">
+        <ion-row>
+          <ion-col
+            size="6"
+            size-md="4"
+            size-lg="3"
+            v-for="plant in plants"
+            :key="plant.id"
+          >
+            <ion-card class="plant-card" @click="navigateTo(plant.id)">
+              <ion-img
+                :src="plant.imageUrl || '../../public/no-image.png'"
+                alt="Plant Image"
+                class="plant-image"
+              />
+              <ion-card-header>
+                <ion-card-title>{{ plant.name }}</ion-card-title>
+              </ion-card-header>
+              <ion-card-content>
+                <ion-text color="medium">Click for details</ion-text>
+              </ion-card-content>
+            </ion-card>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
     </ion-content>
   </ion-page>
 </template>
@@ -52,6 +64,7 @@ import {
   IonSegmentButton,
   IonIcon,
   IonLabel,
+  IonGrid,
   IonRow,
   IonCol,
   IonCard,
@@ -59,6 +72,7 @@ import {
   IonCardTitle,
   IonCardContent,
   IonText,
+  IonImg
 } from "@ionic/vue";
 import { peopleCircle, personCircle } from "ionicons/icons";
 
@@ -74,6 +88,7 @@ export default {
     IonSegmentButton,
     IonIcon,
     IonLabel,
+    IonGrid,
     IonRow,
     IonCol,
     IonCard,
@@ -81,6 +96,7 @@ export default {
     IonCardTitle,
     IonCardContent,
     IonText,
+    IonImg,
 
     PlantDetails,
   },
@@ -92,7 +108,10 @@ export default {
     };
   },
   setup() {
-    return { peopleCircle, personCircle };
+    return {
+      peopleCircle,
+      personCircle,
+    };
   },
   mounted() {
     this.fetchPlants();
@@ -103,40 +122,51 @@ export default {
     },
   },
   methods: {
-    resetPlants() {
-      this.plants = [] as Plant[];
-      this.selectedPlant = null;
-    },
     async fetchPlants() {
       try {
-        this.resetPlants();
         this.plants = await PlantService.getPlants(this.isPublic);
       } catch (error) {
         console.error("Error fetching plants:", error);
       }
     },
-    async viewPlant(plantId: number) {
-      try {
-        this.selectedPlant = await PlantService.getPlantById(plantId, this.isPublic);
-      } catch (error) {
-        console.error("Error fetching plant details:", error);
-      }
-    },
+    navigateTo(id: number) {
+      this.$router.push({ name: "plant", params: { id }});
+    }
   },
 };
 </script>
 
 <style scoped>
-.plant-list {
-  padding: 16px;
+.header-toolbar {
+  background-color: var(--ion-color-primary);
+  color: white;
+}
+
+.segment-toolbar {
+  background-color: var(--ion-color-light);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.plant-grid {
+  padding: 20px;
 }
 
 .plant-card {
-  transition: transform 0.2s;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 15px;
 }
 
 .plant-card:hover {
-  transform: scale(1.02);
+  transform: scale(1.05);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
+.plant-image {
+  width: 126px;
+  height: 126px;
+  border-radius: 15px 15px 0 0;
+}
 </style>
