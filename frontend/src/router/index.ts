@@ -15,18 +15,26 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     path: "/plants",
-    component: () => import("@/views/PlantOverview.vue"),
-  },
-  {
-    name: "plant",
-    path: "/plant/:id",
-    component: () => import("@/components/plants/PlantDetails.vue"),
-    props: true,
-  },
-  {
-    name: "plant-adding",
-    path: "/plant-adding",
-    component: () => import("@/components/plants/PlantAdding.vue"),
+    redirect: "/plants/overview",
+    component: () => import("@/views/plants/PlantMain.vue"),
+    children: [
+      {
+        name: "plant-overview",
+        path: "overview",
+        component: () => import("@/views/plants/PlantOverview.vue"),
+      },
+      {
+        name: "plant",
+        path: "plant/:id",
+        component: () => import("@/views/plants/PlantDetails.vue"),
+        props: true,
+      },
+      {
+        name: "plant-adding",
+        path: "plant-adding",
+        component: () => import("@/views/plants/PlantAdding.vue"),
+      },
+    ]
   },
   {
     path: "/tabs/",

@@ -34,7 +34,7 @@
           >
             <ion-card class="plant-card" @click="navigateToPlant(plant.id)">
               <ion-img
-                :src="plant.imageUrl || '../../public/no-image.png'"
+                :src="plant.imageUrl || '/no-image.png'"
                 alt="Plant Image"
                 class="plant-image"
               />
@@ -49,12 +49,13 @@
         </ion-row>
       </ion-grid>
     </ion-content>
+
   </ion-page>
 </template>
 
 <script lang="ts">
 import PlantService from "@/services/PlantService";
-import PlantDetails from "@/components/plants/PlantDetails.vue";
+
 import {
   IonPage,
   IonContent,
@@ -73,7 +74,8 @@ import {
   IonCardTitle,
   IonCardContent,
   IonText,
-  IonImg
+  IonImg,
+  IonRouterOutlet,
 } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
@@ -98,8 +100,7 @@ export default {
     IonCardContent,
     IonText,
     IonImg,
-
-    PlantDetails,
+    IonRouterOutlet,
   },
   data() {
     return {
