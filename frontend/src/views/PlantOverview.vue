@@ -9,7 +9,7 @@
     <ion-content>
       <!-- Public/Private Toggle -->
       <ion-toolbar>
-        <ion-segment v-model="showPublic" style="width: 100%">
+        <ion-segment v-model="showPublic" @ionChange="fetchPlants" style="width: 100%">
           <ion-segment-button value="public">
             <ion-icon :icon="peopleCircle" />
             <ion-label>Public Plants</ion-label>
@@ -103,8 +103,13 @@ export default {
     },
   },
   methods: {
+    resetPlants() {
+      this.plants = [] as Plant[];
+      this.selectedPlant = null;
+    },
     async fetchPlants() {
       try {
+        this.resetPlants();
         this.plants = await PlantService.getPlants(this.isPublic);
       } catch (error) {
         console.error("Error fetching plants:", error);
