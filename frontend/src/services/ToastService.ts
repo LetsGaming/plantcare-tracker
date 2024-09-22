@@ -16,6 +16,7 @@ interface ToastOptions {
   message: string;
   duration?: number;
   position?: ToastPosition;
+  positionAnchor?: string;
   color?: ToastColor;
   showCloseButton?: boolean;
   closeButtonText?: string;
@@ -37,6 +38,7 @@ class ToastService {
       message,
       duration = 2000,
       position = "bottom",
+      positionAnchor = "",
       color = "dark",
       showCloseButton,
       closeButtonText,
@@ -48,6 +50,7 @@ class ToastService {
       message,
       duration,
       position,
+      positionAnchor,
       color,
       buttons: showCloseButton
         ? [{ text: closeButtonText, role: "cancel" }]
@@ -77,9 +80,10 @@ class ToastService {
   static showSuccess(
     message: string,
     duration?: number,
-    position?: ToastPosition
+    position?: ToastPosition,
+    positionAnchor?: string
   ) {
-    this.addToast({ message, duration, position, color: "success" });
+    this.addToast({ message, duration, position, positionAnchor, color: "success" });
   }
 
   /**
@@ -88,9 +92,10 @@ class ToastService {
   static showError(
     message: string,
     duration?: number,
-    position?: ToastPosition
+    position?: ToastPosition,
+    positionAnchor?: string
   ) {
-    this.addToast({ message, duration, position, color: "danger" });
+    this.addToast({ message, duration, position, positionAnchor, color: "danger" });
   }
 
   /**
@@ -99,9 +104,10 @@ class ToastService {
   static showWarning(
     message: string,
     duration?: number,
-    position?: ToastPosition
+    position?: ToastPosition,
+    positionAnchor?: string
   ) {
-    this.addToast({ message, duration, position, color: "warning" });
+    this.addToast({ message, duration, position, positionAnchor, color: "warning" });
   }
 
   /**
@@ -113,6 +119,7 @@ class ToastService {
     actionHandler: () => void,
     duration: number = 4000,
     position: ToastPosition = "bottom",
+    positionAnchor?: string,
     color: ToastColor = "dark"
   ) {
     this.addToast({
@@ -121,6 +128,7 @@ class ToastService {
       actionHandler,
       duration,
       position,
+      positionAnchor,
       color,
     });
   }
@@ -131,12 +139,14 @@ class ToastService {
   static showDismissableToast(
     message: string,
     position: ToastPosition = "bottom",
+    positionAnchor?: string,
     color: ToastColor = "medium",
     dismissButtonText: string = "Dismiss"
   ) {
     this.addToast({
       message,
       position,
+      positionAnchor,
       color,
       showCloseButton: true,
       closeButtonText: dismissButtonText,

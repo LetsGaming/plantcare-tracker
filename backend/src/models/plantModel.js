@@ -52,21 +52,21 @@ const selectPlants = async (conditions = {}, params = []) => {
       };
     })
   );
-  
+
   return plantsWithSubstrates;
 };
 
 // Wrapper for selecting private plants
-const selectPrivatePlants = (user_id) => selectPlants({ user_id });
+const selectPrivatePlants = (user_id) => selectPlants({ user_id: user_id });
 
 // Wrapper for selecting public plants
 const selectPublicPlants = () => selectPlants({ is_public: true });
 
 // Wrapper for selecting a specific private plant by ID and user ID
-const selectPrivatePlant = (id, user_id) => selectPlants({ id, user_id });
+const selectPrivatePlant = (id, user_id) => selectPlants({ id: id, user_id: user_id });
 
 // Wrapper for selecting a specific public plant by ID
-const selectPublicPlant = (id) => selectPlants({ id, is_public: true });
+const selectPublicPlant = (id) => selectPlants({ id: id, is_public: true });
 
 // Insert a new plant
 const insertPlant = (name, species, substrate_id, user_id) =>

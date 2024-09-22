@@ -4,6 +4,7 @@ interface Plant {
     species: string;
     is_public: number;
     created_at: string;
+    imageUrl?: string,
     substrate: Substrate;
 }
 

@@ -1,16 +1,7 @@
 <template>
-  <ion-card>
-    <ion-card-header>
-      <ion-card-title>Pie Chart</ion-card-title>
-    </ion-card-header>
-    <ion-card-content class="pie-chart-wrapper">
-      <PieChart
-        :data="chartData"
-        :options="chartOptions"
-        :id="chartId"
-      />
-    </ion-card-content>
-  </ion-card>
+  <div class="pie-chart-wrapper">
+    <PieChart :data="chartData" :options="chartOptions" :id="chartId" />
+  </div>
 </template>
 
 <script lang="ts">
@@ -68,11 +59,11 @@ export default defineComponent({
   },
   setup() {
     const chartId = `pie-chart-${Math.random()}`;
-    return {chartId}
+    return { chartId };
   },
   mounted() {
     const canvas = document.getElementById(this.chartId) as HTMLCanvasElement;
-    this.chart = ChartJS.getChart(canvas)
+    this.chart = ChartJS.getChart(canvas);
     if (this.chart) {
       this.chart.resize(this.width, this.height);
     }
@@ -124,5 +115,6 @@ export default defineComponent({
 .pie-chart-wrapper {
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 </style>

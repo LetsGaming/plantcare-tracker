@@ -1,105 +1,169 @@
 <template>
-  <div v-if="selectedPlant" class="plant-details">
-    <section class="plant-info">
-      <h2 class="plant-name">{{ selectedPlant.name }}</h2>
-      <p class="plant-species">
-        <strong>Species:</strong> {{ selectedPlant.species }}
-      </p>
-    </section>
-
-    <section class="substrate-details">
-      <h3 class="substrate-title">
-        {{ selectedPlant?.substrate?.name ?? "Unknown" }}
-      </h3>
-      <ion-accordion-group>
-        <ion-accordion>
-          <ion-item slot="header" class="component-header">
-            <ion-label>Components</ion-label>
-          </ion-item>
-          <div slot="content">
-            <!-- Pie Chart Integration -->
-            <PieChart :data="chartData" v-if="chartData.length > 0" />
-            <div class="search-bar">
-              <input
-                v-model="searchQuery"
-                class="search-input"
-                type="text"
-                placeholder="Search components..."
-              />
-            </div>
-            <div class="component-list">
-              <transition-group name="fade" tag="ul">
-                <li
-                  v-for="component in filteredComponents"
-                  :key="component.id"
-                  class="component-item card"
-                >
-                  <button
-                    class="component-toggle"
-                    @click="toggleDetails(component.id)"
-                    :aria-expanded="isDetailsVisible(component.id)"
-                  >
-                    <span class="component-name">{{ component.name }}</span>
-                    <span
-                      class="toggle-icon"
-                      :class="{ open: isDetailsVisible(component.id) }"
-                    >
-                      ▼
-                    </span>
-                  </button>
-
-                  <transition name="slide-fade">
-                    <div
-                      v-if="isDetailsVisible(component.id)"
-                      class="component-details"
-                    >
-                      <p><strong>Fineness:</strong> {{ component.fineness }}</p>
-                      <p><strong>Parts:</strong> {{ component.parts }}</p>
-                    </div>
-                  </transition>
-                </li>
-              </transition-group>
-            </div>
+  <ion-page>
+    <ion-header>
+      <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-back-button text="Zurück"></ion-back-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content>
+      <div v-if="plant">
+        <!-- Full-width banner with dynamic plant image -->
+        <section class="plant-banner">
+          <ion-img
+            :src="plant.imageUrl || '../../public/no-image.png'"
+            alt="Plant Image"
+            class="plant-banner-image"
+          />
+          <div class="plant-banner-content">
+            <h2 class="plant-name">{{ plant.name }}</h2>
+            <p class="plant-species">{{ plant.species }}</p>
           </div>
-        </ion-accordion>
-      </ion-accordion-group>
-    </section>
-  </div>
+        </section>
+
+        <section class="plant-info">
+          <h3>Substrat</h3>
+          <section class="substrate-details">
+            <h3 class="substrate-title">
+              {{ plant?.substrate?.name ?? 'Unknown' }}
+            </h3>
+            <ion-accordion-group>
+              <ion-accordion>
+                <ion-item slot="header" class="component-header">
+                  <ion-label>Komponenten</ion-label>
+                </ion-item>
+                <div slot="content" class="component-wrapper align-middle">
+                  <!-- Pie Chart Integration -->
+                  <PieChart :data="chartData" v-if="chartData.length > 0" />
+                  <div class="component-list">
+                    <div class="search-bar">
+                      <input
+                        v-model="searchQuery"
+                        class="search-input"
+                        type="text"
+                        placeholder="Search components..."
+                      />
+                    </div>
+                    <transition-group
+                      name="fade"
+                      tag="ul"
+                      style="padding: 0; max-height: 250px; overflow-y: scroll"
+                    >
+                      <li
+                        v-for="component in filteredComponents"
+                        :key="component.id"
+                        class="component-item card"
+                      >
+                        <button
+                          class="component-toggle"
+                          @click="toggleDetails(component.id)"
+                          :aria-expanded="isDetailsVisible(component.id)"
+                        >
+                          <span class="component-name">{{ component.name }}</span>
+                          <span
+                            class="toggle-icon"
+                            :class="{ open: isDetailsVisible(component.id) }"
+                          >
+                            ▼
+                          </span>
+                        </button>
+
+                        <transition name="slide-fade">
+                          <div
+                            v-if="isDetailsVisible(component.id)"
+                            class="component-details"
+                          >
+                            <p>
+                              <strong>Fineness:</strong> {{ component.fineness }}
+                            </p>
+                            <p><strong>Parts:</strong> {{ component.parts }}</p>
+                          </div>
+                        </transition>
+                      </li>
+                    </transition-group>
+                  </div>
+                </div>
+              </ion-accordion>
+            </ion-accordion-group>
+          </section>
+        </section>
+      </div>
+    </ion-content>
+  </ion-page>
 </template>
 
 <script lang="ts">
-import { IonAccordionGroup, IonAccordion, IonItem, IonLabel } from "@ionic/vue";
+import {
+  IonPage,
+  IonContent,
+  IonHeader,
+  IonToolbar,
+  IonButtons,
+  IonBackButton,
+  IonAccordionGroup,
+  IonAccordion,
+  IonItem,
+  IonLabel,
+  IonImg,
+  IonText,
+} from "@ionic/vue";
 import { defineComponent } from "vue";
 import PieChart from "../PieChart.vue";
+import PlantService from "@/services/PlantService";
 
 export default defineComponent({
   name: "PlantDetails",
   components: {
+    IonPage,
+    IonContent,
+    IonHeader,
+    IonToolbar,
+    IonButtons,
+    IonBackButton,
     IonAccordionGroup,
     IonAccordion,
     IonItem,
     IonLabel,
+    IonImg,
+    IonText,
+
     PieChart,
   },
   props: {
-    selectedPlant: {
-      type: Object as () => Plant | null,
-      required: false,
+    id: {
+      type: String,
+      required: true,
+    },
+    isPublic: {
+      type: Boolean,
+      default: false,
     },
   },
   data() {
     return {
+      plant: null as null | Plant,
       searchQuery: "",
       detailsVisibility: {} as { [key: number]: boolean },
     };
   },
+  async mounted() {
+    try {
+      this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
+    } catch (error) {
+      console.error("Error fetching plant details:", error);
+    }
+  },
   computed: {
+    plantId() {
+      return Number.parseInt(this.id);
+    },
     components() {
-      return this.selectedPlant?.substrate?.components ?? [];
+      return this.plant?.substrate?.components ?? [];
     },
     chartData() {
       return this.components.map((component) => ({
-        name: component.name,
+        name: `${component.name} - ${component.fineness}`,
         parts: component.parts,
       }));
     },
@@ -120,7 +184,7 @@ export default defineComponent({
     isDetailsVisible(id: number) {
       return !!this.detailsVisibility[id];
     },
-  }
+  },
 });
 </script>
 
@@ -134,7 +198,42 @@ export default defineComponent({
   --accent-color: var(--ion-color-primary);
 }
 
-.plant-details {
+.plant-banner {
+  position: relative;
+  width: 100%;
+  height: 500px;
+  overflow: hidden;
+}
+
+.plant-banner-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.plant-banner-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5); /* Dark overlay for readability */
+  color: white;
+  text-align: left;
+}
+
+.plant-name {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.plant-species {
+  font-size: 1.2rem;
+  margin-top: 5px;
+}
+
+.plant-info {
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -145,24 +244,16 @@ export default defineComponent({
   transition: background 0.3s ease;
 }
 
-.plant-info,
 .substrate-details {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.plant-name {
-  font-size: 28px;
-  font-weight: bold;
-  color: var(--text-color);
-}
-
-.plant-species,
 .substrate-title {
   font-weight: 500;
   color: var(--detail-text-color);
-  font-size: 1.1rem;
+  font-size: 1.2rem;
 }
 
 .search-bar {
@@ -186,6 +277,7 @@ export default defineComponent({
 }
 
 .component-list {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -244,7 +336,6 @@ export default defineComponent({
   padding-left: 20px;
   font-size: 0.9rem;
   color: var(--detail-text-color);
-  background-color: var(--ion-color-dark-shade);
   border-radius: 6px;
 }
 
