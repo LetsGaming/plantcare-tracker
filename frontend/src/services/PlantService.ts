@@ -112,10 +112,9 @@ export default class PlantService {
     }
   }
 
-  static async addPlant(name: string, species: string, substrateId: number): Promise<any> {
+  static async addPlant(plantToAdd: AddPlant): Promise<any> {
     try {
-      const requestBody = { name, species, substrateId };
-      const response = await ApiUtils.post(BASE_ENDPOINT, requestBody);
+      const response = await ApiUtils.post(BASE_ENDPOINT, plantToAdd);
 
       // Invalidate the cached plants after adding a new plant
       await storageService.remove(CACHE_KEY_PUBLIC_PLANTS);

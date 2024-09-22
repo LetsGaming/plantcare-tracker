@@ -20,3 +20,10 @@ interface Component {
     fineness: string;
     parts: number;
 }
+
+interface AddPlant {
+    name: string,
+    species: string,
+    substrateId: number,
+    isPublic?: boolean,
+}

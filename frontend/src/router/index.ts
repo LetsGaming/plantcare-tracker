@@ -24,6 +24,11 @@ const routes: Array<RouteRecordRaw> = [
     props: true,
   },
   {
+    name: "plant-adding",
+    path: "/plant-adding",
+    component: () => import("@/components/plants/PlantAdding.vue"),
+  },
+  {
     path: "/tabs/",
     component: TabsPage,
     children: [

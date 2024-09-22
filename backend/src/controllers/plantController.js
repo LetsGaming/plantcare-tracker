@@ -65,12 +65,12 @@ const getPublicPlant = async (req, res) => {
 
 // Controller for adding a new plant
 const addPlant = async (req, res) => {
-  const { name, species, substrateId } = req.body;
+  const { name, species, substrateId, isPublic } = req.body;
   const userId = req.user ? req.user.id : null;
 
   try {
-    validatePlantData(name, species, substrateId);
-    const [plant] = await insertPlant(name, species, substrateId, userId);
+    validatePlantData(name, species, substrateId,);
+    const [plant] = await insertPlant(name, species, substrateId, isPublic || false, userId);
     const plantId = plant.insertId;
 
     successResponse(res, { plantId }, 201);

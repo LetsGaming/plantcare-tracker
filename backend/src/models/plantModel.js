@@ -69,7 +69,7 @@ const selectPrivatePlant = (id, user_id) => selectPlants({ id: id, user_id: user
 const selectPublicPlant = (id) => selectPlants({ id: id, is_public: true });
 
 // Insert a new plant
-const insertPlant = (name, species, substrate_id, user_id) =>
-  pool.query('INSERT INTO plants (name, species, substrate_id, user_id) VALUES (?, ?, ?,  ?)', [name, species, substrate_id, user_id]);
+const insertPlant = (name, species, substrate_id, is_public, user_id) =>
+  pool.query('INSERT INTO plants (name, species, substrate_id, is_public, user_id) VALUES (?, ?, ?, ?, ?)', [name, species, substrate_id, is_public, user_id]);
 
 module.exports = { selectPrivatePlants, selectPublicPlants, selectPrivatePlant, selectPublicPlant, insertPlant };
