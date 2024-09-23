@@ -1,7 +1,14 @@
 import { createRouter, createWebHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
+
+import AuthUtils from "@/utils/authUtils";
+
 import Login from "@/views/Login.vue";
-import TabsPage from "../views/TabsPage.vue";
+import TabsPage from "@/views/TabsPage.vue";
+import PlantMain from "@/views/plants/PlantMain.vue";
+import PlantOverview from "@/views/plants/PlantOverview.vue";
+import PlantDetails from "@/views/plants/PlantDetails.vue";
+import PlantAdding from "@/views/plants/PlantAdding.vue";
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -12,45 +19,34 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login",
     name: "Login",
     component: Login,
+    meta: { requiresAuth: false },
   },
   {
-    path: "/plants",
-    redirect: "/plants/overview",
-    component: () => import("@/views/plants/PlantMain.vue"),
-    children: [
-      {
-        name: "plant-overview",
-        path: "overview",
-        component: () => import("@/views/plants/PlantOverview.vue"),
-      },
-      {
-        name: "plant",
-        path: "plant/:id",
-        component: () => import("@/views/plants/PlantDetails.vue"),
-        props: true,
-      },
-      {
-        name: "plant-adding",
-        path: "plant-adding",
-        component: () => import("@/views/plants/PlantAdding.vue"),
-      },
-    ]
-  },
-  {
-    path: "/tabs/",
+    path: "/tabs",
     component: TabsPage,
     children: [
       {
-        path: "",
-        redirect: "/tabs/tab1",
-      },
-      {
-        path: "tab2",
-        component: () => import("@/views/Tab2Page.vue"),
-      },
-      {
-        path: "tab3",
-        component: () => import("@/views/Tab3Page.vue"),
+        path: "plants",
+        redirect: { name: "plant-overview" },
+        component: PlantMain,
+        children: [
+          {
+            name: "plant-overview",
+            path: "overview",
+            component: PlantOverview,
+          },
+          {
+            name: "plant",
+            path: "plant/:id",
+            component: PlantDetails,
+            props: true,
+          },
+          {
+            name: "plant-adding",
+            path: "adding",
+            component: PlantAdding,
+          },
+        ],
       },
     ],
   },
@@ -59,6 +55,16 @@ const routes: Array<RouteRecordRaw> = [
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+});
+
+// Add global navigation guards if needed
+router.beforeEach((to, from, next) => {
+  // Example guard
+  if (to.meta.requiresAuth && !AuthUtils.isAuthenticated()) {
+    next({ name: 'Login' });
+  } else {
+    next();
+  }
 });
 
 export default router;
