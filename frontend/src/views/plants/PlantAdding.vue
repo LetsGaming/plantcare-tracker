@@ -69,10 +69,12 @@
             >
           </IonCardContent>
         </IonCard>
-        <SubstrateContainer
-          v-if="selectedSubstrate"
-          :substrate="selectedSubstrate"
-        ></SubstrateContainer>
+        <div class="substrate-container-wrapper">
+          <SubstrateContainer
+            v-if="selectedSubstrate"
+            :substrate="selectedSubstrate"
+          />
+        </div>
       </div>
     </IonContent>
   </IonPage>
@@ -105,7 +107,7 @@ import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
 
 import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
-import ToastService from "@/services/ToastService";
+import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   components: {
@@ -156,6 +158,7 @@ export default defineComponent({
     async fetchSubstrates() {
       try {
         const response = await SubstrateService.getSubstrates();
+        console.log(response);
         this.substrates = response;
       } catch (error) {
         console.error("Error fetching substrates:", error);
@@ -189,6 +192,11 @@ export default defineComponent({
   align-items: center;
   height: 100%;
   padding: 16px;
+}
+
+.substrate-container-wrapper {
+  width: 100%;
+  max-width: 500px;
 }
 
 ion-card {

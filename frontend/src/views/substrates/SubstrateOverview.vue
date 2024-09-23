@@ -5,7 +5,7 @@
       title="Substrates"
       :segments="[
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
-        { value: 'private', label: 'Persönlich', icon: personCircle }
+        { value: 'private', label: 'Persönlich', icon: personCircle },
       ]"
       :showAddButton="true"
       :addIcon="addCircle"
@@ -26,18 +26,22 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { IonPage, IonContent } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 import SubstrateService from "@/services/SubstrateService";
 
 // Importing the custom components
-import OverviewHeader from "@/components/Overview/OverviewHeader.vue";
-import ItemsOverview from "@/components/Overview/ItemsOverview.vue";
+import OverviewHeader from "@/components/overview/OverviewHeader.vue";
+import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 
 export default defineComponent({
   name: "SubstrateOverview",
   components: {
+    IonPage,
+    IonContent,
+
     OverviewHeader,
-    ItemsOverview
+    ItemsOverview,
   },
   data() {
     return {

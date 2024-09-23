@@ -86,7 +86,7 @@ import {
 } from "ionicons/icons";
 
 import AuthUtils from "@/utils/authUtils";
-import ToastService from "@/services/ToastService";
+import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "Login",
@@ -136,7 +136,8 @@ export default defineComponent({
         // Call the AuthUtils login method
         const response = await AuthUtils.login(data);
         console.log("Logged in successfully:", response);
-        this.$router.push("/plants");
+        this.$router.push({name:  "plant-overview"});
+
       } catch (error) {
         // Show error message if login fails
         ToastService.showError("Invalid username or password", undefined, "top", "login-button");

@@ -32,8 +32,8 @@ import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 import PlantService from "@/services/PlantService";
 
 // Importing the new custom components
-import OverviewHeader from "@/components/Overview/OverviewHeader.vue";
-import ItemsOverview from "@/components/Overview/ItemsOverview.vue";
+import OverviewHeader from "@/components/overview/OverviewHeader.vue";
+import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 
 export default defineComponent({
   name: "PlantOverview",

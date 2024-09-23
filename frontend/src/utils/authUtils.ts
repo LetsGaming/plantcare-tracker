@@ -1,6 +1,6 @@
-import ToastService from '@/services/ToastService';
+import ToastService from '@/services/general/ToastService';
 import ApiService from './apiUtils';
-import storageService from '@/services/StorageService';
+import storageService from '@/services/general/StorageService';
 
 const TOKEN_KEY = 'authToken';
 

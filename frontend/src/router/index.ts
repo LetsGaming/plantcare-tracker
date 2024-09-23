@@ -3,12 +3,32 @@ import { RouteRecordRaw } from "vue-router";
 
 import AuthUtils from "@/utils/authUtils";
 
-import Login from "@/views/Login.vue";
-import TabsPage from "@/views/TabsPage.vue";
-import PlantMain from "@/views/plants/PlantMain.vue";
-import PlantOverview from "@/views/plants/PlantOverview.vue";
-import PlantDetails from "@/views/plants/PlantDetails.vue";
-import PlantAdding from "@/views/plants/PlantAdding.vue";
+// Dynamic imports for lazy loading
+const Login = () => import("@/views/Login.vue");
+const TabsPage = () => import("@/views/TabsPage.vue");
+const WrapperComponent = () => import("@/views/WrapperComponent.vue");
+const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
+const PlantDetails = () => import("@/views/plants/PlantDetails.vue");
+const PlantAdding = () => import("@/views/plants/PlantAdding.vue");
+const SubstrateOverview = () => import("@/views/substrates/SubstrateOverview.vue");
+const SubstrateDetails = () => import("@/views/substrates/SubstrateDetails.vue");
+
+// Helper function to create children routes with the same structure
+const createChildRoutes = (basePath: string, overviewComponent: any, detailsComponent: any, detailsName: string) => [
+  {
+    path: "overview",
+    name: `${basePath}-overview`,
+    component: overviewComponent,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: `:id`,
+    name: detailsName,
+    component: detailsComponent,
+    props: true,
+    meta: { requiresAuth: true },
+  },
+];
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -28,25 +48,22 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: "plants",
         redirect: { name: "plant-overview" },
-        component: PlantMain,
+        component: WrapperComponent,
         children: [
+          ...createChildRoutes("plant", PlantOverview, PlantDetails, "plant"),
           {
-            name: "plant-overview",
-            path: "overview",
-            component: PlantOverview,
-          },
-          {
-            name: "plant",
-            path: "plant/:id",
-            component: PlantDetails,
-            props: true,
-          },
-          {
-            name: "plant-adding",
             path: "adding",
+            name: "plant-adding",
             component: PlantAdding,
+            meta: { requiresAuth: true },
           },
         ],
+      },
+      {
+        path: "substrates",
+        redirect: { name: "substrate-overview" },
+        component: WrapperComponent,
+        children: createChildRoutes("substrate", SubstrateOverview, SubstrateDetails, "substrate"),
       },
     ],
   },
@@ -57,14 +74,12 @@ const router = createRouter({
   routes,
 });
 
-// Add global navigation guards if needed
+// Global navigation guard
 router.beforeEach((to, from, next) => {
-  // Example guard
   if (to.meta.requiresAuth && !AuthUtils.isAuthenticated()) {
-    next({ name: 'Login' });
-  } else {
-    next();
+    return next({ name: "Login" });
   }
+  next();
 });
 
 export default router;
