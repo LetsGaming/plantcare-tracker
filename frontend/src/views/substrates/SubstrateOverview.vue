@@ -1,24 +1,24 @@
 <template>
   <ion-page>
-    <!-- Sticky Header with Filters -->
+    <!-- Custom Header with Filters -->
     <overview-header
-      title="Plants"
+      title="Substrates"
       :segments="[
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
-        { value: 'private', label: 'Persönlich', icon: personCircle },
+        { value: 'private', label: 'Persönlich', icon: personCircle }
       ]"
       :showAddButton="true"
       :addIcon="addCircle"
       :activeSegment="showPublic"
       :onSegmentChange="handleSegmentChange"
-      :onAddClick="navigateToPlantAdding"
+      :onAddClick="navigateToSubstrateAdding"
     />
 
     <!-- Content Area -->
     <ion-content>
       <items-overview
-        :items="plants"
-        @item-click="navigateToPlant"
+        :items="substrates"
+        @item-click="navigateToSubstrate"
       ></items-overview>
     </ion-content>
   </ion-page>
@@ -26,27 +26,22 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonContent, IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
+import SubstrateService from "@/services/SubstrateService";
 
-import PlantService from "@/services/PlantService";
-
-// Importing the new custom components
+// Importing the custom components
 import OverviewHeader from "@/components/Overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/Overview/ItemsOverview.vue";
 
 export default defineComponent({
-  name: "PlantOverview",
+  name: "SubstrateOverview",
   components: {
-    IonPage,
-    IonContent,
-
     OverviewHeader,
-    ItemsOverview,
+    ItemsOverview
   },
   data() {
     return {
-      plants: [] as Plant[],
+      substrates: [] as Substrate[],
       showPublic: "private",
     };
   },
@@ -58,7 +53,7 @@ export default defineComponent({
     };
   },
   mounted() {
-    this.fetchPlants();
+    this.fetchSubstrates();
   },
   computed: {
     isPublic() {
@@ -66,22 +61,22 @@ export default defineComponent({
     },
   },
   methods: {
-    async fetchPlants() {
+    async fetchSubstrates() {
       try {
-        this.plants = await PlantService.getPlants(this.isPublic);
+        this.substrates = await SubstrateService.getSubstrates(this.isPublic);
       } catch (error) {
-        console.error("Error fetching plants:", error);
+        console.error("Error fetching substrates:", error);
       }
     },
     handleSegmentChange(value: string) {
       this.showPublic = value;
-      this.fetchPlants(); // Refetch plants based on segment change
+      this.fetchSubstrates(); // Refetch substrates based on segment change
     },
-    navigateToPlant(id: number) {
-      this.$router.push({ name: "plant", params: { id } });
+    navigateToSubstrate(id: number) {
+      this.$router.push({ name: "substrate", params: { id } });
     },
-    navigateToPlantAdding() {
-      this.$router.push({ name: "plant-adding" });
+    navigateToSubstrateAdding() {
+      this.$router.push({ name: "substrate-adding" });
     },
   },
 });

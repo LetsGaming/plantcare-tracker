@@ -8,19 +8,6 @@ interface Plant {
     substrate: Substrate;
 }
 
-interface Substrate {
-    id: number;
-    name: string;
-    components: Component[];
-}
-
-interface Component {
-    id: number;
-    name: string;
-    fineness: string;
-    parts: number;
-}
-
 interface AddPlant {
     name: string,
     species: string,
