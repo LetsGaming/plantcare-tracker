@@ -11,6 +11,7 @@ CREATE TABLE users (
 CREATE TABLE substrates (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  image_url VARCHAR(255),
   user_id INT NOT NULL,  -- Verknüpfung mit dem Benutzer
   is_public BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -37,13 +37,17 @@
 
             <!-- Substrate ID (Dropdown) -->
             <IonItem>
-              <IonSelect v-model="plant.substrateId" label="Substrat" placeholder="Select Substrate">
+              <IonSelect
+                v-model="plant.substrateId"
+                label="Substrat"
+                placeholder="Select Substrate"
+              >
                 <IonSelectOption
                   v-for="substrate in substrates"
-                  :key="substrate.substrate_id"
-                  :value="substrate.substrate_id"
+                  :key="substrate.id"
+                  :value="substrate.id"
                 >
-                  {{ substrate.substrate_name }}
+                  {{ substrate.name }}
                 </IonSelectOption>
               </IonSelect>
             </IonItem>
@@ -60,15 +64,22 @@
             </IonItem>
 
             <!-- Add Button -->
-            <IonButton expand="full" color="primary" @click="addPlant">Add Plant</IonButton>
+            <IonButton expand="full" color="primary" @click="addPlant"
+              >Add Plant</IonButton
+            >
           </IonCardContent>
         </IonCard>
+        <SubstrateContainer
+          v-if="selectedSubstrate"
+          :substrate="selectedSubstrate"
+        ></SubstrateContainer>
       </div>
     </IonContent>
   </IonPage>
 </template>
 
 <script lang="ts">
+import { defineComponent } from "vue";
 import {
   IonPage,
   IonHeader,
@@ -90,11 +101,13 @@ import {
   IonRadioGroup,
   IonRadio,
 } from "@ionic/vue";
+import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
+
 import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/ToastService";
 
-export default {
+export default defineComponent({
   components: {
     IonPage,
     IonHeader,
@@ -115,17 +128,29 @@ export default {
     IonButton,
     IonRadioGroup,
     IonRadio,
+
+    SubstrateContainer,
   },
   data() {
     return {
-      plant: { 
+      plant: {
         name: "",
         species: "",
         substrateId: 0,
         isPublic: false, // Default to private
       } as AddPlant,
-      substrates: [] as any[], // Substrate data will be fetched from API
+      substrates: [] as Substrate[], // Substrate data will be fetched from API
     };
+  },
+  async mounted() {
+    await this.fetchSubstrates(); // Fetch substrates when component mounts
+  },
+  computed: {
+    selectedSubstrate() {
+      return this.substrates.find(
+        (substrate) => substrate.id === this.plant.substrateId
+      );
+    },
   },
   methods: {
     async fetchSubstrates() {
@@ -153,10 +178,7 @@ export default {
       }
     },
   },
-  async mounted() {
-    await this.fetchSubstrates(); // Fetch substrates when component mounts
-  },
-};
+});
 </script>
 
 <style scoped>
