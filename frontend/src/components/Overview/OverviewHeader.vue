@@ -5,7 +5,7 @@
     </ion-toolbar>
 
     <ion-toolbar class="segment-toolbar">
-      <ion-segment v-model="activeSegment" @ionChange="handleSegmentChange">
+      <ion-segment v-model="segmentValue" @ionChange="handleSegmentChange">
         <ion-segment-button
           v-for="segment in segments"
           :key="segment.value"
@@ -69,7 +69,7 @@ export default defineComponent({
       type: String,
       default: "addCircle",
     },
-    activeSegment: {
+    startingSegment: {
       type: String,
       required: true,
     },
@@ -81,6 +81,11 @@ export default defineComponent({
       type: Function as PropType<() => void>,
       required: false,
     },
+  },
+  data() {
+    return {
+      segmentValue: this.startingSegment,
+      };
   },
   methods: {
     handleSegmentChange(event: any) {

@@ -9,7 +9,7 @@
       ]"
       :showAddButton="true"
       :addIcon="addCircle"
-      :activeSegment="showPublic"
+      starting-segment="private"
       :onSegmentChange="handleSegmentChange"
       :onAddClick="navigateToPlantAdding"
     />
