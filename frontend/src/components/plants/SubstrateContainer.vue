@@ -65,13 +65,15 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonAccordion, IonAccordionGroup } from "@ionic/vue";
+import { IonAccordion, IonAccordionGroup, IonItem, IonLabel } from "@ionic/vue";
 import PieChart from "@/components/PieChart.vue";
 export default defineComponent({
   components: {
     IonAccordion,
     IonAccordionGroup,
-    
+    IonItem,
+    IonLabel,
+
     PieChart,
   },
   props: {

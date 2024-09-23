@@ -50,6 +50,14 @@ export default defineComponent({
       default: 300, // Default height
     },
   },
+  watch: {
+    data: {
+      handler() {
+        this.computeChartInformation();
+      },
+      deep: true,
+    },
+  },
   data() {
     return {
       chart: undefined as undefined | ChartJS,
@@ -69,6 +77,10 @@ export default defineComponent({
     }
   },
   methods: {
+    computeChartInformation() {
+      this.chartData = this.computeChartData();
+      this.chartOptions = this.computeChartOptions();
+    },
     computeChartData() {
       const labels = this.data.map((item) => item.name);
       const parts = this.data.map((item) => item.parts);

@@ -2,7 +2,8 @@
   <ion-grid class="item-grid">
     <ion-row>
       <ion-col
-        size="6"
+        size-xs="12"
+        size-sm="8"
         size-md="4"
         size-lg="3"
         v-for="item in items"
