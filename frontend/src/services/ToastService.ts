@@ -38,7 +38,7 @@ class ToastService {
       message,
       duration = 2000,
       position = "bottom",
-      positionAnchor = "",
+      positionAnchor,
       color = "dark",
       showCloseButton,
       closeButtonText,
@@ -50,7 +50,7 @@ class ToastService {
       message,
       duration,
       position,
-      positionAnchor,
+      positionAnchor: positionAnchor ? positionAnchor : undefined,
       color,
       buttons: showCloseButton
         ? [{ text: closeButtonText, role: "cancel" }]
