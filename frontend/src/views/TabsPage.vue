@@ -14,7 +14,7 @@
         </ion-tab-button>
 
         <ion-tab-button tab="tab3" href="/tabs/tab3">
-          <ion-icon aria-hidden="true" :icon="square" />
+          <ion-icon aria-hidden="true" :icon="grid" />
           <ion-label>Tab 3</ion-label>
         </ion-tab-button>
       </ion-tab-bar>
@@ -24,5 +24,5 @@
 
 <script setup lang="ts">
 import { IonTabBar, IonTabButton, IonTabs, IonLabel, IonIcon, IonPage, IonRouterOutlet } from '@ionic/vue';
-import { cube, square, leaf } from 'ionicons/icons';
+import { cube, grid, leaf } from 'ionicons/icons';
 </script>
