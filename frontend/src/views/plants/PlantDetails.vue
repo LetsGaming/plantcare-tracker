@@ -23,6 +23,7 @@
         </section>
 
         <section class="plant-info">
+          <horizontal-gallery :images="plant.images"></horizontal-gallery>
           <substrate-container :substrate="plant.substrate"></substrate-container>
         </section>
       </div>
@@ -47,6 +48,7 @@ import {
 } from "@ionic/vue";
 import { defineComponent } from "vue";
 import PlantService from "@/services/PlantService";
+import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
 
 export default defineComponent({
@@ -65,6 +67,7 @@ export default defineComponent({
     IonImg,
     IonText,
 
+    HorizontalGallery,
     SubstrateContainer
   },
   props: {

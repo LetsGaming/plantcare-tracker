@@ -30,8 +30,8 @@ const createChildRoutes = (
     meta: { requiresAuth: true },
   },
   {
-    path: `:id`,
-    name: `${basePath}-adding`,
+    path: `${basePath}/:id`,
+    name: `${basePath}`,
     component: detailsComponent,
     props: true,
     meta: { requiresAuth: true },
