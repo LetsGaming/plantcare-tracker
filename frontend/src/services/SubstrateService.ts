@@ -146,10 +146,10 @@ const SubstrateService = {
   ): Promise<any> {
     try {
       // Step 1: Add the substrate
-      const response = await ApiUtils.post<AddSubstrate, any>(
+      const response = await ApiUtils.post(
         SUBSTRATES_ENDPOINT,
         substrateData
-      );
+      ) as any;
 
       const substrateId = response.id; // Assuming the response returns the new substrate with an id
 
@@ -159,8 +159,8 @@ const SubstrateService = {
         componentsData.substrateId = substrateId;
 
         // Assuming there is an endpoint to add components
-        const componentsResponse = await ApiUtils.post<AddSubstrateComponents, any>(
-          `${SUBSTRATES_ENDPOINT}/${substrateId}/components`, // Adjust the endpoint as needed
+        const componentsResponse = await ApiUtils.post(
+          `${SUBSTRATES_ENDPOINT}/components/${substrateId}`, // Adjust the endpoint as needed
           componentsData
         );
 

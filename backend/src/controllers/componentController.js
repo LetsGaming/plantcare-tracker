@@ -2,17 +2,11 @@ const {
   selectComponents,
   selectComponent,
   insertComponent,
-  updateComponentById,
-  deleteComponentById,
+  deleteComponent,
+  updateComponent,
 } = require("../models/componentModel");
 
 const { errorResponse, successResponse } = require("../utils/responseUtils");
-
-const validateComponentName = (name) => {
-  if (!name) {
-    throw new Error("Component name is required.");
-  };
-};
 
 const validateComponentData = (data) => {
   if (!data || typeof data !== "object" || !data.name || !data.fineness) {
@@ -51,8 +45,10 @@ const addComponent = async (req, res) => {
 
   try {
     validateComponentData({ name, fineness });
-    const result = await insertComponent(name, fineness);
-    res.status(201).json({ id: result.insertId, name, fineness });
+    const [result] = await insertComponent(name, fineness);
+    componentId = result.id;
+
+    successResponse(res, { componentId }, 201);
   } catch (err) {
     errorResponse(res, err, err.message.includes("required") ? 400 : 500);
   }
@@ -65,12 +61,8 @@ const editComponent = async (req, res) => {
 
   try {
     validateComponentData({ name, fineness });
-    const component = await selectComponent(id);
-    if (!component) {
-      return res.status(404).json({ error: "Component not found." });
-    }
 
-    await updateComponentById(id, name, fineness);
+    await updateComponent(id, name, fineness);
     successResponse(res, { message: "Component updated successfully." });
   } catch (err) {
     errorResponse(res, err);
@@ -78,16 +70,11 @@ const editComponent = async (req, res) => {
 };
 
 // Delete a component by ID
-const deleteComponent = async (req, res) => {
+const removeComponent = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const component = await selectComponent(id);
-    if (!component) {
-      return res.status(404).json({ error: "Component not found." });
-    }
-
-    await deleteComponentById(id);
+    await deleteComponent(id);
     successResponse(res, { message: "Component deleted successfully." });
   } catch (err) {
     errorResponse(res, err);
@@ -99,5 +86,5 @@ module.exports = {
   getComponent,
   addComponent,
   editComponent,
-  deleteComponent,
+  removeComponent,
 };

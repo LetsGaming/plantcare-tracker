@@ -1,14 +1,18 @@
 const path = require("path");
-const logger = require('../utils/logger');
+const logger = require("../utils/logger");
 const loadEnv = require("../utils/envUtils.js");
-const { insertImage, selectImage, selectImages } = require("../models/imageModel");
+const {
+  insertImage,
+  selectImage,
+  selectImages,
+} = require("../models/imageModel");
 const { successResponse, errorResponse } = require("../utils/responseUtils.js");
 
 loadEnv();
 
-const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg"];
 const NAS_PATH = process.env.NAS_PATH || null;
-const uploadDir = NAS_PATH || path.resolve(__dirname, '../../uploads');
+const uploadDir = NAS_PATH || "/uploads";
 
 const uploadImage = async (req, res) => {
   try {
@@ -18,20 +22,35 @@ const uploadImage = async (req, res) => {
     const parsedDate = new Date(date).toISOString();
 
     if (!imageFile) {
-      return res.status(400).json({ message: "No file was uploaded or 'image' field is missing." });
+      return res
+        .status(400)
+        .json({ message: "No file was uploaded or 'image' field is missing." });
     }
 
     if (!plantId) {
-      return res.status(400).json({ message: "Plant ID (plantId) is required." });
+      return res
+        .status(400)
+        .json({ message: "Plant ID (plantId) is required." });
     }
 
     if (!allowedMimeTypes.includes(imageFile.mimetype)) {
-      return res.status(400).json({ message: "Uploaded file is not a valid image format (png, jpeg, jpg)." });
+      return res
+        .status(400)
+        .json({
+          message:
+            "Uploaded file is not a valid image format (png, jpeg, jpg).",
+        });
     }
-
-    const filePath = path.join(uploadDir, imageFile.filename);
+    let baseUrl = uploadDir;
+    if (!NAS_PATH) {
+      baseUrl = `${req.protocol}://${req.get("host")}${uploadDir}`;
+    }
+    const filePath = path.join(baseUrl, imageFile.filename);
     await insertImage(plantId, filePath, parsedDate);
-    successResponse(res, { message: "Image uploaded successfully.", path: filePath });
+    successResponse(res, {
+      message: "Image uploaded successfully.",
+      path: filePath,
+    });
   } catch (err) {
     logger.error("Error during image upload", err.message);
     errorResponse(res, "An error occurred while uploading the image.");

@@ -23,7 +23,7 @@ router.post('/', authenticateToken, addSubstrate);
 router.put('/:id', authenticateToken, editSubstrate);
 
 // Add components to a substrate (authenticated)
-router.post('/components', authenticateToken, addSubstrateComponents);
-router.put('/components', authenticateToken, editSubstrateComponents);
+router.post('/components/:id', authenticateToken, addSubstrateComponents);
+router.put('/components/:id', authenticateToken, editSubstrateComponents);
 
 module.exports = router;

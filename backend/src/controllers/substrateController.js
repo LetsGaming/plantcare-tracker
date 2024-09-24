@@ -53,24 +53,24 @@ const addSubstrate = async (req, res) => {
     validateName(name);
     const user = req.user;
     const [result] = await insertSubstrate(name, user.id);
-    res.status(201).json({ id: result.insertId });
+    successResponse(res, { id: result.insertId });
   } catch (err) {
     errorResponse(res, err, err.message.includes("required") ? 400 : 500);
   }
 };
 
 const addSubstrateComponents = async (req, res) => {
-  const { substrateId, components } = req.body;
-
+  const { components } = req.body;
+  const { id } = req.params;
   try {
-    validateSubstrateComponents(substrateId, components);
+    validateSubstrateComponents(id, components);
     const insertPromises = components.map(({ componentId, parts }) => {
       const decimalParts = parseFloat(parts).toFixed(2);
-      return insertSubstrateComponent(substrateId, componentId, decimalParts);
+      return insertSubstrateComponent(id, componentId, decimalParts);
     });
 
     const [results] = await Promise.all(insertPromises);
-    res.status(201).json(results);
+    successResponse(res, results, 201)
   } catch (error) {
     errorResponse(res, error);
   }
@@ -83,18 +83,6 @@ const editSubstrate = async (req, res) => {
 
   try {
     validateName(name);
-    const [substrate] = await selectSubstrate(id);
-    if (!substrate) {
-      return res.status(404).json({ error: "Substrate not found." });
-    }
-
-    if (substrate.user_id !== user.id) {
-      return res
-        .status(403)
-        .json({
-          error: "Forbidden: You are not authorized to update this substrate.",
-        });
-    }
 
     await updateSubstrate(id, name, user.id);
     successResponse(res, { message: "Substrate updated successfully." });
@@ -115,12 +103,7 @@ const editSubstrateComponents = async (req, res) => {
     }
 
     if (substrate.user_id !== user.id) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Forbidden: You are not authorized to update components of this substrate.",
-        });
+      return errorResponse(res, "Forbidden: You are not authorized to update components of this substrate.", 403);
     }
 
     const updatePromises = components.map(({ componentId, parts }) => {
@@ -129,9 +112,7 @@ const editSubstrateComponents = async (req, res) => {
     });
 
     await Promise.all(updatePromises);
-    res
-      .status(200)
-      .json({ message: "Substrate components updated successfully." });
+    successResponse(res, { message: "Substrate components updated successfully." });
   } catch (err) {
     errorResponse(res, err);
   }
