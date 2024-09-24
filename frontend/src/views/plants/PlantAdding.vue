@@ -9,73 +9,39 @@
       </IonToolbar>
     </IonHeader>
     <IonContent>
-      <div class="form-container">
-        <IonCard>
-          <IonCardHeader>
-            <IonCardTitle>Pflanzen Informationen</IonCardTitle>
-          </IonCardHeader>
-          <IonCardContent v-if="plant">
-            <!-- Plant Name -->
-            <IonItem>
-              <IonInput
-                v-model="plant.name"
-                label="Name"
-                label-placement="floating"
-                required
-              />
-            </IonItem>
-
-            <!-- Plant Species -->
-            <IonItem>
-              <IonInput
-                v-model="plant.species"
-                label="Spezies"
-                label-placement="floating"
-                required
-              />
-            </IonItem>
-
-            <!-- Substrate ID (Dropdown) -->
-            <IonItem>
-              <IonSelect
-                v-model="plant.substrateId"
-                label="Substrat"
-                placeholder="Select Substrate"
-              >
-                <IonSelectOption
-                  v-for="substrate in substrates"
-                  :key="substrate.id"
-                  :value="substrate.id"
-                >
-                  {{ substrate.name }}
-                </IonSelectOption>
-              </IonSelect>
-            </IonItem>
-
-            <!-- Plant Visibility (Public/Private Radio Buttons) -->
-            <IonItem>
-              <IonLabel>Sichtbarkeit</IonLabel>
-              <IonRadioGroup v-model="plant.isPublic">
-                <IonItem>
-                  <IonRadio slot="start" :value="true">Öffentlich</IonRadio>
-                  <IonRadio slot="start" :value="false">Privat</IonRadio>
-                </IonItem>
-              </IonRadioGroup>
-            </IonItem>
-
-            <!-- Add Button -->
-            <IonButton expand="full" color="primary" @click="addPlant"
-              >Add Plant</IonButton
-            >
-          </IonCardContent>
-        </IonCard>
-        <div class="substrate-container-wrapper">
-          <SubstrateContainer
-            v-if="selectedSubstrate"
-            :substrate="selectedSubstrate"
-          />
-        </div>
-      </div>
+      <form-component
+        :item="plant"
+        :formFields="[
+          { type: 'input', modelKey: 'name', label: 'Name', required: true },
+          {
+            type: 'input',
+            modelKey: 'species',
+            label: 'Spezies',
+            required: true,
+          },
+          {
+            type: 'select',
+            modelKey: 'substrateId',
+            label: 'Substrat',
+            placeholder: 'Substrat auswählen',
+            options: substrates,
+          },
+          {
+            type: 'radio',
+            modelKey: 'isPublic',
+            label: 'Sichtbarkeit',
+            options: [
+              { value: true, label: 'Öffentlich' },
+              { value: false, label: 'Privat' },
+            ],
+          },
+        ]"
+        cardTitle="Planzen Informationen"
+        submitLabel="Pflanze hinzufügen"
+        :extraContentComponent="SubstrateContainer"
+        :extraContentData="{ substrate: selectedSubstrate }"
+        @submit="addPlant"
+      ></form-component>
     </IonContent>
   </IonPage>
 </template>
@@ -103,6 +69,7 @@ import {
   IonRadioGroup,
   IonRadio,
 } from "@ionic/vue";
+import FormComponent from "@/components/adding/FormComponent.vue";
 import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
 
 import PlantService from "@/services/PlantService";
@@ -131,6 +98,7 @@ export default defineComponent({
     IonRadioGroup,
     IonRadio,
 
+    FormComponent,
     SubstrateContainer,
   },
   data() {
@@ -143,6 +111,9 @@ export default defineComponent({
       } as AddPlant,
       substrates: [] as Substrate[], // Substrate data will be fetched from API
     };
+  },
+  setup() {
+    return { SubstrateContainer };
   },
   async mounted() {
     await this.fetchSubstrates(); // Fetch substrates when component mounts
@@ -158,7 +129,7 @@ export default defineComponent({
     async fetchSubstrates() {
       try {
         const response = await SubstrateService.getSubstrates();
-        console.log(response);
+
         this.substrates = response;
       } catch (error) {
         console.error("Error fetching substrates:", error);
@@ -183,24 +154,3 @@ export default defineComponent({
   },
 });
 </script>
-
-<style scoped>
-.form-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  padding: 16px;
-}
-
-.substrate-container-wrapper {
-  width: 100%;
-  max-width: 500px;
-}
-
-ion-card {
-  width: 100%;
-  max-width: 500px;
-}
-</style>

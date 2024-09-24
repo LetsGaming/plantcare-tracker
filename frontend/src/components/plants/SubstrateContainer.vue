@@ -1,66 +1,68 @@
 <template>
-  <h3>Substrat</h3>
-  <section class="substrate-details">
-    <h3 class="substrate-title">
-      {{ substrate?.name ?? "Unknown" }}
-    </h3>
-    <ion-accordion-group>
-      <ion-accordion>
-        <ion-item slot="header" class="component-header">
-          <ion-label>Komponenten</ion-label>
-        </ion-item>
-        <div slot="content" class="component-wrapper align-middle">
-          <!-- Pie Chart Integration -->
-          <PieChart :data="chartData" v-if="chartData.length > 0" />
-          <div class="component-list">
-            <div class="search-bar">
-              <input
-                v-model="searchQuery"
-                class="search-input"
-                type="text"
-                placeholder="Search components..."
-              />
-            </div>
-            <transition-group
-              name="fade"
-              tag="ul"
-              style="padding: 0; max-height: 250px; overflow-y: scroll"
-            >
-              <li
-                v-for="component in filteredComponents"
-                :key="component.id"
-                class="component-item card"
+  <template v-if="substrate">
+    <h3>Substrat</h3>
+    <section class="substrate-details">
+      <h3 class="substrate-title">
+        {{ substrate.name ?? "Unknown" }}
+      </h3>
+      <ion-accordion-group>
+        <ion-accordion>
+          <ion-item slot="header" class="component-header">
+            <ion-label>Komponenten</ion-label>
+          </ion-item>
+          <div slot="content" class="component-wrapper align-middle">
+            <!-- Pie Chart Integration -->
+            <PieChart :data="chartData" v-if="chartData.length > 0" />
+            <div class="component-list">
+              <div class="search-bar">
+                <input
+                  v-model="searchQuery"
+                  class="search-input"
+                  type="text"
+                  placeholder="Search components..."
+                />
+              </div>
+              <transition-group
+                name="fade"
+                tag="ul"
+                style="padding: 0; max-height: 250px; overflow-y: scroll"
               >
-                <button
-                  class="component-toggle"
-                  @click="toggleDetails(component.id)"
-                  :aria-expanded="isDetailsVisible(component.id)"
+                <li
+                  v-for="component in filteredComponents"
+                  :key="component.id"
+                  class="component-item card"
                 >
-                  <span class="component-name">{{ component.name }}</span>
-                  <span
-                    class="toggle-icon"
-                    :class="{ open: isDetailsVisible(component.id) }"
+                  <button
+                    class="component-toggle"
+                    @click="toggleDetails(component.id)"
+                    :aria-expanded="isDetailsVisible(component.id)"
                   >
-                    ▼
-                  </span>
-                </button>
+                    <span class="component-name">{{ component.name }}</span>
+                    <span
+                      class="toggle-icon"
+                      :class="{ open: isDetailsVisible(component.id) }"
+                    >
+                      ▼
+                    </span>
+                  </button>
 
-                <transition name="slide-fade">
-                  <div
-                    v-if="isDetailsVisible(component.id)"
-                    class="component-details"
-                  >
-                    <p><strong>Fineness:</strong> {{ component.fineness }}</p>
-                    <p><strong>Parts:</strong> {{ component.parts }}</p>
-                  </div>
-                </transition>
-              </li>
-            </transition-group>
+                  <transition name="slide-fade">
+                    <div
+                      v-if="isDetailsVisible(component.id)"
+                      class="component-details"
+                    >
+                      <p><strong>Fineness:</strong> {{ component.fineness }}</p>
+                      <p><strong>Parts:</strong> {{ component.parts }}</p>
+                    </div>
+                  </transition>
+                </li>
+              </transition-group>
+            </div>
           </div>
-        </div>
-      </ion-accordion>
-    </ion-accordion-group>
-  </section>
+        </ion-accordion>
+      </ion-accordion-group>
+    </section>
+  </template>
 </template>
 
 <script lang="ts">
@@ -79,7 +81,6 @@ export default defineComponent({
   props: {
     substrate: {
       type: Object as () => Substrate,
-      required: true,
     },
   },
   data() {

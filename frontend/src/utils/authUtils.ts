@@ -1,6 +1,7 @@
 import ToastService from '@/services/general/ToastService';
 import ApiService from './apiUtils';
 import storageService from '@/services/general/StorageService';
+import router from '@/router';
 
 const TOKEN_KEY = 'authToken';
 
@@ -18,6 +19,7 @@ const AuthUtils = {
   async logout(): Promise<void> {
     await ApiService.post<null, { message: string }>('/auth/logout', null);
     await storageService.remove(TOKEN_KEY); // Use StorageService to remove the token
+    router.push({name: "login"});
   },
 
   async refreshToken(): Promise<void> {
