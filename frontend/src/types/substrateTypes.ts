@@ -1,13 +1,25 @@
 interface Substrate {
-    id: number;
-    name: string;
-    imageUrl: string;
-    components: Component[];
+  id: number;
+  name: string;
+  imageUrl: string;
+  components: Component[];
 }
 
 interface Component {
-    id: number;
-    name: string;
-    fineness: string;
+  id: number;
+  name: string;
+  fineness: string;
+  parts: number;
+}
+
+interface AddSubstrate {
+  name: string;
+}
+
+interface AddSubstrateComponents {
+  substrateId: number;
+  components: {
+    componentId: number;
     parts: number;
+  }[];
 }

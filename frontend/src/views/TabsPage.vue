@@ -2,7 +2,7 @@
   <ion-page>
     <ion-tabs>
       <ion-router-outlet></ion-router-outlet>
-      <ion-tab-bar slot="bottom">
+      <ion-tab-bar slot="bottom" id="nav-tab-bar">
         <ion-tab-button tab="tab1" href="/tabs/plants">
           <ion-icon aria-hidden="true" :icon="leaf" />
           <ion-label>Pflanzen</ion-label>

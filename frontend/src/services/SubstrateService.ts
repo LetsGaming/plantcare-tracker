@@ -89,7 +89,7 @@ const SubstrateService = {
 
   /**
    * Adds a new substrate.
-   * @param {any} substrateData - The data for the new substrate (e.g., name, components).
+   * @param {any} substrateData - The data for the new substrate (e.g., name).
    * @returns {Promise<any>} - A promise that resolves to the created substrate.
    */
   async addSubstrate(substrateData: any): Promise<any> {
@@ -130,6 +130,56 @@ const SubstrateService = {
     } catch (error) {
       console.error(`Error updating substrate with ID ${id}:`, error);
       ToastService.showError(`Error updating substrate: ${error}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Adds a new substrate along with its components.
+   * @param {AddSubstrate} substrateData - The data for the new substrate (e.g., name).
+   * @param {AddSubstrateComponents} componentsData - The data for components to be added to the substrate.
+   * @returns {Promise<any>} - A promise that resolves to the created substrate with its components.
+   */
+  async addSubstrateWithComponents(
+    substrateData: AddSubstrate,
+    componentsData: AddSubstrateComponents
+  ): Promise<any> {
+    try {
+      // Step 1: Add the substrate
+      const response = await ApiUtils.post<AddSubstrate, any>(
+        SUBSTRATES_ENDPOINT,
+        substrateData
+      );
+
+      const substrateId = response.id; // Assuming the response returns the new substrate with an id
+
+      // Step 2: Add components to the substrate
+      if (componentsData && componentsData.components.length > 0) {
+        // Set the substrate ID in componentsData
+        componentsData.substrateId = substrateId;
+
+        // Assuming there is an endpoint to add components
+        const componentsResponse = await ApiUtils.post<AddSubstrateComponents, any>(
+          `${SUBSTRATES_ENDPOINT}/${substrateId}/components`, // Adjust the endpoint as needed
+          componentsData
+        );
+
+        // Invalidate the cached substrates after adding a new substrate
+        await storageService.remove(CACHE_KEY_SUBSTRATES);
+
+        return {
+          substrate: response, // The created substrate
+          components: componentsResponse, // The added components
+        };
+      }
+
+      // Invalidate the cache if no components were added
+      await storageService.remove(CACHE_KEY_SUBSTRATES);
+      return response; // Return just the substrate if no components are added
+
+    } catch (error) {
+      console.error("Error adding substrate with components:", error);
+      ToastService.showError(`Error adding substrate: ${error}`);
       throw error;
     }
   },

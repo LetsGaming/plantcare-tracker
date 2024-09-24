@@ -45,7 +45,7 @@ const handle403 = async (requestFn: () => Promise<Response>) => {
     await AuthUtils.refreshToken();
     return await requestFn();
   } catch (error) {
-    ToastService.showError('Token refresh failed. Logging out...');
+    ToastService.showError('Session expired. You have been logged out.');
     await AuthUtils.logout();
     throw new Error('Session expired. You have been logged out.');
   }
@@ -54,13 +54,13 @@ const handle403 = async (requestFn: () => Promise<Response>) => {
 /**
  * Makes an API request using the specified method, endpoint, and optional data.
  * Handles token refresh on 403 status and processes the response.
- * @param {'GET' | 'POST' | 'PUT'} method - The HTTP method to use for the request.
+ * @param {'GET' | 'POST' | 'PUT' | 'DELETE'} method - The HTTP method to use for the request.
  * @param {string} endpoint - The API endpoint to call.
  * @param {any} [data] - The data to send with the request (for POST/PUT).
  * @returns {Promise<T>} - The parsed response data.
  */
 const makeRequest = async <T>(
-  method: 'GET' | 'POST' | 'PUT',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   endpoint: string,
   data?: any
 ): Promise<T> => {
@@ -111,6 +111,22 @@ const ApiUtils = {
    */
   put<T, R>(endpoint: string, data: T): Promise<R> {
     return makeRequest<R>('PUT', endpoint, data);
+  },
+
+  /**
+   * Makes a DELETE request to the specified endpoint.
+   * @param {string} endpoint - The API endpoint to call.
+   * @returns {Promise<void>} - A promise that resolves when the delete is successful.
+   */
+  async delete<T>(endpoint: string): Promise<void> {
+    try {
+      await makeRequest<void>('DELETE', endpoint);
+      ToastService.showSuccess('Resource deleted successfully.');
+    } catch (error) {
+      console.error(`Error deleting resource at ${endpoint}:`, error);
+      ToastService.showError(`Error deleting resource: ${error}`);
+      throw error;
+    }
   },
 };
 

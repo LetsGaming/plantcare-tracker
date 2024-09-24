@@ -38,7 +38,7 @@ class ToastService {
       message,
       duration = 2000,
       position = "bottom",
-      positionAnchor,
+      positionAnchor = "nav-tab-bar",
       color = "dark",
       showCloseButton,
       closeButtonText,

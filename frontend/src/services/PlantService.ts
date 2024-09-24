@@ -2,6 +2,7 @@ import ApiUtils from "@/utils/apiUtils";
 import ToastService from "@/services/general/ToastService";
 import storageService from "@/services/general/StorageService";
 import PlantMapper from "@/mapping/PlantMapping";
+import Utils from "@/utils/utils";
 
 const BASE_ENDPOINT = "/plants";
 const CACHE_KEY_PUBLIC_PLANTS = "public_plants_data";
@@ -12,10 +13,6 @@ const getEndpoint = (isPublic: boolean) => {
   return isPublic ? `${BASE_ENDPOINT}/public` : `${BASE_ENDPOINT}/private`;
 };
 
-// Check if cached data is expired
-function isCacheExpired(timestamp: number): boolean {
-  return Date.now() - timestamp > CACHE_EXPIRY_MS;
-}
 
 export default class PlantService {
   static async getPlants(
@@ -33,7 +30,7 @@ export default class PlantService {
     }>(cacheKey);
 
     // If not forcing update, check if cached data exists and is not expired
-    if (!forceUpdate && cachedData && !isCacheExpired(cachedData.timestamp)) {
+    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
       return cachedData.plants;
     }
 
@@ -68,7 +65,7 @@ export default class PlantService {
     }>(cacheKey);
 
     // Check if cached data exists and is not expired
-    if (cachedData && !isCacheExpired(cachedData.timestamp)) {
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
       const plant = cachedData.plants.find((p) => p.id === plantId);
       if (plant) {
         return plant; // Return the cached plant if found
