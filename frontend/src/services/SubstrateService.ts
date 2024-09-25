@@ -64,9 +64,7 @@ const SubstrateService = {
 
     // Check if cached data exists and is not expired
     if (cachedData && !isCacheExpired(cachedData.timestamp)) {
-      const substrate = cachedData.substrates.find(
-        (s) => s.id === id
-      );
+      const substrate = cachedData.substrates.find((s) => s.id === id);
       if (substrate) {
         return substrate; // Return the cached substrate if found
       }
@@ -116,16 +114,18 @@ const SubstrateService = {
    * @param {any} substrateData - The updated data for the substrate.
    * @returns {Promise<any>} - A promise that resolves to the updated substrate data.
    */
-  async updateSubstrate(id: number, substrateData: any): Promise<any> {
+  async editSubstrate(
+    id: number,
+    substrateData: any,
+    removedComponents: number[]
+  ): Promise<any> {
     try {
-      const response = await ApiUtils.put<any, any>(
-        `${SUBSTRATES_ENDPOINT}/${id}`,
-        substrateData
-      );
+      const response = await ApiUtils.put(`${SUBSTRATES_ENDPOINT}/${id}`, {
+        substrateData,
+        removedComponents,
+      });
 
-      // Invalidate the cached substrates after updating
-      await storageService.remove(CACHE_KEY_SUBSTRATES);
-
+      await storageService.remove(CACHE_KEY_SUBSTRATES); // Invalidate the cache
       return response;
     } catch (error) {
       console.error(`Error updating substrate with ID ${id}:`, error);
@@ -146,10 +146,10 @@ const SubstrateService = {
   ): Promise<any> {
     try {
       // Step 1: Add the substrate
-      const response = await ApiUtils.post(
+      const response = (await ApiUtils.post(
         SUBSTRATES_ENDPOINT,
         substrateData
-      ) as any;
+      )) as any;
 
       const substrateId = response.id; // Assuming the response returns the new substrate with an id
 
@@ -176,7 +176,6 @@ const SubstrateService = {
       // Invalidate the cache if no components were added
       await storageService.remove(CACHE_KEY_SUBSTRATES);
       return response; // Return just the substrate if no components are added
-
     } catch (error) {
       console.error("Error adding substrate with components:", error);
       ToastService.showError(`Error adding substrate: ${error}`);

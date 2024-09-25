@@ -47,7 +47,7 @@ import PlantService from "@/services/PlantService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
-import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
+import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 export default defineComponent({
   name: "PlantDetails",

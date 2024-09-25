@@ -1,13 +1,10 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-back-button text="Zurück"></ion-back-button>
-        </ion-buttons>
-        <ion-title>Substrat Details</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <details-header
+      :show-edit-button="true"
+      @edit-click="navigateToSubstrateEditing"
+      default-href="/tabs/substrate/overview"
+    ></details-header>
 
     <ion-content>
       <div v-if="substrate">
@@ -44,7 +41,9 @@ import {
   IonImg,
 } from "@ionic/vue";
 import SubstrateService from "@/services/SubstrateService";
-import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
+
+import DetailsHeader from "@/components/details/DetailsHeader.vue";
+import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 export default defineComponent({
   name: "SubstrateDetails",
@@ -58,6 +57,7 @@ export default defineComponent({
     IonTitle,
     IonImg,
 
+    DetailsHeader,
     SubstrateContainer,
   },
   props: {
@@ -88,6 +88,13 @@ export default defineComponent({
   computed: {
     substrateId() {
       return Number.parseInt(this.id);
+    },
+  },
+  methods: {
+    navigateToSubstrateEditing() {
+      const id = this.substrateId;
+
+      this.$router.push({ name: "substrate-editing", params: { id } });
     },
   },
 });

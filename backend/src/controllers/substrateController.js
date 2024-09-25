@@ -5,6 +5,7 @@ const {
   insertSubstrateComponent,
   updateSubstrate,
   updateSubstrateComponent,
+  deleteSubstrateComponents,
 } = require("../models/substrateModel");
 
 const { errorResponse, successResponse } = require("../utils/responseUtils");
@@ -78,13 +79,17 @@ const addSubstrateComponents = async (req, res) => {
 
 const editSubstrate = async (req, res) => {
   const { id } = req.params;
-  const { name } = req.body;
+  const { substrateData, removedComponents } = req.body;
   const user = req.user;
 
   try {
-    validateName(name);
+    if(substrateData.name) await updateSubstrate(id, substrateData.name, user.id);
 
-    await updateSubstrate(id, name, user.id);
+    // Remove components if any
+    if (removedComponents && removedComponents.length > 0) {
+      await deleteSubstrateComponents(id, removedComponents);
+    }
+
     successResponse(res, { message: "Substrate updated successfully." });
   } catch (err) {
     errorResponse(res, err);
@@ -97,10 +102,6 @@ const editSubstrateComponents = async (req, res) => {
 
   try {
     validateSubstrateComponents(substrateId, components);
-    const [substrate] = await selectSubstrate(substrateId);
-    if (!substrate) {
-      return res.status(404).json({ error: "Substrate not found." });
-    }
 
     if (substrate.user_id !== user.id) {
       return errorResponse(res, "Forbidden: You are not authorized to update components of this substrate.", 403);

@@ -1,7 +1,7 @@
 interface Substrate {
   id: number;
   name: string;
-  imageUrl: string;
+  imageUrl?: string;
   components: Component[];
 }
 
@@ -22,4 +22,14 @@ interface AddSubstrateComponents {
     componentId: number;
     parts: number;
   }[];
+}
+
+interface EditSubstrate {
+  name: string;
+  components: EditSubstrateComponent[];
+}
+
+interface EditSubstrateComponent {
+  componentId: number;
+  parts: number;
 }
