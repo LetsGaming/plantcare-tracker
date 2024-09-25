@@ -99,10 +99,51 @@ const insertPlant = (name, species, substrate_id, is_public, user_id) =>
     [name, species, substrate_id, is_public, user_id]
   );
 
+// Dynamically update an existing plant by ID
+const updatePlant = async (id, user_id, fields) => {
+  const updates = [];
+  const params = [];
+
+  // Dynamically build the update query based on provided fields
+  if (fields.name) {
+    updates.push("name = ?");
+    params.push(fields.name);
+  }
+  if (fields.species) {
+    updates.push("species = ?");
+    params.push(fields.species);
+  }
+  if (fields.substrateId) {
+    updates.push("substrate_id = ?");
+    params.push(fields.substrateId);
+  }
+  if (fields.isPublic !== undefined) {
+    updates.push("is_public = ?");
+    params.push(fields.isPublic);
+  }
+
+  // If there are no fields to update, return early
+  if (updates.length === 0) {
+    throw new Error("No fields provided for update.");
+  }
+
+  // Add the ID and user_id to the parameters for the WHERE clause
+  params.push(id, user_id);
+
+  const query = `
+    UPDATE plants 
+    SET ${updates.join(", ")}
+    WHERE id = ? AND user_id = ?
+  `;
+
+  return pool.query(query, params);
+};
+
 module.exports = {
   selectPrivatePlants,
   selectPublicPlants,
   selectPrivatePlant,
   selectPublicPlant,
   insertPlant,
+  updatePlant,
 };

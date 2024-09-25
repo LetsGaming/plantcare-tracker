@@ -40,7 +40,7 @@
         submitLabel="Pflanze hinzufügen"
         :extraContentComponent="SubstrateContainer"
         :extraContentData="{ substrate: selectedSubstrate }"
-        @submit="addPlant"
+        @submitClick="addPlant"
       ></form-component>
     </IonContent>
   </IonPage>

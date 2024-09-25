@@ -10,14 +10,14 @@
     </IonHeader>
     <IonContent>
       <form-component
-        :item="plant"
+        :item="editPlantData"
         :formFields="[
-          { type: 'input', modelKey: 'name', label: 'Name', required: true },
+          { type: 'input', modelKey: 'name', label: 'Name', required: false },
           {
             type: 'input',
             modelKey: 'species',
             label: 'Spezies',
-            required: true,
+            required: false,
           },
           {
             type: 'select',
@@ -40,7 +40,7 @@
         submitLabel="Pflanze editieren"
         :extraContentComponent="SubstrateContainer"
         :extraContentData="{ substrate: selectedSubstrate }"
-        @submit="editPlant"
+        @submitClick="editPlant"
       ></form-component>
     </IonContent>
   </IonPage>
@@ -101,14 +101,24 @@ export default defineComponent({
     FormComponent,
     SubstrateContainer,
   },
+  props: {
+    id: {
+      type: String,
+      required: true,
+    },
+    isPublic: {
+      type: String,
+      required: false,
+    },
+  },
   data() {
     return {
-      plant: {
+      editPlantData: {
         name: "",
         species: "",
         substrateId: 0,
-        isPublic: false, // Default to private
-      } as AddPlant,
+        isPublic: false,
+      } as EditPlant,
       substrates: [] as Substrate[], // Substrate data will be fetched from API
     };
   },
@@ -117,13 +127,20 @@ export default defineComponent({
   },
   async mounted() {
     await this.fetchSubstrates(); // Fetch substrates when component mounts
+    this.editPlantData.isPublic = this.isPlantPublic;
   },
   computed: {
     selectedSubstrate() {
       return this.substrates.find(
-        (substrate) => substrate.id === this.plant.substrateId
+        (substrate) => substrate.id === this.editPlantData.substrateId
       );
     },
+    plantId() {
+      return Number.parseInt(this.id);
+    },
+    isPlantPublic() {
+      return this.isPublic === "1";
+    }
   },
   methods: {
     async fetchSubstrates() {
@@ -136,15 +153,23 @@ export default defineComponent({
       }
     },
     async editPlant() {
-      if (!this.plant.name || !this.plant.species || !this.plant.substrateId) {
-        ToastService.showWarning("All fields are required!");
+      if (
+        !this.editPlantData.name &&
+        !this.editPlantData.species &&
+        !this.editPlantData.substrateId &&
+        this.isPlantPublic == this.editPlantData.isPublic
+      ) {
+        ToastService.showWarning("At least one field is required!");
         return;
       }
 
       try {
-        const response = await PlantService.updatePlant(this.plant);
+        const response = await PlantService.editPlant(
+          this.plantId,
+          this.editPlantData
+        );
         if (response) {
-          this.$router.push("/plants"); // Redirect to plant list after success
+          this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
         }
       } catch (error) {
         console.error("Error:", error);

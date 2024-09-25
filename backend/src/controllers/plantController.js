@@ -4,6 +4,7 @@ const {
   selectPrivatePlant,
   selectPublicPlant,
   insertPlant,
+  updatePlant,
 } = require("../models/plantModel");
 
 const { errorResponse, successResponse } = require("../utils/responseUtils");
@@ -32,7 +33,7 @@ const getPlant = async (res, selectPlantFn, id, userId = null) => {
 const getPlants = async (res, selectPlantsFn, userId = null) => {
   try {
     const plants = await selectPlantsFn(userId);
-    
+
     successResponse(res, plants);
   } catch (err) {
     errorResponse(res, err);
@@ -69,14 +70,57 @@ const addPlant = async (req, res) => {
   const userId = req.user ? req.user.id : null;
 
   try {
-    validatePlantData(name, species, substrateId,);
-    const [plant] = await insertPlant(name, species, substrateId, isPublic || false, userId);
+    validatePlantData(name, species, substrateId);
+    const [plant] = await insertPlant(
+      name,
+      species,
+      substrateId,
+      isPublic || false,
+      userId
+    );
     const plantId = plant.insertId;
 
     successResponse(res, { plantId }, 201);
   } catch (err) {
-    const status = err.message === "Name, species, and substrateId are required." ? 400 : 500;
+    const status =
+      err.message === "Name, species, and substrateId are required."
+        ? 400
+        : 500;
     errorResponse(res, err, status);
+  }
+};
+
+// Controller for updating a plant (partially)
+const editPlant = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user ? req.user.id : null;
+  const { name, species, substrateId, isPublic } = req.body;
+
+  try {
+    // If no fields are provided to update, throw an error
+    if (!name && !species && !substrateId && isPublic === undefined) {
+      errorResponse(res, "At least one field must be provided for update", 400);
+    }
+
+    // Partially update the plant in the database
+    const result = await updatePlant(id, userId, {
+      name,
+      species,
+      substrateId,
+      isPublic,
+    });
+
+    if (result.affectedRows === 0) {
+      return errorResponse(
+        res,
+        "Plant not found or not authorized to update",
+        404
+      );
+    }
+
+    successResponse(res, { message: "Plant updated successfully" });
+  } catch (err) {
+    errorResponse(res, err, 500, "Error updating plant");
   }
 };
 
@@ -86,4 +130,5 @@ module.exports = {
   getPublicPlants,
   getPublicPlant,
   addPlant,
+  editPlant,
 };

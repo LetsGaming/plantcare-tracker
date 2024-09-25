@@ -34,7 +34,11 @@
             <IonLabel>{{ field.label }}</IonLabel>
             <IonRadioGroup v-model="item[field.modelKey]">
               <IonItem>
-                <IonRadio :slot="index < 1 ? 'start' : 'end' " v-for="(option, index) in field.options" :key="option.value" :value="option.value">
+                <IonRadio
+                  :slot="index < 1 ? 'start' : 'end'"
+                  v-for="(option, index) in field.options"
+                  :value="option.value"
+                >
                   {{ option.label }}
                 </IonRadio>
               </IonItem>
@@ -50,8 +54,11 @@
     </IonCard>
 
     <!-- Extra Content Component -->
-    <div v-if="extraContentComponent && extraContentData" class="extra-content-wrapper">
-      <component :is="extraContentComponent" :data="extraContentData" />
+    <div
+      v-if="extraContentComponent && extraContentData"
+      class="extra-content-wrapper"
+    >
+      <component :is="extraContentComponent" v-bind="extraContentData" />
     </div>
   </div>
 </template>
@@ -74,7 +81,7 @@ import {
 } from "@ionic/vue";
 
 export default defineComponent({
-  name: "ReusableFormComponent",
+  name: "FormComponent",
   components: {
     IonCard,
     IonCardHeader,
@@ -114,10 +121,14 @@ export default defineComponent({
       type: Object as PropType<Record<string, any>>, // Data to pass to the extra component
       default: () => ({}),
     },
+    onSubmitClick: {
+      type: Function as PropType<() => void>,
+      required: true,
+    },
   },
   methods: {
     submitForm() {
-      this.$emit("submit", this.item);
+      this.onSubmitClick();
     },
   },
 });

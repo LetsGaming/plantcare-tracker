@@ -54,13 +54,13 @@ const handle403 = async (requestFn: () => Promise<Response>) => {
 /**
  * Makes an API request using the specified method, endpoint, and optional data.
  * Handles token refresh on 403 status and processes the response.
- * @param {'GET' | 'POST' | 'PUT' | 'DELETE'} method - The HTTP method to use for the request.
+ * @param {'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'} method - The HTTP method to use for the request.
  * @param {string} endpoint - The API endpoint to call.
- * @param {any} [data] - The data to send with the request (for POST/PUT).
+ * @param {any} [data] - The data to send with the request (for POST/PUT/PATCH).
  * @returns {Promise<T>} - The parsed response data.
  */
 const makeRequest = async <T>(
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   endpoint: string,
   data?: any
 ): Promise<T> => {
@@ -111,6 +111,16 @@ const ApiUtils = {
    */
   put<T, R>(endpoint: string, data: T): Promise<R> {
     return makeRequest<R>('PUT', endpoint, data);
+  },
+
+  /**
+   * Makes a PATCH request to the specified endpoint with the provided data.
+   * @param {T} data - The data to send with the request.
+   * @param {string} endpoint - The API endpoint to call.
+   * @returns {Promise<R>} - The parsed response data.
+   */
+  patch<T, R>(endpoint: string, data: T): Promise<R> {
+    return makeRequest<R>('PATCH', endpoint, data);
   },
 
   /**

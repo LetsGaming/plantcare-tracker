@@ -6,7 +6,8 @@ const {
   getPrivatePlant,
   getPublicPlants,
   getPublicPlant,
-  addPlant
+  addPlant,
+  editPlant
 } = require('../controllers/plantController');
 
 // Get all private plants for the authenticated user
@@ -23,5 +24,8 @@ router.get('/public/:id', authenticateToken, getPublicPlant);
 
 // Add a new plant (authentication required)
 router.post('/', authenticateToken, addPlant);
+
+// Partially update an existing plant (authentication required)
+router.patch('/:id', authenticateToken, editPlant);
 
 module.exports = router;

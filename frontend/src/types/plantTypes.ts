@@ -16,6 +16,13 @@ interface AddPlant {
   isPublic?: boolean;
 }
 
+interface EditPlant {
+  name?: string;
+  species?: string;
+  substrateId?: number;
+  isPublic?: boolean;
+}
+
 interface APIPlant {
   plant_id: number;
   plant_name: string;
