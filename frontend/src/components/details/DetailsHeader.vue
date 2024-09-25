@@ -2,11 +2,12 @@
   <ion-header>
     <ion-toolbar class="header-toolbar">
       <ion-buttons slot="start">
-        <ion-back-button text="Zurück"></ion-back-button>
+        <ion-back-button v-if="defaultBackHref" text="Zurück" :defaultHref="defaultBackHref"></ion-back-button>
+        <ion-back-button v-else text="Zurück"></ion-back-button>
       </ion-buttons>
       <ion-icon
         v-if="showEditButton"
-        :icon="editIcon"
+        :icon="create"
         style="width: 32px; height: 32px"
         slot="end"
         @click="onEditClick"
@@ -21,11 +22,12 @@ import {
   IonHeader,
   IonToolbar,
   IonTitle,
-  IonSegment,
-  IonSegmentButton,
+  IonButtons,
+  IonBackButton,
   IonLabel,
   IonIcon,
 } from "@ionic/vue";
+import { create } from "ionicons/icons";
 
 export default defineComponent({
   name: "DetailsHeader",
@@ -33,24 +35,27 @@ export default defineComponent({
     IonHeader,
     IonToolbar,
     IonTitle,
-    IonSegment,
-    IonSegmentButton,
+    IonButtons,
+    IonBackButton,
     IonLabel,
     IonIcon,
   },
   props: {
+    defaultBackHref: {
+      type: String,
+      required: false,
+    },
     showEditButton: {
       type: Boolean,
       default: true,
-    },
-    editIcon: {
-      type: String,
-      default: "create",
     },
     onEditClick: {
       type: Function as PropType<() => void>,
       required: false,
     },
+  },
+  setup() {
+    return { create };
   },
   data() {
     return {

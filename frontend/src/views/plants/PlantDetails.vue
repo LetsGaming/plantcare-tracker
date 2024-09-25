@@ -1,12 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-back-button text="Zurück"></ion-back-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
+    <details-header :show-edit-button="true" @edit-click="navigateToPlantEditing" default-href="/tabs/plants/overview"></details-header>
     <ion-content>
       <div v-if="plant">
         <!-- Full-width banner with dynamic plant image -->
@@ -24,7 +18,9 @@
 
         <section class="plant-info">
           <horizontal-gallery :images="plant.images"></horizontal-gallery>
-          <substrate-container :substrate="plant.substrate"></substrate-container>
+          <substrate-container
+            :substrate="plant.substrate"
+          ></substrate-container>
         </section>
       </div>
     </ion-content>
@@ -48,6 +44,8 @@ import {
 } from "@ionic/vue";
 import { defineComponent } from "vue";
 import PlantService from "@/services/PlantService";
+
+import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
 
@@ -67,8 +65,9 @@ export default defineComponent({
     IonImg,
     IonText,
 
+    DetailsHeader,
     HorizontalGallery,
-    SubstrateContainer
+    SubstrateContainer,
   },
   props: {
     id: {
@@ -95,7 +94,15 @@ export default defineComponent({
   computed: {
     plantId() {
       return Number.parseInt(this.id);
-    }
+    },
+  },
+  methods: {
+    navigateToPlantEditing() {
+      const id = this.plantId;
+      const isPublic = this.plant?.isPublic ? 1 : 0;
+
+      this.$router.push({ name: "plant-editing", params: { id: id, isPublic: isPublic } });
+    },
   }
 });
 </script>

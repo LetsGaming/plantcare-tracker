@@ -18,7 +18,7 @@
 
       <ion-icon
         v-if="showAddButton"
-        :icon="addIcon"
+        :name="addIcon"
         style="width: 32px; height: 32px"
         slot="end"
         @click="onAddClick"

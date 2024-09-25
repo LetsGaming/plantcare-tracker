@@ -13,7 +13,6 @@ const getEndpoint = (isPublic: boolean) => {
   return isPublic ? `${BASE_ENDPOINT}/public` : `${BASE_ENDPOINT}/private`;
 };
 
-
 export default class PlantService {
   static async getPlants(
     isPublic: boolean,
@@ -30,7 +29,11 @@ export default class PlantService {
     }>(cacheKey);
 
     // If not forcing update, check if cached data exists and is not expired
-    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
+    if (
+      !forceUpdate &&
+      cachedData &&
+      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+    ) {
       return cachedData.plants;
     }
 
@@ -65,7 +68,10 @@ export default class PlantService {
     }>(cacheKey);
 
     // Check if cached data exists and is not expired
-    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
+    if (
+      cachedData &&
+      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+    ) {
       const plant = cachedData.plants.find((p) => p.id === plantId);
       if (plant) {
         return plant; // Return the cached plant if found
@@ -100,6 +106,27 @@ export default class PlantService {
       return response; // Assuming response contains the inserted plant ID
     } catch (error) {
       ToastService.showError(`Error adding plant: ${error}`);
+      throw error;
+    }
+  }
+
+  static async editPlant(
+    plantId: number,
+    updatedPlantData: EditPlant
+  ): Promise<any> {
+    try {
+      const response = await ApiUtils.patch(
+        `${BASE_ENDPOINT}/${plantId}`,
+        updatedPlantData
+      );
+
+      // Invalidate the cached plants after updating a plant
+      await storageService.remove(CACHE_KEY_PUBLIC_PLANTS);
+      await storageService.remove(CACHE_KEY_PRIVATE_PLANTS);
+
+      return response; // Assuming response contains the updated plant data
+    } catch (error) {
+      ToastService.showError(`Error updating plant: ${error}`);
       throw error;
     }
   }

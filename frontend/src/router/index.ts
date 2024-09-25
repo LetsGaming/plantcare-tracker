@@ -7,9 +7,12 @@ import AuthUtils from "@/utils/authUtils";
 const Login = () => import("@/views/Login.vue");
 const TabsPage = () => import("@/views/TabsPage.vue");
 const WrapperComponent = () => import("@/views/WrapperComponent.vue");
+
 const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
 const PlantDetails = () => import("@/views/plants/PlantDetails.vue");
 const PlantAdding = () => import("@/views/plants/PlantAdding.vue");
+const PlantEditing = () => import("@/views/plants/PlantEditing.vue");
+
 const SubstrateOverview = () =>
   import("@/views/substrates/SubstrateOverview.vue");
 const SubstrateDetails = () =>
@@ -21,28 +24,47 @@ const createChildRoutes = (
   basePath: string,
   overviewComponent: any,
   detailsComponent: any,
-  addingComponent: any
-) => [
-  {
-    path: "overview",
-    name: `${basePath}-overview`,
-    component: overviewComponent,
+  addingComponent: any,
+  editingComponent?: any,
+  editingPublicCheck?: boolean
+) => {
+  const routes = [
+    {
+      path: "overview",
+      name: `${basePath}-overview`,
+      component: overviewComponent,
+    },
+    {
+      path: `${basePath}/:id`,
+      name: basePath,
+      component: detailsComponent,
+      props: true,
+    },
+    {
+      path: "adding",
+      name: `${basePath}-adding`,
+      component: addingComponent,
+    },
+  ];
+
+  if (editingComponent) {
+    let path = "editing/:id";
+    if (editingPublicCheck) {
+      path = "editing/:id/:isPublic";
+    }
+    routes.push({
+      path: path,
+      name: `${basePath}-editing`,
+      component: editingComponent,
+      props: true,
+    });
+  }
+
+  return routes.map((route) => ({
+    ...route,
     meta: { requiresAuth: true },
-  },
-  {
-    path: `${basePath}/:id`,
-    name: `${basePath}`,
-    component: detailsComponent,
-    props: true,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "adding",
-    name: `${basePath}-adding`,
-    component: addingComponent,
-    meta: { requiresAuth: true },
-  },
-];
+  }));
+};
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -67,7 +89,9 @@ const routes: Array<RouteRecordRaw> = [
           "plant",
           PlantOverview,
           PlantDetails,
-          PlantAdding
+          PlantAdding,
+          PlantEditing,
+          true
         ),
       },
       {
