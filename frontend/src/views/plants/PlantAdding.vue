@@ -70,7 +70,7 @@ import {
   IonRadio,
 } from "@ionic/vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
-import SubstrateContainer from "@/components/plants/SubstrateContainer.vue";
+import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";

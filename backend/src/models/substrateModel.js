@@ -83,7 +83,7 @@ const insertSubstrateComponent = (substrate_id, component_id, parts) =>
   );
 
 // Update a substrate
-const updateSubstrate = (id, name, user_id) => 
+const updateSubstrate = (id, name, user_id) =>
   pool.query("UPDATE substrates SET name = ? WHERE id = ? AND user_id = ?", [
     name,
     id,
@@ -97,6 +97,14 @@ const updateSubstrateComponent = (substrate_id, component_id, parts) =>
     [parts, substrate_id, component_id]
   );
 
+const deleteSubstrateComponents = (substrate_id, componentIds) => {
+  const placeholders = componentIds.map(() => "?").join(", ");
+  return pool.query(
+    `DELETE FROM substrate_components WHERE substrate_id = ? AND component_id IN (${placeholders})`,
+    [substrate_id, ...componentIds]
+  );
+};
+
 module.exports = {
   selectSubstrates,
   selectSubstrate,
@@ -104,4 +112,5 @@ module.exports = {
   insertSubstrateComponent,
   updateSubstrate,
   updateSubstrateComponent,
+  deleteSubstrateComponents,
 };
