@@ -8,38 +8,54 @@ const COMPONENTS_ENDPOINT = "/components";
 const CACHE_KEY_COMPONENTS = "components_data";
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// Common function to retrieve cached components
+async function getCachedComponents() {
+  return await storageService.get<{
+    components: any[];
+    timestamp: number;
+  }>(CACHE_KEY_COMPONENTS);
+}
+
+// Common function to invalidate the component cache
+async function invalidateComponentCache() {
+  await storageService.remove(CACHE_KEY_COMPONENTS);
+}
+
+// Common function to fetch and cache components from the API
+async function fetchAndCacheComponents(): Promise<any[]> {
+  try {
+    const response = await ApiUtils.get<any[]>(COMPONENTS_ENDPOINT);
+    const components = ComponentMapper.convertToComponents(response);
+
+    // Store the components and current timestamp in storage
+    await storageService.set(CACHE_KEY_COMPONENTS, {
+      components,
+      timestamp: Date.now(),
+    });
+
+    return components;
+  } catch (error) {
+    console.error("Error fetching components:", error);
+    ToastService.showError(`Error fetching components: ${error}`);
+    throw error;
+  }
+}
+
 const ComponentService = {
   /**
    * Fetches the list of all components with caching.
    * @returns {Promise<any[]>} - A promise that resolves to an array of components.
    */
   async getComponents(forceUpdate: boolean = false): Promise<any[]> {
-    const cachedData = await storageService.get<{
-      components: any[];
-      timestamp: number;
-    }>(CACHE_KEY_COMPONENTS);
+    // Try to get the cached data
+    const cachedData = await getCachedComponents();
 
     if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
       return cachedData.components;
     }
 
     // Fetch new data from the API
-    try {
-      const response = await ApiUtils.get<any[]>(COMPONENTS_ENDPOINT);
-      const components = ComponentMapper.convertToComponents(response);
-
-      // Store the components and current timestamp in storage
-      await storageService.set(CACHE_KEY_COMPONENTS, {
-        components,
-        timestamp: Date.now(),
-      });
-
-      return components;
-    } catch (error) {
-      console.error("Error fetching components:", error);
-      ToastService.showError(`Error fetching components: ${error}`);
-      throw error;
-    }
+    return await fetchAndCacheComponents();
   },
 
   /**
@@ -48,10 +64,7 @@ const ComponentService = {
    * @returns {Promise<any>} - A promise that resolves to the component data.
    */
   async getComponentById(id: number, forceUpdate: boolean = false): Promise<any> {
-    const cachedData = await storageService.get<{
-      components: any[];
-      timestamp: number;
-    }>(CACHE_KEY_COMPONENTS);
+    const cachedData = await getCachedComponents();
 
     if (cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
       const component = cachedData.components.find((c) => c.id === id);
@@ -86,7 +99,7 @@ const ComponentService = {
       const response = await ApiUtils.post<any, any>(addEndpoint, componentData);
 
       // Invalidate the cached components after adding a new component
-      await storageService.remove(CACHE_KEY_COMPONENTS);
+      await invalidateComponentCache();
 
       return response; // Assuming response contains the inserted component
     } catch (error) {
@@ -108,7 +121,7 @@ const ComponentService = {
       const response = await ApiUtils.put<any, any>(updateEndpoint, componentData);
 
       // Invalidate the cached components after updating
-      await storageService.remove(CACHE_KEY_COMPONENTS);
+      await invalidateComponentCache();
 
       return response;
     } catch (error) {
@@ -129,7 +142,7 @@ const ComponentService = {
       await ApiUtils.delete<any>(deleteEndpoint);
 
       // Invalidate the cached components after deleting
-      await storageService.remove(CACHE_KEY_COMPONENTS);
+      await invalidateComponentCache();
       ToastService.showSuccess(`Component with ID ${id} deleted successfully.`);
     } catch (error) {
       console.error(`Error deleting component with ID ${id}:`, error);

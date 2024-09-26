@@ -65,3 +65,5 @@ CREATE TABLE watering_records (
   amount DECIMAL(10,2),
   FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE
 );
+
+ALTER TABLE substrate_components ADD UNIQUE INDEX (substrate_id, component_id);

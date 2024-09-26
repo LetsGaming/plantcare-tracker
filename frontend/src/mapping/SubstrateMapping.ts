@@ -6,7 +6,7 @@ export default class SubstrateMapper {
     return {
       id: substrate.substrate_id,
       name: substrate.substrate_name,
-      imageUrl: substrate.image_url,
+      imageUrl: substrate.substrate_image_url,
       components: substrate.components.map(ComponentMapper.mapComponent),
     };
   }

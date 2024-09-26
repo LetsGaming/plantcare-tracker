@@ -13,6 +13,39 @@ const getEndpoint = (isPublic: boolean) => {
   return isPublic ? `${BASE_ENDPOINT}/public` : `${BASE_ENDPOINT}/private`;
 };
 
+// Common function to retrieve cached plants
+async function getCachedPlants(cacheKey: string) {
+  return await storageService.get<{
+    plants: Plant[];
+    timestamp: number;
+  }>(cacheKey);
+}
+
+// Common function to invalidate plant caches
+async function invalidatePlantCache() {
+  await storageService.remove(CACHE_KEY_PUBLIC_PLANTS);
+  await storageService.remove(CACHE_KEY_PRIVATE_PLANTS);
+}
+
+// Common function to fetch and cache plants from the API
+async function fetchAndCachePlants(isPublic: boolean): Promise<Plant[]> {
+  try {
+    const response = await ApiUtils.get(getEndpoint(isPublic));
+    const plants = PlantMapper.convertToPlants(response);
+
+    // Store the plants and current timestamp in storage
+    const cacheKey = isPublic
+      ? CACHE_KEY_PUBLIC_PLANTS
+      : CACHE_KEY_PRIVATE_PLANTS;
+    await storageService.set(cacheKey, { plants, timestamp: Date.now() });
+
+    return plants;
+  } catch (error) {
+    ToastService.showError(`Error fetching plants: ${error}`);
+    throw error;
+  }
+}
+
 export default class PlantService {
   static async getPlants(
     isPublic: boolean,
@@ -23,10 +56,7 @@ export default class PlantService {
       : CACHE_KEY_PRIVATE_PLANTS;
 
     // Try to get the cached data
-    const cachedData = await storageService.get<{
-      plants: Plant[];
-      timestamp: number;
-    }>(cacheKey);
+    const cachedData = await getCachedPlants(cacheKey);
 
     // If not forcing update, check if cached data exists and is not expired
     if (
@@ -38,18 +68,7 @@ export default class PlantService {
     }
 
     // Otherwise, fetch new data from the API
-    try {
-      const response = await ApiUtils.get(getEndpoint(isPublic));
-      const plants = PlantMapper.convertToPlants(response);
-
-      // Store the plants and current timestamp in storage
-      await storageService.set(cacheKey, { plants, timestamp: Date.now() });
-
-      return plants;
-    } catch (error) {
-      ToastService.showError(`Error fetching plants: ${error}`);
-      throw error;
-    }
+    return await fetchAndCachePlants(isPublic);
   }
 
   static async getPlantById(
@@ -62,10 +81,7 @@ export default class PlantService {
       : CACHE_KEY_PRIVATE_PLANTS;
 
     // Retrieve cached plants
-    const cachedData = await storageService.get<{
-      plants: Plant[];
-      timestamp: number;
-    }>(cacheKey);
+    const cachedData = await getCachedPlants(cacheKey);
 
     // Check if cached data exists and is not expired
     if (
@@ -85,8 +101,8 @@ export default class PlantService {
       );
       const plant = PlantMapper.convertToPlants(response)[0];
 
-      // Fetch all plants again to update the cache
-      await this.getPlants(isPublic, true); // Refresh the cache
+      // Refresh the cache by fetching all plants again
+      await this.getPlants(isPublic, true); // Invalidate the cache
 
       return plant;
     } catch (error) {
@@ -98,10 +114,7 @@ export default class PlantService {
   static async addPlant(plantToAdd: AddPlant): Promise<any> {
     try {
       const response = await ApiUtils.post(BASE_ENDPOINT, plantToAdd);
-
-      // Invalidate the cached plants after adding a new plant
-      await storageService.remove(CACHE_KEY_PUBLIC_PLANTS);
-      await storageService.remove(CACHE_KEY_PRIVATE_PLANTS);
+      await invalidatePlantCache(); // Invalidate the cached plants after adding a new plant
 
       return response; // Assuming response contains the inserted plant ID
     } catch (error) {
@@ -119,10 +132,7 @@ export default class PlantService {
         `${BASE_ENDPOINT}/${plantId}`,
         updatedPlantData
       );
-
-      // Invalidate the cached plants after updating a plant
-      await storageService.remove(CACHE_KEY_PUBLIC_PLANTS);
-      await storageService.remove(CACHE_KEY_PRIVATE_PLANTS);
+      await invalidatePlantCache(); // Invalidate the cached plants after updating a plant
 
       return response; // Assuming response contains the updated plant data
     } catch (error) {
