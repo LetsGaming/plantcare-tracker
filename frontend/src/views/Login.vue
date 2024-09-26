@@ -6,7 +6,10 @@
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <div class="login-container align-middle">
+      <div v-if="isCheckingLogin" class="login-loading-container align-middle">
+        <ion-spinner></ion-spinner>
+      </div>
+      <div v-else class="login-container align-middle">
         <ion-item class="ion-margin-bottom" style="width: 100%">
           <ion-icon :icon="personOutline" slot="start"></ion-icon>
           <ion-input
@@ -110,23 +113,30 @@ export default defineComponent({
       password: "",
       showPassword: false, // For toggling password visibility
       loading: false, // For showing loading spinner
+      isCheckingLogin: true,
     };
   },
   setup() {
     return { personOutline, lockClosedOutline, eyeOffOutline, eyeOutline };
   },
   async mounted() {
-    // Check if user is already logged in
-    if (await AuthUtils.isAuthenticated()) {
-      this.redirectUser();
-    } else {
-      try {
-        // If not authToken set, try to refresh
-        await AuthUtils.refreshToken();
+    try {
+      // Check if user is already logged in
+      if (await AuthUtils.isAuthenticated()) {
         this.redirectUser();
-      } catch {
-        return;
+      } else {
+        try {
+          // If not authToken set, try to refresh
+          await AuthUtils.refreshToken();
+          this.redirectUser();
+        } catch {
+          return;
+        }
       }
+    } catch (error) {
+      this.isCheckingLogin = false;
+    } finally {
+      this.isCheckingLogin = false;
     }
   },
   methods: {
@@ -176,6 +186,12 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.login-loading-container {
+  height: 90%;
+  display: flex;
+  align-items: center;
+}
+
 .login-container {
   display: flex;
   flex-direction: column;
