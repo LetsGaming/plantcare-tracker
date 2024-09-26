@@ -35,6 +35,7 @@ import '@ionic/vue/css/palettes/dark.system.css';
 import './theme/variables.css';
 
 import './theme/custom.css';
+import './theme/scrollbar.css';
 
 const app = createApp(App)
   .use(IonicVue)

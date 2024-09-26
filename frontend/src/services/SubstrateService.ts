@@ -1,3 +1,4 @@
+import Utils from "@/utils/utils";
 import ApiUtils from "@/utils/apiUtils";
 import storageService from "@/services/general/StorageService";
 import ToastService from "@/services/general/ToastService";
@@ -7,9 +8,35 @@ const SUBSTRATES_ENDPOINT = "/substrates";
 const CACHE_KEY_SUBSTRATES = "substrates_data";
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-// Check if cached data is expired
-function isCacheExpired(timestamp: number): boolean {
-  return Date.now() - timestamp > CACHE_EXPIRY_MS;
+
+// Common function to handle cache retrieval
+async function getCachedData() {
+  return await storageService.get<{
+    substrates: any[];
+    timestamp: number;
+  }>(CACHE_KEY_SUBSTRATES);
+}
+
+// Common function to handle cache invalidation
+async function invalidateCache() {
+  await storageService.remove(CACHE_KEY_SUBSTRATES);
+}
+
+// Common function to fetch substrates from API and cache them
+async function fetchAndCacheSubstrates(): Promise<any[]> {
+  try {
+    const response = await ApiUtils.get<any[]>(SUBSTRATES_ENDPOINT);
+    const substrates = SubstrateMapper.convertToSubstrates(response);
+    await storageService.set(CACHE_KEY_SUBSTRATES, {
+      substrates,
+      timestamp: Date.now(),
+    });
+    return substrates;
+  } catch (error) {
+    console.error("Error fetching substrates:", error);
+    ToastService.showError(`Error fetching substrates: ${error}`);
+    throw error;
+  }
 }
 
 const SubstrateService = {
@@ -18,34 +45,15 @@ const SubstrateService = {
    * @returns {Promise<any[]>} - A promise that resolves to an array of substrates.
    */
   async getSubstrates(forceUpdate: boolean = false): Promise<any[]> {
-    // Try to get the cached data
-    const cachedData = await storageService.get<{
-      substrates: any[];
-      timestamp: number;
-    }>(CACHE_KEY_SUBSTRATES);
+    const cachedData = await getCachedData();
 
-    // If not forcing update, check if cached data exists and is not expired
-    if (!forceUpdate && cachedData && !isCacheExpired(cachedData.timestamp)) {
+    // Use cached data if it's not expired
+    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       return cachedData.substrates;
     }
 
     // Otherwise, fetch new data from the API
-    try {
-      const response = await ApiUtils.get<any[]>(SUBSTRATES_ENDPOINT);
-      const substrates = SubstrateMapper.convertToSubstrates(response);
-
-      // Store the substrates and current timestamp in storage
-      await storageService.set(CACHE_KEY_SUBSTRATES, {
-        substrates,
-        timestamp: Date.now(),
-      });
-
-      return substrates;
-    } catch (error) {
-      console.error("Error fetching substrates:", error);
-      ToastService.showError(`Error fetching substrates: ${error}`);
-      throw error;
-    }
+    return await fetchAndCacheSubstrates();
   },
 
   /**
@@ -57,13 +65,10 @@ const SubstrateService = {
     id: number,
     forceUpdate: boolean = false
   ): Promise<any> {
-    const cachedData = await storageService.get<{
-      substrates: Substrate[];
-      timestamp: number;
-    }>(CACHE_KEY_SUBSTRATES);
+    const cachedData = await getCachedData();
 
     // Check if cached data exists and is not expired
-    if (cachedData && !isCacheExpired(cachedData.timestamp)) {
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       const substrate = cachedData.substrates.find((s) => s.id === id);
       if (substrate) {
         return substrate; // Return the cached substrate if found
@@ -74,7 +79,7 @@ const SubstrateService = {
     try {
       const substrate = await ApiUtils.get<any>(`${SUBSTRATES_ENDPOINT}/${id}`);
 
-      // Refresh the cache by calling getSubstrates
+      // Refresh the cache by fetching substrates
       await this.getSubstrates(true); // Invalidate the cache for substrates
 
       return substrate;
@@ -96,10 +101,7 @@ const SubstrateService = {
         SUBSTRATES_ENDPOINT,
         substrateData
       );
-
-      // Invalidate the cached substrates after adding a new substrate
-      await storageService.remove(CACHE_KEY_SUBSTRATES);
-
+      await invalidateCache(); // Invalidate the cached substrates
       return response; // Assuming response contains the inserted substrate
     } catch (error) {
       console.error("Error adding substrate:", error);
@@ -112,20 +114,34 @@ const SubstrateService = {
    * Updates an existing substrate by its ID.
    * @param {number} id - The ID of the substrate to update.
    * @param {any} substrateData - The updated data for the substrate.
+   * @param {number[]} removedComponents - Array of component IDs to be removed.
    * @returns {Promise<any>} - A promise that resolves to the updated substrate data.
    */
   async editSubstrate(
     id: number,
-    substrateData: any,
+    substrateData: { name?: string; components?: any[] },
     removedComponents: number[]
   ): Promise<any> {
     try {
-      const response = await ApiUtils.put(`${SUBSTRATES_ENDPOINT}/${id}`, {
-        substrateData,
+      if (!substrateData.name && !substrateData.components) {
+        throw new Error("Substrate name or components are required.");
+      }
+
+      let response = await ApiUtils.put(`${SUBSTRATES_ENDPOINT}/${id}`, {
+        name: substrateData.name,
         removedComponents,
       });
 
-      await storageService.remove(CACHE_KEY_SUBSTRATES); // Invalidate the cache
+      if (substrateData.components) {
+        response = await ApiUtils.patch(
+          `${SUBSTRATES_ENDPOINT}/components/${id}`,
+          {
+            components: substrateData.components,
+          }
+        );
+      }
+
+      await invalidateCache(); // Invalidate the cache
       return response;
     } catch (error) {
       console.error(`Error updating substrate with ID ${id}:`, error);
@@ -146,12 +162,12 @@ const SubstrateService = {
   ): Promise<any> {
     try {
       // Step 1: Add the substrate
-      const response = (await ApiUtils.post(
+      const response = await ApiUtils.post(
         SUBSTRATES_ENDPOINT,
         substrateData
-      )) as any;
+      ) as any;
 
-      const substrateId = response.id; // Assuming the response returns the new substrate with an id
+      const substrateId = response.id; 
 
       // Step 2: Add components to the substrate
       if (componentsData && componentsData.components.length > 0) {
@@ -164,8 +180,7 @@ const SubstrateService = {
           componentsData
         );
 
-        // Invalidate the cached substrates after adding a new substrate
-        await storageService.remove(CACHE_KEY_SUBSTRATES);
+        await invalidateCache(); // Invalidate the cached substrates after adding a new substrate
 
         return {
           substrate: response, // The created substrate
@@ -173,8 +188,7 @@ const SubstrateService = {
         };
       }
 
-      // Invalidate the cache if no components were added
-      await storageService.remove(CACHE_KEY_SUBSTRATES);
+      await invalidateCache(); // Invalidate the cache if no components were added
       return response; // Return just the substrate if no components are added
     } catch (error) {
       console.error("Error adding substrate with components:", error);

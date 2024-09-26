@@ -115,6 +115,20 @@ export default defineComponent({
   setup() {
     return { personOutline, lockClosedOutline, eyeOffOutline, eyeOutline };
   },
+  async mounted() {
+    // Check if user is already logged in
+    if (await AuthUtils.isAuthenticated()) {
+      this.redirectUser();
+    } else {
+      try {
+        // If not authToken set, try to refresh
+        await AuthUtils.refreshToken();
+        this.redirectUser();
+      } catch {
+        return;
+      }
+    }
+  },
   methods: {
     togglePasswordVisibility() {
       this.showPassword = !this.showPassword;
@@ -122,7 +136,12 @@ export default defineComponent({
     async handleLogin() {
       // Check if username or password is empty
       if (!this.username || !this.password) {
-        ToastService.showError("Please enter username and password.", undefined, "top", "login-button");
+        ToastService.showError(
+          "Please enter username and password.",
+          undefined,
+          "top",
+          "login-button"
+        );
         return;
       }
 
@@ -134,17 +153,23 @@ export default defineComponent({
         };
 
         // Call the AuthUtils login method
-        const response = await AuthUtils.login(data);
-        console.log("Logged in successfully:", response);
-        this.$router.push({name:  "plant-overview"});
-
+        await AuthUtils.login(data);
+        this.redirectUser();
       } catch (error) {
         // Show error message if login fails
-        ToastService.showError("Invalid username or password", undefined, "top", "login-button");
+        ToastService.showError(
+          "Invalid username or password",
+          undefined,
+          "top",
+          "login-button"
+        );
       } finally {
         // Stop the loading spinner
         this.loading = false;
       }
+    },
+    redirectUser() {
+      this.$router.push({ name: "plant-overview" });
     },
   },
 });

@@ -79,11 +79,11 @@ const addSubstrateComponents = async (req, res) => {
 
 const editSubstrate = async (req, res) => {
   const { id } = req.params;
-  const { substrateData, removedComponents } = req.body;
+  const { name, removedComponents } = req.body;
   const user = req.user;
 
   try {
-    if(substrateData.name) await updateSubstrate(id, substrateData.name, user.id);
+    if(name) await updateSubstrate(id, name, user.id);
 
     // Remove components if any
     if (removedComponents && removedComponents.length > 0) {
@@ -97,19 +97,21 @@ const editSubstrate = async (req, res) => {
 };
 
 const editSubstrateComponents = async (req, res) => {
-  const { substrateId, components } = req.body;
+  const { id } = req.params;
+  const { components } = req.body;
   const user = req.user;
 
   try {
-    validateSubstrateComponents(substrateId, components);
+    validateSubstrateComponents(id, components);
 
-    if (substrate.user_id !== user.id) {
+    const [substrate] = await selectSubstrate(id);
+    if (substrate.user_id != user.id) {
       return errorResponse(res, "Forbidden: You are not authorized to update components of this substrate.", 403);
     }
 
     const updatePromises = components.map(({ componentId, parts }) => {
       const decimalParts = parseFloat(parts).toFixed(2);
-      return updateSubstrateComponent(substrateId, componentId, decimalParts);
+      return updateSubstrateComponent(id, componentId, decimalParts);
     });
 
     await Promise.all(updatePromises);

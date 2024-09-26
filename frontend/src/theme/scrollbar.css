@@ -1,0 +1,50 @@
+/* Default Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 12px; /* Width of the scrollbar */
+  height: 12px; /* Height of the scrollbar */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888; /* Default scrollbar thumb color */
+  border-radius: 10px; /* Roundness of the scrollbar thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555; /* Scrollbar thumb color on hover */
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1; /* Default track color */
+  border-radius: 10px; /* Roundness of the track */
+}
+
+/* Dark Mode Styles */
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-thumb {
+    background: #444; /* Dark mode scrollbar thumb color */
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #222; /* Dark mode scrollbar thumb color on hover */
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #333; /* Dark mode track color */
+  }
+}
+
+/* Styles for Mobile */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 8px; /* Thinner scrollbar on mobile */
+    height: 8px; /* Thinner scrollbar on mobile */
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 8px; /* Roundness of the scrollbar thumb */
+  }
+
+  ::-webkit-scrollbar-track {
+    border-radius: 8px; /* Roundness of the track */
+  }
+}

@@ -17,7 +17,7 @@
         :formFields="substrateFormFields"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
-        @submit="goToStepTwo"
+        @submit-click="goToStepTwo"
       ></form-component>
 
       <!-- Step 2: Select Components -->
@@ -121,9 +121,9 @@ export default defineComponent({
     substrateFormFields(): FormField[] {
       return [
         {
-          type: "input",
-          modelKey: "name",
-          label: "Substratname",
+          type: 'input',
+          modelKey: 'name',
+          label: 'Substratname',
           required: true,
         },
       ];

@@ -25,8 +25,8 @@ interface AddSubstrateComponents {
 }
 
 interface EditSubstrate {
-  name: string;
-  components: EditSubstrateComponent[];
+  name?: string;
+  components?: EditSubstrateComponent[];
 }
 
 interface EditSubstrateComponent {
