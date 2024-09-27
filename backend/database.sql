@@ -22,6 +22,7 @@ CREATE TABLE substrates (
 CREATE TABLE components (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  image_url VARCHAR(255),
   fineness ENUM('Grob', 'Mittel', 'Fein') NOT NULL  -- Feinheit der Komponente
 );
 

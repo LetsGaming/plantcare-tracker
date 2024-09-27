@@ -86,11 +86,8 @@ const selectPrivatePlants = (user_id) => selectPlants({ user_id: user_id });
 const selectPublicPlants = () => selectPlants({ is_public: true });
 
 // Wrapper for selecting a specific private plant by ID and user ID
-const selectPrivatePlant = (id, user_id) =>
-  selectPlants({ id: id, user_id: user_id });
-
-// Wrapper for selecting a specific public plant by ID
-const selectPublicPlant = (id) => selectPlants({ id: id, is_public: true });
+const selectPlant = (id) =>
+  selectPlants({ id: id });
 
 // Insert a new plant
 const insertPlant = (name, species, substrate_id, is_public, user_id) =>
@@ -142,8 +139,7 @@ const updatePlant = async (id, user_id, fields) => {
 module.exports = {
   selectPrivatePlants,
   selectPublicPlants,
-  selectPrivatePlant,
-  selectPublicPlant,
+  selectPlant,
   insertPlant,
   updatePlant,
 };

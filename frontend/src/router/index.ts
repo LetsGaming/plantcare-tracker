@@ -23,6 +23,8 @@ const SubstrateEditing = () =>
 
 const ComponentOverview = () =>
   import("@/views/components/ComponentOverview.vue");
+const ComponentDetails = () =>
+  import("@/views/components/ComponentDetails.vue");
 
 // Helper function to create children routes with the same structure
 const createChildRoutes = (
@@ -118,7 +120,7 @@ const routes: Array<RouteRecordRaw> = [
         children: createChildRoutes(
           "component",
           ComponentOverview,
-          SubstrateDetails,
+          ComponentDetails,
           SubstrateAdding,
           SubstrateEditing
         ),

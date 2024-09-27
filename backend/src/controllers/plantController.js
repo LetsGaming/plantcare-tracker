@@ -1,8 +1,7 @@
 const {
   selectPrivatePlants,
   selectPublicPlants,
-  selectPrivatePlant,
-  selectPublicPlant,
+  selectPlant,
   insertPlant,
   updatePlant,
 } = require("../models/plantModel");
@@ -46,22 +45,15 @@ const getPrivatePlants = async (req, res) => {
   await getPlants(res, selectPrivatePlants, userId);
 };
 
-// Controller for fetching a single private plant
-const getPrivatePlant = async (req, res) => {
+// Controller for fetching a single plant
+const getSpecificPlant = async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id || null;
-  await getPlant(res, selectPrivatePlant, id, userId);
+  await getPlant(res, selectPlant, id);
 };
 
 // Controller for fetching public plants
 const getPublicPlants = async (req, res) => {
   await getPlants(res, selectPublicPlants);
-};
-
-// Controller for fetching a single public plant
-const getPublicPlant = async (req, res) => {
-  const { id } = req.params;
-  await getPlant(res, selectPublicPlant, id);
 };
 
 // Controller for adding a new plant
@@ -126,9 +118,8 @@ const editPlant = async (req, res) => {
 
 module.exports = {
   getPrivatePlants,
-  getPrivatePlant,
   getPublicPlants,
-  getPublicPlant,
+  getSpecificPlant,
   addPlant,
   editPlant,
 };

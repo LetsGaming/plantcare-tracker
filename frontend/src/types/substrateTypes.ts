@@ -2,14 +2,11 @@ interface Substrate {
   id: number;
   name: string;
   imageUrl?: string;
-  components: Component[];
+  components: SubstrateComponent[];
 }
 
-interface Component {
-  id: number;
-  name: string;
-  fineness: string;
-  parts: number;
+interface SubstrateComponent extends Component {
+  parts: number
 }
 
 interface AddSubstrate {
