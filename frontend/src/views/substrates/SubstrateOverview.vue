@@ -2,7 +2,7 @@
   <ion-page>
     <!-- Custom Header with Filters -->
     <overview-header
-      title="Substrates"
+      title="Substrate"
       :segments="[
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
         { value: 'private', label: 'Persönlich', icon: personCircle },

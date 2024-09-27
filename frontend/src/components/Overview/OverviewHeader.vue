@@ -2,6 +2,7 @@
   <ion-header>
     <ion-toolbar class="header-toolbar">
       <ion-title>{{ title }}</ion-title>
+      <ion-icon :icon="logOut" slot="end" @click="logUserOut"></ion-icon>
     </ion-toolbar>
 
     <ion-toolbar class="segment-toolbar">
@@ -17,9 +18,15 @@
       </ion-segment>
 
       <ion-icon
-        v-if="showAddButton"
-        :name="addIcon"
-        style="width: 32px; height: 32px"
+        v-if="showAddButton && addIcon"
+        :icon="addIcon"
+        slot="end"
+        @click="onAddClick"
+      />
+
+      <ion-icon
+        v-else-if="showAddButton"
+        :name="addIconName"
         slot="end"
         @click="onAddClick"
       />
@@ -38,6 +45,8 @@ import {
   IonLabel,
   IonIcon,
 } from "@ionic/vue";
+import { logOut } from "ionicons/icons";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "CustomHeader",
@@ -67,6 +76,10 @@ export default defineComponent({
     },
     addIcon: {
       type: String,
+      required: false,
+    },
+    addIconName: {
+      type: String,
       default: "addCircle",
     },
     startingSegment: {
@@ -85,9 +98,15 @@ export default defineComponent({
   data() {
     return {
       segmentValue: this.startingSegment,
-      };
+    };
+  },
+  setup() {
+    return { logOut };
   },
   methods: {
+    async logUserOut() {
+      await AuthUtils.logout();
+    },
     handleSegmentChange(event: any) {
       const value = event.detail.value;
       this.onSegmentChange(value);
@@ -103,6 +122,7 @@ export default defineComponent({
 
 <style scoped>
 .header-toolbar {
+  text-align: center;
   background-color: var(--ion-color-primary);
   color: white;
 }

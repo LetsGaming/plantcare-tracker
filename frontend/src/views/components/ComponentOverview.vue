@@ -2,14 +2,13 @@
   <ion-page>
     <!-- Sticky Header with Filters -->
     <overview-header
-      title="Plants"
+      title="Komponenten"
       :segments="[
-        { value: 'public', label: 'Öffentlich', icon: peopleCircle },
-        { value: 'private', label: 'Persönlich', icon: personCircle },
+        { value: 'all', label: 'Alle', icon: personCircle }
       ]"
-      :showAddButton="true"
+      :showAddButton="showAddButton"
       :addIcon="addCircle"
-      starting-segment="private"
+      starting-segment="all"
       :onSegmentChange="handleSegmentChange"
       :onAddClick="navigateToComponentAdding"
     />
@@ -34,9 +33,10 @@ import ComponentService from "@/services/ComponentService";
 // Importing the new custom components
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
-  name: "PlantOverview",
+  name: "ComponentOverview",
   components: {
     IonPage,
     IonContent,
@@ -47,7 +47,7 @@ export default defineComponent({
   data() {
     return {
       components: [] as Component[],
-      showPublic: "private",
+      showAddButton: false
     };
   },
   setup() {
@@ -57,13 +57,9 @@ export default defineComponent({
       addCircle,
     };
   },
-  mounted() {
-    this.fetchComponents();
-  },
-  computed: {
-    isPublic() {
-      return this.showPublic === "public";
-    },
+  async mounted() {
+    await this.fetchComponents();
+    this.showAddButton = await AuthUtils.isAdmin();
   },
   methods: {
     async fetchComponents() {
@@ -74,7 +70,6 @@ export default defineComponent({
       }
     },
     handleSegmentChange(value: string) {
-      this.showPublic = value;
       this.fetchComponents(); // Refetch plants based on segment change
     },
     navigateToComponent(id: number) {

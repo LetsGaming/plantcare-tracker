@@ -2,7 +2,7 @@
   <ion-page>
     <!-- Sticky Header with Filters -->
     <overview-header
-      title="Plants"
+      title="Pflanzen"
       :segments="[
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
         { value: 'private', label: 'Persönlich', icon: personCircle },

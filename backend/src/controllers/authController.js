@@ -11,17 +11,15 @@ const pool = require("../config/db");
 const { successResponse, errorResponse } = require("../utils/responseUtils");
 
 const generateTokens = (user) => {
-  const accessToken = jwt.sign(
-    { id: user.id, username: user.username, role: user.role },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRATION }
-  );
+  const payload = { id: user.id, username: user.username, role: user.role };
 
-  const refreshToken = jwt.sign(
-    { id: user.id, username: user.username, role: user.role },
-    JWT_REFRESH_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRATION }
-  );
+  const accessToken = jwt.sign(payload, JWT_SECRET, {
+    expiresIn: JWT_EXPIRATION,
+  });
+
+  const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, {
+    expiresIn: JWT_REFRESH_EXPIRATION,
+  });
 
   return { accessToken, refreshToken };
 };
