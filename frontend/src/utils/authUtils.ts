@@ -26,22 +26,56 @@ const AuthUtils = {
 
   async logout(): Promise<void> {
     await ApiService.post<null, { message: string }>("/auth/logout", null);
-    await storageService.remove(TOKEN_KEY); // Use StorageService to remove the token
+    await storageService.clear();
     await router.push({ name: "login" });
   },
 
-  async refreshToken(): Promise<void> {
-    try {
-      const response = await ApiService.post<null, { accessToken: string }>(
-        "/auth/refresh-token",
-        null
-      );
-      await storageService.set(TOKEN_KEY, response.accessToken); // Update token using StorageService
-    } catch (error) {
-      ToastService.showError(`Failed to refresh token: ${error}`);
-      throw new Error("Token refresh failed");
+  async refreshToken(retryCount = 3): Promise<void> {
+    const url = "/auth/refresh-token";
+    const maxRetries = retryCount;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: null, // Adjust this if needed, currently matches `null` from ApiService
+        });
+  
+        // Check for network and server errors
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+  
+        const data = await response.json();
+  
+        // Validate response format (ensure accessToken exists)
+        if (!data || !data.accessToken) {
+          throw new Error("Invalid response structure: Missing accessToken");
+        }
+  
+        // Update token using StorageService
+        await storageService.set(TOKEN_KEY, data.accessToken);
+  
+        // Token refreshed successfully, exit function
+        return;
+  
+      } catch (error) {
+        console.error(`Attempt ${attempt} to refresh token failed: ${error}`);
+  
+        if (attempt === maxRetries) {
+          // Maximum retry attempts reached, throw error
+          ToastService.showError(`Failed to refresh token after ${maxRetries} attempts`);
+          throw new Error("Token refresh failed after multiple attempts");
+        }
+  
+        // Optionally, add a small delay between retries if needed
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     }
-  },
+  },  
 
   async getToken(): Promise<string | null> {
     return await storageService.get<string>(TOKEN_KEY); // Get token using StorageService

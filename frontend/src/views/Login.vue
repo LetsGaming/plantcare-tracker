@@ -127,7 +127,7 @@ export default defineComponent({
       } else {
         try {
           // If not authToken set, try to refresh
-          await AuthUtils.refreshToken();
+          await AuthUtils.refreshToken(1);
           this.redirectUser();
         } catch {
           return;
