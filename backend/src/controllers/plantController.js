@@ -42,6 +42,7 @@ const getPlants = async (res, selectPlantsFn, userId = null) => {
 // Controller for fetching private plants
 const getPrivatePlants = async (req, res) => {
   const userId = req.user.id;
+  
   await getPlants(res, selectPrivatePlants, userId);
 };
 

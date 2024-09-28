@@ -2,7 +2,7 @@
   <ion-header>
     <ion-toolbar class="header-toolbar">
       <ion-title>{{ title }}</ion-title>
-      <ion-icon :icon="logOut" slot="end" @click="logUserOut"></ion-icon>
+      <ion-icon :icon="logOutOutline" slot="end" @click="logUserOut" style="padding-right: 20px;"></ion-icon>
     </ion-toolbar>
 
     <ion-toolbar class="segment-toolbar">
@@ -22,6 +22,7 @@
         :icon="addIcon"
         slot="end"
         @click="onAddClick"
+        class="add-icon"
       />
 
       <ion-icon
@@ -29,6 +30,7 @@
         :name="addIconName"
         slot="end"
         @click="onAddClick"
+        class="add-icon"
       />
     </ion-toolbar>
   </ion-header>
@@ -45,7 +47,7 @@ import {
   IonLabel,
   IonIcon,
 } from "@ionic/vue";
-import { logOut } from "ionicons/icons";
+import { logOutOutline } from "ionicons/icons";
 import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
@@ -101,7 +103,7 @@ export default defineComponent({
     };
   },
   setup() {
-    return { logOut };
+    return { logOutOutline };
   },
   methods: {
     async logUserOut() {
