@@ -38,7 +38,6 @@ const selectPlants = async (conditions = {}, params = [], req) => {
     ? `WHERE ${whereClauses.join(" AND ")}`
     : "";
   const query = `${selectPlantsQuery} ${whereSQL}`;
-
   // First, fetch the plant data
   const [plantsRows] = await pool.query(query, params);
 

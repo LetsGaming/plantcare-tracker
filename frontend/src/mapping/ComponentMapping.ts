@@ -1,7 +1,6 @@
 export default class ComponentMapper {
   // Helper function to map components
   static mapComponent(component: any): Component {
-    console.log("Component: ", component)
     return {
       id: component.component_id,
       name: component.component_name,

@@ -79,7 +79,7 @@ export default class PlantService {
 
     // If not found in cache, fetch from API (try both public and private endpoints)
     try {
-      const response = await ApiUtils.get(`${BASE_ENDPOINT}/${plantId}`);
+      const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
       const plant = PlantMapper.convertToPlants(response)[0];
 
       // Invalidate both caches after fetching individual plant

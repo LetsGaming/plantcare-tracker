@@ -10,7 +10,7 @@ const {
 } = require('../controllers/plantController');
 
 // Get a specific private plant for the authenticated user
-router.get('/:id', authenticateToken, getSpecificPlant);
+router.get('/plant/:id', authenticateToken, getSpecificPlant);
 
 // Get all private plants for the authenticated user
 router.get('/private', authenticateToken, getPrivatePlants);

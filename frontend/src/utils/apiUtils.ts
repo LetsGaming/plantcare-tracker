@@ -40,7 +40,7 @@ const getAuthHeaders = async (): Promise<HeadersInit> => {
  * @param {() => Promise<Response>} requestFn - The function to retry the request.
  * @returns {Promise<Response>} - The response after retrying with a refreshed token.
  */
-const handle403 = async (requestFn: () => Promise<Response>) => {
+const handleNoAuth = async (requestFn: () => Promise<Response>) => {
   try {
     await AuthUtils.refreshToken();
     return await requestFn();
@@ -73,8 +73,8 @@ const makeRequest = async <T>(
     });
 
   let response = await requestFn();
-  if (response.status === 403) {
-    response = await handle403(requestFn);
+  if (response.status === 403 || response.status === 401) {
+    response = await handleNoAuth(requestFn);
   }
 
   return handleResponse(response);
