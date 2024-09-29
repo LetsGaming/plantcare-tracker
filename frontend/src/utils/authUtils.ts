@@ -1,119 +1,142 @@
+import router from "@/router";
 import ToastService from "@/services/general/ToastService";
 import ApiService from "./apiUtils";
-import storageService from "@/services/general/StorageService";
-import router from "@/router";
+import TokenService from "./tokenUtils";
 
-const TOKEN_KEY = "authToken";
-
+/**
+ * Authentication and authorization utility functions.
+ */
 const AuthUtils = {
+  /**
+   * Register a new user.
+   * @param data - Registration data
+   * @returns Registered user details.
+   */
   async register(
     data: RegisterData
   ): Promise<{ id: number; username: string }> {
-    return await ApiService.post<
-      RegisterData,
-      { id: number; username: string }
-    >("/auth/register", data);
+    return ApiService.post<RegisterData, { id: number; username: string }>(
+      "/auth/register",
+      data
+    );
   },
 
+  /**
+   * Log in with credentials.
+   * @param data - Login data
+   * @returns Auth response with accessToken.
+   */
   async login(data: LoginData): Promise<AuthResponse> {
     const response = await ApiService.post<LoginData, AuthResponse>(
       "/auth/login",
       data
     );
-    await storageService.set(TOKEN_KEY, response.accessToken); // Use StorageService to store the token
+    await TokenService.setToken(response.accessToken); // Store the token using TokenService
     return response;
   },
 
+  /**
+   * Log out the current user.
+   */
   async logout(): Promise<void> {
     await ApiService.post<null, { message: string }>("/auth/logout", null);
-    await storageService.clear();
+    await TokenService.clearToken();
     await router.push({ name: "login" });
   },
 
+  /**
+   * Refresh the authentication token directly using `fetch`.
+   * Retries up to a maximum number of attempts if the token refresh fails.
+   * @param retryCount - Number of retry attempts
+   */
   async refreshToken(retryCount = 3): Promise<void> {
     const url = "/auth/refresh-token";
-    const maxRetries = retryCount;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+
+    for (let attempt = 1; attempt <= retryCount; attempt++) {
       try {
+        // Direct fetch call to avoid circular dependencies and potential infinite loop
         const response = await fetch(url, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
-          body: null, // Adjust this if needed, currently matches `null` from ApiService
+          body: null, // No body needed for token refresh
         });
-  
-        // Check for network and server errors
+
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
-  
+
         const data = await response.json();
-  
-        // Validate response format (ensure accessToken exists)
-        if (!data || !data.accessToken) {
+        if (!data?.accessToken) {
           throw new Error("Invalid response structure: Missing accessToken");
         }
-  
-        // Update token using StorageService
-        await storageService.set(TOKEN_KEY, data.accessToken);
-  
-        // Token refreshed successfully, exit function
-        return;
-  
+
+        // Store new token using TokenService
+        await TokenService.setToken(data.accessToken);
+        return; // Exit once token is refreshed successfully
       } catch (error) {
         console.error(`Attempt ${attempt} to refresh token failed: ${error}`);
-  
-        if (attempt === maxRetries) {
-          // Maximum retry attempts reached, throw error
-          ToastService.showError(`Failed to refresh token after ${maxRetries} attempts`);
+
+        if (attempt === retryCount) {
+          // Max retries reached, show error and log the user out
+          ToastService.showError(
+            `Failed to refresh token after ${retryCount} attempts.`
+          );
+          await this.logout(); // Log out if refresh fails
           throw new Error("Token refresh failed after multiple attempts");
         }
-  
-        // Optionally, add a small delay between retries if needed
+
+        // Optional delay between retries
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
-  },  
-
-  async getToken(): Promise<string | null> {
-    return await storageService.get<string>(TOKEN_KEY); // Get token using StorageService
   },
 
+  /**
+   * Check if the user is authenticated by checking for a valid token.
+   * @returns Whether the user is authenticated.
+   */
   async isAuthenticated(): Promise<boolean> {
-    const token = await this.getToken();
-    return token !== null; // Check if token exists
+    const token = await TokenService.getToken();
+    return token !== null;
   },
 
-  async decodeAuthToken() {
-    const token = await this.getToken();
+  /**
+   * Decode the JWT to get the payload.
+   * @returns Decoded JWT payload, or null if invalid.
+   */
+  async decodeAuthToken(): Promise<any | null> {
+    const token = await TokenService.getToken();
 
     if (!token) return null;
 
     try {
-      // JWT structure: header.payload.signature
       const payloadBase64 = token.split(".")[1]; // Get the payload part
-      const decodedPayload = atob(payloadBase64); // Decode the Base64 payload
-      const payloadObj = JSON.parse(decodedPayload); // Parse it to an object
-      return payloadObj;
+      const decodedPayload = atob(payloadBase64); // Decode Base64
+      return JSON.parse(decodedPayload); // Parse JSON
     } catch (error) {
       console.error("Error decoding token:", error);
       return null;
     }
   },
 
+  /**
+   * Get the user role from the JWT payload.
+   * @returns User role, or null if not found.
+   */
   async getUserRole(): Promise<string | null> {
-    const payloadObj = await this.decodeAuthToken();
-
-    return payloadObj.role || null;
+    const payload = await this.decodeAuthToken();
+    return payload?.role || null;
   },
 
+  /**
+   * Check if the current user is an admin.
+   * @returns Whether the user is an admin.
+   */
   async isAdmin(): Promise<boolean> {
     const role = await this.getUserRole();
-    if (!role) return false;
-
-    return role.toLowerCase() === "admin"; // Check if the role is 'admin'
+    return role?.toLowerCase() === "admin" || false;
   },
 };
 

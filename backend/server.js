@@ -13,6 +13,7 @@ const path = require("path"); // Import path for path manipulation
 
 const { versionPath } = require("./package.json");
 const imageProxy = require("./src/routes/proxyRoutes");
+const { limiter } = require("./src/middlewares/rateLimiter");
 
 const allowedOrigins = [
   "http://localhost:8100",
@@ -36,6 +37,7 @@ const middlewareSetup = () => {
     },
     credentials: true, // Allows credentials
   };
+  app.use(limiter);
   app.use(cors(corsOptions));
   app.use(bodyParser.json());
   app.use(cookieParser());
