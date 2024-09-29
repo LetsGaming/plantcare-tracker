@@ -1,5 +1,6 @@
 import ToastService from '@/services/general/ToastService';
 import AuthUtils from './authUtils';
+import TokenUtils from './tokenUtils';
 
 const API_URL = 'http://localhost:5000';
 const API_BASE_PATH = '/api/v1';
@@ -27,7 +28,7 @@ const handleResponse = async (response: Response) => {
  * @returns {HeadersInit} - The headers to be sent with the request.
  */
 const getAuthHeaders = async (): Promise<HeadersInit> => {
-  const token = await AuthUtils.getToken();
+  const token = await TokenUtils.getToken();
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
