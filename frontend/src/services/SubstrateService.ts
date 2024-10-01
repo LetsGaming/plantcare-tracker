@@ -68,7 +68,7 @@ const SubstrateService = {
     const cachedData = await getCachedData();
 
     // Check if cached data exists and is not expired
-    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
+    if (cachedData && !Utils.isCacheExpired(CACHE_EXPIRY_MS)) {
       const substrate = cachedData.substrates.find((s) => s.id === id);
       if (substrate) {
         return substrate; // Return the cached substrate if found

@@ -1,9 +1,9 @@
-import ToastService from '@/services/general/ToastService';
-import AuthUtils from './authUtils';
-import TokenUtils from './tokenUtils';
+import ToastService from "@/services/general/ToastService";
+import AuthUtils from "./authUtils";
+import TokenUtils from "./tokenUtils";
 
-const API_URL = 'http://localhost:5000';
-const API_BASE_PATH = '/api/v1';
+const API_URL = "http://localhost:5000";
+const API_BASE_PATH = "/api/v1";
 const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
 
 /**
@@ -17,9 +17,11 @@ const handleResponse = async (response: Response) => {
   const responseData = await response.json();
 
   if (responseData.success) {
-    return responseData.data;  // Return the data field when success is true
+    if (responseData.message && responseData.message !== "Operation successful")
+      ToastService.showSuccess(responseData.message);
+    return responseData.data; // Return the data field when success is true
   } else {
-    throw new Error(responseData.error || 'An unknown error occurred');  // Throw the error message
+    throw new Error(responseData.error || "An unknown error occurred"); // Throw the error message
   }
 };
 
@@ -30,7 +32,7 @@ const handleResponse = async (response: Response) => {
 const getAuthHeaders = async (): Promise<HeadersInit> => {
   const token = await TokenUtils.getToken();
   return {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };
@@ -46,9 +48,9 @@ const handleNoAuth = async (requestFn: () => Promise<Response>) => {
     await AuthUtils.refreshToken();
     return await requestFn();
   } catch (error) {
-    ToastService.showError('Session expired. You have been logged out.');
+    ToastService.showError("Session expired. You have been logged out.");
     await AuthUtils.logout();
-    throw new Error('Session expired. You have been logged out.');
+    throw new Error("Session expired. You have been logged out.");
   }
 };
 
@@ -61,7 +63,7 @@ const handleNoAuth = async (requestFn: () => Promise<Response>) => {
  * @returns {Promise<T>} - The parsed response data.
  */
 const makeRequest = async <T>(
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   endpoint: string,
   data?: any
 ): Promise<T> => {
@@ -69,7 +71,7 @@ const makeRequest = async <T>(
     fetch(`${API_BASE_URL}${endpoint}`, {
       method,
       headers: await getAuthHeaders(),
-      credentials: 'include',
+      credentials: "include",
       ...(data && { body: JSON.stringify(data) }),
     });
 
@@ -91,7 +93,7 @@ const ApiUtils = {
    * @returns {Promise<T>} - The parsed response data.
    */
   get<T>(endpoint: string): Promise<T> {
-    return makeRequest<T>('GET', endpoint);
+    return makeRequest<T>("GET", endpoint);
   },
 
   /**
@@ -101,7 +103,7 @@ const ApiUtils = {
    * @returns {Promise<R>} - The parsed response data.
    */
   post<T, R>(endpoint: string, data: T): Promise<R> {
-    return makeRequest<R>('POST', endpoint, data);
+    return makeRequest<R>("POST", endpoint, data);
   },
 
   /**
@@ -111,7 +113,7 @@ const ApiUtils = {
    * @returns {Promise<R>} - The parsed response data.
    */
   put<T, R>(endpoint: string, data: T): Promise<R> {
-    return makeRequest<R>('PUT', endpoint, data);
+    return makeRequest<R>("PUT", endpoint, data);
   },
 
   /**
@@ -121,7 +123,7 @@ const ApiUtils = {
    * @returns {Promise<R>} - The parsed response data.
    */
   patch<T, R>(endpoint: string, data: T): Promise<R> {
-    return makeRequest<R>('PATCH', endpoint, data);
+    return makeRequest<R>("PATCH", endpoint, data);
   },
 
   /**
@@ -131,8 +133,8 @@ const ApiUtils = {
    */
   async delete<T>(endpoint: string): Promise<void> {
     try {
-      await makeRequest<void>('DELETE', endpoint);
-      ToastService.showSuccess('Resource deleted successfully.');
+      await makeRequest<void>("DELETE", endpoint);
+      ToastService.showSuccess("Resource deleted successfully.");
     } catch (error) {
       console.error(`Error deleting resource at ${endpoint}:`, error);
       ToastService.showError(`Error deleting resource: ${error}`);

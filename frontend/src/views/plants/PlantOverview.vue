@@ -78,7 +78,9 @@ export default defineComponent({
       this.fetchPlants(); // Refetch plants based on segment change
     },
     navigateToPlant(id: number) {
-      this.$router.push({ name: "plant", params: { id } });
+      const isPublic = this.isPublic
+      const isPublic_Int = isPublic ? 1 : 0;
+      this.$router.push({ name: "plant", params: { id: id, public: isPublic_Int} });
     },
     navigateToPlantAdding() {
       this.$router.push({ name: "plant-adding" });

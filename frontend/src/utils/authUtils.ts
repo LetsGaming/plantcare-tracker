@@ -50,7 +50,11 @@ const AuthUtils = {
    * @param retryCount - Number of retry attempts
    */
   async refreshToken(retryCount = 3): Promise<void> {
-    const url = "/auth/refresh-token";
+    const API_URL = "http://localhost:5000";
+    const API_BASE_PATH = "/api/v1";
+    const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
+
+    const url = API_BASE_URL + "/auth/refresh-token";
 
     for (let attempt = 1; attempt <= retryCount; attempt++) {
       try {
@@ -60,6 +64,7 @@ const AuthUtils = {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: 'include',
           body: null, // No body needed for token refresh
         });
 
@@ -67,13 +72,14 @@ const AuthUtils = {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
 
-        const data = await response.json();
-        if (!data?.accessToken) {
+        const res = await response.json();
+        const accessToken = res.data.accessToken;
+        if (!accessToken) {
           throw new Error("Invalid response structure: Missing accessToken");
         }
-
+        
         // Store new token using TokenService
-        await TokenService.setToken(data.accessToken);
+        await TokenService.setToken(accessToken);
         return; // Exit once token is refreshed successfully
       } catch (error) {
         console.error(`Attempt ${attempt} to refresh token failed: ${error}`);
