@@ -1,7 +1,7 @@
 import storageService from "@/services/general/StorageService";
 
 // Constants
-const TOKEN_KEY = process.env.TOKEN_KEY || "authToken";
+const TOKEN_KEY = "authToken";
 
 // Centralized token management
 const TokenUtils = {
