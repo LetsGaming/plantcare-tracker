@@ -2,7 +2,7 @@
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title class="ion-text-center">Login</ion-title>
+        <ion-title class="ion-text-center">{{ isRegisterMode ? 'Register' : 'Login' }}</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
@@ -48,17 +48,41 @@
           </ion-button>
         </ion-item>
 
+        <!-- Confirm password field for registration -->
+        <ion-item
+          v-if="isRegisterMode"
+          class="ion-margin-bottom"
+          style="width: 100%"
+        >
+          <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
+          <ion-input
+            v-model="confirmPassword"
+            :type="showPassword ? 'text' : 'password'"
+            label="Confirm Password"
+            label-placement="floating"
+            aria-label="Confirm Password"
+            placeholder="Confirm your password"
+            clear-input
+            required
+          ></ion-input>
+        </ion-item>
+
         <ion-button
           expand="block"
-          @click="handleLogin"
+          @click="isRegisterMode ? handleRegister() : handleLogin()"
           :disabled="loading"
-          id="login-button"
+          id="auth-button"
           class="ion-margin-top"
           style="width: 100%"
         >
           <ion-spinner v-if="loading"></ion-spinner>
-          <span v-else>Login</span>
+          <span v-else>{{ isRegisterMode ? 'Register' : 'Login' }}</span>
         </ion-button>
+
+        <!-- Toggle between login and register mode -->
+        <ion-text @click="toggleAuthMode" class="ion-margin-top" color="primary">
+          <p>{{ isRegisterMode ? 'Already have an account? Login' : "Don't have an account? Register" }}</p>
+        </ion-text>
       </div>
     </ion-content>
   </ion-page>
@@ -73,21 +97,18 @@ import {
   IonToolbar,
   IonTitle,
   IonItem,
-  IonLabel,
   IonInput,
   IonButton,
   IonIcon,
   IonSpinner,
   IonText,
 } from "@ionic/vue";
-
 import {
   personOutline,
   lockClosedOutline,
   eyeOffOutline,
   eyeOutline,
 } from "ionicons/icons";
-
 import AuthUtils from "@/utils/authUtils";
 import ToastService from "@/services/general/ToastService";
 
@@ -100,7 +121,6 @@ export default defineComponent({
     IonToolbar,
     IonTitle,
     IonItem,
-    IonLabel,
     IonInput,
     IonButton,
     IonIcon,
@@ -111,9 +131,11 @@ export default defineComponent({
     return {
       username: "",
       password: "",
-      showPassword: false, // For toggling password visibility
-      loading: false, // For showing loading spinner
+      confirmPassword: "", // New field for registration
+      showPassword: false,
+      loading: false,
       isCheckingLogin: true,
+      isRegisterMode: false, // Toggle for login and register mode
     };
   },
   setup() {
@@ -121,12 +143,10 @@ export default defineComponent({
   },
   async mounted() {
     try {
-      // Check if user is already logged in
       if (await AuthUtils.isAuthenticated()) {
         this.redirectUser();
       } else {
         try {
-          // If not authToken set, try to refresh
           await AuthUtils.refreshToken(1);
           this.redirectUser();
         } catch {
@@ -143,38 +163,71 @@ export default defineComponent({
     togglePasswordVisibility() {
       this.showPassword = !this.showPassword;
     },
+    toggleAuthMode() {
+      this.isRegisterMode = !this.isRegisterMode;
+    },
     async handleLogin() {
-      // Check if username or password is empty
       if (!this.username || !this.password) {
         ToastService.showError(
           "Please enter username and password.",
           undefined,
           "top",
-          "login-button"
+          "auth-button"
         );
         return;
       }
 
       this.loading = true;
       try {
-        const data = {
-          username: this.username,
-          password: this.password,
-        };
-
-        // Call the AuthUtils login method
+        const data = { username: this.username, password: this.password };
         await AuthUtils.login(data);
         this.redirectUser();
       } catch (error) {
-        // Show error message if login fails
         ToastService.showError(
           "Invalid username or password",
           undefined,
           "top",
-          "login-button"
+          "auth-button"
         );
       } finally {
-        // Stop the loading spinner
+        this.loading = false;
+      }
+    },
+    async handleRegister() {
+      if (!this.username || !this.password || !this.confirmPassword) {
+        ToastService.showError(
+          "Please fill in all the fields.",
+          undefined,
+          "top",
+          "auth-button"
+        );
+        return;
+      }
+
+      if (this.password !== this.confirmPassword) {
+        ToastService.showError(
+          "Passwords do not match.",
+          undefined,
+          "top",
+          "auth-button"
+        );
+        return;
+      }
+
+      this.loading = true;
+      try {
+        const data = { username: this.username, password: this.password };
+        await AuthUtils.register(data);
+        ToastService.showSuccess("Registration successful. Please login.");
+        this.isRegisterMode = false; // Switch back to login mode
+      } catch (error) {
+        ToastService.showError(
+          "Registration failed.",
+          undefined,
+          "top",
+          "auth-button"
+        );
+      } finally {
         this.loading = false;
       }
     },
@@ -212,5 +265,7 @@ ion-icon {
 
 ion-text {
   margin-top: 12px;
+  cursor: pointer;
+  text-align: center;
 }
 </style>
