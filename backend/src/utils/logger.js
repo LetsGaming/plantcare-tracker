@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { createLogger, format, transports } = require('winston');
+const { customTimestamp } = require('./generalUtils');
 const { combine, printf } = format;
 
 // Determine the base directory for logs
@@ -15,21 +16,6 @@ if (!fs.existsSync(logDir)) {
 const logFormat = printf(({ level, message, timestamp }) => {
   return `${timestamp} ${level}: ${message}`;
 });
-
-// Custom timestamp function
-const customTimestamp = () => {
-  const now = new Date();
-  const formatNumber = (num) => String(num).padStart(2, '0');
-
-  const day = formatNumber(now.getDate());
-  const month = formatNumber(now.getMonth() + 1); // Months are 0-based
-  const year = now.getFullYear();
-  const hours = formatNumber(now.getHours());
-  const minutes = formatNumber(now.getMinutes());
-  const seconds = formatNumber(now.getSeconds());
-
-  return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-};
 
 // Create a Winston logger instance
 const logger = createLogger({

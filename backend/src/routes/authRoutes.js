@@ -7,7 +7,7 @@ const {
   refreshAccessToken,
   logout,
   updateProfile,
-} = require("../controllers/authController");
+} = require("../auth/authController");
 const { authenticateToken, isAdmin } = require("../middlewares/authMiddleware");
 const { loginLimiter } = require("../middlewares/rateLimiter");
 

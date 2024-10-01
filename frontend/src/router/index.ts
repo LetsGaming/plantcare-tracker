@@ -42,7 +42,7 @@ const createChildRoutes = (
       component: overviewComponent,
     },
     {
-      path: `${basePath}/:id`,
+      path: `${basePath}/:id/:public`,
       name: basePath,
       component: detailsComponent,
       props: true,

@@ -74,8 +74,8 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    isPublic: {
-      type: Boolean,
+    public: {
+      type: String,
       default: false,
     },
   },
@@ -95,6 +95,9 @@ export default defineComponent({
     plantId() {
       return Number.parseInt(this.id);
     },
+    isPublic() {
+      return this.public == "1";
+    }
   },
   methods: {
     navigateToPlantEditing() {

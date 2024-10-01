@@ -77,7 +77,7 @@ export default defineComponent({
       this.fetchSubstrates(); // Refetch substrates based on segment change
     },
     navigateToSubstrate(id: number) {
-      this.$router.push({ name: "substrate", params: { id } });
+      this.$router.push({ name: "substrate", params: { id: id, public: 1 } });
     },
     navigateToSubstrateAdding() {
       this.$router.push({ name: "substrate-adding" });
