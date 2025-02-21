@@ -6,6 +6,7 @@ export default class SubstrateMapper {
     return {
       id: substrate.substrate_id,
       name: substrate.substrate_name,
+      isPublic: Boolean(substrate.is_public),
       imageUrl: substrate.image_url,
       components: substrate.components.map(ComponentMapper.mapSubstrateComponent),
     };

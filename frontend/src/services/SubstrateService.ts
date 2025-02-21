@@ -122,7 +122,7 @@ const SubstrateService = {
    */
   async editSubstrate(
     id: number,
-    substrateData: { name?: string; components?: any[] },
+    substrateData: EditSubstrate,
     removedComponents: number[]
   ): Promise<any> {
     try {
@@ -144,6 +144,12 @@ const SubstrateService = {
         );
       }
 
+      if(substrateData.image) {
+        const formData = new FormData();
+        formData.append("image", substrateData.image);
+        await ApiUtils.upload(`/images/substrate/${id}`, formData);
+      }
+      
       await invalidateCache(); // Invalidate the cache
       return response;
     } catch (error) {
