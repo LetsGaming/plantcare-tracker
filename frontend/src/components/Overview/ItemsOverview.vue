@@ -1,4 +1,11 @@
 <template>
+  <search-bar
+    :items="items"
+    search-key="name"
+    @filtered="updateFilteredItems"
+    placeholder="Suche..."
+    class="align-middle"
+  />
   <ion-grid class="item-grid">
     <ion-row>
       <ion-col
@@ -6,7 +13,7 @@
         size-sm="8"
         size-md="4"
         size-lg="3"
-        v-for="item in items"
+        v-for="item in filteredItems"
         :key="item.id"
       >
         <ion-card class="item-card" @click="navigateToItem(item.id)">
@@ -59,6 +66,8 @@ import {
   IonCardSubtitle,
 } from "@ionic/vue";
 
+import SearchBar from "@/components/SearchBar.vue";
+
 export default defineComponent({
   name: "ItemGrid",
   components: {
@@ -72,6 +81,7 @@ export default defineComponent({
     IonCardContent,
     IonText,
     IonImg,
+    SearchBar,
   },
   props: {
     items: {
@@ -90,9 +100,33 @@ export default defineComponent({
       required: true,
     },
   },
+  data() {
+    return {
+      filteredItems: [] as any[],
+    };
+  },
   methods: {
+    updateFilteredItems(filtered: any[]) {
+      this.filteredItems = this.sortItems(filtered);
+    },
+    sortItems(items: any[]) {
+      return items.sort((a, b) => a.name.localeCompare(b.name));
+    },
     navigateToItem(id: number) {
       this.onItemClick(id);
+    },
+  },
+  mounted() {
+    // Sort and initialize filteredItems with the sorted items
+    this.filteredItems = this.sortItems(this.items);
+  },
+  watch: {
+    // Watch for changes to the items prop and update filteredItems accordingly
+    items: {
+      immediate: true,
+      handler(newItems) {
+        this.filteredItems = this.sortItems(newItems);
+      },
     },
   },
 });

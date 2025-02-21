@@ -14,14 +14,12 @@
             <!-- Pie Chart Integration -->
             <PieChart :data="chartData" v-if="chartData.length > 0" />
             <div class="component-list">
-              <div class="search-bar">
-                <input
-                  v-model="searchQuery"
-                  class="search-input"
-                  type="text"
-                  placeholder="Search components..."
-                />
-              </div>
+              <SearchBar
+                :items="components"
+                searchKey="name"
+                placeholder="Search components..."
+                @filtered="updateFilteredComponents"
+              />
               <transition-group
                 name="fade"
                 tag="ul"
@@ -69,14 +67,16 @@
 import { defineComponent } from "vue";
 import { IonAccordion, IonAccordionGroup, IonItem, IonLabel } from "@ionic/vue";
 import PieChart from "@/components/PieChart.vue";
+import SearchBar from "@/components/SearchBar.vue";
+
 export default defineComponent({
   components: {
     IonAccordion,
     IonAccordionGroup,
     IonItem,
     IonLabel,
-
     PieChart,
+    SearchBar,
   },
   props: {
     substrate: {
@@ -85,13 +85,23 @@ export default defineComponent({
   },
   data() {
     return {
-      searchQuery: "",
+      filteredComponents: [] as Component[],
       detailsVisibility: {} as { [key: number]: boolean },
     };
   },
   computed: {
     components() {
-      return this.substrate?.components ?? [];
+      // Sort components by parts first, then by name alphabetically
+      return (
+        this.substrate?.components ?? []
+      ).sort((a, b) => {
+        // First sort by parts (ascending)
+        if (a.parts !== b.parts) {
+          return b.parts - a.parts;
+        }
+        // If parts are the same, sort alphabetically by name
+        return a.name.localeCompare(b.name);
+      });
     },
     chartData() {
       return this.components.map((component) => ({
@@ -99,23 +109,32 @@ export default defineComponent({
         parts: component.parts,
       }));
     },
-    filteredComponents() {
-      return this.components.filter((component) =>
-        component.name.toLowerCase().includes(this.searchQuery.toLowerCase())
-      );
-    },
   },
   methods: {
+    updateFilteredComponents(filtered: Component[]) {
+      // Sort filtered components as well
+      this.filteredComponents = filtered.sort((a, b) => {
+        // Sort by parts first
+        if (a.parts !== b.parts) {
+          return a.parts - b.parts;
+        }
+        // Sort alphabetically by name
+        return a.name.localeCompare(b.name);
+      });
+    },
     toggleDetails(id: number) {
-      // Directly assign the value to the detailsVisibility object
       this.detailsVisibility = {
-        ...this.detailsVisibility, // Keep the existing state
-        [id]: !this.detailsVisibility[id], // Toggle the visibility for the specific component ID
+        ...this.detailsVisibility,
+        [id]: !this.detailsVisibility[id],
       };
     },
     isDetailsVisible(id: number) {
       return !!this.detailsVisibility[id];
     },
+  },
+  mounted() {
+    // Initialize with full list initially
+    this.filteredComponents = this.components;
   },
 });
 </script>
@@ -152,19 +171,6 @@ export default defineComponent({
   font-weight: 500;
   color: var(--detail-text-color);
   font-size: 1.2rem;
-}
-
-.search-bar {
-  padding: 10px 0;
-}
-
-.search-input {
-  width: 100%;
-  padding: 10px;
-  font-size: 1rem;
-  border-radius: 8px;
-  border: 1px solid var(--ion-color-light);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .component-header {

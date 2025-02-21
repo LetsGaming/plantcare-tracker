@@ -14,6 +14,7 @@ interface AddPlant {
   species: string;
   substrateId: number;
   isPublic?: boolean;
+  image?: File;
 }
 
 interface EditPlant {

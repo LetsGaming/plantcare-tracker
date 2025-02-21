@@ -11,6 +11,7 @@ interface SubstrateComponent extends Component {
 
 interface AddSubstrate {
   name: string;
+  image?: File;
 }
 
 interface AddSubstrateComponents {

@@ -1,6 +1,6 @@
 const pool = require("../config/db");
 const { selectSubstrate } = require("./substrateModel");
-const { selectImages } = require("./imageModel");
+const { selectImages, insertImage } = require("./imageModel");
 const { formatImageUrl } = require("../utils/generalUtils");
 
 // Base query for selecting plants with related substrate information
@@ -47,7 +47,10 @@ const selectPlants = async (conditions = {}, params = [], req) => {
       const [substrate] = await selectSubstrate(plant.substrate_id);
 
       // Fetch images for the current plant
-      const [imagesRows] = await selectImages({ plant_id: plant.plant_id });
+      const [imagesRows] = await selectImages({
+        entity_type: "plant",
+        entity_id: plant.plant_id,
+      });
 
       // Correctly format the latest image URL if available
       const latestImage =
@@ -85,8 +88,7 @@ const selectPrivatePlants = (user_id) => selectPlants({ user_id: user_id });
 const selectPublicPlants = () => selectPlants({ is_public: true });
 
 // Wrapper for selecting a specific private plant by ID and user ID
-const selectPlant = (id) =>
-  selectPlants({ id: id });
+const selectPlant = (id) => selectPlants({ id: id });
 
 // Insert a new plant
 const insertPlant = (name, species, substrate_id, is_public, user_id) =>

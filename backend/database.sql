@@ -36,6 +36,9 @@ CREATE TABLE substrate_components (
   FOREIGN KEY (component_id) REFERENCES components(id) ON DELETE CASCADE
 );
 
+ALTER TABLE substrate_components 
+  ADD UNIQUE INDEX (substrate_id, component_id);
+
 -- Tabelle für Pflanzen
 CREATE TABLE plants (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -46,16 +49,16 @@ CREATE TABLE plants (
   is_public BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (substrate_id) REFERENCES substrates(id) ON DELETE SET NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE  -- Pflanze wird gelöscht, wenn der Benutzer gelöscht wird
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabelle für Pflanzbilder
-CREATE TABLE plant_images (
+-- Tabelle für generische Bilder mit ENUM für entity_type
+CREATE TABLE images (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  plant_id INT,
+  entity_type ENUM('plant', 'substrate', 'component') NOT NULL,  -- Nur erlaubte Typen
+  entity_id INT NOT NULL,
   image_url VARCHAR(255),
-  upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE
+  upload_date DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Tabelle für Gießaufzeichnungen
@@ -66,5 +69,3 @@ CREATE TABLE watering_records (
   amount DECIMAL(10,2),
   FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE
 );
-
-ALTER TABLE substrate_components ADD UNIQUE INDEX (substrate_id, component_id);

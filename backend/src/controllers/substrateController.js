@@ -54,7 +54,7 @@ const addSubstrate = async (req, res) => {
     validateName(name);
     const user = req.user;
     const [result] = await insertSubstrate(name, user.id);
-    successResponse(res, { id: result.insertId });
+    successResponse(res, { substrateId: result.insertId });
   } catch (err) {
     errorResponse(res, err, err.message.includes("required") ? 400 : 500);
   }
