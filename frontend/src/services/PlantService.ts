@@ -10,7 +10,7 @@ const CACHE_KEY_PRIVATE_PLANTS = "private_plants_data";
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Helper function to get cache key based on plant type
-const getCacheKey = (isPublic: boolean) => 
+const getCacheKey = (isPublic: boolean) =>
   isPublic ? CACHE_KEY_PUBLIC_PLANTS : CACHE_KEY_PRIVATE_PLANTS;
 
 // Helper function to get endpoint based on plant type
@@ -47,12 +47,19 @@ async function fetchAndCachePlants(isPublic: boolean): Promise<Plant[]> {
 }
 
 export default class PlantService {
-  static async getPlants(isPublic: boolean, forceUpdate: boolean = false): Promise<Plant[]> {
+  static async getPlants(
+    isPublic: boolean,
+    forceUpdate: boolean = false
+  ): Promise<Plant[]> {
     const cacheKey = getCacheKey(isPublic);
     const cachedData = await getCachedPlants(cacheKey);
 
     // Return cached data if it's still valid and not forcing update
-    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
+    if (
+      !forceUpdate &&
+      cachedData &&
+      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+    ) {
       return cachedData.plants;
     }
 
@@ -60,12 +67,18 @@ export default class PlantService {
     return await fetchAndCachePlants(isPublic);
   }
 
-  static async getPlantById(plantId: number, forceUpdate: boolean = false): Promise<Plant> {
+  static async getPlantById(
+    plantId: number,
+    forceUpdate: boolean = false
+  ): Promise<Plant> {
     // First, try fetching from the public cache
     let cachedData = await getCachedPlants(CACHE_KEY_PUBLIC_PLANTS);
 
     // If plant is not found in the public cache, check private cache
-    if (!cachedData || Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
+    if (
+      !cachedData ||
+      Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+    ) {
       cachedData = await getCachedPlants(CACHE_KEY_PRIVATE_PLANTS);
     }
 
@@ -102,13 +115,37 @@ export default class PlantService {
     }
   }
 
-  static async editPlant(plantId: number, updatedPlantData: EditPlant): Promise<any> {
+  static async editPlant(
+    plantId: number,
+    updatedPlantData: EditPlant
+  ): Promise<any> {
     try {
-      const response = await ApiUtils.patch(`${BASE_ENDPOINT}/${plantId}`, updatedPlantData);
+      const response = await ApiUtils.patch(
+        `${BASE_ENDPOINT}/${plantId}`,
+        updatedPlantData
+      );
       await invalidatePlantCache(); // Invalidate the cache after editing a plant
       return response;
     } catch (error) {
       ToastService.showError(`Error updating plant: ${error}`);
+      throw error;
+    }
+  }
+
+  static async uploadPlantImage(plantId: number, image: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append("image", image);
+
+      // The server expects entityType and entityId in the URL parameters
+      const entityType = "plant";
+      const url = `/images/${entityType}/${plantId}`;
+
+      const response = await ApiUtils.upload(url, formData);
+      await invalidatePlantCache(); // Invalidate the cache after uploading an image
+      return response;
+    } catch (error) {
+      ToastService.showError(`Error uploading plant image: ${error}`);
       throw error;
     }
   }

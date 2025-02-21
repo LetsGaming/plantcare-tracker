@@ -44,6 +44,20 @@
               </IonItem>
             </IonRadioGroup>
           </IonItem>
+          <IonItem v-else-if="field.type === 'switch'">
+            <IonLabel>{{ field.label }}</IonLabel>
+            <IonToggle v-model="item[field.modelKey]"/>
+          </IonItem>
+          <IonItem v-else-if="field.type === 'file'">
+            <IonLabel>{{ field.label }}</IonLabel>
+            <input
+              type="file"
+              accept="image/*"
+              @change="onFileChange"
+              ref="fileInput"
+              class="file-input"
+            />
+          </IonItem>
         </div>
 
         <!-- Submit Button -->
@@ -78,6 +92,7 @@ import {
   IonRadioGroup,
   IonRadio,
   IonButton,
+  IonToggle 
 } from "@ionic/vue";
 
 export default defineComponent({
@@ -95,6 +110,7 @@ export default defineComponent({
     IonRadioGroup,
     IonRadio,
     IonButton,
+    IonToggle
   },
   props: {
     item: {
@@ -127,6 +143,13 @@ export default defineComponent({
     },
   },
   methods: {
+    onFileChange(event: Event) {
+      const target = event.target as HTMLInputElement;
+      const files = target.files;
+      if (files) {
+        this.item.image = files[0];
+      }
+    },
     submitForm() {
       this.onSubmitClick();
     },
@@ -153,4 +176,33 @@ ion-card {
   width: 100%;
   max-width: 500px;
 }
+
+/* Style the file input button */
+/* Reset the button’s direction so its label reads normally */
+input[type="file"]::file-selector-button {
+  direction: ltr;
+  background-color: var(--ion-color-secondary);
+  color: #fff;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 10px; /* creates space between text and button */
+}
+
+/* Change appearance on hover */
+input[type="file"]::file-selector-button:hover {
+  background-color: var(--ion-color-secondary-tint);
+}
+
+/* Optional: Style the input for consistency */
+input[type="file"] {
+  font-family: inherit;
+  font-size: 1rem;
+  color: #a8a8a8;
+  direction: rtl;
+  /* optional: adjust padding if needed */
+  padding: 8px;
+}
+
 </style>

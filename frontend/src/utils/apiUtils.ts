@@ -2,8 +2,10 @@ import ToastService from "@/services/general/ToastService";
 import AuthUtils from "./authUtils";
 import TokenUtils from "./tokenUtils";
 
-const API_URL = "http://localhost:5000";
-const API_BASE_PATH = "/api/v1";
+import config from "@/config.json";
+
+const API_URL = config.server.base_url + config.server.port;
+const API_BASE_PATH = config.server.base_path + config.server.api_version;
 const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
 
 /**
@@ -27,6 +29,7 @@ const handleResponse = async (response: Response) => {
 
 /**
  * Get the authorization headers for requests, including the token if available.
+ * Note: This function sets the Content-Type to JSON and is used for non-file uploads.
  * @returns {HeadersInit} - The headers to be sent with the request.
  */
 const getAuthHeaders = async (): Promise<HeadersInit> => {
@@ -76,7 +79,8 @@ const makeRequest = async <T>(
     });
 
   let response = await requestFn();
-  if (response.status === 403 || response.status === 401) {
+  
+  if ((response.status === 403 || response.status === 401) && !endpoint.includes("login")) {
     response = await handleNoAuth(requestFn);
   }
 
@@ -104,6 +108,34 @@ const ApiUtils = {
    */
   post<T, R>(endpoint: string, data: T): Promise<R> {
     return makeRequest<R>("POST", endpoint, data);
+  },
+
+  /**
+   * Uploads files to the specified endpoint using FormData.
+   * Note: 'data' should be an instance of FormData.
+   * @param {FormData} data - The FormData containing the files and any additional data.
+   * @param {string} endpoint - The API endpoint to call.
+   * @returns {Promise<R>} - The parsed response data.
+   */
+  async upload<R>(endpoint: string, data: FormData): Promise<R> {
+    const requestFn = async () => {
+      const token = await TokenUtils.getToken();
+      // Only include the Authorization header; omit the Content-Type so the browser sets it
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      return fetch(`${API_BASE_URL}${endpoint}`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: data,
+      });
+    };
+
+    let response = await requestFn();
+
+    if ((response.status === 403 || response.status === 401) && !endpoint.includes("login")) {
+      response = await handleNoAuth(requestFn);
+    }
+    return handleResponse(response);
   },
 
   /**

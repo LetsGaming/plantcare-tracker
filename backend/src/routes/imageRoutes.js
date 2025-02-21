@@ -45,12 +45,12 @@ const upload = multer({
 });
 
 // Upload image for a specific plant
-router.post("/:plantId", authenticateToken, upload.single("image"), uploadImage);
+router.post("/:entityType/:entityId", authenticateToken, upload.single("image"), uploadImage);
 
 // Get all images (authenticated)
-router.get("/", authenticateToken, getImages);
+router.get("/:entityType", authenticateToken, getImages);
 
 // Get a specific image for a plant (authenticated)
-router.get("/:plantId", authenticateToken, getImage);
+router.get("/:entityType/:entityId", authenticateToken, getImage);
 
 module.exports = router;

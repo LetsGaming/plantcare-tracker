@@ -14,20 +14,40 @@
       <form-component
         v-if="step === 1"
         :item="substrate"
-        :formFields="substrateFormFields"
+        :formFields="[
+          {
+            type: 'input',
+            modelKey: 'name',
+            label: 'Substratname',
+            required: true,
+          },
+          {
+            type: 'file',
+            label: 'Bild hochladen',
+            modelKey: 'image',
+          },
+        ]"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
         @submit-click="goToStepTwo"
       ></form-component>
 
       <!-- Step 2: Select Components -->
-      <ion-card v-if="step === 2" class="component-container">
+      <ion-card v-if="step === 2" class="component-container align-middle">
         <h2>Wähle Komponenten für das Substrat</h2>
 
-        <!-- Improved Component Item Display -->
-        <div class="component-list">
+        <!-- Search Bar Integration -->
+        <SearchBar
+          :items="sortedComponents"
+          searchKey="name"
+          placeholder="Komponenten suchen..."
+          @filtered="updateFilteredComponents"
+        />
+
+        <!-- Filtered and Sorted Component List -->
+        <div class="component-list align-middle">
           <ion-item
-            v-for="component in availableComponents"
+            v-for="component in filteredComponents"
             :key="component.id"
             class="component-item"
           >
@@ -73,14 +93,12 @@ import {
   IonContent,
   IonItem,
   IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
   IonCheckbox,
   IonInput,
   IonText,
 } from "@ionic/vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
+import SearchBar from "@/components/SearchBar.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import ComponentService from "@/services/ComponentService";
@@ -97,36 +115,31 @@ export default defineComponent({
     IonContent,
     IonItem,
     IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
     IonCheckbox,
     IonInput,
     IonText,
-
     FormComponent,
+    SearchBar,
   },
   data() {
     return {
       step: 1, // Control the step (1 for form, 2 for components selection)
       substrate: {
         name: "",
+        image: null as File | null,
       } as AddSubstrate,
       availableComponents: [] as Component[], // Store available components
+      filteredComponents: [] as Component[], // Store filtered components
       selectedComponentIds: [] as number[], // Store selected component IDs
       componentParts: {} as Record<number, number>, // Store parts per component
     };
   },
   computed: {
-    substrateFormFields(): FormField[] {
-      return [
-        {
-          type: 'input',
-          modelKey: 'name',
-          label: 'Substratname',
-          required: true,
-        },
-      ];
+    sortedComponents() {
+      // Sort components alphabetically by name
+      return [...this.availableComponents].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
     },
   },
   methods: {
@@ -134,6 +147,7 @@ export default defineComponent({
       try {
         const response = await ComponentService.getComponents();
         this.availableComponents = response;
+        this.filteredComponents = this.sortedComponents; // Initialize filtered list
       } catch (error) {
         console.error("Error fetching components:", error);
         ToastService.showError("Fehler beim Laden der Komponenten");
@@ -153,6 +167,9 @@ export default defineComponent({
       } else {
         this.selectedComponentIds.push(id);
       }
+    },
+    updateFilteredComponents(filtered: Component[]) {
+      this.filteredComponents = filtered;
     },
     async addSubstrate() {
       if (this.selectedComponentIds.length === 0) {
@@ -178,15 +195,34 @@ export default defineComponent({
         );
 
         if (response) {
-          ToastService.showSuccess(
-            "Substrat und Komponenten erfolgreich hinzugefügt"
-          );
-          this.$router.push("/substrates"); // Redirect after success
+          const substrateId = response.substrate.substrateId;
+          if (!this.substrate.image) {
+            ToastService.showSuccess(
+              "Substrat und Komponenten erfolgreich hinzugefügt"
+            );
+            this.$router.push("/substrates"); // Redirect after success
+          } else {
+            await this.imageUpload(substrateId, this.substrate.image);
+            this.$router.push("/substrates"); // Redirect after success
+          }
         }
       } catch (error) {
         console.error("Error adding substrate:", error);
         ToastService.showError("Fehler beim Hinzufügen des Substrats");
       }
+    },
+    async imageUpload(id: number, file: File) {
+      await SubstrateService.uploadSubstrateImage(id, file)
+        .then(() => {
+          ToastService.showSuccess(
+            "Substrat und Komponenten erfolgreich hinzugefügt"
+          );
+          this.$router.push("/substrates"); // Redirect after success
+        })
+        .catch((error: Error) => {
+          console.error("Error uploading image:", error);
+          ToastService.showError("Fehler beim Hochladen des Bildes");
+        });
     },
   },
   mounted() {

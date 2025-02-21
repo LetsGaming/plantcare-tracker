@@ -65,6 +65,16 @@
             clear-input
             required
           ></ion-input>
+          <ion-button
+            fill="clear"
+            size="small"
+            slot="end"
+            @click="togglePasswordVisibility"
+          >
+            <ion-icon
+              :icon="showPassword ? eyeOffOutline : eyeOutline"
+            ></ion-icon>
+          </ion-button>
         </ion-item>
 
         <ion-button

@@ -3,6 +3,8 @@ import ToastService from "@/services/general/ToastService";
 import ApiService from "./apiUtils";
 import TokenService from "./tokenUtils";
 
+import config from "@/config.json";
+
 /**
  * Authentication and authorization utility functions.
  */
@@ -39,9 +41,14 @@ const AuthUtils = {
    * Log out the current user.
    */
   async logout(): Promise<void> {
-    await ApiService.post<null, { message: string }>("/auth/logout", null);
-    await TokenService.clearToken();
-    await router.push({ name: "login" });
+    try {
+      await ApiService.post<null, { message: string }>("/auth/logout", null);
+      await TokenService.clearToken();
+      await router.push({ name: "login" });
+    } catch (error) {
+      await TokenService.clearToken();
+      await router.push({ name: "login" });
+    }
   },
 
   /**
@@ -50,8 +57,8 @@ const AuthUtils = {
    * @param retryCount - Number of retry attempts
    */
   async refreshToken(retryCount = 3): Promise<void> {
-    const API_URL = "http://localhost:5000";
-    const API_BASE_PATH = "/api/v1";
+    const API_URL = config.server.base_url + config.server.port;
+    const API_BASE_PATH = config.server.base_path + config.server.api_version;
     const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
 
     const url = API_BASE_URL + "/auth/refresh-token";
@@ -64,7 +71,7 @@ const AuthUtils = {
           headers: {
             "Content-Type": "application/json",
           },
-          credentials: 'include',
+          credentials: "include",
           body: null, // No body needed for token refresh
         });
 
@@ -77,7 +84,7 @@ const AuthUtils = {
         if (!accessToken) {
           throw new Error("Invalid response structure: Missing accessToken");
         }
-        
+
         // Store new token using TokenService
         await TokenService.setToken(accessToken);
         return; // Exit once token is refreshed successfully

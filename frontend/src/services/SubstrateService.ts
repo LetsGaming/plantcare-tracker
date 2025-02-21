@@ -8,7 +8,6 @@ const SUBSTRATES_ENDPOINT = "/substrates";
 const CACHE_KEY_SUBSTRATES = "substrates_data";
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-
 // Common function to handle cache retrieval
 async function getCachedData() {
   return await storageService.get<{
@@ -48,7 +47,11 @@ const SubstrateService = {
     const cachedData = await getCachedData();
 
     // Use cached data if it's not expired
-    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
+    if (
+      !forceUpdate &&
+      cachedData &&
+      !Utils.isCacheExpired(cachedData.timestamp)
+    ) {
       return cachedData.substrates;
     }
 
@@ -77,12 +80,12 @@ const SubstrateService = {
 
     // Otherwise, fetch the substrate from the API
     try {
-      const substrate = await ApiUtils.get<any>(`${SUBSTRATES_ENDPOINT}/${id}`);
-
+      const response = await ApiUtils.get<any>(`${SUBSTRATES_ENDPOINT}/${id}`);
+      const mappedSubstrate = SubstrateMapper.convertToSubstrates(response)[0];
       // Refresh the cache by fetching substrates
       await this.getSubstrates(true); // Invalidate the cache for substrates
 
-      return substrate;
+      return mappedSubstrate;
     } catch (error) {
       console.error(`Error fetching substrate with ID ${id}:`, error);
       ToastService.showError(`Error fetching substrate details: ${error}`);
@@ -162,12 +165,12 @@ const SubstrateService = {
   ): Promise<any> {
     try {
       // Step 1: Add the substrate
-      const response = await ApiUtils.post(
+      const response = (await ApiUtils.post(
         SUBSTRATES_ENDPOINT,
         substrateData
-      ) as any;
+      )) as any;
 
-      const substrateId = response.id; 
+      const substrateId = response.substrateId;
 
       // Step 2: Add components to the substrate
       if (componentsData && componentsData.components.length > 0) {
@@ -193,6 +196,24 @@ const SubstrateService = {
     } catch (error) {
       console.error("Error adding substrate with components:", error);
       ToastService.showError(`Error adding substrate: ${error}`);
+      throw error;
+    }
+  },
+
+  async uploadSubstrateImage(substrateId: number, image: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append("image", image);
+
+      // The server expects entityType and entityId in the URL parameters
+      const entityType = "substrate";
+      const url = `/images/${entityType}/${substrateId}`;
+
+      const response = await ApiUtils.upload(url, formData);
+      await invalidateCache(); // Invalidate the cache after uploading an image
+      return response;
+    } catch (error) {
+      ToastService.showError(`Error uploading plant image: ${error}`);
       throw error;
     }
   },

@@ -19,5 +19,13 @@ interface FormFieldBase {
     options: Array<{ value: string | boolean | number; label: string }>;
   }
   
-  type FormField = InputField | SelectField | RadioField;
+  interface SwitchField extends FormFieldBase {
+    type: "switch";
+  }
+
+  interface UploadField extends FormFieldBase {
+    type: "file";
+  }
+
+  type FormField = InputField | SelectField | RadioField | SwitchField | UploadField;
   

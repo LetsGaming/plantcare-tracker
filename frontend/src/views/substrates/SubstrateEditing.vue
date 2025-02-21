@@ -14,7 +14,23 @@
       <form-component
         v-if="step === 1"
         :item="substrate"
-        :formFields="substrateFormFields"
+        :formFields="[
+        {
+          type: 'input',
+          modelKey: 'name',
+          label: 'Substratname',
+          required: true,
+        },
+        {
+            type: 'radio',
+            modelKey: 'isPublic',
+            label: 'Sichtbarkeit',
+            options: [
+              { value: true, label: 'Öffentlich' },
+              { value: false, label: 'Privat' },
+            ],
+          },
+      ]"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
         @submit-click="goToStepTwo"
@@ -24,12 +40,16 @@
       <div class="component-container-wrapper">
         <ion-card v-if="step === 2" class="component-container">
           <h2>Komponenten für das Substrat bearbeiten</h2>
-
+          <SearchBar
+            :items="availableComponents"
+            searchKey="name"
+            @filtered="filteredComponents = $event"
+          />
           <!-- Improved, more accessible component list -->
           <div class="component-list">
             <ion-row>
               <ion-col
-                v-for="component in availableComponents"
+                v-for="component in filteredComponents"
                 :key="component.id"
                 class="component-item"
                 size="2"
@@ -97,6 +117,7 @@ import FormComponent from "@/components/adding/FormComponent.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import ComponentService from "@/services/ComponentService";
+import SearchBar from "@/components/SearchBar.vue";
 
 export default defineComponent({
   components: {
@@ -117,6 +138,7 @@ export default defineComponent({
     IonCol,
     IonLabel,
     FormComponent,
+    SearchBar,
   },
   props: {
     id: {
@@ -130,6 +152,7 @@ export default defineComponent({
       substrate: {
         name: "",
       } as EditSubstrate, // Use EditSubstrate for editing
+      filteredComponents: [] as Component[],
       availableComponents: [] as Component[],
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
@@ -139,16 +162,6 @@ export default defineComponent({
   computed: {
     substrateId() {
       return Number.parseInt(this.id);
-    },
-    substrateFormFields(): FormField[] {
-      return [
-        {
-          type: "input",
-          modelKey: "name",
-          label: "Substratname",
-          required: true,
-        },
-      ];
     },
   },
   methods: {
@@ -214,7 +227,7 @@ export default defineComponent({
           parts: this.componentParts[id] || 1,
         })),
       } as EditSubstrate;
-      
+
       try {
         const response = await SubstrateService.editSubstrate(
           this.substrateId,

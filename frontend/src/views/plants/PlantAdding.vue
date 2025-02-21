@@ -35,13 +35,18 @@
               { value: false, label: 'Privat' },
             ],
           },
+          {
+            type: 'file',
+            modelKey: 'uploadImage',
+            label: 'Bild hochladen',
+          },
         ]"
         cardTitle="Planzen Informationen"
         submitLabel="Pflanze hinzufügen"
         :extraContentComponent="SubstrateContainer"
         :extraContentData="{ substrate: selectedSubstrate }"
         @submitClick="addPlant"
-      ></form-component>
+      />
     </IonContent>
   </IonPage>
 </template>
@@ -75,6 +80,7 @@ import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
+import ImageUploadModal from "@/components/ImageUpload.vue";
 
 export default defineComponent({
   components: {
@@ -100,6 +106,7 @@ export default defineComponent({
 
     FormComponent,
     SubstrateContainer,
+    ImageUploadModal,
   },
   data() {
     return {
@@ -108,6 +115,7 @@ export default defineComponent({
         species: "",
         substrateId: 0,
         isPublic: false, // Default to private
+        uploadImage: null as File | null,
       } as AddPlant,
       substrates: [] as Substrate[], // Substrate data will be fetched from API
     };
@@ -144,12 +152,27 @@ export default defineComponent({
       try {
         const response = await PlantService.addPlant(this.plant);
         if (response) {
-          this.$router.push("/plants"); // Redirect to plant list after success
+          const plantId = response.plantId;
+          if (!this.plant.image) {
+            this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
+          } else {
+            await this.imageUpload(plantId, this.plant.image);
+          }
         }
       } catch (error) {
         console.error("Error:", error);
         ToastService.showError("Error while adding the plant");
       }
+    },
+    async imageUpload(id: number, file: File) {
+      await PlantService.uploadPlantImage(id, file)
+        .then(() => {
+          this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
+        })
+        .catch((error: Error) => {
+          console.error("Error uploading image:", error);
+          ToastService.showError("Error while uploading the image");
+        });
     },
   },
 });

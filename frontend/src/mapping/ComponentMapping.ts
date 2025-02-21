@@ -4,7 +4,9 @@ export default class ComponentMapper {
     return {
       id: component.component_id,
       name: component.component_name,
+      description: component.component_description || component.component_fineness,
       imageUrl: component.image_url,
+      parts: component.parts,
       fineness: component.component_fineness,
     };
   }
