@@ -30,6 +30,11 @@
               { value: false, label: 'Privat' },
             ],
           },
+          {
+            type: 'file',
+            label: 'Bild hochladen',
+            modelKey: 'image',
+          },
       ]"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
@@ -151,6 +156,8 @@ export default defineComponent({
       step: 1,
       substrate: {
         name: "",
+        isPublic: false,
+        image: null as File | null,
       } as EditSubstrate, // Use EditSubstrate for editing
       filteredComponents: [] as Component[],
       availableComponents: [] as Component[],
@@ -180,6 +187,7 @@ export default defineComponent({
           this.substrateId
         );
         this.substrate = { ...substrate }; // Set substrate data for form
+        console.log(substrate);
         this.originalComponentIds = substrate.components.map(
           (component: Component) => component.id
         ); // Save original components
@@ -226,6 +234,8 @@ export default defineComponent({
           componentId: id,
           parts: this.componentParts[id] || 1,
         })),
+        isPublic: this.substrate.isPublic,
+        image: this.substrate.image,
       } as EditSubstrate;
 
       try {

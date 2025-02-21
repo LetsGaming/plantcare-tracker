@@ -22,6 +22,15 @@
             required: true,
           },
           {
+            type: 'radio',
+            modelKey: 'isPublic',
+            label: 'Sichtbarkeit',
+            options: [
+              { value: true, label: 'Öffentlich' },
+              { value: false, label: 'Privat' },
+            ],
+          },
+          {
             type: 'file',
             label: 'Bild hochladen',
             modelKey: 'image',
@@ -127,6 +136,7 @@ export default defineComponent({
       substrate: {
         name: "",
         image: null as File | null,
+        isPublic: false,
       } as AddSubstrate,
       availableComponents: [] as Component[], // Store available components
       filteredComponents: [] as Component[], // Store filtered components

@@ -1,6 +1,7 @@
 interface Substrate {
   id: number;
   name: string;
+  isPublic: boolean;
   imageUrl?: string;
   components: SubstrateComponent[];
 }
@@ -11,6 +12,7 @@ interface SubstrateComponent extends Component {
 
 interface AddSubstrate {
   name: string;
+  isPublic?: boolean;
   image?: File;
 }
 
@@ -22,8 +24,7 @@ interface AddSubstrateComponents {
   }[];
 }
 
-interface EditSubstrate {
-  name?: string;
+interface EditSubstrate extends AddSubstrate {
   components?: EditSubstrateComponent[];
 }
 
