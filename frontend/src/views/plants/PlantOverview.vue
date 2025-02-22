@@ -57,8 +57,8 @@ export default defineComponent({
       addCircle,
     };
   },
-  mounted() {
-    this.fetchPlants();
+  async ionViewDidEnter() {
+    await this.fetchPlants();
   },
   computed: {
     isPublic() {
@@ -78,8 +78,7 @@ export default defineComponent({
       this.fetchPlants(); // Refetch plants based on segment change
     },
     navigateToPlant(id: number) {
-      const isPublic = this.isPublic
-      const isPublic_Int = isPublic ? 1 : 0;
+      const isPublic_Int = this.isPublic ? 1 : 0;
       this.$router.push({ name: "plant", params: { id: id, public: isPublic_Int} });
     },
     navigateToPlantAdding() {

@@ -19,7 +19,7 @@ const getEndpoint = (isPublic: boolean) =>
 
 // Helper function to retrieve cached data by key
 async function getCachedPlants(cacheKey: string) {
-  return storageService.get<{ plants: Plant[]; timestamp: number }>(cacheKey);
+  return await storageService.get<{ plants: Plant[]; timestamp: number }>(cacheKey);
 }
 
 // Helper function to cache plants data
@@ -69,22 +69,19 @@ export default class PlantService {
 
   static async getPlantById(
     plantId: number,
+    isPublic: boolean,
     forceUpdate: boolean = false
   ): Promise<Plant> {
-    // First, try fetching from the public cache
-    let cachedData = await getCachedPlants(CACHE_KEY_PUBLIC_PLANTS);
-
-    // If plant is not found in the public cache, check private cache
-    if (
-      !cachedData ||
-      Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
-    ) {
-      cachedData = await getCachedPlants(CACHE_KEY_PRIVATE_PLANTS);
-    }
+    const cacheKey = getCacheKey(isPublic);
+    const cachedData = await getCachedPlants(cacheKey);
 
     // If a valid cache is found, search for the plant by ID
-    if (cachedData) {
-      const plant = cachedData.plants.find((p) => p.id === plantId);
+    if (
+      cachedData &&
+      !forceUpdate &&
+      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+    ) {
+      const plant = cachedData.plants.find((p) => p.id == plantId);
       if (plant) {
         return plant;
       }
@@ -146,6 +143,17 @@ export default class PlantService {
       return response;
     } catch (error) {
       ToastService.showError(`Error uploading plant image: ${error}`);
+      throw error;
+    }
+  }
+
+  static async deletePlant(plantId: number): Promise<any> {
+    try {
+      const response = await ApiUtils.delete(`${BASE_ENDPOINT}/${plantId}`);
+      await invalidatePlantCache(); // Invalidate the cache after deleting a plant
+      return response;
+    } catch (error) {
+      ToastService.showError(`Error deleting plant: ${error}`);
       throw error;
     }
   }

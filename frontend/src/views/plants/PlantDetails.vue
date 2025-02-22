@@ -1,6 +1,12 @@
 <template>
   <ion-page>
-    <details-header :show-edit-button="true" @edit-click="navigateToPlantEditing" default-href="/tabs/plants/overview"></details-header>
+    <details-header
+      :show-edit-button="!isPublic"
+      @edit-click="navigateToPlantEditing"
+      :show-upload-button="!isPublic"
+      @uploadClick="showUpload"
+      default-href="/tabs/plants/overview"
+    ></details-header>
     <ion-content>
       <div v-if="plant">
         <!-- Full-width banner with dynamic plant image -->
@@ -23,6 +29,12 @@
           ></substrate-container>
         </section>
       </div>
+      <ImageUploadModal
+        :is-open="showUploadModal"
+        :card-title="`Bild für ${plant?.name} hochladen`"
+        @close="showUploadModal = false"
+        @submit="onImageUpload"
+      />
     </ion-content>
   </ion-page>
 </template>
@@ -48,6 +60,7 @@ import PlantService from "@/services/PlantService";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
+import ImageUploadModal from "@/components/ImageUploadModal.vue";
 
 export default defineComponent({
   name: "PlantDetails",
@@ -68,6 +81,7 @@ export default defineComponent({
     DetailsHeader,
     HorizontalGallery,
     SubstrateContainer,
+    ImageUploadModal,
   },
   props: {
     id: {
@@ -82,6 +96,7 @@ export default defineComponent({
   data() {
     return {
       plant: null as null | Plant,
+      showUploadModal: false,
     };
   },
   async mounted() {
@@ -97,16 +112,33 @@ export default defineComponent({
     },
     isPublic() {
       return this.public == "1";
-    }
+    },
   },
   methods: {
     navigateToPlantEditing() {
       const id = this.plantId;
       const isPublic = this.plant?.isPublic ? 1 : 0;
 
-      this.$router.push({ name: "plant-editing", params: { id: id, isPublic: isPublic } });
+      this.$router.push({
+        name: "plant-editing",
+        params: { id: id, isPublic: isPublic },
+      });
     },
-  }
+    showUpload() {
+      this.showUploadModal = true;
+    },
+    async onImageUpload(file: File) {
+      if (this.plant) {
+        try {
+          await PlantService.uploadPlantImage(this.plant.id, file);
+          this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
+          this.showUploadModal = false;
+        } catch (error) {
+          console.error("Error uploading image:", error);
+        }
+      }
+    },
+  },
 });
 </script>
 

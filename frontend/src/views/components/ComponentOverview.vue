@@ -57,7 +57,7 @@ export default defineComponent({
       addCircle,
     };
   },
-  async mounted() {
+  async ionViewDidEnter() {
     await this.fetchComponents();
     this.showAddButton = await AuthUtils.isAdmin();
   },

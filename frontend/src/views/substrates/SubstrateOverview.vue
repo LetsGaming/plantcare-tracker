@@ -56,8 +56,8 @@ export default defineComponent({
       addCircle,
     };
   },
-  mounted() {
-    this.fetchSubstrates();
+  async ionViewDidEnter() {
+    await this.fetchSubstrates();
   },
   computed: {
     isPublic() {
@@ -77,7 +77,11 @@ export default defineComponent({
       this.fetchSubstrates(); // Refetch substrates based on segment change
     },
     navigateToSubstrate(id: number) {
-      this.$router.push({ name: "substrate", params: { id: id, public: 1 } });
+      const isPublic_Int = this.isPublic ? 1 : 0;
+      this.$router.push({
+        name: "substrate",
+        params: { id: id, public: isPublic_Int },
+      });
     },
     navigateToSubstrateAdding() {
       this.$router.push({ name: "substrate-adding" });

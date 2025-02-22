@@ -76,6 +76,8 @@ import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 
+import { trashBin } from "ionicons/icons";
+
 export default defineComponent({
   components: {
     IonPage,
@@ -120,10 +122,11 @@ export default defineComponent({
         isPublic: false,
       } as EditPlant,
       substrates: [] as Substrate[], // Substrate data will be fetched from API
+      showDeleteModal: false,
     };
   },
   setup() {
-    return { SubstrateContainer };
+    return { SubstrateContainer, trashBin };
   },
   async mounted() {
     await this.fetchSubstrates(); // Fetch substrates when component mounts
@@ -140,12 +143,14 @@ export default defineComponent({
     },
     isPlantPublic() {
       return this.isPublic === "1";
-    }
+    },
   },
   methods: {
     async fetchSubstrates() {
       try {
-        const response = await SubstrateService.getSubstrates();
+        const response = await SubstrateService.getSubstrates(
+          this.isPlantPublic
+        );
 
         this.substrates = response;
       } catch (error) {
@@ -174,6 +179,18 @@ export default defineComponent({
       } catch (error) {
         console.error("Error:", error);
         ToastService.showError("Error while adding the plant");
+      }
+    },
+    async deletePlant() {
+      try {
+        const response = await PlantService.deletePlant(this.plantId);
+        if (response) {
+          this.showDeleteModal = false;
+          await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        ToastService.showError("Error while deleting the plant");
       }
     },
   },

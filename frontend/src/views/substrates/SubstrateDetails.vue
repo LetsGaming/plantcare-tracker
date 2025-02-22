@@ -1,8 +1,10 @@
 <template>
   <ion-page>
     <details-header
-      :show-edit-button="true"
+      :show-edit-button="!isPublic"
       @edit-click="navigateToSubstrateEditing"
+      :show-upload-button="!isPublic"
+      @upload-click="showUpload"
       default-href="/tabs/substrate/overview"
     ></details-header>
 
@@ -24,6 +26,12 @@
           <SubstrateContainer :substrate="substrate"></SubstrateContainer>
         </section>
       </div>
+      <ImageUploadModal
+        :is-open="showUploadModal"
+        :card-title="`Bild für ${substrate?.name} hochladen`"
+        @close="showUploadModal = false"
+        @submit="onImageUpload"
+      />
     </ion-content>
   </ion-page>
 </template>
@@ -44,6 +52,7 @@ import SubstrateService from "@/services/SubstrateService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
+import ImageUploadModal from "@/components/ImageUploadModal.vue";
 
 export default defineComponent({
   name: "SubstrateDetails",
@@ -59,6 +68,7 @@ export default defineComponent({
 
     DetailsHeader,
     SubstrateContainer,
+    ImageUploadModal
   },
   props: {
     id: {
@@ -73,6 +83,7 @@ export default defineComponent({
   data() {
     return {
       substrate: null as null | Substrate,
+      showUploadModal: false,
     };
   },
   async mounted() {
@@ -98,6 +109,20 @@ export default defineComponent({
       const id = this.substrateId;
 
       this.$router.push({ name: "substrate-editing", params: { id } });
+    },
+    showUpload() {
+      this.showUploadModal = true;
+    },
+    async onImageUpload(file: File) {
+      if (this.substrate) {
+        try {
+          await SubstrateService.uploadSubstrateImage(this.substrate.id, file);
+          this.substrate = await SubstrateService.getSubstrateById(this.substrateId, this.isPublic);
+          this.showUploadModal = false;
+        } catch (error) {
+          console.error("Error uploading image:", error);
+        }
+      }
     },
   },
 });
