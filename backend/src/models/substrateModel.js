@@ -1,6 +1,5 @@
 const pool = require("../config/db");
-const { selectImages, insertImage } = require("./imageModel");
-const { formatImageUrl } = require("../utils/generalUtils");
+const { selectEntityImages } = require("../utils/imageUtils");
 
 // Base query for selecting substrates with related components
 const selectSubstratesQuery = `
@@ -27,22 +26,30 @@ const selectSubstratesQuery = `
     ON substrate_components.component_id = components.id
 `;
 
+// Function to select substrates with dynamic conditions
 const selectSubstrates = async (conditions = {}, params = []) => {
-  // Build WHERE clause dynamically
   const whereClauses = [];
+
+  if (conditions.user_id) {
+    whereClauses.push("substrates.user_id = ?");
+    params.push(conditions.user_id);
+  }
+  if (conditions.is_public !== undefined) {
+    whereClauses.push("substrates.is_public = ?");
+    params.push(conditions.is_public);
+  }
   if (conditions.id) {
     whereClauses.push("substrates.id = ?");
     params.push(conditions.id);
   }
-  const whereSQL = whereClauses.length
-    ? `WHERE ${whereClauses.join(" AND ")}`
-    : "";
+
+  const whereSQL = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
   const query = `${selectSubstratesQuery} ${whereSQL}`;
 
-  // Fetch the rows from the database
+  // Fetch rows from the database
   const [rows] = await pool.query(query, params);
 
-  // Group substrates by substrate_id using a Map for better performance
+  // Group substrates by substrate_id
   const substratesMap = new Map();
   for (const row of rows) {
     const {
@@ -58,7 +65,6 @@ const selectSubstrates = async (conditions = {}, params = []) => {
       substrate_component_parts,
     } = row;
 
-    // Initialize the substrate object if not already present
     if (!substratesMap.has(substrate_id)) {
       substratesMap.set(substrate_id, {
         substrate_id,
@@ -73,7 +79,6 @@ const selectSubstrates = async (conditions = {}, params = []) => {
     }
     const substrate = substratesMap.get(substrate_id);
 
-    // If there's a component in this row, add it to the substrate
     if (component_id) {
       substrate.components.push({
         component_id,
@@ -84,28 +89,14 @@ const selectSubstrates = async (conditions = {}, params = []) => {
     }
   }
 
-  // Convert the Map values to an array
   const substrates = Array.from(substratesMap.values());
 
   // For each substrate, fetch images concurrently
   await Promise.all(
     substrates.map(async (substrate) => {
-      const [imagesRows] = await selectImages({
-        entity_type: "substrate",
-        entity_id: substrate.substrate_id,
-      });
-
-      substrate.image_url =
-        imagesRows.length > 0
-          ? formatImageUrl(imagesRows[0].image_url) // Use the formatting function
-          : null;
-
-      // Prepare images with correctly formatted URLs
-      substrate.images = imagesRows.map((image) => ({
-        id: image.image_id,
-        url: formatImageUrl(image.image_url),
-        date: image.upload_date,
-      }));
+      const { latestImage, images } = await selectEntityImages("substrate", substrate.substrate_id);
+      substrate.image_url = latestImage;
+      substrate.images = images;
     })
   );
 
@@ -114,6 +105,12 @@ const selectSubstrates = async (conditions = {}, params = []) => {
 
 // Wrapper for selecting a single substrate by ID
 const selectSubstrate = (id) => selectSubstrates({ id });
+
+// Wrapper for selecting public substrates
+const selectPublicSubstrates = () => selectSubstrates({ is_public: true });
+
+// Wrapper for selecting private substrates (by user_id)
+const selectPrivateSubstrates = (user_id) => selectSubstrates({ user_id });
 
 // Insert a substrate
 const insertSubstrate = (name, user_id, image_url = null, is_public = false) =>
@@ -130,13 +127,7 @@ const insertSubstrateComponent = (substrate_id, component_id, parts) =>
   );
 
 // Update a substrate
-const updateSubstrate = (
-  id,
-  name,
-  user_id,
-  image_url = null,
-  is_public = false
-) =>
+const updateSubstrate = (id, name, user_id, image_url = null, is_public = false) =>
   pool.query(
     "UPDATE substrates SET name = ?, image_url = ?, is_public = ? WHERE id = ? AND user_id = ?",
     [name, image_url, is_public, id, user_id]
@@ -162,12 +153,19 @@ const deleteSubstrateComponents = (substrate_id, componentIds) => {
   );
 };
 
+const deleteSubstrate = async (id, user_id) => {
+  const query = "DELETE FROM substrates WHERE id = ? AND user_id = ?";
+  return pool.query(query, [id, user_id]);
+};
+
 module.exports = {
-  selectSubstrates,
+  selectPublicSubstrates,
+  selectPrivateSubstrates,
   selectSubstrate,
   insertSubstrate,
   insertSubstrateComponent,
   updateSubstrate,
   updateSubstrateComponent,
   deleteSubstrateComponents,
+  deleteSubstrate
 };

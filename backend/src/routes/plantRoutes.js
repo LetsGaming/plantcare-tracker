@@ -6,7 +6,8 @@ const {
   getSpecificPlant,
   getPublicPlants,
   addPlant,
-  editPlant
+  editPlant,
+  deleteSpecificPlant
 } = require('../controllers/plantController');
 
 // Get a specific private plant for the authenticated user
@@ -23,5 +24,7 @@ router.post('/', authenticateToken, addPlant);
 
 // Partially update an existing plant (authentication required)
 router.patch('/:id', authenticateToken, editPlant);
+
+router.delete('/:id', authenticateToken, deleteSpecificPlant);
 
 module.exports = router;

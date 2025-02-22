@@ -2,9 +2,20 @@
   <ion-header>
     <ion-toolbar class="header-toolbar">
       <ion-buttons slot="start">
-        <ion-back-button v-if="defaultBackHref" text="Zurück" :defaultHref="defaultBackHref"></ion-back-button>
+        <ion-back-button
+          v-if="defaultBackHref"
+          text="Zurück"
+          :defaultHref="defaultBackHref"
+        ></ion-back-button>
         <ion-back-button v-else text="Zurück"></ion-back-button>
       </ion-buttons>
+      <ion-icon
+        v-if="showUploadButton"
+        :icon="cloudUpload"
+        style="width: 32px; height: 32px"
+        slot="end"
+        @click="onUploadClick"
+      />
       <ion-icon
         v-if="showEditButton"
         :icon="create"
@@ -27,7 +38,7 @@ import {
   IonLabel,
   IonIcon,
 } from "@ionic/vue";
-import { create } from "ionicons/icons";
+import { create, cloudUpload } from "ionicons/icons";
 
 export default defineComponent({
   name: "DetailsHeader",
@@ -49,13 +60,21 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    showUploadButton: {
+      type: Boolean,
+      default: false,
+    },
     onEditClick: {
+      type: Function as PropType<() => void>,
+      required: false,
+    },
+    onUploadClick: {
       type: Function as PropType<() => void>,
       required: false,
     },
   },
   setup() {
-    return { create };
+    return { create, cloudUpload };
   },
   data() {
     return {

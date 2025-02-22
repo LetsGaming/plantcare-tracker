@@ -80,7 +80,6 @@ import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
-import ImageUploadModal from "@/components/ImageUpload.vue";
 
 export default defineComponent({
   components: {
@@ -106,7 +105,6 @@ export default defineComponent({
 
     FormComponent,
     SubstrateContainer,
-    ImageUploadModal,
   },
   data() {
     return {

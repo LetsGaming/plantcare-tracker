@@ -2,7 +2,14 @@
   <div class="form-container">
     <IonCard>
       <IonCardHeader>
-        <IonCardTitle>{{ cardTitle }}</IonCardTitle>
+        <IonToolbar>
+          <IonCardTitle>{{ cardTitle }}</IonCardTitle>
+          <ion-icon
+            :Icon="trashBin"
+            @click="showDeleteModal = true"
+            slot="end"
+          />
+        </IonToolbar>
       </IonCardHeader>
       <IonCardContent v-if="item">
         <!-- Dynamic Form Fields -->
@@ -46,7 +53,7 @@
           </IonItem>
           <IonItem v-else-if="field.type === 'switch'">
             <IonLabel>{{ field.label }}</IonLabel>
-            <IonToggle v-model="item[field.modelKey]"/>
+            <IonToggle v-model="item[field.modelKey]" />
           </IonItem>
           <IonItem v-else-if="field.type === 'file'">
             <IonLabel>{{ field.label }}</IonLabel>
@@ -75,6 +82,48 @@
       <component :is="extraContentComponent" v-bind="extraContentData" />
     </div>
   </div>
+  <IonModal v-model:isOpen="showDeleteModal">
+    <IonHeader>
+      <IonToolbar>
+        <IonTitle>Löschen</IonTitle>
+        <IonButtons slot="end">
+          <IonButton @click="showDeleteModal = false">
+            <IonIcon :icon="closeOutline" />
+          </IonButton>
+        </IonButtons>
+      </IonToolbar>
+    </IonHeader>
+    <IonContent>
+      <div class="modal-card-container">
+        <IonCard>
+          <IonCardHeader>
+            <IonCardTitle
+              >Sind Sie sicher, dass Sie
+              <span style="color: var(--ion-color-primary-tint); white-space: nowrap">{{
+                item.name
+              }}</span>
+              löschen wollen?</IonCardTitle
+            >
+          </IonCardHeader>
+          <IonCardContent>
+            <IonRow>
+              <IonButton
+                expand="full"
+                color="danger"
+                @click="showDeleteModal = false"
+              >
+                Abbrechen
+              </IonButton>
+              <!-- Submit Button -->
+              <IonButton expand="full" color="primary" @click="submitDelete">
+                Löschen
+              </IonButton>
+            </IonRow>
+          </IonCardContent>
+        </IonCard>
+      </div>
+    </IonContent>
+  </IonModal>
 </template>
 
 <script lang="ts">
@@ -92,8 +141,18 @@ import {
   IonRadioGroup,
   IonRadio,
   IonButton,
-  IonToggle 
+  IonToolbar,
+  IonHeader,
+  IonToggle,
+  IonIcon,
+  IonModal,
+  IonRow,
+  IonContent,
+  IonButtons,
+  IonTitle,
 } from "@ionic/vue";
+
+import { closeOutline, trashBin } from "ionicons/icons";
 
 export default defineComponent({
   name: "FormComponent",
@@ -110,7 +169,15 @@ export default defineComponent({
     IonRadioGroup,
     IonRadio,
     IonButton,
-    IonToggle
+    IonToolbar,
+    IonHeader,
+    IonToggle,
+    IonIcon,
+    IonModal,
+    IonRow,
+    IonContent,
+    IonButtons,
+    IonTitle,
   },
   props: {
     item: {
@@ -141,6 +208,21 @@ export default defineComponent({
       type: Function as PropType<() => void>,
       required: true,
     },
+    onDeleteClick: {
+      type: Function as PropType<() => void>,
+      required: false,
+    },
+  },
+  data() {
+    return {
+      showDeleteModal: false,
+    };
+  },
+  setup() {
+    return {
+      closeOutline,
+      trashBin,
+    };
   },
   methods: {
     onFileChange(event: Event) {
@@ -152,6 +234,10 @@ export default defineComponent({
     },
     submitForm() {
       this.onSubmitClick();
+    },
+    submitDelete() {
+      this.showDeleteModal = false;
+      this.onDeleteClick && this.onDeleteClick();
     },
   },
 });
@@ -176,33 +262,4 @@ ion-card {
   width: 100%;
   max-width: 500px;
 }
-
-/* Style the file input button */
-/* Reset the button’s direction so its label reads normally */
-input[type="file"]::file-selector-button {
-  direction: ltr;
-  background-color: var(--ion-color-secondary);
-  color: #fff;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-left: 10px; /* creates space between text and button */
-}
-
-/* Change appearance on hover */
-input[type="file"]::file-selector-button:hover {
-  background-color: var(--ion-color-secondary-tint);
-}
-
-/* Optional: Style the input for consistency */
-input[type="file"] {
-  font-family: inherit;
-  font-size: 1rem;
-  color: #a8a8a8;
-  direction: rtl;
-  /* optional: adjust padding if needed */
-  padding: 8px;
-}
-
 </style>

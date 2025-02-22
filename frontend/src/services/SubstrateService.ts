@@ -1,126 +1,141 @@
-import Utils from "@/utils/utils";
 import ApiUtils from "@/utils/apiUtils";
-import storageService from "@/services/general/StorageService";
 import ToastService from "@/services/general/ToastService";
+import storageService from "@/services/general/StorageService";
 import SubstrateMapper from "@/mapping/SubstrateMapping";
+import Utils from "@/utils/utils";
 
-const SUBSTRATES_ENDPOINT = "/substrates";
-const CACHE_KEY_SUBSTRATES = "substrates_data";
+const BASE_ENDPOINT = "/substrates";
+const CACHE_KEY_PUBLIC_SUBSTRATES = "public_substrates_data";
+const CACHE_KEY_PRIVATE_SUBSTRATES = "private_substrates_data";
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-// Common function to handle cache retrieval
-async function getCachedData() {
-  return await storageService.get<{
-    substrates: any[];
-    timestamp: number;
-  }>(CACHE_KEY_SUBSTRATES);
+// Helper function to get cache key based on substrate type
+const getCacheKey = (isPublic: boolean) =>
+  isPublic ? CACHE_KEY_PUBLIC_SUBSTRATES : CACHE_KEY_PRIVATE_SUBSTRATES;
+
+// Helper function to get endpoint based on substrate type
+const getEndpoint = (isPublic: boolean) =>
+  isPublic ? `${BASE_ENDPOINT}/public` : `${BASE_ENDPOINT}/private`;
+
+// Helper function to retrieve cached substrates by key
+async function getCachedSubstrates(cacheKey: string) {
+  return await storageService.get<{ substrates: any[]; timestamp: number }>(
+    cacheKey
+  );
 }
 
-// Common function to handle cache invalidation
-async function invalidateCache() {
-  await storageService.remove(CACHE_KEY_SUBSTRATES);
+// Helper function to cache substrates data
+async function cacheSubstrates(cacheKey: string, substrates: any[]) {
+  await storageService.set(cacheKey, { substrates, timestamp: Date.now() });
 }
 
-// Common function to fetch substrates from API and cache them
-async function fetchAndCacheSubstrates(): Promise<any[]> {
+// Invalidate both public and private substrate caches
+async function invalidateSubstrateCache() {
+  await storageService.remove(CACHE_KEY_PUBLIC_SUBSTRATES);
+  await storageService.remove(CACHE_KEY_PRIVATE_SUBSTRATES);
+}
+
+// Fetch substrates from the API and cache them
+async function fetchAndCacheSubstrates(isPublic: boolean): Promise<any[]> {
   try {
-    const response = await ApiUtils.get<any[]>(SUBSTRATES_ENDPOINT);
+    const response = await ApiUtils.get(getEndpoint(isPublic));
     const substrates = SubstrateMapper.convertToSubstrates(response);
-    await storageService.set(CACHE_KEY_SUBSTRATES, {
-      substrates,
-      timestamp: Date.now(),
-    });
+    await cacheSubstrates(getCacheKey(isPublic), substrates);
     return substrates;
   } catch (error) {
-    console.error("Error fetching substrates:", error);
     ToastService.showError(`Error fetching substrates: ${error}`);
     throw error;
   }
 }
 
-const SubstrateService = {
+export default class SubstrateService {
   /**
-   * Fetches the list of all substrates with caching.
-   * @returns {Promise<any[]>} - A promise that resolves to an array of substrates.
+   * Fetches all substrates with caching.
+   * @param isPublic Determines whether to use the public or private endpoint.
+   * @param forceUpdate If true, forces a fresh fetch from the API.
    */
-  async getSubstrates(forceUpdate: boolean = false): Promise<any[]> {
-    const cachedData = await getCachedData();
+  static async getSubstrates(
+    isPublic: boolean,
+    forceUpdate: boolean = false
+  ): Promise<any[]> {
+    const cacheKey = getCacheKey(isPublic);
+    const cachedData = await getCachedSubstrates(cacheKey);
 
-    // Use cached data if it's not expired
     if (
       !forceUpdate &&
       cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp)
+      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
     ) {
       return cachedData.substrates;
     }
 
-    // Otherwise, fetch new data from the API
-    return await fetchAndCacheSubstrates();
-  },
+    return await fetchAndCacheSubstrates(isPublic);
+  }
 
   /**
-   * Fetches a single substrate by its ID.
-   * @param {number} id - The ID of the substrate.
-   * @returns {Promise<any>} - A promise that resolves to the substrate data.
+   * Fetches a single substrate by ID.
+   * First, it checks both public and private caches.
+   * If not found, it fetches from the API and invalidates the caches.
+   * @param id The ID of the substrate.
+   * @param forceUpdate If true, forces a fresh fetch.
    */
-  async getSubstrateById(
+  static async getSubstrateById(
     id: number,
+    isPublic: boolean,
     forceUpdate: boolean = false
   ): Promise<any> {
-    const cachedData = await getCachedData();
-
-    // Check if cached data exists and is not expired
-    if (cachedData && !Utils.isCacheExpired(CACHE_EXPIRY_MS)) {
-      const substrate = cachedData.substrates.find((s) => s.id === id);
+    const cacheKey = getCacheKey(isPublic);
+    const cachedData = await getCachedSubstrates(cacheKey);
+    console.log("Cached data:", cachedData);
+    if (
+      cachedData &&
+      !forceUpdate &&
+      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+    ) {
+      const substrate = cachedData.substrates.find((s) => s.id == id);
       if (substrate) {
-        return substrate; // Return the cached substrate if found
+        console.log("Substrate found in cache.");
+        return substrate;
       }
     }
 
-    // Otherwise, fetch the substrate from the API
-    try {
-      const response = await ApiUtils.get<any>(`${SUBSTRATES_ENDPOINT}/${id}`);
-      const mappedSubstrate = SubstrateMapper.convertToSubstrates(response)[0];
-      // Refresh the cache by fetching substrates
-      await this.getSubstrates(true); // Invalidate the cache for substrates
+    console.log("Substrate not found in cache, fetching from API...");
 
-      return mappedSubstrate;
+    // Not found in cache: fetch directly from API
+    try {
+      const response = await ApiUtils.get(`${BASE_ENDPOINT}/substrate/${id}`);
+      const substrate = SubstrateMapper.convertToSubstrates(response)[0];
+
+      return substrate;
     } catch (error) {
-      console.error(`Error fetching substrate with ID ${id}:`, error);
       ToastService.showError(`Error fetching substrate details: ${error}`);
       throw error;
     }
-  },
+  }
 
   /**
    * Adds a new substrate.
-   * @param {any} substrateData - The data for the new substrate (e.g., name).
-   * @returns {Promise<any>} - A promise that resolves to the created substrate.
+   * @param substrateData The data for the new substrate.
    */
-  async addSubstrate(substrateData: any): Promise<any> {
+  static async addSubstrate(substrateData: any): Promise<any> {
     try {
-      const response = await ApiUtils.post<any, any>(
-        SUBSTRATES_ENDPOINT,
-        substrateData
-      );
-      await invalidateCache(); // Invalidate the cached substrates
-      return response; // Assuming response contains the inserted substrate
+      const response = await ApiUtils.post(BASE_ENDPOINT, substrateData);
+      await invalidateSubstrateCache();
+      return response;
     } catch (error) {
-      console.error("Error adding substrate:", error);
       ToastService.showError(`Error adding substrate: ${error}`);
       throw error;
     }
-  },
+  }
 
   /**
-   * Updates an existing substrate by its ID.
-   * @param {number} id - The ID of the substrate to update.
-   * @param {any} substrateData - The updated data for the substrate.
-   * @param {number[]} removedComponents - Array of component IDs to be removed.
-   * @returns {Promise<any>} - A promise that resolves to the updated substrate data.
+   * Updates an existing substrate.
+   * It can update the name, components, and image.
+   * @param id The ID of the substrate.
+   * @param substrateData The updated substrate data.
+   * @param removedComponents An array of component IDs to remove.
    */
-  async editSubstrate(
+  static async editSubstrate(
     id: number,
     substrateData: EditSubstrate,
     removedComponents: number[]
@@ -130,99 +145,101 @@ const SubstrateService = {
         throw new Error("Substrate name or components are required.");
       }
 
-      let response = await ApiUtils.put(`${SUBSTRATES_ENDPOINT}/${id}`, {
+      let response = await ApiUtils.put(`${BASE_ENDPOINT}/${id}`, {
         name: substrateData.name,
         removedComponents,
       });
 
       if (substrateData.components) {
-        response = await ApiUtils.patch(
-          `${SUBSTRATES_ENDPOINT}/components/${id}`,
-          {
-            components: substrateData.components,
-          }
-        );
+        response = await ApiUtils.patch(`${BASE_ENDPOINT}/components/${id}`, {
+          components: substrateData.components,
+        });
       }
 
-      if(substrateData.image) {
+      if (substrateData.image) {
         const formData = new FormData();
         formData.append("image", substrateData.image);
         await ApiUtils.upload(`/images/substrate/${id}`, formData);
       }
-      
-      await invalidateCache(); // Invalidate the cache
+
+      await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      console.error(`Error updating substrate with ID ${id}:`, error);
       ToastService.showError(`Error updating substrate: ${error}`);
       throw error;
     }
-  },
+  }
 
   /**
    * Adds a new substrate along with its components.
-   * @param {AddSubstrate} substrateData - The data for the new substrate (e.g., name).
-   * @param {AddSubstrateComponents} componentsData - The data for components to be added to the substrate.
-   * @returns {Promise<any>} - A promise that resolves to the created substrate with its components.
+   * @param substrateData The data for the new substrate.
+   * @param componentsData The data for the substrate's components.
    */
-  async addSubstrateWithComponents(
+  static async addSubstrateWithComponents(
     substrateData: AddSubstrate,
     componentsData: AddSubstrateComponents
   ): Promise<any> {
     try {
-      // Step 1: Add the substrate
-      const response = (await ApiUtils.post(
-        SUBSTRATES_ENDPOINT,
-        substrateData
-      )) as any;
+      // Step 1: Create the substrate
+      const response = await ApiUtils.post(BASE_ENDPOINT, substrateData);
+      const substrateId = (response as { substrateId: number }).substrateId;
 
-      const substrateId = response.substrateId;
-
-      // Step 2: Add components to the substrate
+      // Step 2: If components exist, add them to the substrate
       if (componentsData && componentsData.components.length > 0) {
-        // Set the substrate ID in componentsData
         componentsData.substrateId = substrateId;
-
-        // Assuming there is an endpoint to add components
         const componentsResponse = await ApiUtils.post(
-          `${SUBSTRATES_ENDPOINT}/components/${substrateId}`, // Adjust the endpoint as needed
+          `${BASE_ENDPOINT}/components/${substrateId}`,
           componentsData
         );
-
-        await invalidateCache(); // Invalidate the cached substrates after adding a new substrate
-
+        await invalidateSubstrateCache();
         return {
-          substrate: response, // The created substrate
-          components: componentsResponse, // The added components
+          substrate: response,
+          components: componentsResponse,
         };
       }
 
-      await invalidateCache(); // Invalidate the cache if no components were added
-      return response; // Return just the substrate if no components are added
+      await invalidateSubstrateCache();
+      return response;
     } catch (error) {
-      console.error("Error adding substrate with components:", error);
       ToastService.showError(`Error adding substrate: ${error}`);
       throw error;
     }
-  },
+  }
 
-  async uploadSubstrateImage(substrateId: number, image: File): Promise<any> {
+  /**
+   * Uploads an image for a substrate.
+   * @param substrateId The ID of the substrate.
+   * @param image The image file to upload.
+   */
+  static async uploadSubstrateImage(
+    substrateId: number,
+    image: File
+  ): Promise<any> {
     try {
       const formData = new FormData();
       formData.append("image", image);
-
-      // The server expects entityType and entityId in the URL parameters
-      const entityType = "substrate";
-      const url = `/images/${entityType}/${substrateId}`;
-
+      const url = `/images/substrate/${substrateId}`;
       const response = await ApiUtils.upload(url, formData);
-      await invalidateCache(); // Invalidate the cache after uploading an image
+      await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      ToastService.showError(`Error uploading plant image: ${error}`);
+      ToastService.showError(`Error uploading substrate image: ${error}`);
       throw error;
     }
-  },
-};
+  }
 
-export default SubstrateService;
+  /**
+   * Deletes a substrate by ID.
+   * @param id The ID of the substrate to delete.
+   */
+  static async deleteSubstrate(id: number): Promise<any> {
+    try {
+      const response = await ApiUtils.delete(`${BASE_ENDPOINT}/${id}`);
+      await invalidateSubstrateCache();
+      return response;
+    } catch (error) {
+      ToastService.showError(`Error deleting substrate: ${error}`);
+      throw error;
+    }
+  }
+}

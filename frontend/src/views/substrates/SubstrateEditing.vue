@@ -15,13 +15,13 @@
         v-if="step === 1"
         :item="substrate"
         :formFields="[
-        {
-          type: 'input',
-          modelKey: 'name',
-          label: 'Substratname',
-          required: true,
-        },
-        {
+          {
+            type: 'input',
+            modelKey: 'name',
+            label: 'Substratname',
+            required: true,
+          },
+          {
             type: 'radio',
             modelKey: 'isPublic',
             label: 'Sichtbarkeit',
@@ -35,10 +35,11 @@
             label: 'Bild hochladen',
             modelKey: 'image',
           },
-      ]"
+        ]"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
         @submit-click="goToStepTwo"
+        @delete-click="deleteSubstrate"
       ></form-component>
 
       <!-- Step 2: Select Components -->
@@ -184,7 +185,8 @@ export default defineComponent({
     async fetchSubstrateDetails() {
       try {
         const substrate = await SubstrateService.getSubstrateById(
-          this.substrateId
+          this.substrateId,
+          Boolean(this.substrate.isPublic)
         );
         this.substrate = { ...substrate }; // Set substrate data for form
         console.log(substrate);
@@ -252,6 +254,20 @@ export default defineComponent({
       } catch (error) {
         console.error("Error editing substrate:", error);
         ToastService.showError("Fehler beim Aktualisieren des Substrats");
+      }
+    },
+    async deleteSubstrate() {
+      try {
+        const response = await SubstrateService.deleteSubstrate(
+          this.substrateId
+        );
+        if (response) {
+          ToastService.showSuccess("Substrat erfolgreich gelöscht");
+          this.$router.push({ name: "substrate-overview" }); // Redirect after success
+        }
+      } catch (error) {
+        console.error("Error deleting substrate:", error);
+        ToastService.showError("Fehler beim Löschen des Substrats");
       }
     },
   },

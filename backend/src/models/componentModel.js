@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { selectEntityImages } = require("../utils/imageUtils");
 
 // Base query for selecting components
 const selectComponentsQuery = `
@@ -10,7 +11,7 @@ const selectComponentsQuery = `
 `;
 
 // Function to select components with dynamic conditions
-const selectComponents = (conditions = {}, params = []) => {
+const selectComponents = async (conditions = {}, params = []) => {
   let whereClauses = [];
 
   // Add dynamic filtering if conditions are provided
@@ -19,32 +20,50 @@ const selectComponents = (conditions = {}, params = []) => {
     params.push(conditions.id);
   }
 
-  const whereSQL = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+  const whereSQL = whereClauses.length
+    ? `WHERE ${whereClauses.join(" AND ")}`
+    : "";
   const query = `${selectComponentsQuery} ${whereSQL}`;
 
-  return pool.query(query, params).then(([rows]) => {
-    return rows.map((row) => {
-      const { component_id, component_name, component_fineness } = row;
+  const [componentRows] = await pool.query(query, params);
 
+  const componentsWithDetails = await Promise.all(
+    componentRows.map(async (component) => {
+      const { latestImage, images } = await selectEntityImages(
+        "component",
+        component.component_id
+      );
       return {
-        component_id,
-        component_name,
-        component_fineness,
+        component_id: component.component_id,
+        component_name: component.component_name,
+        component_fineness: component.component_fineness,
+        image_url: latestImage,
+        images,
       };
-    });
-  });
+    })
+  );
+
+  return componentsWithDetails;
 };
 
 // Wrapper for selecting a single component by ID
-const selectComponent = (id) => selectComponents({ id }).then((rows) => rows[0] || null);
+const selectComponent = (id) =>
+  selectComponents({ id }).then((rows) => rows[0] || null);
 
 // Insert a new component
 const insertComponent = (name, fineness) =>
-  pool.query("INSERT INTO components (name, fineness) VALUES (?, ?)", [name, fineness]);
+  pool.query("INSERT INTO components (name, fineness) VALUES (?, ?)", [
+    name,
+    fineness,
+  ]);
 
 // Update a component by ID
 const updateComponent = (id, name, fineness) =>
-  pool.query("UPDATE components SET name = ?, fineness = ? WHERE id = ?", [name, fineness, id]);
+  pool.query("UPDATE components SET name = ?, fineness = ? WHERE id = ?", [
+    name,
+    fineness,
+    id,
+  ]);
 
 // Delete a component by ID
 const deleteComponent = (id) =>

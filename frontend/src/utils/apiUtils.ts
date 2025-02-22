@@ -164,14 +164,7 @@ const ApiUtils = {
    * @returns {Promise<void>} - A promise that resolves when the delete is successful.
    */
   async delete<T>(endpoint: string): Promise<void> {
-    try {
-      await makeRequest<void>("DELETE", endpoint);
-      ToastService.showSuccess("Resource deleted successfully.");
-    } catch (error) {
-      console.error(`Error deleting resource at ${endpoint}:`, error);
-      ToastService.showError(`Error deleting resource: ${error}`);
-      throw error;
-    }
+    return makeRequest<void>("DELETE", endpoint);
   },
 };
 

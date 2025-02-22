@@ -1,131 +1,211 @@
 const {
-  selectSubstrates,
+  selectPrivateSubstrates,
+  selectPublicSubstrates,
   selectSubstrate,
   insertSubstrate,
   insertSubstrateComponent,
   updateSubstrate,
   updateSubstrateComponent,
   deleteSubstrateComponents,
+  deleteSubstrate,
 } = require("../models/substrateModel");
 
 const { errorResponse, successResponse } = require("../utils/responseUtils");
 
-const validateName = (name) => {
-  if (!name) {
-    throw new Error("Name is required.");
-  }
-};
-
-const validateSubstrateComponents = (substrateId, components) => {
-  if (!substrateId || !Array.isArray(components) || components.length === 0) {
-    throw new Error(
-      "Invalid input: substrateId and components array are required."
-    );
-  }
-};
-
-const getSubstrates = async (req, res) => {
+// Centralized helper to fetch a single substrate
+const getSubstrateById = async (res, selectSubstrateFn, id, userId = null) => {
   try {
-    const substrates = await selectSubstrates();
+    const substrates = await selectSubstrateFn(id, userId);
+    const substrate = substrates[0];
+    if (!substrate) {
+      return res.status(404).json({ message: "Substrate not found" });
+    }
+    successResponse(res, substrate);
+  } catch (err) {
+    errorResponse(res, err, 500, "Error fetching substrate");
+  }
+};
+
+// Centralized helper to fetch substrates list
+const getSubstratesList = async (res, selectSubstratesFn, userId = null) => {
+  try {
+    const substrates = await selectSubstratesFn(userId);
     successResponse(res, substrates);
   } catch (err) {
     errorResponse(res, err);
   }
 };
 
-const getSubstrate = async (req, res) => {
+// Simple validation for substrate data
+const validateSubstrateData = (name) => {
+  if (!name) {
+    throw new Error("Name is required.");
+  }
+};
+
+// Controller for fetching private substrates
+const getPrivateSubstrates = async (req, res) => {
+  const userId = req.user.id;
+  await getSubstratesList(res, selectPrivateSubstrates, userId);
+};
+
+// Controller for fetching public substrates
+const getPublicSubstrates = async (req, res) => {
+  await getSubstratesList(res, selectPublicSubstrates);
+};
+
+// Controller for fetching a single substrate by ID
+const getSpecificSubstrate = async (req, res) => {
   const { id } = req.params;
-
-  try {
-    const [substrate] = await selectSubstrate(id);
-    if (!substrate) {
-      return res.status(404).json({ error: "Substrate not found" });
-    }
-    successResponse(res, substrate);
-  } catch (err) {
-    errorResponse(res, err);
-  }
+  await getSubstrateById(res, selectSubstrate, id);
 };
 
+// Controller for adding a new substrate
 const addSubstrate = async (req, res) => {
-  const { name } = req.body;
-
+  const { name, image_url, isPublic } = req.body;
+  const userId = req.user ? req.user.id : null;
   try {
-    validateName(name);
-    const user = req.user;
-    const [result] = await insertSubstrate(name, user.id);
-    successResponse(res, { substrateId: result.insertId });
+    validateSubstrateData(name);
+    const [result] = await insertSubstrate(
+      name,
+      userId,
+      image_url || null,
+      isPublic || false
+    );
+    successResponse(res, { substrateId: result.insertId }, 201);
   } catch (err) {
-    errorResponse(res, err, err.message.includes("required") ? 400 : 500);
+    const status = err.message.includes("required") ? 400 : 500;
+    errorResponse(res, err, status);
   }
 };
 
+// Controller for updating a substrate
+const editSubstrate = async (req, res) => {
+  const { id } = req.params;
+  const { name, image_url, isPublic, removedComponents } = req.body;
+  const userId = req.user ? req.user.id : null;
+  try {
+    if (
+      !name &&
+      !image_url &&
+      isPublic === undefined &&
+      (!removedComponents || removedComponents.length === 0)
+    ) {
+      return errorResponse(
+        res,
+        "At least one field must be provided for update",
+        400
+      );
+    }
+    // Update primary substrate data if provided
+    if (name || image_url || isPublic !== undefined) {
+      const result = await updateSubstrate(
+        id,
+        name,
+        userId,
+        image_url || null,
+        isPublic
+      );
+      if (result.affectedRows === 0) {
+        return errorResponse(
+          res,
+          "Substrate not found or not authorized to update",
+          404
+        );
+      }
+    }
+    // Remove components if any are provided
+    if (removedComponents && removedComponents.length > 0) {
+      await deleteSubstrateComponents(id, removedComponents);
+    }
+    successResponse(res, { message: "Substrate updated successfully" });
+  } catch (err) {
+    errorResponse(res, err, 500, "Error updating substrate");
+  }
+};
+
+// Controller for adding substrate components
 const addSubstrateComponents = async (req, res) => {
   const { components } = req.body;
   const { id } = req.params;
   try {
-    validateSubstrateComponents(id, components);
+    if (!components || !Array.isArray(components) || components.length === 0) {
+      throw new Error("Components array is required.");
+    }
+    // Add each component with properly formatted parts
     const insertPromises = components.map(({ componentId, parts }) => {
       const decimalParts = parseFloat(parts).toFixed(2);
       return insertSubstrateComponent(id, componentId, decimalParts);
     });
-
-    const [results] = await Promise.all(insertPromises);
-    successResponse(res, results, 201)
-  } catch (error) {
-    errorResponse(res, error);
-  }
-};
-
-const editSubstrate = async (req, res) => {
-  const { id } = req.params;
-  const { name, removedComponents } = req.body;
-  const user = req.user;
-
-  try {
-    if(name) await updateSubstrate(id, name, user.id);
-
-    // Remove components if any
-    if (removedComponents && removedComponents.length > 0) {
-      await deleteSubstrateComponents(id, removedComponents);
-    }
-
-    successResponse(res, { message: "Substrate updated successfully." });
+    await Promise.all(insertPromises);
+    successResponse(
+      res,
+      { message: "Substrate components added successfully." },
+      201
+    );
   } catch (err) {
     errorResponse(res, err);
   }
 };
 
+// Controller for editing substrate components
 const editSubstrateComponents = async (req, res) => {
   const { id } = req.params;
   const { components } = req.body;
-  const user = req.user;
-
+  const userId = req.user ? req.user.id : null;
   try {
-    validateSubstrateComponents(id, components);
-
-    const [substrate] = await selectSubstrate(id);
-    if (substrate.user_id != user.id) {
-      return errorResponse(res, "Forbidden: You are not authorized to update components of this substrate.", 403);
+    if (!components || !Array.isArray(components) || components.length === 0) {
+      throw new Error("Components array is required.");
     }
-
+    const [substrate] = await selectSubstrate(id);
+    if (substrate.user_id != userId) {
+      return errorResponse(
+        res,
+        "Forbidden: You are not authorized to update components of this substrate.",
+        403
+      );
+    }
     const updatePromises = components.map(({ componentId, parts }) => {
       const decimalParts = parseFloat(parts).toFixed(2);
       return updateSubstrateComponent(id, componentId, decimalParts);
     });
-
     await Promise.all(updatePromises);
-    successResponse(res, { message: "Substrate components updated successfully." });
+    successResponse(res, {
+      message: "Substrate components updated successfully.",
+    });
   } catch (err) {
     errorResponse(res, err);
   }
 };
 
+const deleteSpecificSubstrate = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user ? req.user.id : null;
+
+  try {
+    const result = await deleteSubstrate(id, userId);
+
+    if (result.affectedRows === 0) {
+      return errorResponse(
+        res,
+        "Substrate not found or not authorized to delete",
+        404
+      );
+    }
+
+    successResponse(res, { message: "Substrate deleted successfully" });
+  } catch (err) {
+    errorResponse(res, err, 500, "Error deleting plant");
+  }
+};
+
 module.exports = {
-  getSubstrates,
-  getSubstrate,
+  getPrivateSubstrates,
+  getPublicSubstrates,
+  getSpecificSubstrate,
   addSubstrate,
-  addSubstrateComponents,
   editSubstrate,
+  addSubstrateComponents,
   editSubstrateComponents,
+  deleteSpecificSubstrate,
 };

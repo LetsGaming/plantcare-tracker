@@ -4,6 +4,7 @@ const {
   selectPlant,
   insertPlant,
   updatePlant,
+  deletePlant,
 } = require("../models/plantModel");
 
 const { errorResponse, successResponse } = require("../utils/responseUtils");
@@ -46,15 +47,15 @@ const getPrivatePlants = async (req, res) => {
   await getPlants(res, selectPrivatePlants, userId);
 };
 
+// Controller for fetching public plants
+const getPublicPlants = async (req, res) => {
+  await getPlants(res, selectPublicPlants);
+};
+
 // Controller for fetching a single plant
 const getSpecificPlant = async (req, res) => {
   const { id } = req.params;
   await getPlant(res, selectPlant, id);
-};
-
-// Controller for fetching public plants
-const getPublicPlants = async (req, res) => {
-  await getPlants(res, selectPublicPlants);
 };
 
 // Controller for adding a new plant
@@ -117,10 +118,28 @@ const editPlant = async (req, res) => {
   }
 };
 
+const deleteSpecificPlant = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user ? req.user.id : null;
+
+  try {
+    const result = await deletePlant(id, userId);
+
+    if (result.affectedRows === 0) {
+      return errorResponse(res, "Plant not found or not authorized to delete", 404);
+    }
+
+    successResponse(res, { message: "Plant deleted successfully" });
+  } catch (err) {
+    errorResponse(res, err, 500, "Error deleting plant");
+  }
+}
+
 module.exports = {
   getPrivatePlants,
   getPublicPlants,
   getSpecificPlant,
   addPlant,
   editPlant,
+  deleteSpecificPlant
 };

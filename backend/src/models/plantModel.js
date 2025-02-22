@@ -1,7 +1,6 @@
 const pool = require("../config/db");
 const { selectSubstrate } = require("./substrateModel");
-const { selectImages, insertImage } = require("./imageModel");
-const { formatImageUrl } = require("../utils/generalUtils");
+const { selectEntityImages } = require("../utils/imageUtils");
 
 // Base query for selecting plants with related substrate information
 const selectPlantsQuery = `
@@ -47,24 +46,10 @@ const selectPlants = async (conditions = {}, params = [], req) => {
       const [substrate] = await selectSubstrate(plant.substrate_id);
 
       // Fetch images for the current plant
-      const [imagesRows] = await selectImages({
-        entity_type: "plant",
-        entity_id: plant.plant_id,
-      });
-
-      // Correctly format the latest image URL if available
-      const latestImage =
-        imagesRows.length > 0
-          ? formatImageUrl(imagesRows[0].image_url) // Use the formatting function
-          : null;
-
-      // Prepare images array with correctly formatted URLs
-      const images = imagesRows.map((image) => ({
-        id: image.image_id,
-        url: formatImageUrl(image.image_url), // Use the formatting function
-        date: image.upload_date,
-      }));
-
+      const { latestImage, images } = await selectEntityImages(
+        "plant",
+        plant.plant_id
+      );
       return {
         plant_id: plant.plant_id,
         plant_name: plant.plant_name,
@@ -137,10 +122,16 @@ const updatePlant = async (id, user_id, fields) => {
   return pool.query(query, params);
 };
 
+const deletePlant = async (id, user_id) => {
+  const query = "DELETE FROM plants WHERE id = ? AND user_id = ?";
+  return pool.query(query, [id, user_id]);
+};
+
 module.exports = {
   selectPrivatePlants,
   selectPublicPlants,
   selectPlant,
   insertPlant,
   updatePlant,
+  deletePlant
 };
