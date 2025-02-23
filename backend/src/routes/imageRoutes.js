@@ -8,6 +8,7 @@ const {
   getImages,
   getImage,
 } = require("../controllers/imageController");
+const { imageGetLimiter } = require("../middlewares/rateLimiter");
 
 const loadEnv = require("../utils/envUtils");
 loadEnv();
@@ -45,12 +46,22 @@ const upload = multer({
 });
 
 // Upload image for a specific plant
-router.post("/:entityType/:entityId", authenticateToken, upload.single("image"), uploadImage);
+router.post(
+  "/:entityType/:entityId",
+  authenticateToken,
+  upload.single("image"),
+  uploadImage
+);
 
 // Get all images (authenticated)
-router.get("/:entityType", authenticateToken, getImages);
+router.get("/:entityType", imageGetLimiter, authenticateToken, getImages);
 
 // Get a specific image for a plant (authenticated)
-router.get("/:entityType/:entityId", authenticateToken, getImage);
+router.get(
+  "/:entityType/:entityId",
+  imageGetLimiter,
+  authenticateToken,
+  getImage
+);
 
 module.exports = router;

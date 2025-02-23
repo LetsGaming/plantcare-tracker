@@ -66,6 +66,7 @@ CREATE TABLE watering_records (
   id INT AUTO_INCREMENT PRIMARY KEY,
   plant_id INT,
   date DATETIME DEFAULT CURRENT_TIMESTAMP,
-  amount DECIMAL(10,2),
+  used_fertilizer BOOLEAN NOT NULL DEFAULT FALSE,
+  fertilizer_type ENUM('organic', 'synthetic') DEFAULT NULL,
   FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE
 );

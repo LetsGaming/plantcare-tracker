@@ -1,6 +1,7 @@
 const rateLimit = require("express-rate-limit");
 const { errorResponse } = require("../utils/responseUtils");
 const { customTimestamp } = require("../utils/generalUtils");
+const {versionPath} = require("../../package.json");
 
 const createLogObj = (req, res) => ({
   ip: req.headers['x-forwarded-for'] || req.ip,
@@ -28,10 +29,11 @@ const rateLimitHandler = (message) => (req, res) => {
 
 // Reusable rate limiter configuration generator
 const createRateLimiter = (options) => {
-  const { windowMs, maxRequests, message } = options;
+  const { windowMs, maxRequests, message, skip } = options;
   return rateLimit({
     windowMs,
     max: maxRequests,
+    skip,
     handler: rateLimitHandler(message),
     standardHeaders: true, // Send rate limit info in the `RateLimit-*` headers
     legacyHeaders: false,  // Disable `X-RateLimit-*` headers
@@ -39,10 +41,15 @@ const createRateLimiter = (options) => {
 };
 
 // General limiter: 100 requests per 15 minutes
-const limiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 100,
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  skip: (req) => {
+    // Skip global limiting for image GET requests
+    return req.path.startsWith('/api/' + versionPath + '/images') && req.method === 'GET';
+  },
   message: "Too many requests from this IP, please try again later.",
+
 });
 
 // Login limiter: 5 attempts per minute
@@ -52,4 +59,11 @@ const loginLimiter = createRateLimiter({
   message: "Too many login attempts, please try again in a minute.",
 });
 
-module.exports = { limiter, loginLimiter };
+// Create a dedicated rate limiter for image GET requests
+const imageGetLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  maxRequests: 500,         // Adjust this value based on your expected load
+  message: "Too many image requests from this IP, please try again later.",
+});
+
+module.exports = { limiter, loginLimiter, imageGetLimiter };
