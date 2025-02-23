@@ -10,7 +10,11 @@ const {
   deleteSubstrate,
 } = require("../models/substrateModel");
 
-const { errorResponse, successResponse } = require("../utils/responseUtils");
+const {
+  errorResponse,
+  successResponse,
+  notFoundResponse,
+} = require("../utils/responseUtils");
 
 // Centralized helper to fetch a single substrate
 const getSubstrateById = async (res, selectSubstrateFn, id, userId = null) => {
@@ -18,7 +22,7 @@ const getSubstrateById = async (res, selectSubstrateFn, id, userId = null) => {
     const substrates = await selectSubstrateFn(id, userId);
     const substrate = substrates[0];
     if (!substrate) {
-      return res.status(404).json({ message: "Substrate not found" });
+      return notFoundResponse(res, "Substrate not found");
     }
     successResponse(res, substrate);
   } catch (err) {
@@ -109,8 +113,7 @@ const editSubstrate = async (req, res) => {
       if (result.affectedRows === 0) {
         return errorResponse(
           res,
-          "Substrate not found or not authorized to update",
-          404
+          "Substrate not found or not authorized to update"
         );
       }
     }
@@ -188,8 +191,7 @@ const deleteSpecificSubstrate = async (req, res) => {
     if (result.affectedRows === 0) {
       return errorResponse(
         res,
-        "Substrate not found or not authorized to delete",
-        404
+        "Substrate not found or not authorized to delete"
       );
     }
 

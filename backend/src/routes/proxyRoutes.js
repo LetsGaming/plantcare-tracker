@@ -1,6 +1,7 @@
 const fs = require("fs");
 const express = require("express");
 const imageProxy = express.Router();
+const { errorResponse } = require("../utils/responseUtils");
 
 const loadEnv = require("../utils/envUtils");
 loadEnv();
@@ -13,7 +14,7 @@ imageProxy.get("/uploads/:imageName", (req, res) => {
   // Check if the image exists on the NAS
   fs.access(nasImagePath, fs.constants.F_OK, (err) => {
     if (err) {
-      return res.status(404).json({ message: "Image not found on NAS" });
+      return errorResponse(res, "Image not found", 404);
     }
 
     // If exists, serve the image

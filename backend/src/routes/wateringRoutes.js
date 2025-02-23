@@ -6,7 +6,7 @@ const {
   getSpecificWateringRecord,
   addWateringRecord,
   editWateringRecord,
-  deleteWateringRecord,
+  deleteSpecificWateringRecord,
 } = require('../controllers/wateringController');
 
 // Get all watering records for a specific plant (authentication required)
@@ -22,6 +22,6 @@ router.post('/', authenticateToken, addWateringRecord);
 router.patch('/:id', authenticateToken, editWateringRecord);
 
 // Delete a specific watering record (authentication required)
-router.delete('/:id', authenticateToken, deleteWateringRecord);
+router.delete('/:id', authenticateToken, deleteSpecificWateringRecord);
 
 module.exports = router;

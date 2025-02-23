@@ -2,7 +2,7 @@ const path = require("path");
 const logger = require("../utils/logger");
 const loadEnv = require("../utils/envUtils.js");
 const { insertImage, selectImages } = require("../models/imageModel");
-const { successResponse, errorResponse } = require("../utils/responseUtils.js");
+const { successResponse, errorResponse, notFoundResponse } = require("../utils/responseUtils.js");
 
 loadEnv();
 
@@ -74,7 +74,7 @@ const getImage = async (req, res) => {
     const [results] = await selectImages({ entity_type: entityType, entity_id: entityId });
     const image = results[0];
     if (!image) {
-      return res.status(404).json({ message: "Image not found" });
+      return notFoundResponse(res, "Image not found");
     }
     successResponse(res, image);
   } catch (err) {

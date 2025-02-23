@@ -9,7 +9,7 @@ const {
   JWT_EXPIRATION,
   JWT_REFRESH_EXPIRATION,
 } = require("../config/jwtConfig");
-const { successResponse, errorResponse } = require("../utils/responseUtils");
+const { successResponse, errorResponse, notFoundResponse } = require("../utils/responseUtils");
 
 // Generate Access and Refresh Tokens
 const generateTokens = (user) => {
@@ -160,7 +160,7 @@ const updateProfile = async (req, res) => {
     const updatedUser = await authService.updateUserProfile(id, updateFields);
 
     if (!updatedUser) {
-      return errorResponse(res, "User not found", 404);
+      return notFoundResponse(res, "User not found");
     }
 
     logger.info(`User profile with id '${id}' updated successfully`);

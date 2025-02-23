@@ -7,7 +7,7 @@ const {
   deletePlant,
 } = require("../models/plantModel");
 
-const { errorResponse, successResponse } = require("../utils/responseUtils");
+const { errorResponse, successResponse, notFoundResponse } = require("../utils/responseUtils");
 
 // Centralized validation logic for plant data
 const validatePlantData = (name, species, substrateId) => {
@@ -21,7 +21,7 @@ const getPlant = async (res, selectPlantFn, id, userId = null) => {
   try {
     const [plant] = await selectPlantFn(id, userId);
     if (!plant) {
-      return res.status(404).json({ message: "Plant not found" });
+      return notFoundResponse(res, "Plant not found");
     }
     successResponse(res, plant);
   } catch (err) {
@@ -126,7 +126,7 @@ const deleteSpecificPlant = async (req, res) => {
     const result = await deletePlant(id, userId);
 
     if (result.affectedRows === 0) {
-      return errorResponse(res, "Plant not found or not authorized to delete", 404);
+      return notFoundResponse(res, "Plant not found or not authorized to delete");
     }
 
     successResponse(res, { message: "Plant deleted successfully" });

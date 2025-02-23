@@ -27,6 +27,7 @@
           <substrate-container
             :substrate="plant.substrate"
           ></substrate-container>
+          <watering-records :records="wateringRecords"></watering-records>
         </section>
       </div>
       <ImageUploadModal
@@ -60,7 +61,9 @@ import PlantService from "@/services/PlantService";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
+import WateringRecords from "@/components/plants/WateringRecords.vue";
 import ImageUploadModal from "@/components/ImageUploadModal.vue";
+import WateringService from "@/services/WateringService";
 
 export default defineComponent({
   name: "PlantDetails",
@@ -81,6 +84,7 @@ export default defineComponent({
     DetailsHeader,
     HorizontalGallery,
     SubstrateContainer,
+    WateringRecords,
     ImageUploadModal,
   },
   props: {
@@ -96,12 +100,14 @@ export default defineComponent({
   data() {
     return {
       plant: null as null | Plant,
+      wateringRecords: [] as WateringRecord[],
       showUploadModal: false,
     };
   },
   async mounted() {
     try {
       this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
+      this.wateringRecords = await WateringService.getWateringRecords(this.plantId);
     } catch (error) {
       console.error("Error fetching plant details:", error);
     }
