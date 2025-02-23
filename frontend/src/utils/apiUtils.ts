@@ -23,7 +23,7 @@ const handleResponse = async (response: Response) => {
       ToastService.showSuccess(responseData.message);
     return responseData.data; // Return the data field when success is true
   } else {
-    throw new Error(responseData.error || "An unknown error occurred"); // Throw the error message
+    throw new Error(responseData.error || responseData.message || "An unknown error occurred"); // Throw the error message
   }
 };
 

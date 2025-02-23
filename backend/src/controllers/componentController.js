@@ -6,7 +6,7 @@ const {
   updateComponent,
 } = require("../models/componentModel");
 
-const { errorResponse, successResponse } = require("../utils/responseUtils");
+const { errorResponse, successResponse, notFoundResponse } = require("../utils/responseUtils");
 
 const validateComponentData = (data) => {
   if (!data || typeof data !== "object" || !data.name || !data.fineness) {
@@ -31,7 +31,7 @@ const getComponent = async (req, res) => {
   try {
     const component = await selectComponent(id);
     if (!component) {
-      return res.status(404).json({ error: "Component not found" });
+      return notFoundResponse(res, "Component not found");
     }
     successResponse(res, component);
   } catch (err) {

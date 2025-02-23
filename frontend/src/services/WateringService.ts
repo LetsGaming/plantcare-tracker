@@ -29,9 +29,9 @@ async function invalidateWateringCache() {
 }
 
 // Fetch watering records from the API and cache them
-async function fetchAndCacheWateringRecords(): Promise<WateringRecord[]> {
+async function fetchAndCacheWateringRecords(plantId: number): Promise<WateringRecord[]> {
   try {
-    const response = await ApiUtils.get(BASE_ENDPOINT);
+    const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
     const records = WateringMapper.convertToWateringRecords(response);
     await cacheWateringRecords(records);
     return records;
@@ -43,7 +43,7 @@ async function fetchAndCacheWateringRecords(): Promise<WateringRecord[]> {
 
 export default class WateringService {
   // Fetch all watering records with optional cache and force update flag
-  static async getWateringRecords(forceUpdate: boolean = false): Promise<WateringRecord[]> {
+  static async getWateringRecords(plantId:number, forceUpdate: boolean = false): Promise<WateringRecord[]> {
     const cachedData = await getCachedWateringRecords();
 
     // Return cached data if it's valid and not forcing update
@@ -56,7 +56,7 @@ export default class WateringService {
     }
 
     // Otherwise, fetch fresh data and cache it
-    return await fetchAndCacheWateringRecords();
+    return await fetchAndCacheWateringRecords(plantId);
   }
 
   // Fetch a specific watering record by ID

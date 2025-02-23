@@ -1,3 +1,4 @@
+const e = require("express");
 const logger = require("./logger");
 
 /**
@@ -50,7 +51,7 @@ const errorResponse = (res, error, statusCode = 500, errObj = null) => {
     logger.error(error); // Log the error message if no object is provided
   }
 
-  const response = createResponseObject(false, error);
+  const response = createResponseObject(false, error, );
   res.status(statusCode).json(response);
 };
 
@@ -63,8 +64,13 @@ const validationErrorResponse = (res, message) => {
   errorResponse(res, message, 400);
 };
 
+const notFoundResponse = (res, message = "Resource not found") => {
+  errorResponse(res, message, 404, );
+}
+
 module.exports = {
   successResponse,
   errorResponse,
   validationErrorResponse,
+  notFoundResponse,
 };

@@ -1,6 +1,8 @@
 <template>
-  <template v-if="substrate">
-    <h3>Substrat</h3>
+  <ion-card v-if="substrate">
+    <ion-toolbar>
+      <ion-title>Substrat</ion-title>
+    </ion-toolbar>
     <section class="substrate-details">
       <h3 class="substrate-title">
         {{ substrate.name ?? "Unknown" }}
@@ -60,12 +62,20 @@
         </ion-accordion>
       </ion-accordion-group>
     </section>
-  </template>
+  </ion-card>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonAccordion, IonAccordionGroup, IonItem, IonLabel } from "@ionic/vue";
+import {
+  IonAccordion,
+  IonAccordionGroup,
+  IonItem,
+  IonLabel,
+  IonToolbar,
+  IonTitle,
+  IonCard,
+} from "@ionic/vue";
 import PieChart from "@/components/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
 
@@ -75,6 +85,9 @@ export default defineComponent({
     IonAccordionGroup,
     IonItem,
     IonLabel,
+    IonToolbar,
+    IonTitle,
+    IonCard,
     PieChart,
     SearchBar,
   },
@@ -92,9 +105,7 @@ export default defineComponent({
   computed: {
     components() {
       // Sort components by parts first, then by name alphabetically
-      return (
-        this.substrate?.components ?? []
-      ).sort((a, b) => {
+      return (this.substrate?.components ?? []).sort((a, b) => {
         // First sort by parts (ascending)
         if (a.parts !== b.parts) {
           return b.parts - a.parts;

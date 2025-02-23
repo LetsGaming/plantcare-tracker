@@ -1,43 +1,63 @@
 const {
-  getWateringRecords,
-  addWateringRecord,
+  selectWateringRecord,
+  selectWateringRecordsForPlant,
+  insertWateringRecord,
   updateWateringRecord,
   deleteWateringRecord,
 } = require("../models/wateringModel");
 
-const { errorResponse, successResponse } = require("../utils/responseUtils");
+const {
+  errorResponse,
+  successResponse,
+  notFoundResponse,
+} = require("../utils/responseUtils");
+
+// Centralized validation logic for watering record data
+const validateWateringData = (date) => {
+  if (!date) {
+    throw new Error("Date is required.");
+  }
+};
+
+// Centralized fetch logic for watering records
+const getWateringRecord = async (res, selectFn, id, userId = null) => {
+  try {
+    const records = await selectFn(id, userId);
+    if (records.length === 0) {
+      return notFoundResponse(res, "Watering record not found");
+    }
+    successResponse(res, records);
+  } catch (err) {
+    errorResponse(res, err, 500, "Error fetching watering record(s)");
+  }
+};
 
 // Controller to fetch watering records for a specific plant
 const getWateringRecordsForPlant = async (req, res) => {
   const { plantId } = req.params;
-  const { userId } = req.user; // Assuming userId is stored in the request object (e.g., from a JWT token)
+  const userId = req.user ? req.user.id : null;
 
-  try {
-    const records = await getWateringRecords(plantId, userId); // Pass userId to ensure the plant belongs to the user
-    if (records.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No watering records found for this plant" });
-    }
-    successResponse(res, records);
-  } catch (err) {
-    errorResponse(res, err, 500, "Error fetching watering records");
-  }
+  await getWateringRecord(res, selectWateringRecordsForPlant, plantId, userId);
+};
+
+// Controller to fetch a specific watering record
+const getSpecificWateringRecord = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user ? req.user.id : null;
+
+  await getWateringRecord(res, selectWateringRecord, id, userId);
 };
 
 // Controller to add a new watering record
-const addNewWateringRecord = async (req, res) => {
+const addWateringRecord = async (req, res) => {
   const { plantId } = req.params;
   const { date, usedFertilizer, fertilizerType } = req.body;
-  const { userId } = req.user; // Assuming userId is stored in the request object
+  const userId = req.user ? req.user.id : null;
 
   try {
-    if (!date) {
-      return res.status(400).json({ message: "Date is required" });
-    }
+    validateWateringData(date);
 
-    // Add watering record only if the plant belongs to the user
-    const result = await addWateringRecord(
+    const result = await insertWateringRecord(
       plantId,
       date,
       usedFertilizer,
@@ -48,34 +68,37 @@ const addNewWateringRecord = async (req, res) => {
 
     successResponse(res, { recordId }, 201);
   } catch (err) {
-    errorResponse(res, err, 500, "Error adding watering record");
+    const status = err.message === "Date is required." ? 400 : 500;
+    errorResponse(res, err, status);
   }
 };
 
 // Controller to update an existing watering record
 const editWateringRecord = async (req, res) => {
-  const { recordId } = req.params;
+  const { id } = req.params;
   const { date, usedFertilizer, fertilizerType } = req.body;
-  const { userId } = req.user; // Assuming userId is stored in the request object
+  const userId = req.user ? req.user.id : null;
 
   try {
     if (!date && usedFertilizer === undefined && !fertilizerType) {
-      return res
-        .status(400)
-        .json({ message: "At least one field must be provided for update" });
+      return errorResponse(
+        res,
+        "At least one field must be provided for update",
+        400
+      );
     }
 
-    // Pass userId to ensure the watering record can only be updated if the plant belongs to the user
     const result = await updateWateringRecord(
-      recordId,
+      id,
       { date, usedFertilizer, fertilizerType },
       userId
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({
-        message: "Watering record not found or not authorized to update",
-      });
+      return errorResponse(
+        res,
+        "Watering record not found or not authorized to update"
+      );
     }
 
     successResponse(res, { message: "Watering record updated successfully" });
@@ -85,18 +108,18 @@ const editWateringRecord = async (req, res) => {
 };
 
 // Controller to delete a watering record
-const deleteWateringRecordById = async (req, res) => {
-  const { recordId } = req.params;
-  const { userId } = req.user; // Assuming userId is stored in the request object
+const deleteSpecificWateringRecord = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user ? req.user.id : null;
 
   try {
-    // Pass userId to ensure the watering record can only be deleted if the plant belongs to the user
-    const result = await deleteWateringRecord(recordId, userId);
+    const result = await deleteWateringRecord(id, userId);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({
-        message: "Watering record not found or not authorized to delete",
-      });
+      return notFoundResponse(
+        res,
+        "Watering record not found or not authorized to delete"
+      );
     }
 
     successResponse(res, { message: "Watering record deleted successfully" });
@@ -107,7 +130,8 @@ const deleteWateringRecordById = async (req, res) => {
 
 module.exports = {
   getWateringRecordsForPlant,
-  addNewWateringRecord,
+  getSpecificWateringRecord,
+  addWateringRecord,
   editWateringRecord,
-  deleteWateringRecordById,
+  deleteSpecificWateringRecord,
 };
