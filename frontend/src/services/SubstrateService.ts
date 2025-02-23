@@ -86,7 +86,6 @@ export default class SubstrateService {
   ): Promise<any> {
     const cacheKey = getCacheKey(isPublic);
     const cachedData = await getCachedSubstrates(cacheKey);
-    console.log("Cached data:", cachedData);
     if (
       cachedData &&
       !forceUpdate &&
@@ -94,12 +93,9 @@ export default class SubstrateService {
     ) {
       const substrate = cachedData.substrates.find((s) => s.id == id);
       if (substrate) {
-        console.log("Substrate found in cache.");
         return substrate;
       }
     }
-
-    console.log("Substrate not found in cache, fetching from API...");
 
     // Not found in cache: fetch directly from API
     try {
@@ -145,7 +141,7 @@ export default class SubstrateService {
         throw new Error("Substrate name or components are required.");
       }
 
-      let response = await ApiUtils.put(`${BASE_ENDPOINT}/${id}`, {
+      let response = await ApiUtils.patch(`${BASE_ENDPOINT}/${id}`, {
         name: substrateData.name,
         removedComponents,
       });

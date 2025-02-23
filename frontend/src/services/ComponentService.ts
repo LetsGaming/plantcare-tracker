@@ -139,11 +139,11 @@ const ComponentService = {
   async deleteComponent(id: number): Promise<void> {
     try {
       const deleteEndpoint = `${COMPONENTS_ENDPOINT}/admin/${id}`;
-      await ApiUtils.delete<any>(deleteEndpoint);
+      const response = await ApiUtils.delete<any>(deleteEndpoint);
 
       // Invalidate the cached components after deleting
       await invalidateComponentCache();
-      ToastService.showSuccess(`Component with ID ${id} deleted successfully.`);
+      return response;
     } catch (error) {
       console.error(`Error deleting component with ID ${id}:`, error);
       ToastService.showError(`Error deleting component: ${error}`);

@@ -6,6 +6,7 @@ const authRoutes = require("./src/routes/authRoutes");
 const plantRoutes = require("./src/routes/plantRoutes");
 const substrateRoutes = require("./src/routes/substrateRoutes");
 const componentRouter = require("./src/routes/componentRoutes");
+const wateringRoutes = require("./src/routes/wateringRoutes");
 const imageRoutes = require("./src/routes/imageRoutes");
 const logger = require("./src/utils/logger");
 const loadEnv = require("./src/utils/envUtils");
@@ -64,6 +65,7 @@ const registerRoutes = () => {
   app.use(`${baseRoute}/plants`, plantRoutes);
   app.use(`${baseRoute}/substrates`, substrateRoutes);
   app.use(`${baseRoute}/components`, componentRouter);
+  app.use(`${baseRoute}/watering`, wateringRoutes);
   app.use(`${baseRoute}/images`, imageRoutes);
 };
 
