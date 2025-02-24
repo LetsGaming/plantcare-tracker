@@ -3,6 +3,7 @@ import ToastService from "@/services/general/ToastService";
 import storageService from "@/services/general/StorageService";
 import PlantMapper from "@/mapping/PlantMapping";
 import Utils from "@/utils/utils";
+import WateringService from "./WateringService";
 
 const BASE_ENDPOINT = "/plants";
 const CACHE_KEY_PUBLIC_PLANTS = "public_plants_data";
@@ -94,6 +95,7 @@ export default class PlantService {
 
       // Invalidate both caches after fetching individual plant
       await invalidatePlantCache();
+      await WateringService.invalidateWateringCache(plantId);
       return plant;
     } catch (error) {
       ToastService.showError(`Error fetching plant details: ${error}`);
@@ -140,6 +142,7 @@ export default class PlantService {
 
       const response = await ApiUtils.upload(url, formData);
       await invalidatePlantCache(); // Invalidate the cache after uploading an image
+      await WateringService.invalidateWateringCache(plantId);
       return response;
     } catch (error) {
       ToastService.showError(`Error uploading plant image: ${error}`);
@@ -151,6 +154,7 @@ export default class PlantService {
     try {
       const response = await ApiUtils.delete(`${BASE_ENDPOINT}/${plantId}`);
       await invalidatePlantCache(); // Invalidate the cache after deleting a plant
+      await WateringService.invalidateWateringCache(plantId);
       return response;
     } catch (error) {
       ToastService.showError(`Error deleting plant: ${error}`);

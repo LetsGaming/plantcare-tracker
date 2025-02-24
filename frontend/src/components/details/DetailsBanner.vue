@@ -7,7 +7,9 @@
     />
     <div class="details-banner__content">
       <h2 class="details-banner__title">{{ bannerTitle }}</h2>
-      <p class="details-banner__subtitle" v-if="bannerSubtitle">{{ bannerSubtitle }}</p>
+      <p class="details-banner__subtitle" v-if="bannerSubtitle">
+        {{ bannerSubtitle }}
+      </p>
     </div>
   </section>
 </template>
@@ -15,8 +17,13 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 
+import { IonImg } from "@ionic/vue";
+
 export default defineComponent({
   name: "DetailsBanner",
+  components: {
+    IonImg,
+  },
   props: {
     bannerTitle: {
       type: String,

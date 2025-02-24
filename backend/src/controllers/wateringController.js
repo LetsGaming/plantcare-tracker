@@ -65,7 +65,7 @@ const addWateringRecord = async (req, res) => {
 
     const recordId = result.insertId;
 
-    successResponse(res, { recordId }, 201);
+    successResponse(res, { waterRecordId: recordId }, 201);
   } catch (err) {
     const status = err.message === "Date is required." ? 400 : 500;
     errorResponse(res, err, status);
