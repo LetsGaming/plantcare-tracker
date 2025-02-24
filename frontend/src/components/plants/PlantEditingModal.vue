@@ -193,6 +193,7 @@ export default defineComponent({
         const response = await PlantService.deletePlant(this.plant.id);
         if (response) {
           this.showDeleteModal = false;
+          this.$emit("close");
           await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
         }
       } catch (error) {
