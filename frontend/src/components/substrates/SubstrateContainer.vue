@@ -1,66 +1,75 @@
 <template>
   <ion-card v-if="substrate">
-    <ion-toolbar>
-      <ion-title>Substrat</ion-title>
-    </ion-toolbar>
-    <section class="substrate-details">
-      <h3 class="substrate-title">
-        {{ substrate.name ?? "Unknown" }}
-      </h3>
-      <ion-accordion-group>
-        <ion-accordion>
-          <ion-item slot="header" class="component-header">
-            <ion-label>Komponenten</ion-label>
-          </ion-item>
-          <div slot="content" class="component-wrapper align-middle">
-            <!-- Pie Chart Integration -->
-            <PieChart :data="chartData" v-if="chartData.length > 0" />
-            <div class="component-list">
-              <SearchBar
-                :items="components"
-                searchKey="name"
-                placeholder="Search components..."
-                @filtered="updateFilteredComponents"
-              />
-              <transition-group
-                name="fade"
-                tag="ul"
-                style="padding: 0; max-height: 250px; overflow-y: scroll"
-              >
-                <li
-                  v-for="component in filteredComponents"
-                  :key="component.id"
-                  class="component-item card"
-                >
-                  <button
-                    class="component-toggle"
-                    @click="toggleDetails(component.id)"
-                    :aria-expanded="isDetailsVisible(component.id)"
-                  >
-                    <span class="component-name">{{ component.name }}</span>
-                    <span
-                      class="toggle-icon"
-                      :class="{ open: isDetailsVisible(component.id) }"
-                    >
-                      ▼
-                    </span>
-                  </button>
+    <ion-card-header>
+      <ion-toolbar>
+        <ion-title>Substrat</ion-title>
+      </ion-toolbar>
+    </ion-card-header>
 
-                  <transition name="slide-fade">
-                    <div
-                      v-if="isDetailsVisible(component.id)"
-                      class="component-details"
+    <section class="substrate-details">
+      <ion-card-header>
+        <ion-card-title class="substrate-title">
+          {{ substrate.name ?? "Unknown" }}
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-accordion-group>
+          <ion-accordion>
+            <ion-item slot="header" class="component-header">
+              <ion-label>Komponenten</ion-label>
+            </ion-item>
+            <div slot="content" class="component-wrapper align-middle">
+              <!-- Pie Chart Integration -->
+              <PieChart :data="chartData" v-if="chartData.length > 0" />
+              <div class="component-list">
+                <SearchBar
+                  :items="components"
+                  searchKey="name"
+                  placeholder="Search components..."
+                  @filtered="updateFilteredComponents"
+                />
+                <transition-group
+                  name="fade"
+                  tag="ul"
+                  style="padding: 0; max-height: 250px; overflow-y: scroll"
+                >
+                  <li
+                    v-for="component in filteredComponents"
+                    :key="component.id"
+                    class="component-item card"
+                  >
+                    <button
+                      class="component-toggle"
+                      @click="toggleDetails(component.id)"
+                      :aria-expanded="isDetailsVisible(component.id)"
                     >
-                      <p><strong>Fineness:</strong> {{ component.fineness }}</p>
-                      <p><strong>Parts:</strong> {{ component.parts }}</p>
-                    </div>
-                  </transition>
-                </li>
-              </transition-group>
+                      <span class="component-name">{{ component.name }}</span>
+                      <span
+                        class="toggle-icon"
+                        :class="{ open: isDetailsVisible(component.id) }"
+                      >
+                        ▼
+                      </span>
+                    </button>
+
+                    <transition name="slide-fade">
+                      <div
+                        v-if="isDetailsVisible(component.id)"
+                        class="component-details"
+                      >
+                        <p>
+                          <strong>Fineness:</strong> {{ component.fineness }}
+                        </p>
+                        <p><strong>Parts:</strong> {{ component.parts }}</p>
+                      </div>
+                    </transition>
+                  </li>
+                </transition-group>
+              </div>
             </div>
-          </div>
-        </ion-accordion>
-      </ion-accordion-group>
+          </ion-accordion>
+        </ion-accordion-group>
+      </ion-card-content>
     </section>
   </ion-card>
 </template>
@@ -75,6 +84,9 @@ import {
   IonToolbar,
   IonTitle,
   IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
 } from "@ionic/vue";
 import PieChart from "@/components/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
@@ -88,6 +100,9 @@ export default defineComponent({
     IonToolbar,
     IonTitle,
     IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
     PieChart,
     SearchBar,
   },

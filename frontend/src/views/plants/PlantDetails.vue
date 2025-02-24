@@ -2,7 +2,7 @@
   <ion-page>
     <details-header
       :show-edit-button="!isPublic"
-      @edit-click="navigateToPlantEditing"
+      @edit-click="showEditModal = true"
       :show-upload-button="!isPublic"
       @uploadClick="showUpload"
       default-href="/tabs/plants/overview"
@@ -10,26 +10,26 @@
     <ion-content>
       <div v-if="plant">
         <!-- Full-width banner with dynamic plant image -->
-        <section class="plant-banner">
-          <ion-img
-            :src="plant.imageUrl || '/no-image.png'"
-            alt="Plant Image"
-            class="plant-banner-image"
-          />
-          <div class="plant-banner-content">
-            <h2 class="plant-name">{{ plant.name }}</h2>
-            <p class="plant-species">{{ plant.species }}</p>
-          </div>
-        </section>
+        <details-banner
+          :banner-title="plant.name"
+          :banner-subtitle="plant.species"
+          :image-url="plant.imageUrl"
+        />
 
         <section class="plant-info">
           <horizontal-gallery :images="plant.images"></horizontal-gallery>
           <substrate-container
             :substrate="plant.substrate"
           ></substrate-container>
-          <watering-records :records="wateringRecords"></watering-records>
+          <watering-records :plantId="plant.id"></watering-records>
         </section>
       </div>
+      <PlantEditingModal
+        v-if="plant"
+        :is-open="showEditModal"
+        :plant="plant"
+        @close="showEditModal = false"
+      />
       <ImageUploadModal
         :is-open="showUploadModal"
         :card-title="`Bild für ${plant?.name} hochladen`"
@@ -59,11 +59,12 @@ import { defineComponent } from "vue";
 import PlantService from "@/services/PlantService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
+import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
-import WateringRecords from "@/components/plants/WateringRecords.vue";
+import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
+import PlantEditingModal from "../../components/plants/PlantEditingModal.vue";
 import ImageUploadModal from "@/components/ImageUploadModal.vue";
-import WateringService from "@/services/WateringService";
 
 export default defineComponent({
   name: "PlantDetails",
@@ -82,10 +83,12 @@ export default defineComponent({
     IonText,
 
     DetailsHeader,
+    DetailsBanner,
     HorizontalGallery,
     SubstrateContainer,
     WateringRecords,
     ImageUploadModal,
+    PlantEditingModal,
   },
   props: {
     id: {
@@ -101,13 +104,13 @@ export default defineComponent({
     return {
       plant: null as null | Plant,
       wateringRecords: [] as WateringRecord[],
+      showEditModal: false,
       showUploadModal: false,
     };
   },
   async mounted() {
     try {
       this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
-      this.wateringRecords = await WateringService.getWateringRecords(this.plantId);
     } catch (error) {
       console.error("Error fetching plant details:", error);
     }
@@ -121,15 +124,6 @@ export default defineComponent({
     },
   },
   methods: {
-    navigateToPlantEditing() {
-      const id = this.plantId;
-      const isPublic = this.plant?.isPublic ? 1 : 0;
-
-      this.$router.push({
-        name: "plant-editing",
-        params: { id: id, isPublic: isPublic },
-      });
-    },
     showUpload() {
       this.showUploadModal = true;
     },
@@ -137,7 +131,10 @@ export default defineComponent({
       if (this.plant) {
         try {
           await PlantService.uploadPlantImage(this.plant.id, file);
-          this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
+          this.plant = await PlantService.getPlantById(
+            this.plantId,
+            this.isPublic
+          );
           this.showUploadModal = false;
         } catch (error) {
           console.error("Error uploading image:", error);

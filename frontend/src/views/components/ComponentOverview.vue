@@ -47,7 +47,6 @@ export default defineComponent({
   data() {
     return {
       components: [] as Component[],
-      showAddButton: false
     };
   },
   setup() {
@@ -59,7 +58,11 @@ export default defineComponent({
   },
   async ionViewDidEnter() {
     await this.fetchComponents();
-    this.showAddButton = await AuthUtils.isAdmin();
+  },
+  computed: {
+    async showAddButton() {
+      return await AuthUtils.isAdmin();
+    }
   },
   methods: {
     async fetchComponents() {
@@ -73,7 +76,7 @@ export default defineComponent({
       this.fetchComponents(); // Refetch plants based on segment change
     },
     navigateToComponent(id: number) {
-      this.$router.push({ name: "component", params: { id } });
+      this.$router.push({ name: "component", params: { id: id, public: 1 } });
     },
     navigateToComponentAdding() {
       this.$router.push({ name: "component-adding" });

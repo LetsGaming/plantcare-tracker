@@ -1,23 +1,25 @@
 <template>
-  <IonPage>
+  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
     <IonHeader>
       <IonToolbar>
-        <ion-buttons slot="start">
-          <ion-back-button text="Zurück"></ion-back-button>
+        <IonTitle>Pflanze editieren</IonTitle>
+        <ion-buttons slot="end">
+          <ion-button @click="$emit('close')">
+            <IonIcon :icon="close" />
+          </ion-button>
         </ion-buttons>
-        <IonTitle>Neue Pflanze hinzufügen</IonTitle>
       </IonToolbar>
     </IonHeader>
     <IonContent>
       <form-component
-        :item="plant"
+        :item="editPlantData"
         :formFields="[
-          { type: 'input', modelKey: 'name', label: 'Name', required: true },
+          { type: 'input', modelKey: 'name', label: 'Name', required: false },
           {
             type: 'input',
             modelKey: 'species',
             label: 'Spezies',
-            required: true,
+            required: false,
           },
           {
             type: 'select',
@@ -35,26 +37,22 @@
               { value: false, label: 'Privat' },
             ],
           },
-          {
-            type: 'file',
-            modelKey: 'uploadImage',
-            label: 'Bild hochladen',
-          },
         ]"
         cardTitle="Planzen Informationen"
-        submitLabel="Pflanze hinzufügen"
+        submitLabel="Pflanze editieren"
         :extraContentComponent="SubstrateContainer"
         :extraContentData="{ substrate: selectedSubstrate }"
-        @submitClick="addPlant"
-      />
+        @submitClick="editPlant"
+        @delete-click="deletePlant"
+      ></form-component>
     </IonContent>
-  </IonPage>
+  </IonModal>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 import {
-  IonPage,
+  IonModal,
   IonHeader,
   IonToolbar,
   IonButtons,
@@ -73,6 +71,7 @@ import {
   IonButton,
   IonRadioGroup,
   IonRadio,
+  IonIcon,
 } from "@ionic/vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
@@ -81,9 +80,13 @@ import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 
+import { close, trashBin } from "ionicons/icons";
+
 export default defineComponent({
+  name: "PlantEditing",
+  emits: ["close"],
   components: {
-    IonPage,
+    IonModal,
     IonHeader,
     IonToolbar,
     IonButtons,
@@ -102,75 +105,100 @@ export default defineComponent({
     IonButton,
     IonRadioGroup,
     IonRadio,
+    IonIcon,
 
     FormComponent,
     SubstrateContainer,
   },
+  props: {
+    isOpen: {
+      type: Boolean,
+      required: true,
+    },
+    plant: {
+      type: Object as PropType<Plant>,
+      required: true,
+    },
+  },
   data() {
     return {
-      plant: {
+      editPlantData: {
         name: "",
         species: "",
         substrateId: 0,
-        isPublic: false, // Default to private
-        uploadImage: null as File | null,
-      } as AddPlant,
+        isPublic: false,
+      } as EditPlant,
       substrates: [] as Substrate[], // Substrate data will be fetched from API
+      showDeleteModal: false,
     };
   },
   setup() {
-    return { SubstrateContainer };
+    return { SubstrateContainer, close, trashBin };
   },
   async mounted() {
+    this.editPlantData = {
+      name: this.plant.name,
+      species: this.plant.species,
+      substrateId: this.plant.substrate.id,
+      isPublic: this.plant.isPublic,
+    };
     await this.fetchSubstrates(); // Fetch substrates when component mounts
   },
   computed: {
     selectedSubstrate() {
       return this.substrates.find(
-        (substrate) => substrate.id === this.plant.substrateId
+        (substrate) => substrate.id === this.editPlantData.substrateId
       );
     },
   },
   methods: {
     async fetchSubstrates() {
       try {
-        const response = await SubstrateService.getSubstrates();
+        const response = await SubstrateService.getSubstrates(
+          this.plant.isPublic || false
+        );
 
         this.substrates = response;
       } catch (error) {
         console.error("Error fetching substrates:", error);
       }
     },
-    async addPlant() {
-      if (!this.plant.name || !this.plant.species || !this.plant.substrateId) {
-        ToastService.showWarning("All fields are required!");
+    async editPlant() {
+      if (
+        !this.editPlantData.name &&
+        !this.editPlantData.species &&
+        !this.editPlantData.substrateId &&
+        this.plant.isPublic == this.editPlantData.isPublic
+      ) {
+        ToastService.showWarning("At least one field is required!");
         return;
       }
 
       try {
-        const response = await PlantService.addPlant(this.plant);
+        const response = await PlantService.editPlant(
+          this.plant.id,
+          this.editPlantData
+        );
         if (response) {
-          const plantId = response.plantId;
-          if (!this.plant.image) {
-            this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
-          } else {
-            await this.imageUpload(plantId, this.plant.image);
-          }
+          this.$emit("close");
+          this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
         }
       } catch (error) {
         console.error("Error:", error);
         ToastService.showError("Error while adding the plant");
       }
     },
-    async imageUpload(id: number, file: File) {
-      await PlantService.uploadPlantImage(id, file)
-        .then(() => {
-          this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
-        })
-        .catch((error: Error) => {
-          console.error("Error uploading image:", error);
-          ToastService.showError("Error while uploading the image");
-        });
+    async deletePlant() {
+      try {
+        const response = await PlantService.deletePlant(this.plant.id);
+        if (response) {
+          this.showDeleteModal = false;
+          await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        ToastService.showError("Error while deleting the plant");
+      }
     },
   },
 });

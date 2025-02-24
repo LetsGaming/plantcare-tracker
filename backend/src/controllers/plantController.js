@@ -105,10 +105,9 @@ const editPlant = async (req, res) => {
     });
 
     if (result.affectedRows === 0) {
-      return errorResponse(
+      return notFoundResponse(
         res,
-        "Plant not found or not authorized to update",
-        404
+        "Plant not found or not authorized to update"
       );
     }
 

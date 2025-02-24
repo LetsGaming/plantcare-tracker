@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const pool = require("../config/db");
 
 // Base query for selecting images
 const selectImagesQuery = `
@@ -24,16 +24,23 @@ const selectImages = (conditions = {}, params = []) => {
     params.push(conditions.entity_id);
   }
 
-  const whereSQL = whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : "";
+  const whereSQL = whereClauses.length
+    ? ` WHERE ${whereClauses.join(" AND ")}`
+    : "";
   const query = `${selectImagesQuery} ${whereSQL}`;
   return pool.query(query, params);
 };
 
 // Insert an image for any entity
-const insertImage = (entityType, entityId, imageUrl, uploadDate) =>
-  pool.query(
-    'INSERT INTO images (entity_type, entity_id, image_url, upload_date) VALUES (?, ?, ?, ?)',
+const insertImage = (entityType, entityId, imageUrl, uploadDate) => {
+  return pool.query(
+    "INSERT INTO images (entity_type, entity_id, image_url, upload_date) VALUES (?, ?, ?, ?)",
     [entityType, entityId, imageUrl, uploadDate]
   );
+};
 
-module.exports = { selectImages, insertImage };
+const deleteImage = (imageId) => {
+  return pool.query("DELETE FROM images WHERE id = ?", [imageId]);
+};
+
+module.exports = { selectImages, insertImage, deleteImage };

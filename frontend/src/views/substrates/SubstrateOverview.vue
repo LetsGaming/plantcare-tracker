@@ -10,8 +10,8 @@
       :showAddButton="true"
       :addIcon="addCircle"
       starting-segment="private"
-      :onSegmentChange="handleSegmentChange"
-      :onAddClick="navigateToSubstrateAdding"
+      @segment-change="handleSegmentChange"
+      @add-click="showAddingModal = true"
     />
 
     <!-- Content Area -->
@@ -20,6 +20,7 @@
         :items="substrates"
         @item-click="navigateToSubstrate"
       ></items-overview>
+      <substrate-adding-modal :is-open="showAddingModal" @close="showAddingModal = false" />
     </ion-content>
   </ion-page>
 </template>
@@ -33,6 +34,7 @@ import SubstrateService from "@/services/SubstrateService";
 // Importing the custom components
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
+import SubstrateAddingModal from "@/components/substrates/SubstrateAddingModal.vue";
 
 export default defineComponent({
   name: "SubstrateOverview",
@@ -42,11 +44,13 @@ export default defineComponent({
 
     OverviewHeader,
     ItemsOverview,
+    SubstrateAddingModal,
   },
   data() {
     return {
       substrates: [] as Substrate[],
       showPublic: "private",
+      showAddingModal: false,
     };
   },
   setup() {
@@ -82,9 +86,6 @@ export default defineComponent({
         name: "substrate",
         params: { id: id, public: isPublic_Int },
       });
-    },
-    navigateToSubstrateAdding() {
-      this.$router.push({ name: "substrate-adding" });
     },
   },
 });

@@ -16,7 +16,7 @@ router.get('/plant/:plantId', authenticateToken, getWateringRecordsForPlant);
 router.get('/:id', authenticateToken, getSpecificWateringRecord);
 
 // Add a new watering record (authentication required)
-router.post('/', authenticateToken, addWateringRecord);
+router.post('/:plantId', authenticateToken, addWateringRecord);
 
 // Partially update an existing watering record (authentication required)
 router.patch('/:id', authenticateToken, editWateringRecord);

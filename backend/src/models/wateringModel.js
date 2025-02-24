@@ -40,7 +40,6 @@ const selectWateringRecords = async (conditions = {}, params = []) => {
   return rows;
 };
 
-
 const selectWateringRecord = (recordId, userId) =>
   selectWateringRecords({ record_id: recordId, user_id: userId });
 
@@ -51,29 +50,25 @@ const selectWateringRecordsForPlant = (plantId, userId) =>
 const insertWateringRecord = async (
   plantId,
   date,
-  amount,
   usedFertilizer,
   fertilizerType,
   userId
 ) => {
-  // Check if the plant belongs to the user
-  const plantQuery = "SELECT 1 FROM plants WHERE id = ? AND user_id = ?";
-  const [plantCheck] = await pool.query(plantQuery, [plantId, userId]);
+  const query = `
+    INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type)
+    SELECT p.id, ?, ?, ?
+    FROM plants p
+    WHERE p.id = ? AND p.user_id = ?
+  `;
 
-  if (plantCheck.length === 0) {
-    throw new Error("This plant does not belong to the specified user.");
-  }
-
-  // If the plant belongs to the user, proceed to insert the watering record
-  const query =
-    "INSERT INTO watering_records (plant_id, date, amount, used_fertilizer, fertilizer_type) VALUES (?, ?, ?, ?, ?)";
   const [result] = await pool.query(query, [
-    plantId,
     date,
-    amount,
     usedFertilizer,
     fertilizerType,
+    plantId,
+    userId,
   ]);
+
   return result;
 };
 

@@ -51,8 +51,8 @@ const handleNoAuth = async (requestFn: () => Promise<Response>) => {
     await AuthUtils.refreshToken();
     return await requestFn();
   } catch (error) {
-    ToastService.showError("Session expired. You have been logged out.");
     await AuthUtils.logout();
+    ToastService.showError("Session expired. You have been logged out.");
     throw new Error("Session expired. You have been logged out.");
   }
 };

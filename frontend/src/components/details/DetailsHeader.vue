@@ -81,13 +81,6 @@ export default defineComponent({
       segmentValue: this.startingSegment,
     };
   },
-  methods: {
-    handleEditClick() {
-      if (this.onEditClick) {
-        this.onEditClick();
-      }
-    },
-  },
 });
 </script>
 

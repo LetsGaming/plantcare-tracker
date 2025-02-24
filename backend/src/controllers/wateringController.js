@@ -12,13 +12,6 @@ const {
   notFoundResponse,
 } = require("../utils/responseUtils");
 
-// Centralized validation logic for watering record data
-const validateWateringData = (date) => {
-  if (!date) {
-    throw new Error("Date is required.");
-  }
-};
-
 // Centralized fetch logic for watering records
 const getWateringRecord = async (res, selectFn, id, userId = null) => {
   try {
@@ -44,19 +37,16 @@ const getWateringRecordsForPlant = async (req, res) => {
 const getSpecificWateringRecord = async (req, res) => {
   const { id } = req.params;
   const userId = req.user ? req.user.id : null;
-
   await getWateringRecord(res, selectWateringRecord, id, userId);
 };
 
 // Controller to add a new watering record
 const addWateringRecord = async (req, res) => {
   const { plantId } = req.params;
-  const { date, usedFertilizer, fertilizerType } = req.body;
+  const { date = Date().now(), usedFertilizer, fertilizerType } = req.body;
   const userId = req.user ? req.user.id : null;
 
   try {
-    validateWateringData(date);
-
     const result = await insertWateringRecord(
       plantId,
       date,
@@ -64,6 +54,15 @@ const addWateringRecord = async (req, res) => {
       fertilizerType,
       userId
     );
+
+    if (result.affectedRows === 0) {
+      return errorResponse(
+        res,
+        "Plant not found or not authorized to add watering record",
+        404
+      );
+    }
+
     const recordId = result.insertId;
 
     successResponse(res, { recordId }, 201);
