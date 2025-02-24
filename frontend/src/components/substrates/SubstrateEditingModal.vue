@@ -1,11 +1,13 @@
 <template>
-  <IonPage>
+  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
     <IonHeader>
       <IonToolbar>
-        <ion-buttons slot="start">
-          <ion-back-button text="Zurück"></ion-back-button>
-        </ion-buttons>
         <IonTitle>Substrat bearbeiten</IonTitle>
+        <ion-buttons slot="end">
+          <ion-button @click="$emit('close')">
+            <IonIcon :icon="close" />
+          </ion-button>
+        </ion-buttons>
       </IonToolbar>
     </IonHeader>
 
@@ -13,7 +15,7 @@
       <!-- Step 1: Substrate Information Form -->
       <form-component
         v-if="step === 1"
-        :item="substrate"
+        :item="editSubstrateData"
         :formFields="[
           {
             type: 'input',
@@ -27,14 +29,14 @@
             label: 'Sichtbarkeit',
             options: [
               { value: true, label: 'Öffentlich' },
-              { value: false, label: 'Privat' },
+              { value: false, label: 'Privat' }
             ],
           },
           {
             type: 'file',
             label: 'Bild hochladen',
             modelKey: 'image',
-          },
+          }
         ]"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
@@ -42,16 +44,15 @@
         @delete-click="deleteSubstrate"
       ></form-component>
 
-      <!-- Step 2: Select Components -->
-      <div class="component-container-wrapper">
-        <ion-card v-if="step === 2" class="component-container">
+      <!-- Step 2: Edit Components -->
+      <div class="component-container-wrapper" v-if="step === 2">
+        <ion-card class="component-container">
           <h2>Komponenten für das Substrat bearbeiten</h2>
           <SearchBar
             :items="availableComponents"
             searchKey="name"
             @filtered="filteredComponents = $event"
           />
-          <!-- Improved, more accessible component list -->
           <div class="component-list">
             <ion-row>
               <ion-col
@@ -84,124 +85,120 @@
             </ion-row>
           </div>
 
-          <!-- Action Buttons with Better Layout -->
+          <!-- Action Buttons -->
           <div class="action-buttons">
-            <IonButton expand="block" color="medium" @click="goToStepOne"
-              >Zurück</IonButton
-            >
-            <IonButton expand="block" color="primary" @click="editSubstrate"
-              >Substrat speichern</IonButton
-            >
+            <IonButton expand="block" color="medium" @click="goToStepOne">
+              Zurück
+            </IonButton>
+            <IonButton expand="block" color="primary" @click="editSubstrate">
+              Substrat speichern
+            </IonButton>
           </div>
         </ion-card>
       </div>
     </IonContent>
-  </IonPage>
+  </IonModal>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 import {
-  IonPage,
+  IonModal,
   IonHeader,
   IonToolbar,
   IonButtons,
-  IonBackButton,
   IonButton,
   IonTitle,
   IonContent,
-  IonItem,
   IonCard,
   IonCheckbox,
   IonInput,
-  IonText,
   IonRow,
   IonCol,
   IonLabel,
+  IonIcon,
 } from "@ionic/vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
-import SubstrateService from "@/services/SubstrateService";
-import ToastService from "@/services/general/ToastService";
-import ComponentService from "@/services/ComponentService";
 import SearchBar from "@/components/SearchBar.vue";
+import SubstrateService from "@/services/SubstrateService";
+import ComponentService from "@/services/ComponentService";
+import ToastService from "@/services/general/ToastService";
+import { close } from "ionicons/icons";
 
 export default defineComponent({
+  name: "SubstrateEditingModal",
+  emits: ["close"],
   components: {
-    IonPage,
+    IonModal,
     IonHeader,
     IonToolbar,
     IonButtons,
-    IonBackButton,
     IonButton,
     IonTitle,
     IonContent,
-    IonItem,
     IonCard,
     IonCheckbox,
     IonInput,
-    IonText,
     IonRow,
     IonCol,
     IonLabel,
+    IonIcon,
     FormComponent,
     SearchBar,
   },
   props: {
-    id: {
-      type: String,
+    isOpen: {
+      type: Boolean,
+      required: true,
+    },
+    substrate: {
+      type: Object as PropType<Substrate>,
       required: true,
     },
   },
   data() {
     return {
       step: 1,
-      substrate: {
+      editSubstrateData: {
         name: "",
         isPublic: false,
         image: null as File | null,
-      } as EditSubstrate, // Use EditSubstrate for editing
+      } as EditSubstrate,
       filteredComponents: [] as Component[],
       availableComponents: [] as Component[],
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
-      originalComponentIds: [] as number[], // Store the original component IDs
+      originalComponentIds: [] as number[],
     };
   },
-  computed: {
-    substrateId() {
-      return Number.parseInt(this.id);
-    },
+  async mounted() {
+    // Initialize local editing data from the passed substrate prop
+    this.editSubstrateData = {
+      name: this.substrate.name,
+      isPublic: this.substrate.isPublic,
+    };
+
+    // Set up initial component selections based on the substrate's components
+    this.originalComponentIds = this.substrate.components.map(
+      (component: Component) => component.id
+    );
+    this.substrate.components.forEach((component: Component) => {
+      this.selectedComponentIds.push(component.id);
+      this.componentParts[component.id] = component.parts;
+    });
+
+    await this.fetchAvailableComponents();
   },
   methods: {
     async fetchAvailableComponents() {
       try {
         const response = await ComponentService.getComponents();
         this.availableComponents = response;
+        // Initialize the filtered list
+        this.filteredComponents = response;
       } catch (error) {
         console.error("Error fetching components:", error);
         ToastService.showError("Fehler beim Laden der Komponenten");
-      }
-    },
-    async fetchSubstrateDetails() {
-      try {
-        const substrate = await SubstrateService.getSubstrateById(
-          this.substrateId,
-          Boolean(this.substrate.isPublic)
-        );
-        this.substrate = { ...substrate }; // Set substrate data for form
-        console.log(substrate);
-        this.originalComponentIds = substrate.components.map(
-          (component: Component) => component.id
-        ); // Save original components
-
-        // Set initial component selections
-        substrate.components.forEach((component: Component) => {
-          this.selectedComponentIds.push(component.id);
-          this.componentParts[component.id] = component.parts;
-        });
-      } catch (error) {
-        console.error("Error fetching substrate details:", error);
-        ToastService.showError("Fehler beim Laden des Substrats");
       }
     },
     goToStepOne() {
@@ -220,36 +217,35 @@ export default defineComponent({
     },
     async editSubstrate() {
       if (this.selectedComponentIds.length === 0) {
-        ToastService.showWarning(
-          "Bitte wählen Sie mindestens eine Komponente aus!"
-        );
+        ToastService.showWarning("Bitte wählen Sie mindestens eine Komponente aus!");
         return;
       }
 
+      // Determine which components have been removed
       const removedComponents = this.originalComponentIds.filter(
         (id) => !this.selectedComponentIds.includes(id)
       );
 
       const componentsData = {
-        name: this.substrate.name,
+        name: this.editSubstrateData.name,
         components: this.selectedComponentIds.map((id) => ({
           componentId: id,
           parts: this.componentParts[id] || 1,
         })),
-        isPublic: this.substrate.isPublic,
-        image: this.substrate.image,
+        isPublic: this.editSubstrateData.isPublic,
+        image: this.editSubstrateData.image,
       } as EditSubstrate;
 
       try {
         const response = await SubstrateService.editSubstrate(
-          this.substrateId,
+          this.substrate.id,
           componentsData,
           removedComponents
         );
-
         if (response) {
           ToastService.showSuccess("Substrat erfolgreich aktualisiert");
-          this.$router.push({ name: "substrate-overview" }); // Redirect after success
+          this.$emit("close");
+          this.$router.push({ name: "substrate-overview" });
         }
       } catch (error) {
         console.error("Error editing substrate:", error);
@@ -258,12 +254,11 @@ export default defineComponent({
     },
     async deleteSubstrate() {
       try {
-        const response = await SubstrateService.deleteSubstrate(
-          this.substrateId
-        );
+        const response = await SubstrateService.deleteSubstrate(this.substrate.id);
         if (response) {
           ToastService.showSuccess("Substrat erfolgreich gelöscht");
-          this.$router.push({ name: "substrate-overview" }); // Redirect after success
+          this.$emit("close");
+          this.$router.push({ name: "substrate-overview" });
         }
       } catch (error) {
         console.error("Error deleting substrate:", error);
@@ -271,10 +266,8 @@ export default defineComponent({
       }
     },
   },
-  async mounted() {
-    // Fetch components and substrate details
-    await this.fetchAvailableComponents();
-    await this.fetchSubstrateDetails();
+  setup() {
+    return { close };
   },
 });
 </script>
@@ -295,43 +288,33 @@ export default defineComponent({
   padding: 16px;
   max-width: 800px;
 }
-
 .component-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-
 .component-selection {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-
 h2 {
   text-align: center;
   margin-bottom: 16px;
 }
-
 ion-label h3 {
   font-size: 18px;
   margin: 0;
 }
-
 ion-label p {
   font-size: 14px;
   color: var(--ion-text-color-medium);
   margin: 0;
 }
-
 .action-buttons {
   display: flex;
   justify-content: space-between;
   margin-top: 20px;
   gap: 10px;
-}
-
-ion-button {
-  width: 48%;
 }
 </style>

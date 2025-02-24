@@ -13,9 +13,10 @@ const getCacheKey = () => CACHE_KEY_WATERING_RECORDS;
 
 // Helper function to retrieve cached watering records
 async function getCachedWateringRecords() {
-  return await storageService.get<{ records: WateringRecord[]; timestamp: number }>(
-    getCacheKey()
-  );
+  return await storageService.get<{
+    records: WateringRecord[];
+    timestamp: number;
+  }>(getCacheKey());
 }
 
 // Helper function to cache watering records data
@@ -29,7 +30,9 @@ async function invalidateWateringCache() {
 }
 
 // Fetch watering records from the API and cache them
-async function fetchAndCacheWateringRecords(plantId: number): Promise<WateringRecord[]> {
+async function fetchAndCacheWateringRecords(
+  plantId: number
+): Promise<WateringRecord[]> {
   try {
     const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
     const records = WateringMapper.convertToWateringRecords(response);
@@ -43,7 +46,10 @@ async function fetchAndCacheWateringRecords(plantId: number): Promise<WateringRe
 
 export default class WateringService {
   // Fetch all watering records with optional cache and force update flag
-  static async getWateringRecords(plantId:number, forceUpdate: boolean = false): Promise<WateringRecord[]> {
+  static async getWateringRecords(
+    plantId: number,
+    forceUpdate: boolean = false
+  ): Promise<WateringRecord[]> {
     const cachedData = await getCachedWateringRecords();
 
     // Return cached data if it's valid and not forcing update
@@ -84,7 +90,9 @@ export default class WateringService {
       const record = WateringMapper.convertToWateringRecords(response)[0];
       return record;
     } catch (error) {
-      ToastService.showError(`Error fetching watering record details: ${error}`);
+      ToastService.showError(
+        `Error fetching watering record details: ${error}`
+      );
       throw error;
     }
   }
@@ -92,14 +100,11 @@ export default class WateringService {
   // Add a new watering record
   static async addWateringRecord(
     plantId: number,
-    date: string,
-    amount: number,
-    usedFertilizer: boolean,
-    fertilizerType: string
+    addWateringRecord: AddWateringRecord
   ): Promise<any> {
     try {
-      const payload = { plantId, date, amount, usedFertilizer, fertilizerType };
-      const response = await ApiUtils.post(BASE_ENDPOINT, payload);
+      const endpoint = `${BASE_ENDPOINT}/${plantId}`;
+      const response = await ApiUtils.post(endpoint, addWateringRecord);
       await invalidateWateringCache(); // Invalidate cache after adding a new record
       return response;
     } catch (error) {
@@ -111,10 +116,18 @@ export default class WateringService {
   // Update an existing watering record
   static async editWateringRecord(
     recordId: number,
-    updatedData: { date?: string; amount?: number; usedFertilizer?: boolean; fertilizerType?: string }
+    updatedData: {
+      date?: string;
+      amount?: number;
+      usedFertilizer?: boolean;
+      fertilizerType?: string;
+    }
   ): Promise<any> {
     try {
-      const response = await ApiUtils.patch(`${BASE_ENDPOINT}/${recordId}`, updatedData);
+      const response = await ApiUtils.patch(
+        `${BASE_ENDPOINT}/${recordId}`,
+        updatedData
+      );
       await invalidateWateringCache(); // Invalidate cache after editing a record
       return response;
     } catch (error) {

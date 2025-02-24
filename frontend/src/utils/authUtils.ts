@@ -42,7 +42,7 @@ const AuthUtils = {
    */
   async logout(): Promise<void> {
     try {
-      await ApiService.post<null, { message: string }>("/auth/logout", null);
+      ApiService.post<null, { message: string }>("/auth/logout", null);
       await TokenService.clearToken();
       await router.push({ name: "login" });
     } catch (error) {

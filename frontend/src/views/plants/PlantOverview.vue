@@ -7,11 +7,10 @@
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
         { value: 'private', label: 'Persönlich', icon: personCircle },
       ]"
-      :showAddButton="true"
       :addIcon="addCircle"
       starting-segment="private"
-      :onSegmentChange="handleSegmentChange"
-      :onAddClick="navigateToPlantAdding"
+      @segment-change="handleSegmentChange"
+      @add-click="showAddingModal = true"
     />
 
     <!-- Content Area -->
@@ -19,7 +18,8 @@
       <items-overview
         :items="plants"
         @item-click="navigateToPlant"
-      ></items-overview>
+      />
+      <plant-adding-modal :is-open="showAddingModal" @close="showAddingModal = false"/>
     </ion-content>
   </ion-page>
 </template>
@@ -34,6 +34,7 @@ import PlantService from "@/services/PlantService";
 // Importing the new custom components
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
+import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 
 export default defineComponent({
   name: "PlantOverview",
@@ -43,11 +44,13 @@ export default defineComponent({
 
     OverviewHeader,
     ItemsOverview,
+    PlantAddingModal,
   },
   data() {
     return {
       plants: [] as Plant[],
       showPublic: "private",
+      showAddingModal: false,
     };
   },
   setup() {
@@ -80,9 +83,6 @@ export default defineComponent({
     navigateToPlant(id: number) {
       const isPublic_Int = this.isPublic ? 1 : 0;
       this.$router.push({ name: "plant", params: { id: id, public: isPublic_Int} });
-    },
-    navigateToPlantAdding() {
-      this.$router.push({ name: "plant-adding" });
     },
   },
 });

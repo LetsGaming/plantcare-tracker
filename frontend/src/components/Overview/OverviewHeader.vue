@@ -18,7 +18,7 @@
       </ion-segment>
 
       <ion-icon
-        v-if="showAddButton && addIcon"
+        v-if="onAddClick && addIcon"
         :icon="addIcon"
         slot="end"
         @click="onAddClick"
@@ -26,7 +26,7 @@
       />
 
       <ion-icon
-        v-else-if="showAddButton"
+        v-else-if="onAddClick"
         :name="addIconName"
         slot="end"
         @click="onAddClick"
@@ -72,10 +72,6 @@ export default defineComponent({
       >,
       required: true,
     },
-    showAddButton: {
-      type: Boolean,
-      default: true,
-    },
     addIcon: {
       type: String,
       required: false,
@@ -112,11 +108,6 @@ export default defineComponent({
     handleSegmentChange(event: any) {
       const value = event.detail.value;
       this.onSegmentChange(value);
-    },
-    handleAddClick() {
-      if (this.onAddClick) {
-        this.onAddClick();
-      }
     },
   },
 });

@@ -8,13 +8,11 @@
     <ion-content>
       <div v-if="component">
         <!-- Full-width banner with dynamic component image -->
-        <section class="component-banner">
-          <ion-img
-            :src="component.imageUrl || '/no-image.png'"
-            alt="Component Image"
-            class="component-banner-image"
-          />
-        </section>
+        <details-banner
+          :banner-title="component.name"
+          :banner-subtitle="component.fineness"
+          :image-url="component.imageUrl"
+        />
         <div class="component-info">
           <ion-card class="component-banner-content align-middle">
             <ion-card-header>
@@ -45,6 +43,7 @@ import {
 import { defineComponent } from "vue";
 import ComponentService from "@/services/ComponentService";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
+import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import AuthUtils from "@/utils/authUtils";
 
@@ -59,6 +58,7 @@ export default defineComponent({
     IonCardContent,
     IonCardHeader,
     DetailsHeader,
+    DetailsBanner,
     HorizontalGallery,
   },
   props: {
@@ -137,12 +137,12 @@ export default defineComponent({
   flex-direction: column;
   gap: 20px;
   background: var(--card-background-color);
-  border-radius: 16px;;
+  border-radius: 16px;
   transition: background 0.3s ease;
 }
 
 .component-banner-content {
-    flex-flow: column !important;
+  flex-flow: column !important;
 }
 
 .fade-enter-active,

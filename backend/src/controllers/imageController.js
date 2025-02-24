@@ -1,8 +1,16 @@
 const path = require("path");
 const logger = require("../utils/logger");
 const loadEnv = require("../utils/envUtils.js");
-const { insertImage, selectImages } = require("../models/imageModel");
-const { successResponse, errorResponse, notFoundResponse } = require("../utils/responseUtils.js");
+const {
+  insertImage,
+  selectImages,
+  deleteImage,
+} = require("../models/imageModel");
+const {
+  successResponse,
+  errorResponse,
+  notFoundResponse,
+} = require("../utils/responseUtils.js");
 
 loadEnv();
 
@@ -32,8 +40,7 @@ const uploadImage = async (req, res) => {
 
     if (!allowedMimeTypes.includes(imageFile.mimetype)) {
       return res.status(400).json({
-        message:
-          "Uploaded file is not a valid image format (png, jpeg, jpg).",
+        message: "Uploaded file is not a valid image format (png, jpeg, jpg).",
       });
     }
 
@@ -59,7 +66,10 @@ const getImages = async (req, res) => {
   try {
     // Optional query parameters for filtering images
     const { entityType, entityId } = req.query;
-    const [images] = await selectImages({ entity_type: entityType, entity_id: entityId });
+    const [images] = await selectImages({
+      entity_type: entityType,
+      entity_id: entityId,
+    });
     successResponse(res, images);
   } catch (err) {
     logger.error(err);
@@ -71,7 +81,10 @@ const getImage = async (req, res) => {
   const { entityType, entityId } = req.query;
   try {
     // Retrieve a single image based on the provided entity details
-    const [results] = await selectImages({ entity_type: entityType, entity_id: entityId });
+    const [results] = await selectImages({
+      entity_type: entityType,
+      entity_id: entityId,
+    });
     const image = results[0];
     if (!image) {
       return notFoundResponse(res, "Image not found");
@@ -83,4 +96,22 @@ const getImage = async (req, res) => {
   }
 };
 
-module.exports = { uploadImage, getImages, getImage };
+const deleteSpecificImage = async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Delete an image based on its ID
+    const res = await deleteImage(id);
+    if (res.affectedRows === 0) {
+      return notFoundResponse(
+        res,
+        "Image not found or not authorized to delete"
+      );
+    }
+    successResponse(res, { message: "Image deleted successfully" });
+  } catch (err) {
+    logger.error(err);
+    errorResponse(res, "Internal Server Error while deleting image");
+  }
+};
+
+module.exports = { uploadImage, getImages, getImage, deleteSpecificImage };

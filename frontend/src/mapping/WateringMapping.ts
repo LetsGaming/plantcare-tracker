@@ -2,12 +2,11 @@ import Utils from "@/utils/utils";
 
 export default class WateringMapper {
   // Helper function to map a single watering record
-  static mapWateringRecord(watering: any): WateringRecord {
+  static mapWateringRecord(watering: APIWateringRecord): WateringRecord {
     return {
       id: watering.record_id,
       plantId: watering.plant_id,
-      date: Utils.convertDateString(watering.record_date),
-      amount: watering.amount,
+      date: Utils.convertDateString(watering.watering_date),
       usedFertilizer: watering.used_fertilizer,
       fertilizerType: watering.fertilizer_type,
     };

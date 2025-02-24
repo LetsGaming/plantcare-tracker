@@ -2,7 +2,7 @@
   <ion-page>
     <details-header
       :show-edit-button="!isPublic"
-      @edit-click="navigateToSubstrateEditing"
+      @edit-click="showEditModal = true"
       :show-upload-button="!isPublic"
       @upload-click="showUpload"
       default-href="/tabs/substrate/overview"
@@ -11,16 +11,10 @@
     <ion-content>
       <div v-if="substrate">
         <!-- Full-width banner with dynamic substrate image -->
-        <section class="substrate-banner">
-          <ion-img
-            :src="substrate.imageUrl || '/no-image.png'"
-            alt="Substrate Image"
-            class="substrate-banner-image"
-          />
-          <div class="substrate-banner-content">
-            <h2 class="substrate-name">{{ substrate.name }}</h2>
-          </div>
-        </section>
+        <details-banner
+          :banner-title="substrate.name"
+          :image-url="substrate.imageUrl"
+        />
 
         <section class="substrate-info">
           <SubstrateContainer :substrate="substrate"></SubstrateContainer>
@@ -31,6 +25,12 @@
         :card-title="`Bild für ${substrate?.name} hochladen`"
         @close="showUploadModal = false"
         @submit="onImageUpload"
+      />
+      <SubstrateEditingModal
+        v-if="substrate"
+        :is-open="showEditModal"
+        :substrate="substrate"
+        @close="showEditModal = false"
       />
     </ion-content>
   </ion-page>
@@ -51,8 +51,10 @@ import {
 import SubstrateService from "@/services/SubstrateService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
+import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import ImageUploadModal from "@/components/ImageUploadModal.vue";
+import SubstrateEditingModal from "@/components/substrates/SubstrateEditingModal.vue";
 
 export default defineComponent({
   name: "SubstrateDetails",
@@ -67,8 +69,10 @@ export default defineComponent({
     IonImg,
 
     DetailsHeader,
+    DetailsBanner,
     SubstrateContainer,
-    ImageUploadModal
+    ImageUploadModal,
+    SubstrateEditingModal,
   },
   props: {
     id: {
@@ -84,6 +88,7 @@ export default defineComponent({
     return {
       substrate: null as null | Substrate,
       showUploadModal: false,
+      showEditModal: false,
     };
   },
   async mounted() {
@@ -102,14 +107,9 @@ export default defineComponent({
     },
     isPublic() {
       return this.public === "1";
-    }
+    },
   },
   methods: {
-    navigateToSubstrateEditing() {
-      const id = this.substrateId;
-
-      this.$router.push({ name: "substrate-editing", params: { id } });
-    },
     showUpload() {
       this.showUploadModal = true;
     },
@@ -117,7 +117,10 @@ export default defineComponent({
       if (this.substrate) {
         try {
           await SubstrateService.uploadSubstrateImage(this.substrate.id, file);
-          this.substrate = await SubstrateService.getSubstrateById(this.substrateId, this.isPublic);
+          this.substrate = await SubstrateService.getSubstrateById(
+            this.substrateId,
+            this.isPublic
+          );
           this.showUploadModal = false;
         } catch (error) {
           console.error("Error uploading image:", error);

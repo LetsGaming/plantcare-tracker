@@ -1,10 +1,11 @@
 <template>
   <div class="form-container">
-    <IonCard>
+    <IonCard style="margin-top: auto;">
       <IonCardHeader>
         <IonToolbar>
           <IonCardTitle>{{ cardTitle }}</IonCardTitle>
           <ion-icon
+            v-if="onDeleteClick"
             :Icon="trashBin"
             @click="showDeleteModal = true"
             slot="end"
@@ -50,6 +51,10 @@
                 </IonRadio>
               </IonItem>
             </IonRadioGroup>
+          </IonItem>
+          <IonItem v-else-if="field.type === 'date'">
+            <IonLabel>{{ field.label }}</IonLabel>
+            <input type="datetime-local" v-model="item[field.modelKey]" />
           </IonItem>
           <IonItem v-else-if="field.type === 'switch'">
             <IonLabel>{{ field.label }}</IonLabel>
@@ -99,9 +104,13 @@
           <IonCardHeader>
             <IonCardTitle
               >Sind Sie sicher, dass Sie
-              <span style="color: var(--ion-color-primary-tint); white-space: nowrap">{{
-                item.name
-              }}</span>
+              <span
+                style="
+                  color: var(--ion-color-primary-tint);
+                  white-space: nowrap;
+                "
+                >{{ item.name }}</span
+              >
               löschen wollen?</IonCardTitle
             >
           </IonCardHeader>
@@ -245,9 +254,9 @@ export default defineComponent({
 
 <style scoped>
 .form-container {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   justify-content: center;
+  grid-template-rows: max-content auto;
   align-items: center;
   height: 100%;
   padding: 16px;
