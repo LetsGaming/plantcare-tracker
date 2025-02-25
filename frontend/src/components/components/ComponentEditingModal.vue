@@ -16,6 +16,7 @@
         cardTitle="Komponenten Informationen"
         submitLabel="Komponente editieren"
         @submitClick="editComponent"
+        @delete-click="deleteComponent"
       />
     </IonContent>
   </IonModal>
@@ -51,18 +52,24 @@ export default defineComponent({
   data() {
     return {
       editComponentData: {
-        name: undefined,
-        fineness: undefined,
+        name: "",
+        fineness: "",
       } as EditComponent,
+    };
+  },
+  mounted() {
+    this.editComponentData = {
+      name: this.component.name,
+      fineness: this.component.fineness,
     };
   },
   methods: {
     async editComponent() {
       try {
-        if (this.editComponentData.name === undefined) {
+        if (this.editComponentData.name === "") {
           this.editComponentData.name = this.component.name;
         }
-        if (this.editComponentData.fineness === undefined) {
+        if (this.editComponentData.fineness === "") {
           this.editComponentData.fineness = this.component.fineness;
         }
         await ComponentService.editComponent(
@@ -70,7 +77,16 @@ export default defineComponent({
           this.editComponentData
         );
         this.$emit("close");
-        this.$router.push({name: "component-overview"});
+        this.$router.push({ name: "component-overview" });
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    async deleteComponent() {
+      try {
+        await ComponentService.deleteComponent(this.component.id);
+        this.$emit("close");
+        this.$router.push({ name: "component-overview" });
       } catch (error) {
         console.error(error);
       }

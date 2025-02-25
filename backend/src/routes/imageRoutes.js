@@ -7,6 +7,8 @@ const {
   uploadImage,
   getImages,
   getImage,
+  deleteSpecificImage,
+  deleteImagesByEntityHandler,
 } = require("../controllers/imageController");
 const { imageGetLimiter } = require("../middlewares/rateLimiter");
 
@@ -45,7 +47,7 @@ const upload = multer({
   },
 });
 
-// Upload image for a specific plant
+// Upload image for a specific entity
 router.post(
   "/:entityType/:entityId",
   authenticateToken,
@@ -56,12 +58,22 @@ router.post(
 // Get all images (authenticated)
 router.get("/:entityType", imageGetLimiter, authenticateToken, getImages);
 
-// Get a specific image for a plant (authenticated)
+// Get a specific image for a specific entity
 router.get(
   "/:entityType/:entityId",
   imageGetLimiter,
   authenticateToken,
   getImage
+);
+
+// Delete a specific image by its ID
+router.delete("/image/:id", authenticateToken, deleteSpecificImage);
+
+// Delete all images associated with a specific entity
+router.delete(
+  "/:entityType/:entityId",
+  authenticateToken,
+  deleteImagesByEntityHandler
 );
 
 module.exports = router;

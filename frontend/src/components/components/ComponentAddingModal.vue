@@ -40,6 +40,8 @@ export default defineComponent({
   components: {
     IonModal,
     IonContent,
+    ModalHeader,
+    FormComponent
   },
   props: {
     isOpen: {

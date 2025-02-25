@@ -53,22 +53,31 @@
             class="component-item"
           >
             <div class="component-content">
-              <ion-text>
-                {{ component.name }} ({{ component.fineness }})
-              </ion-text>
-              <div class="component-selection">
-                <IonCheckbox
-                  :value="component.id"
-                  @ionChange="toggleSelectedComponent(component.id)"
-                />
-                <IonInput
-                  v-if="selectedComponentIds.includes(component.id)"
-                  v-model="componentParts[component.id]"
-                  type="number"
-                  placeholder="Teile"
-                  min="1"
-                />
-              </div>
+              <ion-row style="width: 100%">
+                <ion-col>
+                  <div class="component-selection-title">
+                    <ion-text>
+                      {{ component.name }} ({{ component.fineness }})
+                    </ion-text>
+                  </div>
+                </ion-col>
+                <ion-col>
+                  <div class="component-selection">
+                    <IonCheckbox
+                      :value="component.id"
+                      @ionChange="toggleSelectedComponent(component.id)"
+                    />
+                    <IonInput
+                      v-if="selectedComponentIds.includes(component.id)"
+                      v-model="componentParts[component.id]"
+                      type="number"
+                      placeholder="Teile"
+                      min="1"
+                      style="text-align: left; margin-left: 5%;"
+                    />
+                  </div>
+                </ion-col>
+              </ion-row>
             </div>
           </ion-item>
         </div>
@@ -96,6 +105,8 @@ import {
   IonCheckbox,
   IonInput,
   IonText,
+  IonRow,
+  IonCol,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
@@ -120,6 +131,8 @@ export default defineComponent({
     IonCheckbox,
     IonInput,
     IonText,
+    IonRow,
+    IonCol,
     ModalHeader,
     FormComponent,
     SearchBar,
@@ -209,11 +222,11 @@ export default defineComponent({
               "Substrat und Komponenten erfolgreich hinzugefügt"
             );
             this.$emit("close");
-            this.$router.push("/substrates");
+            this.$router.push({ name: "substrate-overview" });
           } else {
             await this.imageUpload(substrateId, this.substrate.image);
             this.$emit("close");
-            this.$router.push("/substrates");
+            this.$router.push({ name: "substrate-overview" });
           }
         }
       } catch (error) {
@@ -228,7 +241,7 @@ export default defineComponent({
           "Substrat und Komponenten erfolgreich hinzugefügt"
         );
         this.$emit("close");
-        this.$router.push("/substrates");
+        this.$router.push({ name: "substrate-overview" });
       } catch (error) {
         console.error("Error uploading image:", error);
         ToastService.showError("Fehler beim Hochladen des Bildes");
@@ -271,10 +284,19 @@ export default defineComponent({
   gap: 16px;
 }
 
+.component-content {
+  display: contents;
+  width: 100%;
+}
+.component-selection-title {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
 .component-selection {
   display: flex;
   align-items: center;
-  gap: 12px;
+  height: 100%;
 }
 
 h2 {

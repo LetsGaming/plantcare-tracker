@@ -28,43 +28,7 @@
                   placeholder="Search components..."
                   @filtered="updateFilteredComponents"
                 />
-                <transition-group
-                  name="fade"
-                  tag="ul"
-                  style="padding: 0; max-height: 250px; overflow-y: scroll"
-                >
-                  <li
-                    v-for="component in filteredComponents"
-                    :key="component.id"
-                    class="component-item card"
-                  >
-                    <button
-                      class="component-toggle"
-                      @click="toggleDetails(component.id)"
-                      :aria-expanded="isDetailsVisible(component.id)"
-                    >
-                      <span class="component-name">{{ component.name }}</span>
-                      <span
-                        class="toggle-icon"
-                        :class="{ open: isDetailsVisible(component.id) }"
-                      >
-                        ▼
-                      </span>
-                    </button>
-
-                    <transition name="slide-fade">
-                      <div
-                        v-if="isDetailsVisible(component.id)"
-                        class="component-details"
-                      >
-                        <p>
-                          <strong>Feinheit:</strong> {{ component.fineness }}
-                        </p>
-                        <p><strong>Teile:</strong> {{ component.parts }}</p>
-                      </div>
-                    </transition>
-                  </li>
-                </transition-group>
+                <CustomAccordion :items="filteredComponents" />
               </div>
             </div>
           </ion-accordion>
@@ -90,6 +54,8 @@ import {
 } from "@ionic/vue";
 import PieChart from "@/components/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
+import CustomAccordion from "../CustomAccordion.vue";
+import { map } from "ionicons/icons";
 
 export default defineComponent({
   components: {
@@ -105,6 +71,7 @@ export default defineComponent({
     IonCardTitle,
     PieChart,
     SearchBar,
+    CustomAccordion,
   },
   props: {
     substrate: {
@@ -113,9 +80,13 @@ export default defineComponent({
   },
   data() {
     return {
-      filteredComponents: [] as SubstrateComponent[],
+      filteredComponents: [] as AccordionItem[],
       detailsVisibility: {} as { [key: number]: boolean },
     };
+  },
+  mounted() {
+    // Initialize with full list initially
+    this.filteredComponents = this.mapComponentsToAccordion(this.components);
   },
   computed: {
     components() {
@@ -139,7 +110,7 @@ export default defineComponent({
   methods: {
     updateFilteredComponents(filtered: SubstrateComponent[]) {
       // Sort filtered components as well
-      this.filteredComponents = filtered.sort((a, b) => {
+      const filteredComps = filtered.sort((a, b) => {
         // Sort by parts first
         if (a.parts !== b.parts) {
           return a.parts - b.parts;
@@ -147,6 +118,18 @@ export default defineComponent({
         // Sort alphabetically by name
         return a.name.localeCompare(b.name);
       });
+
+      this.filteredComponents = this.mapComponentsToAccordion(filteredComps);
+    },
+    mapComponentsToAccordion(components: SubstrateComponent[]) {
+      return components.map((component) => ({
+        id: component.id,
+        name: component.name,
+        details: {
+          Teile: component.parts,
+          Feinheit: component.fineness,
+        },
+      }));
     },
     toggleDetails(id: number) {
       this.detailsVisibility = {
@@ -157,10 +140,6 @@ export default defineComponent({
     isDetailsVisible(id: number) {
       return !!this.detailsVisibility[id];
     },
-  },
-  mounted() {
-    // Initialize with full list initially
-    this.filteredComponents = this.components;
   },
 });
 </script>

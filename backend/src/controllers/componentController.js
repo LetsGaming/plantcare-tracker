@@ -6,7 +6,12 @@ const {
   updateComponent,
 } = require("../models/componentModel");
 
-const { errorResponse, successResponse, notFoundResponse } = require("../utils/responseUtils");
+const {
+  errorResponse,
+  successResponse,
+  notFoundResponse,
+} = require("../utils/responseUtils");
+const { deleteImagesByEntity } = require("./imageController");
 
 const validateComponentData = (data) => {
   if (!data || typeof data !== "object" || !data.name || !data.fineness) {
@@ -74,7 +79,12 @@ const removeComponent = async (req, res) => {
   const { id } = req.params;
 
   try {
-    await deleteComponent(id);
+    const result = await deleteComponent(id);
+    if (result.affectedRows === 0) {
+      return notFoundResponse(res, "Component not found");
+    }
+
+    await deleteImagesByEntity("component", id);
     successResponse(res, { message: "Component deleted successfully." });
   } catch (err) {
     errorResponse(res, err);

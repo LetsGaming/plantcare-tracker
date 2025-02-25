@@ -12,26 +12,7 @@
     </ion-card-header>
     <section class="watering-records">
       <ion-card-content>
-        <ion-accordion-group>
-          <ion-accordion v-for="record in sortedRecords" :key="record.id">
-            <ion-card>
-              <ion-card-header slot="header" class="record-header">
-                <ion-card-title>
-                  {{ record.date }}
-                </ion-card-title>
-              </ion-card-header>
-              <ion-card-content slot="content" class="record-details">
-                <p>
-                  <strong>Dünger genutzt:</strong>
-                  {{ record.usedFertilizer ? "Yes" : "No" }}
-                </p>
-                <p v-if="record.usedFertilizer && record.fertilizerType">
-                  <strong>Dünger Typ:</strong> {{ record.fertilizerType }}
-                </p>
-              </ion-card-content>
-            </ion-card>
-          </ion-accordion>
-        </ion-accordion-group>
+        <CustomAccordion :items="mappedRecords" />
       </ion-card-content>
     </section>
     <WateringRecordsAdding
@@ -62,6 +43,7 @@ import { addCircle } from "ionicons/icons";
 import WateringService from "@/services/WateringService";
 
 import WateringRecordsAdding from "./WateringRecordsAdding.vue";
+import CustomAccordion from "@/components/CustomAccordion.vue";
 
 export default defineComponent({
   name: "WateringRecords",
@@ -79,6 +61,7 @@ export default defineComponent({
     IonCardContent,
     IonIcon,
     WateringRecordsAdding,
+    CustomAccordion,
   },
   props: {
     plantId: {
@@ -94,11 +77,16 @@ export default defineComponent({
   data() {
     return {
       records: null as WateringRecord[] | null,
+      mappedRecords: [] as AccordionItem[],
       showAddingModal: false,
     };
   },
   async mounted() {
     this.records = await WateringService.getWateringRecords(this.plantId);
+    this.records = this.records.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    this.mappedRecords = this.mapWateringsToAccordion(this.records);
   },
   methods: {
     async addRecord(addingRecord: AddWateringRecord) {
@@ -111,12 +99,17 @@ export default defineComponent({
         this.showAddingModal = false;
       }
     },
-  },
-  computed: {
-    sortedRecords() {
-      return this.records?.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
+    mapWateringsToAccordion(records: WateringRecord[]) {
+      return records.map((record) => ({
+        id: record.id,
+        name: record.date,
+        details: {
+          "Dünger genutzt": record.usedFertilizer ? "Ja" : "Nein",
+          ...(record.usedFertilizer && {
+            "Dünger Typ": record.fertilizerType ?? "",
+          }),
+        },
+      }));
     },
   },
 });
@@ -128,7 +121,6 @@ export default defineComponent({
 }
 
 .record-header {
-  border-radius: 8px;
   font-weight: bold;
 }
 

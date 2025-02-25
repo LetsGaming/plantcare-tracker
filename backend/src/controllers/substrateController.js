@@ -15,6 +15,7 @@ const {
   successResponse,
   notFoundResponse,
 } = require("../utils/responseUtils");
+const { deleteImagesByEntity } = require("./imageController");
 
 // Centralized helper to fetch a single substrate
 const getSubstrateById = async (res, selectSubstrateFn, id, userId = null) => {
@@ -194,6 +195,8 @@ const deleteSpecificSubstrate = async (req, res) => {
         "Substrate not found or not authorized to delete"
       );
     }
+
+    await deleteImagesByEntity("substrate", id);
 
     successResponse(res, { message: "Substrate deleted successfully" });
   } catch (err) {

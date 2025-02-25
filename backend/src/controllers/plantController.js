@@ -6,7 +6,7 @@ const {
   updatePlant,
   deletePlant,
 } = require("../models/plantModel");
-
+const {deleteImagesByEntity} =require("../controllers/imageController")
 const { errorResponse, successResponse, notFoundResponse } = require("../utils/responseUtils");
 
 // Centralized validation logic for plant data
@@ -127,6 +127,8 @@ const deleteSpecificPlant = async (req, res) => {
     if (result.affectedRows === 0) {
       return notFoundResponse(res, "Plant not found or not authorized to delete");
     }
+
+    await deleteImagesByEntity("plant", id);
 
     successResponse(res, { message: "Plant deleted successfully" });
   } catch (err) {

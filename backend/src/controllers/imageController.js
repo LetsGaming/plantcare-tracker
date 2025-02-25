@@ -1,4 +1,5 @@
 const path = require("path");
+const fs = require("fs").promises;
 const logger = require("../utils/logger");
 const loadEnv = require("../utils/envUtils.js");
 const {
@@ -17,6 +18,7 @@ loadEnv();
 const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg"];
 const NAS_PATH = process.env.NAS_PATH || null;
 const uploadDir = NAS_PATH || "/uploads";
+const uploadPath = NAS_PATH || path.resolve(__dirname, "../../uploads");
 
 const uploadImage = async (req, res) => {
   try {
@@ -98,20 +100,99 @@ const getImage = async (req, res) => {
 
 const deleteSpecificImage = async (req, res) => {
   const { id } = req.params;
+
   try {
-    // Delete an image based on its ID
-    const res = await deleteImage(id);
-    if (res.affectedRows === 0) {
+    // Retrieve the image details before deleting
+    const [imageResults] = await selectImages({ id });
+
+    if (!imageResults.length) {
+      return notFoundResponse(res, "Image not found or already deleted");
+    }
+
+    const imagePath = imageResults[0].image_url;
+
+    if (imagePath.startsWith("http")) {
+      const filename = path.basename(imagePath); // Extract just the filename
+      imagePath = path.join(uploadPath, filename); // Construct the local file path
+    }
+    
+    // Check if file exists before trying to delete
+    await deleteImageOnSystem(imagePath);
+
+    // Delete the image record from the database
+    const result = await deleteImage(id);
+
+    if (result.affectedRows === 0) {
       return notFoundResponse(
         res,
         "Image not found or not authorized to delete"
       );
     }
+
     successResponse(res, { message: "Image deleted successfully" });
   } catch (err) {
-    logger.error(err);
+    logger.error("Error deleting image:", err.message);
     errorResponse(res, "Internal Server Error while deleting image");
   }
 };
 
-module.exports = { uploadImage, getImages, getImage, deleteSpecificImage };
+const deleteImagesByEntityHandler = async (req, res) => {
+  const { entityType, entityId } = req.params;
+
+  const result = await deleteImagesByEntity(entityType, entityId);
+
+  if (!result.success) {
+    return errorResponse(res, result.message);
+  }
+
+  successResponse(res, { message: result.message });
+};
+
+/**
+ * Deletes all images for a given entityType and entityId.
+ * @param {string} entityType - The type of entity (e.g., "plant", "substrate", "component").
+ * @param {number} entityId - The ID of the entity.
+ * @returns {Promise<{ success: boolean, message: string }>} - Operation result.
+ */
+const deleteImagesByEntity = async (entityType, entityId) => {
+  try {
+    const [imageResults] = await selectImages({ entity_type: entityType, entity_id: entityId });
+
+    if (!imageResults.length) {
+      return { success: false, message: "No images found for the given entity." };
+    }
+
+    for (const image of imageResults) {
+      let imagePath = image.image_url;
+
+      // If the image URL is a full URL, convert it to an absolute file path
+      if (imagePath.startsWith("http")) {
+        const filename = path.basename(imagePath); // Extract just the filename
+        imagePath = path.join(uploadPath, filename); // Construct the local file path
+      }
+
+      // Try deleting the image file from disk/NAS
+      await deleteImageOnSystem(imagePath);
+
+      // Delete the image record from the database
+      await deleteImage(image.image_id);
+    }
+
+    return { success: true, message: "Images deleted successfully." };
+  } catch (err) {
+    logger.error("Error deleting images:", err.message);
+    return { success: false, message: "Internal Server Error while deleting images." };
+  }
+};
+
+const deleteImageOnSystem = async (imagePath) => {
+  try {
+    await fs.access(imagePath); // Verify file existence
+    await fs.unlink(imagePath); // Delete the file
+    logger.info(`Deleted image file: ${imagePath}`);
+  } catch (fileError) {
+    logger.warn(`File not found or could not be deleted: ${imagePath} \n`, fileError);
+  }
+}
+
+module.exports = { uploadImage, getImages, getImage, deleteSpecificImage, deleteImagesByEntityHandler, deleteImagesByEntity };
