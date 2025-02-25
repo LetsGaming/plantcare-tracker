@@ -52,6 +52,7 @@ export default defineComponent({
       component: {
         name: "",
         fineness: "",
+        image: null as File | null,
       } as AddComponent,
     };
   },

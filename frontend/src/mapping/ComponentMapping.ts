@@ -1,6 +1,6 @@
 export default class ComponentMapper {
   // Helper function to map components
-  static mapComponent(component: any): Component {
+  static mapComponent(component: any): SubstrateComponent {
     return {
       id: component.component_id,
       name: component.component_name,
@@ -20,7 +20,7 @@ export default class ComponentMapper {
   }
 
   // Convert API response to Substrate array
-  static convertToComponents(response: any): Component[] {
+  static convertToComponents(response: any): SubstrateComponent[] {
     if (Array.isArray(response)) {
       return response.map(this.mapComponent);
     } else {

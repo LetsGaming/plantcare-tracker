@@ -79,7 +79,7 @@
       </IonCardContent>
     </IonCard>
 
-    <!-- Extra Content Component -->
+    <!-- Extra Content SubstrateComponent -->
     <div
       v-if="extraContentComponent && extraContentData"
       class="extra-content-wrapper"

@@ -113,7 +113,7 @@ export default defineComponent({
   },
   data() {
     return {
-      filteredComponents: [] as Component[],
+      filteredComponents: [] as SubstrateComponent[],
       detailsVisibility: {} as { [key: number]: boolean },
     };
   },
@@ -137,7 +137,7 @@ export default defineComponent({
     },
   },
   methods: {
-    updateFilteredComponents(filtered: Component[]) {
+    updateFilteredComponents(filtered: SubstrateComponent[]) {
       // Sort filtered components as well
       this.filteredComponents = filtered.sort((a, b) => {
         // Sort by parts first

@@ -155,8 +155,8 @@ export default defineComponent({
         isPublic: false,
         image: null as File | null,
       } as EditSubstrate,
-      filteredComponents: [] as Component[],
-      availableComponents: [] as Component[],
+      filteredComponents: [] as SubstrateComponent[],
+      availableComponents: [] as SubstrateComponent[],
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
       originalComponentIds: [] as number[],
@@ -171,9 +171,9 @@ export default defineComponent({
 
     // Set up initial component selections based on the substrate's components
     this.originalComponentIds = this.substrate.components.map(
-      (component: Component) => component.id
+      (component: SubstrateComponent) => component.id
     );
-    this.substrate.components.forEach((component: Component) => {
+    this.substrate.components.forEach((component: SubstrateComponent) => {
       this.selectedComponentIds.push(component.id);
       this.componentParts[component.id] = component.parts;
     });

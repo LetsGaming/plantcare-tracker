@@ -33,7 +33,7 @@
         @submit-click="goToStepTwo"
       ></form-component>
 
-      <!-- Step 2: Component Selection -->
+      <!-- Step 2: SubstrateComponent Selection -->
       <ion-card v-if="step === 2" class="component-container align-middle">
         <h2>Wähle Komponenten für das Substrat</h2>
 
@@ -45,7 +45,7 @@
           @filtered="updateFilteredComponents"
         />
 
-        <!-- Filtered and Sorted Component List -->
+        <!-- Filtered and Sorted SubstrateComponent List -->
         <div class="component-list align-middle">
           <ion-item
             v-for="component in filteredComponents"
@@ -138,14 +138,14 @@ export default defineComponent({
         image: null as File | null,
         isPublic: false,
       } as AddSubstrate,
-      availableComponents: [] as Component[],
-      filteredComponents: [] as Component[],
+      availableComponents: [] as SubstrateComponent[],
+      filteredComponents: [] as SubstrateComponent[],
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
     };
   },
   computed: {
-    sortedComponents(): Component[] {
+    sortedComponents(): SubstrateComponent[] {
       return [...this.availableComponents].sort((a, b) =>
         a.name.localeCompare(b.name)
       );
@@ -177,7 +177,7 @@ export default defineComponent({
         this.selectedComponentIds.push(id);
       }
     },
-    updateFilteredComponents(filtered: Component[]) {
+    updateFilteredComponents(filtered: SubstrateComponent[]) {
       this.filteredComponents = filtered;
     },
     async addSubstrate() {

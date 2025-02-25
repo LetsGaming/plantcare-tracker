@@ -6,10 +6,6 @@ interface Substrate {
   components: SubstrateComponent[];
 }
 
-interface SubstrateComponent extends Component {
-  parts: number
-}
-
 interface AddSubstrate {
   name: string;
   isPublic?: boolean;
