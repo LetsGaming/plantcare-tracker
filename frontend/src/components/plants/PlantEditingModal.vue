@@ -1,15 +1,6 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <IonHeader>
-      <IonToolbar>
-        <IonTitle>Pflanze editieren</IonTitle>
-        <ion-buttons slot="end">
-          <ion-button @click="$emit('close')">
-            <IonIcon :icon="close" />
-          </ion-button>
-        </ion-buttons>
-      </IonToolbar>
-    </IonHeader>
+    <ModalHeader headerTitle="Pflanze bearbeiten" @close="$emit('close')" />
     <IonContent>
       <form-component
         :item="editPlantData"
@@ -53,26 +44,9 @@
 import { defineComponent, PropType } from "vue";
 import {
   IonModal,
-  IonHeader,
-  IonToolbar,
-  IonButtons,
-  IonBackButton,
-  IonTitle,
   IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-  IonItem,
-  IonLabel,
-  IonInput,
-  IonSelect,
-  IonSelectOption,
-  IonButton,
-  IonRadioGroup,
-  IonRadio,
-  IonIcon,
 } from "@ionic/vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
@@ -80,33 +54,14 @@ import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 
-import { close, trashBin } from "ionicons/icons";
-
 export default defineComponent({
-  name: "PlantEditing",
+  name: "PlantEditingModal",
   emits: ["close"],
   components: {
     IonModal,
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonBackButton,
-    IonTitle,
     IonContent,
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
-    IonItem,
-    IonLabel,
-    IonInput,
-    IonSelect,
-    IonSelectOption,
-    IonButton,
-    IonRadioGroup,
-    IonRadio,
-    IonIcon,
 
+    ModalHeader,
     FormComponent,
     SubstrateContainer,
   },
@@ -133,7 +88,7 @@ export default defineComponent({
     };
   },
   setup() {
-    return { SubstrateContainer, close, trashBin };
+    return { SubstrateContainer };
   },
   async mounted() {
     this.editPlantData = {

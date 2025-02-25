@@ -9,8 +9,8 @@
       :showAddButton="showAddButton"
       :addIcon="addCircle"
       starting-segment="all"
-      :onSegmentChange="handleSegmentChange"
-      :onAddClick="navigateToComponentAdding"
+      @segment-change="handleSegmentChange"
+      @add-click="showAddingModal = true"
     />
 
     <!-- Content Area -->
@@ -28,11 +28,12 @@ import { defineComponent } from "vue";
 import { IonContent, IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
-import ComponentService from "@/services/ComponentService";
-
 // Importing the new custom components
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
+import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
+
+import ComponentService from "@/services/ComponentService";
 import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
@@ -43,10 +44,12 @@ export default defineComponent({
 
     OverviewHeader,
     ItemsOverview,
+    ComponentAddingModal,
   },
   data() {
     return {
       components: [] as Component[],
+      showAddingModal: false,
     };
   },
   setup() {
@@ -77,9 +80,6 @@ export default defineComponent({
     },
     navigateToComponent(id: number) {
       this.$router.push({ name: "component", params: { id: id, public: 1 } });
-    },
-    navigateToComponentAdding() {
-      this.$router.push({ name: "component-adding" });
     },
   },
 });

@@ -6,3 +6,14 @@ interface Component {
   parts: number;
   fineness: string;
 }
+
+interface AddComponent {
+  name: string;
+  fineness: string;
+  image?: File;
+}
+
+interface EditComponent {
+  name?: string;
+  fineness?: string;
+}

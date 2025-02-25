@@ -115,7 +115,7 @@ const ComponentService = {
    * @param {any} componentData - The updated data for the component.
    * @returns {Promise<any>} - A promise that resolves to the updated component data.
    */
-  async updateComponent(id: number, componentData: any): Promise<any> {
+  async editComponent(id: number, componentData: any): Promise<any> {
     try {
       const updateEndpoint = `${COMPONENTS_ENDPOINT}/admin/${id}`;
       const response = await ApiUtils.put<any, any>(updateEndpoint, componentData);
@@ -127,6 +127,24 @@ const ComponentService = {
     } catch (error) {
       console.error(`Error updating component with ID ${id}:`, error);
       ToastService.showError(`Error updating component: ${error}`);
+      throw error;
+    }
+  },
+
+  async uploadComponentImage(componentId: number, image: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append("image", image);
+
+      // The server expects entityType and entityId in the URL parameters
+      const entityType = "component";
+      const url = `/images/${entityType}/${componentId}`;
+
+      const response = await ApiUtils.upload(url, formData);
+      await invalidateComponentCache(); // Invalidate the cache after uploading an image
+      return response;
+    } catch (error) {
+      ToastService.showError(`Error uploading plant image: ${error}`);
       throw error;
     }
   },

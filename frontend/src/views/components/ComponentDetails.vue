@@ -2,7 +2,7 @@
   <ion-page>
     <details-header
       :show-edit-button="showEditButton"
-      @edit-click="navigateToComponentEditing"
+      @edit-click="showEditingModal = true"
       default-href="/tabs/components/overview"
     ></details-header>
     <ion-content>
@@ -26,6 +26,12 @@
           </ion-card>
         </div>
       </div>
+      <component-editing-modal
+        v-if="component"
+        :is-open="showEditingModal"
+        :component="component"
+        @close="showEditingModal = false"
+      />
     </ion-content>
   </ion-page>
 </template>
@@ -41,10 +47,11 @@ import {
   IonCardHeader,
 } from "@ionic/vue";
 import { defineComponent } from "vue";
-import ComponentService from "@/services/ComponentService";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
-import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
+import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
+
+import ComponentService from "@/services/ComponentService";
 import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
@@ -59,7 +66,7 @@ export default defineComponent({
     IonCardHeader,
     DetailsHeader,
     DetailsBanner,
-    HorizontalGallery,
+    ComponentEditingModal,
   },
   props: {
     id: {
@@ -71,6 +78,7 @@ export default defineComponent({
     return {
       component: null as null | Component,
       showEditButton: false,
+      showEditingModal: false,
     };
   },
   async mounted() {
