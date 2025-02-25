@@ -58,9 +58,9 @@
                         class="component-details"
                       >
                         <p>
-                          <strong>Fineness:</strong> {{ component.fineness }}
+                          <strong>Feinheit:</strong> {{ component.fineness }}
                         </p>
-                        <p><strong>Parts:</strong> {{ component.parts }}</p>
+                        <p><strong>Teile:</strong> {{ component.parts }}</p>
                       </div>
                     </transition>
                   </li>

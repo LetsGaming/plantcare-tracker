@@ -1,30 +1,39 @@
-interface Substrate {
-  id: number;
+interface BaseSubstrate {
   name: string;
+  isPublic?: boolean;
+}
+
+interface Substrate extends BaseSubstrate {
+  id: number;
   isPublic: boolean;
   imageUrl?: string;
   components: SubstrateComponent[];
 }
 
-interface AddSubstrate {
-  name: string;
-  isPublic?: boolean;
+interface AddSubstrate extends BaseSubstrate {
   image?: File;
+}
+
+interface BaseSubstrateComponent {
+  componentId: number;
+  parts: number;
 }
 
 interface AddSubstrateComponents {
   substrateId: number;
-  components: {
-    componentId: number;
-    parts: number;
-  }[];
+  components: BaseSubstrateComponent[];
 }
+
+interface EditSubstrateComponent extends BaseSubstrateComponent {}
 
 interface EditSubstrate extends AddSubstrate {
   components?: EditSubstrateComponent[];
 }
 
-interface EditSubstrateComponent {
-  componentId: number;
-  parts: number;
+interface APISubstrate {
+  substrate_id: number;
+  substrate_name: string;
+  is_public: boolean;
+  image_url: string;
+  components: any[];
 }

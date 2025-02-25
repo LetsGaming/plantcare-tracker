@@ -16,3 +16,7 @@ interface AddComponent extends Component {
 
 interface EditComponent extends Component{
 }
+
+interface APIComponent {
+  // TODO 
+}

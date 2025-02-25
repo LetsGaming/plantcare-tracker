@@ -1,11 +1,10 @@
-interface RegisterData {
+interface LoginData {
   username: string;
   password: string;
 }
 
-interface LoginData {
-  username: string;
-  password: string;
+interface RegisterData extends LoginData {
+
 }
 
 interface AuthResponse {

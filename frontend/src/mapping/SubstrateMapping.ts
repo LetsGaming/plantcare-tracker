@@ -2,7 +2,7 @@ import ComponentMapper from "./ComponentMapping";
 
 export default class SubstrateMapper {
   // Helper function to map substrate
-  static mapSubstrate(substrate: any): Substrate {
+  static mapSubstrate(substrate: APISubstrate): Substrate {
     return {
       id: substrate.substrate_id,
       name: substrate.substrate_name,

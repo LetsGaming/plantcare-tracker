@@ -4,7 +4,7 @@ import ImageMapper from './ImageMapping';
 
 export default class PlantMapper {
   // Helper function to map a single plant
-  static mapPlant(plant: any): Plant {
+  static mapPlant(plant: APIPlant): Plant {
     return {
       id: plant.plant_id,
       name: plant.plant_name,
