@@ -102,8 +102,9 @@ const router = createRouter({
 });
 
 // Global navigation guard
-router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth && !AuthUtils.isAuthenticated()) {
+router.beforeEach(async (to, from, next) => {
+  const isAuthed = await AuthUtils.isAuthenticated();
+  if (to.meta.requiresAuth && !isAuthed) {
     return next({ name: "login" });
   }
   next();

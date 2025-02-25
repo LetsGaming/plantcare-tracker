@@ -13,13 +13,22 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonHeader, IonToolbar, IonTitle, IonIcon } from "@ionic/vue";
+import {
+  IonHeader,
+  IonButtons,
+  IonButton,
+  IonToolbar,
+  IonTitle,
+  IonIcon,
+} from "@ionic/vue";
 import { close } from "ionicons/icons";
 export default defineComponent({
   name: "ModalHeader",
   emits: ["close"],
   components: {
     IonHeader,
+    IonButtons,
+    IonButton,
     IonToolbar,
     IonTitle,
     IonIcon,

@@ -51,23 +51,25 @@ const selectComponent = (id) =>
   selectComponents({ id }).then((rows) => rows[0] || null);
 
 // Insert a new component
-const insertComponent = (name, fineness) =>
-  pool.query("INSERT INTO components (name, fineness) VALUES (?, ?)", [
+const insertComponent = (name, fineness) => {
+  return pool.query("INSERT INTO components (name, fineness) VALUES (?, ?)", [
     name,
     fineness,
   ]);
+};
 
 // Update a component by ID
-const updateComponent = (id, name, fineness) =>
-  pool.query("UPDATE components SET name = ?, fineness = ? WHERE id = ?", [
-    name,
-    fineness,
-    id,
-  ]);
+const updateComponent = (id, name, fineness) => {
+  return pool.query(
+    "UPDATE components SET name = ?, fineness = ? WHERE id = ?",
+    [name, fineness, id]
+  );
+};
 
 // Delete a component by ID
-const deleteComponent = (id) =>
-  pool.query("DELETE FROM components WHERE id = ?", [id]);
+const deleteComponent = (id) => {
+  return pool.query("DELETE FROM components WHERE id = ?", [id]);
+};
 
 module.exports = {
   selectComponents,

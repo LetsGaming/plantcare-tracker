@@ -3,9 +3,7 @@
     <!-- Sticky Header with Filters -->
     <overview-header
       title="Komponenten"
-      :segments="[
-        { value: 'all', label: 'Alle', icon: personCircle }
-      ]"
+      :segments="[{ value: 'all', label: 'Alle', icon: personCircle }]"
       :showAddButton="showAddButton"
       :addIcon="addCircle"
       starting-segment="all"
@@ -19,6 +17,10 @@
         :items="components"
         @item-click="navigateToComponent"
       ></items-overview>
+      <component-adding-modal
+        :is-open="showAddingModal"
+        @close="showAddingModal = false"
+      />
     </ion-content>
   </ion-page>
 </template>
@@ -65,7 +67,7 @@ export default defineComponent({
   computed: {
     async showAddButton() {
       return await AuthUtils.isAdmin();
-    }
+    },
   },
   methods: {
     async fetchComponents() {
