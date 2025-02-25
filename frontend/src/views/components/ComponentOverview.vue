@@ -48,7 +48,7 @@ export default defineComponent({
   },
   data() {
     return {
-      components: [] as Component[],
+      components: [] as SubstrateComponent[],
       showAddingModal: false,
     };
   },

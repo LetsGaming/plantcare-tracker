@@ -76,7 +76,7 @@ export default defineComponent({
   },
   data() {
     return {
-      component: null as null | Component,
+      component: null as null | SubstrateComponent,
       showEditButton: false,
       showEditingModal: false,
     };

@@ -1,19 +1,18 @@
 interface Component {
-  id: number;
   name: string;
+  fineness: string;
+}
+
+interface SubstrateComponent extends Component {
+  id: number;
   description: string;
   imageUrl: string;
   parts: number;
-  fineness: string;
 }
 
-interface AddComponent {
-  name: string;
-  fineness: string;
+interface AddComponent extends Component {
   image?: File;
 }
 
-interface EditComponent {
-  name?: string;
-  fineness?: string;
+interface EditComponent extends Component{
 }

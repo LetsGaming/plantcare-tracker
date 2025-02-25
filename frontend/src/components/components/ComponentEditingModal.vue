@@ -44,7 +44,7 @@ export default defineComponent({
       required: true,
     },
     component: {
-      type: Object as PropType<Component>,
+      type: Object as PropType<SubstrateComponent>,
       required: true,
     },
   },
