@@ -1,16 +1,6 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <IonHeader>
-      <IonToolbar>
-        <IonTitle>Substrat bearbeiten</IonTitle>
-        <ion-buttons slot="end">
-          <ion-button @click="$emit('close')">
-            <IonIcon :icon="close" />
-          </ion-button>
-        </ion-buttons>
-      </IonToolbar>
-    </IonHeader>
-
+    <ModalHeader headerTitle="Substrat bearbeiten" @close="$emit('close')" />
     <IonContent>
       <!-- Step 1: Substrate Information Form -->
       <form-component
@@ -118,12 +108,12 @@ import {
   IonLabel,
   IonIcon,
 } from "@ionic/vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
-import { close } from "ionicons/icons";
 
 export default defineComponent({
   name: "SubstrateEditingModal",
@@ -143,6 +133,7 @@ export default defineComponent({
     IonCol,
     IonLabel,
     IonIcon,
+    ModalHeader,
     FormComponent,
     SearchBar,
   },
@@ -265,9 +256,6 @@ export default defineComponent({
         ToastService.showError("Fehler beim Löschen des Substrats");
       }
     },
-  },
-  setup() {
-    return { close };
   },
 });
 </script>

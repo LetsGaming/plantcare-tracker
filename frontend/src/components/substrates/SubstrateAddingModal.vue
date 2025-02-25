@@ -1,16 +1,6 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <IonHeader>
-      <IonToolbar>
-        <IonTitle>Neues Substrat hinzufügen</IonTitle>
-        <ion-buttons slot="end">
-          <ion-button @click="$emit('close')">
-            <IonIcon :icon="close" />
-          </ion-button>
-        </ion-buttons>
-      </IonToolbar>
-    </IonHeader>
-
+    <ModalHeader headerTitle="Substrat hinzufügen" @close="$emit('close')" />
     <IonContent>
       <!-- Step 1: Substrate Information Form -->
       <form-component
@@ -36,7 +26,7 @@
             type: 'file',
             label: 'Bild hochladen',
             modelKey: 'image',
-          }
+          },
         ]"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
@@ -106,14 +96,13 @@ import {
   IonCheckbox,
   IonInput,
   IonText,
-  IonIcon,
 } from "@ionic/vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/adding/FormComponent.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import ComponentService from "@/services/ComponentService";
-import { close } from "ionicons/icons";
 
 export default defineComponent({
   name: "SubstrateAddingModal",
@@ -131,7 +120,7 @@ export default defineComponent({
     IonCheckbox,
     IonInput,
     IonText,
-    IonIcon,
+    ModalHeader,
     FormComponent,
     SearchBar,
   },
@@ -193,7 +182,9 @@ export default defineComponent({
     },
     async addSubstrate() {
       if (this.selectedComponentIds.length === 0) {
-        ToastService.showWarning("Bitte wählen Sie mindestens eine Komponente aus!");
+        ToastService.showWarning(
+          "Bitte wählen Sie mindestens eine Komponente aus!"
+        );
         return;
       }
 
@@ -214,7 +205,9 @@ export default defineComponent({
         if (response) {
           const substrateId = response.substrate.substrateId;
           if (!this.substrate.image) {
-            ToastService.showSuccess("Substrat und Komponenten erfolgreich hinzugefügt");
+            ToastService.showSuccess(
+              "Substrat und Komponenten erfolgreich hinzugefügt"
+            );
             this.$emit("close");
             this.$router.push("/substrates");
           } else {
@@ -231,7 +224,9 @@ export default defineComponent({
     async imageUpload(id: number, file: File) {
       try {
         await SubstrateService.uploadSubstrateImage(id, file);
-        ToastService.showSuccess("Substrat und Komponenten erfolgreich hinzugefügt");
+        ToastService.showSuccess(
+          "Substrat und Komponenten erfolgreich hinzugefügt"
+        );
         this.$emit("close");
         this.$router.push("/substrates");
       } catch (error) {

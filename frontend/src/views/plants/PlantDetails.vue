@@ -4,7 +4,7 @@
       :show-edit-button="!isPublic"
       @edit-click="showEditModal = true"
       :show-upload-button="!isPublic"
-      @uploadClick="showUpload"
+      @uploadClick="showUploadModal = true"
       default-href="/tabs/plants/overview"
     ></details-header>
     <ion-content>
@@ -124,9 +124,6 @@ export default defineComponent({
     },
   },
   methods: {
-    showUpload() {
-      this.showUploadModal = true;
-    },
     async onImageUpload(file: File) {
       if (this.plant) {
         try {
