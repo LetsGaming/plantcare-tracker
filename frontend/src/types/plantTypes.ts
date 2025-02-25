@@ -1,27 +1,25 @@
-interface Plant {
-  id: number;
+interface BasePlant {
   name: string;
   species: string;
-  isPublic: boolean;
+  isPublic?: boolean;
+}
+
+interface Plant extends BasePlant {
+  id: number;
   created_at: string;
   imageUrl?: string;
   substrate: Substrate;
   images: Image[];
+  isPublic: boolean;
 }
 
-interface AddPlant {
-  name: string;
-  species: string;
+interface AddPlant extends BasePlant {
   substrateId: number;
-  isPublic?: boolean;
   image?: File;
 }
 
-interface EditPlant {
-  name?: string;
-  species?: string;
+interface EditPlant extends Partial<BasePlant> {
   substrateId?: number;
-  isPublic?: boolean;
 }
 
 interface APIPlant {
@@ -30,5 +28,7 @@ interface APIPlant {
   plant_species: string;
   is_public: boolean;
   plant_created_at: string;
+  image_url: string;
   substrate: any;
+  images: any[];
 }
