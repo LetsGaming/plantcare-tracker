@@ -64,7 +64,7 @@ export default class SubstrateService {
     if (
       !forceUpdate &&
       cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+      !Utils.isCacheExpired(cachedData.timestamp)
     ) {
       return cachedData.substrates;
     }
@@ -89,7 +89,7 @@ export default class SubstrateService {
     if (
       cachedData &&
       !forceUpdate &&
-      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+      !Utils.isCacheExpired(cachedData.timestamp)
     ) {
       const substrate = cachedData.substrates.find((s) => s.id == id);
       if (substrate) {
