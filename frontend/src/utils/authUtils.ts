@@ -157,6 +157,15 @@ const AuthUtils = {
     const role = await this.getUserRole();
     return role?.toLowerCase() === "admin" || false;
   },
+
+  /**
+   * Check if the current user is a guest.
+   * @returns Whether the user is a guest.
+   */
+  async isGuest(): Promise<boolean> {
+    const role = await this.getUserRole();
+    return role?.toLowerCase() === "guest" || false;
+  },
 };
 
 export default AuthUtils;

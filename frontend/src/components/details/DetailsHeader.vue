@@ -9,20 +9,22 @@
         ></ion-back-button>
         <ion-back-button v-else text="Zurück"></ion-back-button>
       </ion-buttons>
-      <ion-icon
-        v-if="showUploadButton"
-        :icon="cloudUpload"
-        style="width: 32px; height: 32px"
-        slot="end"
-        @click="onUploadClick"
-      />
-      <ion-icon
-        v-if="showEditButton"
-        :icon="create"
-        style="width: 32px; height: 32px"
-        slot="end"
-        @click="onEditClick"
-      />
+      <template v-if="!isGuest">
+        <ion-icon
+          v-if="showUploadButton"
+          :icon="cloudUpload"
+          style="width: 32px; height: 32px"
+          slot="end"
+          @click="onUploadClick"
+        />
+        <ion-icon
+          v-if="showEditButton"
+          :icon="create"
+          style="width: 32px; height: 32px"
+          slot="end"
+          @click="onEditClick"
+        />
+      </template>
     </ion-toolbar>
   </ion-header>
 </template>
@@ -39,6 +41,8 @@ import {
   IonIcon,
 } from "@ionic/vue";
 import { create, cloudUpload } from "ionicons/icons";
+
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "DetailsHeader",
@@ -81,6 +85,11 @@ export default defineComponent({
       segmentValue: this.startingSegment,
     };
   },
+  methods: {
+    async isGuest() {
+      return await AuthUtils.isGuest();
+    },
+  }
 });
 </script>
 

@@ -2,7 +2,12 @@
   <ion-header>
     <ion-toolbar class="header-toolbar">
       <ion-title>{{ title }}</ion-title>
-      <ion-icon :icon="logOutOutline" slot="end" @click="logUserOut" style="padding-right: 20px;"></ion-icon>
+      <ion-icon
+        :icon="logOutOutline"
+        slot="end"
+        @click="logUserOut"
+        style="padding-right: 20px"
+      ></ion-icon>
     </ion-toolbar>
 
     <ion-toolbar class="segment-toolbar">
@@ -17,21 +22,23 @@
         </ion-segment-button>
       </ion-segment>
 
-      <ion-icon
-        v-if="onAddClick && addIcon"
-        :icon="addIcon"
-        slot="end"
-        @click="onAddClick"
-        class="add-icon"
-      />
+      <template v-if="!isGuest">
+        <ion-icon
+          v-if="onAddClick && addIcon"
+          :icon="addIcon"
+          slot="end"
+          @click="onAddClick"
+          class="add-icon"
+        />
 
-      <ion-icon
-        v-else-if="onAddClick"
-        :name="addIconName"
-        slot="end"
-        @click="onAddClick"
-        class="add-icon"
-      />
+        <ion-icon
+          v-else-if="onAddClick"
+          :name="addIconName"
+          slot="end"
+          @click="onAddClick"
+          class="add-icon"
+        />
+      </template>
     </ion-toolbar>
   </ion-header>
 </template>
@@ -102,6 +109,9 @@ export default defineComponent({
     return { logOutOutline };
   },
   methods: {
+    async isGuest() {
+      return await AuthUtils.isGuest();
+    },
     async logUserOut() {
       await AuthUtils.logout();
     },
