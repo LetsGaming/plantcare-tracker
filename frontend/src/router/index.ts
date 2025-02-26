@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 
 import AuthUtils from "@/utils/authUtils";
+import Utils from "@/utils/utils";
 
 // Dynamic imports for lazy loading
 const Login = () => import("@/views/Login.vue");
@@ -103,6 +104,8 @@ const router = createRouter({
 
 // Global navigation guard
 router.beforeEach(async (to, from, next) => {
+  await Utils.closeAllOpenModals();
+
   const isAuthed = await AuthUtils.isAuthenticated();
   if (to.meta.requiresAuth && !isAuthed) {
     return next({ name: "login" });
