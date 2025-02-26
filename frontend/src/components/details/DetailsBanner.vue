@@ -2,7 +2,7 @@
   <section class="details-banner">
     <ion-img
       :src="imageUrl || '/no-image.png'"
-      alt="Plant Image"
+      :alt="bannerTitle + ' Image'"
       class="details-banner__image"
     />
     <div class="details-banner__content">
@@ -45,7 +45,7 @@ export default defineComponent({
 .details-banner {
   position: relative;
   width: 100%;
-  height: 500px;
+  height: 850px;
   overflow: hidden;
 }
 
@@ -75,5 +75,19 @@ export default defineComponent({
 .details-banner__subtitle {
   font-size: 1.2rem;
   margin-top: 5px;
+}
+
+@media (max-width: 768px) {
+  .details-banner {
+    height: 500px;
+  }
+
+  .details-banner__title {
+    font-size: 1.5rem;
+  }
+
+  .details-banner__subtitle {
+    font-size: 1rem;
+  }
 }
 </style>

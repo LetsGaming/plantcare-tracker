@@ -87,6 +87,9 @@ export default defineComponent({
 
 .enlarged-image {
   width: 90%;
+}
+
+.enlarged-image::part(image) {
   max-height: 500px; /* Adjust as needed */
 }
 
