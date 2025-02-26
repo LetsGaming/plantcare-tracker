@@ -3,11 +3,13 @@
     <ion-card-header>
       <ion-toolbar>
         <ion-title>Watering Records</ion-title>
-        <ion-icon
-          :icon="addCircle"
-          slot="end"
-          @click="showAddingModal = true"
-        />
+        <template v-if="!isGuest">
+          <ion-icon
+            :icon="addCircle"
+            slot="end"
+            @click="showAddingModal = true"
+          />
+        </template>
       </ion-toolbar>
     </ion-card-header>
     <section class="watering-records">
@@ -40,10 +42,11 @@ import {
 } from "@ionic/vue";
 import { addCircle } from "ionicons/icons";
 
-import WateringService from "@/services/WateringService";
-
 import WateringRecordsAdding from "./WateringRecordsAdding.vue";
 import CustomAccordion from "@/components/CustomAccordion.vue";
+
+import WateringService from "@/services/WateringService";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "WateringRecords",
@@ -89,6 +92,9 @@ export default defineComponent({
     this.mappedRecords = this.mapWateringsToAccordion(this.records);
   },
   methods: {
+    async isGuest() {
+      return await AuthUtils.isGuest();
+    },
     async addRecord(addingRecord: AddWateringRecord) {
       const response = await WateringService.addWateringRecord(
         this.plantId,
