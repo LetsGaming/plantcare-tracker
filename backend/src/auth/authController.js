@@ -170,7 +170,7 @@ const logout = (req, res) => {
     const userId = authStore.findUserByRefreshToken(refreshToken);
     if (userId) {
       // Invalidate the refresh token
-      authStore.invalidateRefreshToken(userId);
+      authStore.invalidateRefreshToken(userId, refreshToken);
     }
 
     // Clear the refresh token cookie
