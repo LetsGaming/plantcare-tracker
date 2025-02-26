@@ -29,6 +29,7 @@
         :is-open="showEditModal"
         :plant="plant"
         @close="showEditModal = false"
+        @edited="handlePlantEdited"
       />
       <ImageUploadModal
         :is-open="showUploadModal"
@@ -124,6 +125,10 @@ export default defineComponent({
     },
   },
   methods: {
+    async handlePlantEdited() {
+      this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
+      this.showEditModal = false;
+    },
     async onImageUpload(file: File) {
       if (this.plant) {
         try {

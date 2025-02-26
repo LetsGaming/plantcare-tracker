@@ -1,91 +1,53 @@
 <template>
-  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader headerTitle="Komponente hinzufügen" @close="$emit('close')" />
-    <IonContent>
-      <FormComponent
-        :item="component"
-        :formFields="[
-          { type: 'input', modelKey: 'name', label: 'Name', required: true },
-          {
-            type: 'input',
-            modelKey: 'fineness',
-            label: 'Feinheit',
-            required: true,
-          },
-          {
-            type: 'file',
-            modelKey: 'image',
-            label: 'Bild hochladen',
-          },
-        ]"
-        cardTitle="Komponenten Informationen"
-        submitLabel="Komponente hinzufügen"
-        @submitClick="addComponent"
-      />
-    </IonContent>
-  </IonModal>
+  <BaseModal
+    :isOpen="isOpen"
+    modalTitle="Komponente hinzufügen"
+    formTitle="Komponenten Informationen"
+    submitLabel="Komponente hinzufügen"
+    :formData="component"
+    :formFields="componentFormFields"
+    @submit="addComponent"
+    @close="$emit('close')"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonModal, IonContent } from "@ionic/vue";
-import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/adding/FormComponent.vue";
-
+import BaseModal from "@/components/modal/BaseAddingModal.vue";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "ComponentAddingModal",
-  components: {
-    IonModal,
-    IonContent,
-    ModalHeader,
-    FormComponent
-  },
-  props: {
-    isOpen: {
-      type: Boolean,
-      required: true,
-    },
-  },
+  components: { BaseModal },
+  props: { isOpen: { type: Boolean, required: true } },
+  emits: ["close", "added"],
   data() {
     return {
-      component: {
-        name: "",
-        fineness: "",
-        image: null as File | null,
-      } as AddComponent,
+      component: { name: "", fineness: "", image: undefined } as AddComponent,
     };
   },
-  methods: {
-    async addComponent() {
-      if (!this.component.name || !this.component.fineness) {
-        ToastService.showWarning("All fields are required!");
-        return;
-      }
-      try {
-        const response = await ComponentService.addComponent(this.component);
-        if (response) {
-          const componentId = response.componentId;
-          if (!this.component.image) {
-            this.$emit("close");
-            this.$router.push({ name: "component-overview" });
-          } else {
-            await this.imageUpload(componentId, this.component.image);
-          }
-        }
-      } catch (error) {
-        console.error("Error adding component:", error);
-      }
+  computed: {
+    componentFormFields() {
+      return [
+        { type: "input", modelKey: "name", label: "Name", required: true },
+        {
+          type: "input",
+          modelKey: "fineness",
+          label: "Feinheit",
+          required: true,
+        },
+        { type: "file", modelKey: "image", label: "Bild hochladen" },
+      ] as FormField[];
     },
-    async imageUpload(componentId: number, image: File) {
+  },
+  methods: {
+    async addComponent(componentData: AddComponent) {
       try {
-        await ComponentService.uploadComponentImage(componentId, image);
-        this.$emit("close");
-        this.$router.push({ name: "component-overview" });
+        const response = await ComponentService.addComponent(componentData);
+        if (response) this.$emit("added");
       } catch (error) {
-        console.error("Error uploading image:", error);
+        ToastService.showError("Fehler beim Hinzufügen der Komponente");
       }
     },
   },

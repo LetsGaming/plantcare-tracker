@@ -1,110 +1,88 @@
 <template>
-  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader headerTitle="Pflanze hinzufügen" @close="$emit('close')" />
-    <IonContent>
-      <form-component
-        :item="plant"
-        :formFields="[
-          { type: 'input', modelKey: 'name', label: 'Name', required: true },
-          {
-            type: 'input',
-            modelKey: 'species',
-            label: 'Spezies',
-            required: true,
-          },
-          {
-            type: 'select',
-            modelKey: 'substrateId',
-            label: 'Substrat',
-            placeholder: 'Substrat auswählen',
-            options: substrates,
-          },
-          {
-            type: 'radio',
-            modelKey: 'isPublic',
-            label: 'Sichtbarkeit',
-            options: [
-              { value: true, label: 'Öffentlich' },
-              { value: false, label: 'Privat' },
-            ],
-          },
-          {
-            type: 'file',
-            modelKey: 'image',
-            label: 'Bild hochladen',
-          },
-        ]"
-        cardTitle="Pflanzen Informationen"
-        submitLabel="Pflanze hinzufügen"
-        :extraContentComponent="SubstrateContainer"
-        :extraContentData="{ substrate: selectedSubstrate }"
-        @submitClick="addPlant"
-      />
-    </IonContent>
-  </IonModal>
+  <BaseModal
+    :isOpen="isOpen"
+    modalTitle="Pflanze hinzufügen"
+    formTitle="Pflanzen Informationen"
+    submitLabel="Pflanze hinzufügen"
+    :formData="plant"
+    :formFields="plantFormFields"
+    :extra-content-component="SubstrateContainer"
+    :extra-content-data="{ substrate: selectedSubstrate }"
+    @submit="addPlant"
+    @close="$emit('close')"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonModal,
-  IonHeader,
-  IonToolbar,
-  IonButtons,
-  IonButton,
-  IonTitle,
-  IonContent,
-} from "@ionic/vue";
-import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/adding/FormComponent.vue";
+import BaseModal from "@/components/modal/BaseAddingModal.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
-
 import PlantService from "@/services/PlantService";
-import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
+import SubstrateService from "@/services/SubstrateService";
 
 export default defineComponent({
   name: "PlantAddingModal",
-  emits: ["close"],
-  components: {
-    IonModal,
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonButton,
-    IonTitle,
-    IonContent,
-    ModalHeader,
-    FormComponent,
-    SubstrateContainer,
-  },
-  props: {
-    isOpen: {
-      type: Boolean,
-      required: true,
-    },
-  },
+  components: { BaseModal },
+  props: { isOpen: { type: Boolean, required: true } },
+  emits: ["close", "added"],
   data() {
     return {
       plant: {
         name: "",
         species: "",
         substrateId: 0,
-        isPublic: false, // Default to private
-        image: null as File | null,
+        isPublic: false,
+        image: undefined,
       } as AddPlant,
-      substrates: [] as Substrate[], // Will be fetched from API
+      substrates: [] as Substrate[],
     };
   },
+  setup() {
+    return {
+      SubstrateContainer,
+    };
+  },
+  async mounted() {
+    await this.fetchSubstrates();
+  },
   computed: {
+    plantFormFields() {
+      return [
+        { type: "input", modelKey: "name", label: "Name", required: true },
+        {
+          type: "input",
+          modelKey: "species",
+          label: "Spezies",
+          required: true,
+        },
+        {
+          type: "select",
+          modelKey: "substrateId",
+          label: "Substrat",
+          placeholder: "Substrat auswählen",
+          options: this.substrates.map((substrate: any) => ({
+            value: substrate.id,
+            label: substrate.name,
+          })),
+        },
+        {
+          type: "radio",
+          modelKey: "isPublic",
+          label: "Sichtbarkeit",
+          options: [
+            { value: true, label: "Öffentlich" },
+            { value: false, label: "Privat" },
+          ],
+        },
+        { type: "file", modelKey: "image", label: "Bild hochladen" },
+      ] as FormField[];
+    },
     selectedSubstrate() {
       return this.substrates.find(
         (substrate) => substrate.id === this.plant.substrateId
       );
     },
-  },
-  async mounted() {
-    await this.fetchSubstrates();
   },
   methods: {
     async fetchSubstrates() {
@@ -117,40 +95,14 @@ export default defineComponent({
         console.error("Error fetching substrates:", error);
       }
     },
-    async addPlant() {
-      if (!this.plant.name || !this.plant.species || !this.plant.substrateId) {
-        ToastService.showWarning("All fields are required!");
-        return;
-      }
+    async addPlant(plantData: AddPlant) {
       try {
-        const response = await PlantService.addPlant(this.plant);
-        if (response) {
-          const plantId = response.plantId;
-          if (!this.plant.image) {
-            this.$emit("close");
-            this.$router.push({ name: "plant-overview" });
-          } else {
-            await this.imageUpload(plantId, this.plant.image);
-          }
-        }
+        const response = await PlantService.addPlant(plantData);
+        if (response) this.$emit("added");
       } catch (error) {
-        console.error("Error adding plant:", error);
-        ToastService.showError("Error while adding the plant");
+        ToastService.showError("Fehler beim Hinzufügen der Pflanze");
       }
     },
-    async imageUpload(id: number, file: File) {
-      try {
-        await PlantService.uploadPlantImage(id, file);
-        this.$emit("close");
-        this.$router.push({ name: "plant-overview" });
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        ToastService.showError("Error while uploading the image");
-      }
-    },
-  },
-  setup() {
-    return { SubstrateContainer, close };
   },
 });
 </script>

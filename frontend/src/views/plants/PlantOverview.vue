@@ -19,7 +19,7 @@
         :items="plants"
         @item-click="navigateToPlant"
       />
-      <plant-adding-modal :is-open="showAddingModal" @close="showAddingModal = false"/>
+      <plant-adding-modal :is-open="showAddingModal" @close="showAddingModal = false" @added="handlePlantAdded"/>
     </ion-content>
   </ion-page>
 </template>
@@ -79,6 +79,10 @@ export default defineComponent({
     handleSegmentChange(value: string) {
       this.showPublic = value;
       this.fetchPlants(); // Refetch plants based on segment change
+    },
+    async handlePlantAdded() {
+      this.showAddingModal = false;
+      await this.fetchPlants();
     },
     navigateToPlant(id: number) {
       const isPublic_Int = this.isPublic ? 1 : 0;

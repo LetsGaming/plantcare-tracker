@@ -54,7 +54,7 @@ import {
   IonContent,
 } from "@ionic/vue";
 import { close } from "ionicons/icons";
-import FormComponent from "@/components/adding/FormComponent.vue";
+import FormComponent from "@/components/FormComponent.vue";
 
 export default defineComponent({
   name: "WateringRecordsAdding",
