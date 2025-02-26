@@ -17,7 +17,7 @@ PlantCare Tracker is a web application designed to help users manage and track t
 
 ### Prerequisites
 - Node.js installed
-- MongoDB set up
+- MySQL set up
 
 ### Setup Instructions
 1. Clone the repository:
