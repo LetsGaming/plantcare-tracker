@@ -2,7 +2,9 @@
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title class="ion-text-center">{{ isRegisterMode ? 'Register' : 'Login' }}</ion-title>
+        <ion-title class="ion-text-center">{{
+          isRegisterMode ? "Register" : "Login"
+        }}</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
@@ -86,12 +88,25 @@
           style="width: 100%"
         >
           <ion-spinner v-if="loading"></ion-spinner>
-          <span v-else>{{ isRegisterMode ? 'Register' : 'Login' }}</span>
+          <span v-else>{{ isRegisterMode ? "Register" : "Login" }}</span>
         </ion-button>
 
         <!-- Toggle between login and register mode -->
-        <ion-text @click="toggleAuthMode" class="ion-margin-top" color="primary">
-          <p>{{ isRegisterMode ? 'Already have an account? Login' : "Don't have an account? Register" }}</p>
+        <ion-text
+          @click="toggleAuthMode"
+          class="ion-margin-top"
+          color="primary"
+        >
+          <p>
+            {{
+              isRegisterMode
+                ? "Already have an account? Login"
+                : "Don't have an account? Register"
+            }}
+          </p>
+        </ion-text>
+        <ion-text @click="guestLogin" class="ion-margin-top" color="primary">
+          <p>Continue as guest</p>
         </ion-text>
       </div>
     </ion-content>
@@ -175,6 +190,22 @@ export default defineComponent({
     },
     toggleAuthMode() {
       this.isRegisterMode = !this.isRegisterMode;
+    },
+    async guestLogin() {
+      this.loading = true;
+      try {
+        await AuthUtils.guestLogin();
+        this.redirectUser();
+      } catch (error) {
+        ToastService.showError(
+          "Failed to login as guest.",
+          undefined,
+          "top",
+          "auth-button"
+        );
+      } finally {
+        this.loading = false;
+      }
     },
     async handleLogin() {
       if (!this.username || !this.password) {

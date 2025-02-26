@@ -18,6 +18,7 @@ dotenv.config();
 const { versionPath } = require("./package.json");
 const imageProxy = require("./src/routes/proxyRoutes");
 const { limiter } = require("./src/middlewares/rateLimiter");
+const { checkGuestPermission } = require("./src/middlewares/authMiddleware");
 
 // Parse ALLOWED_ORIGINS from environment variable
 const allowedOrigins = [
@@ -44,6 +45,7 @@ const middlewareSetup = () => {
   app.use(cors(corsOptions));
   app.use(bodyParser.json());
   app.use(cookieParser());
+  app.use(checkGuestPermission);
 };
 
 middlewareSetup();

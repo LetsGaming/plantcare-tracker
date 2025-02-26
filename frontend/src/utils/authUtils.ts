@@ -36,6 +36,15 @@ const AuthUtils = {
     return response;
   },
 
+  async guestLogin(): Promise<AuthResponse> {
+    const response = await ApiService.post<null, AuthResponse>(
+      "/auth/login/guest",
+      null
+    );
+    await TokenService.setToken(response.accessToken); // Store the token using TokenService
+    return response;
+  },
+
   /**
    * Log out the current user.
    */
