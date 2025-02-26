@@ -60,7 +60,7 @@ const uploadImage = async (req, res) => {
     });
   } catch (err) {
     logger.error("Error during image upload", err.message);
-    errorResponse(res, "An error occurred while uploading the image.");
+    errorResponse(res, "An error occurred while uploading the image.", 500, err);
   }
 };
 
