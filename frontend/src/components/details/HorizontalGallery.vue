@@ -2,7 +2,7 @@
   <div class="gallery-container">
     <div class="gallery" ref="gallery">
       <div v-for="(image, index) in images" :key="index" class="gallery-item">
-        <img
+        <ion-img
           :src="image.url"
           alt="Gallery image"
           class="gallery-image"
@@ -24,11 +24,13 @@
 
 <script lang="ts">
 import { defineComponent, ref } from "vue";
-import ImageModal from "./ImageModal.vue"; // Adjust path as necessary
+import { IonImg } from "@ionic/vue";
+import ImageModal from "./ImageModal.vue";
 
 export default defineComponent({
   name: "ImageGallery",
   components: {
+    IonImg,
     ImageModal,
   },
   props: {
@@ -93,6 +95,12 @@ export default defineComponent({
   border-radius: 10px; /* Modern rounded corners */
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); /* Shadow effect */
   cursor: pointer; /* Pointer cursor for clickable images */
+}
+
+.gallery-image::part(image) {
+  width: 350px; 
+  height: 300px;
+  object-fit: cover;
 }
 
 .image-date {

@@ -52,6 +52,9 @@ export default defineComponent({
 .details-banner__image {
   width: 100%;
   height: 100%;
+}
+
+.details-banner__image::part(image) {
   object-fit: cover;
 }
 
