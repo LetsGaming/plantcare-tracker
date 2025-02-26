@@ -26,7 +26,7 @@ const uploadImage = async (req, res) => {
     // Expecting generic entity details in the URL parameters
     const { entityType, entityId } = req.params;
     const { date = Date.now() } = req.body;
-    const parsedDate = new Date(date).toISOString();
+    const parsedDate = new Date(date).toISOString().slice(0, 19).replace("T", " ");
 
     if (!imageFile) {
       return res
