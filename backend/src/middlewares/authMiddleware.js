@@ -19,9 +19,9 @@ const authenticateToken = (req, res, next) => {
     }
 
     // Check if the user still has an active session (valid refresh token)
-    const currentRefreshToken = authStore.getRefreshToken(user.id);
+    const currentRefreshTokens = authStore.getRefreshTokens(user.id);
 
-    if (!currentRefreshToken) {
+    if (!currentRefreshTokens) {
       logger.error(`No active session found for user ID: ${user.id}`);
       return res
         .status(403)
