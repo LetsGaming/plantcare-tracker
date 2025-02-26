@@ -4,7 +4,7 @@ import TokenUtils from "./tokenUtils";
 
 import config from "@/config.json";
 
-const API_URL = config.server.base_url + config.server.port;
+const API_URL = config.server.base_url + config.server.port ? config.server.port : "";
 const API_BASE_PATH = config.server.base_path + config.server.api_version;
 const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
 
