@@ -26,13 +26,13 @@
 import { defineComponent, PropType } from "vue";
 import { IonModal, IonContent } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/adding/FormComponent.vue";
+import FormComponent from "@/components/FormComponent.vue";
 
 import ComponentService from "@/services/ComponentService";
 
 export default defineComponent({
   name: "ComponentEditingModal",
-  emits: ["close"],
+  emits: ["close", "edited"],
   components: {
     IonModal,
     IonContent,
@@ -76,8 +76,7 @@ export default defineComponent({
           this.component.id,
           this.editComponentData
         );
-        this.$emit("close");
-        this.$router.push({ name: "component-overview" });
+        this.$emit("edited");
       } catch (error) {
         console.error(error);
       }

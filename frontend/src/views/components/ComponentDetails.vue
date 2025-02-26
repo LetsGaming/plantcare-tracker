@@ -31,6 +31,7 @@
         :is-open="showEditingModal"
         :component="component"
         @close="showEditingModal = false"
+        @edited="handleComponentEdited"
       />
     </ion-content>
   </ion-page>
@@ -82,14 +83,7 @@ export default defineComponent({
     };
   },
   async mounted() {
-    try {
-      this.component = await ComponentService.getComponentById(
-        this.componentId
-      );
-      this.showEditButton = await AuthUtils.isAdmin();
-    } catch (error) {
-      console.error("Error fetching component details:", error);
-    }
+    await this.fetchComponent();
   },
   computed: {
     componentId() {
@@ -97,6 +91,20 @@ export default defineComponent({
     },
   },
   methods: {
+    async fetchComponent() {
+      try {
+        this.component = await ComponentService.getComponentById(
+          this.componentId
+        );
+        this.showEditButton = await AuthUtils.isAdmin();
+      } catch (error) {
+        console.error("Error fetching component details:", error);
+      }
+    },
+    async handleComponentEdited() {
+      this.showEditingModal = false;
+      await this.fetchComponent();
+    },
     navigateToComponentEditing() {
       const id = this.componentId;
       this.$router.push({ name: "component-editing", params: { id: id } });

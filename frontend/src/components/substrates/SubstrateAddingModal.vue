@@ -31,7 +31,7 @@
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
         @submit-click="goToStepTwo"
-      ></form-component>
+      />
 
       <!-- Step 2: SubstrateComponent Selection -->
       <ion-card v-if="step === 2" class="component-container align-middle">
@@ -73,7 +73,7 @@
                       type="number"
                       placeholder="Teile"
                       min="1"
-                      style="text-align: left; margin-left: 5%;"
+                      style="text-align: left; margin-left: 5%"
                     />
                   </div>
                 </ion-col>
@@ -109,7 +109,7 @@ import {
   IonCol,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/adding/FormComponent.vue";
+import FormComponent from "@/components/FormComponent.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
@@ -117,7 +117,7 @@ import ComponentService from "@/services/ComponentService";
 
 export default defineComponent({
   name: "SubstrateAddingModal",
-  emits: ["close"],
+  emits: ["close", "added"],
   components: {
     IonModal,
     IonHeader,
@@ -221,12 +221,9 @@ export default defineComponent({
             ToastService.showSuccess(
               "Substrat und Komponenten erfolgreich hinzugefügt"
             );
-            this.$emit("close");
-            this.$router.push({ name: "substrate-overview" });
+            this.$emit("added");
           } else {
             await this.imageUpload(substrateId, this.substrate.image);
-            this.$emit("close");
-            this.$router.push({ name: "substrate-overview" });
           }
         }
       } catch (error) {
@@ -240,8 +237,7 @@ export default defineComponent({
         ToastService.showSuccess(
           "Substrat und Komponenten erfolgreich hinzugefügt"
         );
-        this.$emit("close");
-        this.$router.push({ name: "substrate-overview" });
+        this.$emit("added");
       } catch (error) {
         console.error("Error uploading image:", error);
         ToastService.showError("Fehler beim Hochladen des Bildes");

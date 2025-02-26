@@ -20,7 +20,11 @@
         :items="substrates"
         @item-click="navigateToSubstrate"
       ></items-overview>
-      <substrate-adding-modal :is-open="showAddingModal" @close="showAddingModal = false" />
+      <substrate-adding-modal
+        :is-open="showAddingModal"
+        @close="showAddingModal = false"
+        @added="handleSubstrateAdded"
+      />
     </ion-content>
   </ion-page>
 </template>
@@ -79,6 +83,10 @@ export default defineComponent({
     handleSegmentChange(value: string) {
       this.showPublic = value;
       this.fetchSubstrates(); // Refetch substrates based on segment change
+    },
+    async handleSubstrateAdded() {
+      this.showAddingModal = false;
+      await this.fetchSubstrates();
     },
     navigateToSubstrate(id: number) {
       const isPublic_Int = this.isPublic ? 1 : 0;

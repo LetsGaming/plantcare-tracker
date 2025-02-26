@@ -31,10 +31,10 @@
             >
               <IonSelectOption
                 v-for="option in field.options"
-                :key="option.id"
-                :value="option.id"
+                :key="option.value"
+                :value="option.value"
               >
-                {{ option.name }}
+                {{ option.label }}
               </IonSelectOption>
             </IonSelect>
           </IonItem>

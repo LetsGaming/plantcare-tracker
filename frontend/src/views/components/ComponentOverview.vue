@@ -20,6 +20,7 @@
       <component-adding-modal
         :is-open="showAddingModal"
         @close="showAddingModal = false"
+        @added="handleComponentAdded"
       />
     </ion-content>
   </ion-page>
@@ -79,6 +80,10 @@ export default defineComponent({
     },
     handleSegmentChange(value: string) {
       this.fetchComponents(); // Refetch plants based on segment change
+    },
+    async handleComponentAdded() {
+      this.showAddingModal = false;
+      await this.fetchComponents();
     },
     navigateToComponent(id: number) {
       this.$router.push({ name: "component", params: { id: id, public: 1 } });

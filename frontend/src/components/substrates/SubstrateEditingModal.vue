@@ -109,7 +109,7 @@ import {
   IonIcon,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/adding/FormComponent.vue";
+import FormComponent from "@/components/FormComponent.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";

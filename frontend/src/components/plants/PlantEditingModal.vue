@@ -17,7 +17,7 @@
             modelKey: 'substrateId',
             label: 'Substrat',
             placeholder: 'Substrat auswählen',
-            options: substrates,
+            options: substrates.map(substrate => ({ value: substrate.id, label: substrate.name })),
           },
           {
             type: 'radio',
@@ -47,7 +47,7 @@ import {
   IonContent,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/adding/FormComponent.vue";
+import FormComponent from "@/components/FormComponent.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 import PlantService from "@/services/PlantService";
@@ -56,7 +56,7 @@ import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "PlantEditingModal",
-  emits: ["close"],
+  emits: ["close", "edited"],
   components: {
     IonModal,
     IonContent,
@@ -135,8 +135,7 @@ export default defineComponent({
           this.editPlantData
         );
         if (response) {
-          this.$emit("close");
-          this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
+          this.$emit("edited");
         }
       } catch (error) {
         console.error("Error:", error);

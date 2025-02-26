@@ -11,7 +11,7 @@ interface InputField extends FormFieldBase {
 interface SelectField extends FormFieldBase {
   type: "select";
   placeholder?: string;
-  options: Array<{ id: string | number; name: string }>;
+  options: Array<{ value: string | number; label: string }>;
 }
 
 interface RadioField extends FormFieldBase {
