@@ -23,23 +23,50 @@ const authenticateToken = (req, res, next) => {
 
     if (!currentRefreshToken) {
       logger.error(`No active session found for user ID: ${user.id}`);
-      return res.status(403).json({ error: "Invalid session. Please log in again." });
+      return res
+        .status(403)
+        .json({ error: "Invalid session. Please log in again." });
     }
 
     req.user = user; // Attach user info to request object
     next(); // Proceed to the next middleware or route handler
   });
 };
-
 // Middleware to check if the user is an admin
 const isAdmin = (req, res, next) => {
   const { role } = req.user || {};
 
-  if (role?.toLowerCase() !== 'admin') {
-    return res.status(403).json({ error: 'Access denied: Admins only' });
+  if (role?.toLowerCase() !== "admin") {
+    return res.status(403).json({ error: "Access denied: Admins only" });
   }
 
   next(); // Proceed to the next middleware or route handler
 };
 
-module.exports = { authenticateToken, isAdmin };
+function isGuest() {
+  const { role } = req.user || {};
+
+  if (role?.toLowerCase() === "guest") {
+    return true;
+  }
+
+  return false;
+}
+
+const checkGuestPermission = (req, res, next) => {
+  // Check if the user is authenticated or a guest
+  const method = req.method;
+
+  // If the user is a guest and tries to access a non-GET route, deny access
+  if (isGuest() && method !== "GET") {
+    return res
+      .status(403)
+      .json({ message: "Guests can only access GET routes" });
+  }
+
+  next();
+};
+
+
+
+module.exports = { authenticateToken, isAdmin, checkGuestPermission };

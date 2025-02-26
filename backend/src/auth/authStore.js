@@ -1,25 +1,42 @@
-// In-memory store for active sessions (single server only)
+const MAX_SESSIONS = 3; // Set the max allowed sessions per user
 const activeSessions = new Map();
 
-// Save or update a user's refresh token
+// Save a user's refresh token (limit sessions)
 const saveRefreshToken = (userId, refreshToken) => {
-  activeSessions.set(userId, refreshToken);
+  if (!activeSessions.has(userId)) {
+    activeSessions.set(userId, []);
+  }
+
+  let sessions = activeSessions.get(userId);
+
+  // Enforce session limit
+  if (sessions.length >= MAX_SESSIONS) {
+    // Remove the oldest session (FIFO - first in, first out)
+    sessions.shift();
+  }
+
+  // Store the new refresh token
+  sessions.push(refreshToken);
+  activeSessions.set(userId, sessions);
 };
 
-// Get the refresh token for a specific user
-const getRefreshToken = (userId) => {
-  return activeSessions.get(userId);
+// Get all refresh tokens for a specific user
+const getRefreshTokens = (userId) => {
+  return activeSessions.get(userId) || [];
 };
 
-// Invalidate a user's refresh token (on logout or new login)
-const invalidateRefreshToken = (userId) => {
-  activeSessions.delete(userId);
+// Invalidate a specific refresh token (on logout)
+const invalidateRefreshToken = (userId, refreshToken) => {
+  if (activeSessions.has(userId)) {
+    let sessions = activeSessions.get(userId).filter(token => token !== refreshToken);
+    activeSessions.set(userId, sessions);
+  }
 };
 
-// Find a user by refresh token (to match token to a user)
+// Find user by refresh token (support multiple)
 const findUserByRefreshToken = (refreshToken) => {
-  for (const [userId, token] of activeSessions.entries()) {
-    if (token === refreshToken) {
+  for (const [userId, tokens] of activeSessions.entries()) {
+    if (tokens.includes(refreshToken)) {
       return userId;
     }
   }
@@ -28,7 +45,7 @@ const findUserByRefreshToken = (refreshToken) => {
 
 module.exports = {
   saveRefreshToken,
-  getRefreshToken,
+  getRefreshTokens,
   invalidateRefreshToken,
   findUserByRefreshToken,
 };

@@ -160,8 +160,7 @@ export default defineComponent({
 .item-image::part(image) {
   max-width: 200px;
   max-height: 200px;
-  height: 200px;
-  width: 200px;
+
 }
 
 .card-details-container {
@@ -176,12 +175,5 @@ export default defineComponent({
 .item-description {
   padding: 5%;
   text-align: center;
-}
-
-@media (max-width: 768px) {
-  .item-image::part(image) {
-    height: 200px;
-    width: 150px;
-  }
 }
 </style>

@@ -9,7 +9,11 @@ const {
   JWT_EXPIRATION,
   JWT_REFRESH_EXPIRATION,
 } = require("../config/jwtConfig");
-const { successResponse, errorResponse, notFoundResponse } = require("../utils/responseUtils");
+const {
+  successResponse,
+  errorResponse,
+  notFoundResponse,
+} = require("../utils/responseUtils");
 
 // Generate Access and Refresh Tokens
 const generateTokens = (user) => {
@@ -60,7 +64,10 @@ const login = async (req, res) => {
 
   try {
     const user = await authService.findUserByUsername(username);
-    if (!user || !(await authService.comparePasswords(password, user.password))) {
+    if (
+      !user ||
+      !(await authService.comparePasswords(password, user.password))
+    ) {
       return errorResponse(res, "Invalid credentials", 401);
     }
 
@@ -81,6 +88,35 @@ const login = async (req, res) => {
     return successResponse(res, { accessToken });
   } catch (error) {
     logger.error(`Login error: ${error.message}`);
+    return errorResponse(res, "Internal Server Error", 500);
+  }
+};
+
+const guestLogin = async (req, res) => {
+  try {
+    const guestUser = await authService.findUserByUsername("guest");
+
+    if (!guestUser) {
+      return errorResponse(res, "Guest user not found", 404);
+    }
+
+    // Generate new tokens
+    const { accessToken, refreshToken } = generateTokens(guestUser);
+
+    // Save or replace the refresh token in the in-memory store
+    authStore.saveRefreshToken(guestUser.id, refreshToken);
+
+    // Set the new refresh token in the cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: 60 * 60 * 1000, // 1 hour
+    });
+
+    return successResponse(res, { accessToken });
+  } catch (error) {
+    logger.error(`Guest login error: ${error.message}`);
     return errorResponse(res, "Internal Server Error", 500);
   }
 };
@@ -174,6 +210,7 @@ const updateProfile = async (req, res) => {
 module.exports = {
   register,
   login,
+  guestLogin,
   refreshAccessToken,
   logout,
   updateProfile,

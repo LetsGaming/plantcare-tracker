@@ -4,6 +4,7 @@ const checkPasswordStrength = require("../middlewares/passwordStrengthMiddleware
 const {
   register,
   login,
+  guestLogin,
   refreshAccessToken,
   logout,
   updateProfile,
@@ -16,6 +17,8 @@ router.post("/register", checkPasswordStrength, register);
 
 // User login
 router.post("/login", loginLimiter, login);
+
+router.post("/login/guest", guestLogin);
 
 // Refresh access token
 router.post("/refresh-token", refreshAccessToken);
