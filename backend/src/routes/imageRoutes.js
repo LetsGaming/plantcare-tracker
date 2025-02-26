@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
+const sharp = require("sharp");
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const {
   uploadImage,
@@ -18,22 +19,7 @@ loadEnv();
 const router = express.Router();
 
 // Configure Multer for file upload handling
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const NAS_PATH = process.env.NAS_PATH || null;
-    const uploadDir = NAS_PATH || path.resolve(__dirname, "../../uploads");
-
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + file.originalname;
-    cb(null, uniqueSuffix);
-  },
-});
+const storage = multer.memoryStorage(); // Store file in memory for processing
 
 const upload = multer({
   storage,
@@ -47,11 +33,36 @@ const upload = multer({
   },
 });
 
-// Upload image for a specific entity
 router.post(
   "/:entityType/:entityId",
   authenticateToken,
   upload.single("image"),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded." });
+      }
+
+      const NAS_PATH = process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
+      if (!fs.existsSync(NAS_PATH)) {
+        fs.mkdirSync(NAS_PATH, { recursive: true });
+      }
+
+      const uniqueFilename = `${Date.now()}-${path.parse(req.file.originalname).name}.webp`;
+      const outputPath = path.join(NAS_PATH, uniqueFilename);
+
+      await sharp(req.file.buffer)
+        .toFormat("webp")
+        .webp({ quality: 80 }) // Adjust quality if needed
+        .toFile(outputPath);
+
+      req.file.path = outputPath;
+      req.file.filename = uniqueFilename;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
   uploadImage
 );
 
@@ -59,21 +70,12 @@ router.post(
 router.get("/:entityType", imageGetLimiter, authenticateToken, getImages);
 
 // Get a specific image for a specific entity
-router.get(
-  "/:entityType/:entityId",
-  imageGetLimiter,
-  authenticateToken,
-  getImage
-);
+router.get("/:entityType/:entityId", imageGetLimiter, authenticateToken, getImage);
 
 // Delete a specific image by its ID
 router.delete("/image/:id", authenticateToken, deleteSpecificImage);
 
 // Delete all images associated with a specific entity
-router.delete(
-  "/:entityType/:entityId",
-  authenticateToken,
-  deleteImagesByEntityHandler
-);
+router.delete("/:entityType/:entityId", authenticateToken, deleteImagesByEntityHandler);
 
 module.exports = router;

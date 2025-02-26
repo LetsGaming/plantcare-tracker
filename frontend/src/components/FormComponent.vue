@@ -1,6 +1,6 @@
 <template>
   <div class="form-container">
-    <IonCard style="margin-top: auto;">
+    <IonCard style="margin-top: auto; margin-inline: 0px !important;">
       <IonCardHeader>
         <IonToolbar>
           <IonCardTitle>{{ cardTitle }}</IonCardTitle>
