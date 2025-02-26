@@ -77,7 +77,7 @@ export default class WateringService {
     if (
       !forceUpdate &&
       cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+      !Utils.isCacheExpired(cachedData.timestamp)
     ) {
       return cachedData.recordsByPlant[plantId] || [];
     }
@@ -96,7 +96,7 @@ export default class WateringService {
     if (
       cachedData &&
       !forceUpdate &&
-      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+      !Utils.isCacheExpired(cachedData.timestamp)
     ) {
       return (
         cachedData.recordsByPlant[plantId]?.find((r) => r.id === recordId) ||
