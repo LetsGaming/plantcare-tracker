@@ -61,7 +61,7 @@ export default defineComponent({
       addCircle,
     };
   },
-  async ionViewDidEnter() {
+  async ionViewWillEnter() {
     await this.fetchComponents();
   },
   computed: {

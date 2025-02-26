@@ -1,3 +1,5 @@
+import { modalController } from "@ionic/vue";
+
 const Utils = {
   // Check if cached data is expired
   isCacheExpired(
@@ -28,6 +30,21 @@ const Utils = {
     );
 
     return formattedDate;
+  },
+
+  async closeOpenModal() {
+    const topModal = await modalController.getTop();
+    if (topModal) {
+      await modalController.dismiss();
+    }
+  },
+
+  async closeAllOpenModals() {
+    let topModal = await modalController.getTop();
+    while (topModal) {
+      await modalController.dismiss();
+      topModal = await modalController.getTop();
+    }
   },
 };
 

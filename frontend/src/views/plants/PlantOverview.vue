@@ -60,7 +60,7 @@ export default defineComponent({
       addCircle,
     };
   },
-  async ionViewDidEnter() {
+  async ionViewWillEnter() {
     await this.fetchPlants();
   },
   computed: {
