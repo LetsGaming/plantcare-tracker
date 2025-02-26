@@ -1,16 +1,9 @@
 import ToastService from "@/services/general/ToastService";
 import AuthUtils from "./authUtils";
 import TokenUtils from "./tokenUtils";
+import Utils from "./utils";
 
-import config from "@/config.json";
-
-type Environment = 'development' | 'production';
-const environment = process.env.NODE_ENV || 'development';
-const envConfig = config[environment as Environment];
-
-const API_URL = envConfig.base_url + ('port' in envConfig ? `:${envConfig.port}` : '');
-const API_BASE_PATH = envConfig.base_path + envConfig.api_version;
-const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
+const API_BASE_URL = Utils.getApiBaseUrl();
 
 /**
  * Handles the response by checking if the success flag is true or false.
@@ -27,7 +20,9 @@ const handleResponse = async (response: Response) => {
       ToastService.showSuccess(responseData.message);
     return responseData.data; // Return the data field when success is true
   } else {
-    throw new Error(responseData.error || responseData.message || "An unknown error occurred"); // Throw the error message
+    throw new Error(
+      responseData.error || responseData.message || "An unknown error occurred"
+    ); // Throw the error message
   }
 };
 
@@ -83,8 +78,11 @@ const makeRequest = async <T>(
     });
 
   let response = await requestFn();
-  
-  if ((response.status === 403 || response.status === 401) && !endpoint.includes("login")) {
+
+  if (
+    (response.status === 403 || response.status === 401) &&
+    !endpoint.includes("login")
+  ) {
     response = await handleNoAuth(requestFn);
   }
 
@@ -125,7 +123,9 @@ const ApiUtils = {
     const requestFn = async () => {
       const token = await TokenUtils.getToken();
       // Only include the Authorization header; omit the Content-Type so the browser sets it
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
       return fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers,
@@ -136,7 +136,10 @@ const ApiUtils = {
 
     let response = await requestFn();
 
-    if ((response.status === 403 || response.status === 401) && !endpoint.includes("login")) {
+    if (
+      (response.status === 403 || response.status === 401) &&
+      !endpoint.includes("login")
+    ) {
       response = await handleNoAuth(requestFn);
     }
     return handleResponse(response);

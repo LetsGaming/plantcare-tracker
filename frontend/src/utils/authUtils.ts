@@ -2,8 +2,7 @@ import router from "@/router";
 import ToastService from "@/services/general/ToastService";
 import ApiService from "./apiUtils";
 import TokenService from "./tokenUtils";
-
-import config from "@/config.json";
+import Utils from "./utils";
 
 /**
  * Authentication and authorization utility functions.
@@ -57,14 +56,7 @@ const AuthUtils = {
    * @param retryCount - Number of retry attempts
    */
   async refreshToken(retryCount = 3): Promise<void> {
-    type Environment = "development" | "production";
-    const environment = process.env.NODE_ENV || "development";
-    const envConfig = config[environment as Environment];
-
-    const API_URL =
-      envConfig.base_url + ("port" in envConfig ? `:${envConfig.port}` : "");
-    const API_BASE_PATH = envConfig.base_path + envConfig.api_version;
-    const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
+    const API_BASE_URL = Utils.getApiBaseUrl();
 
     const url = API_BASE_URL + "/auth/refresh-token";
 

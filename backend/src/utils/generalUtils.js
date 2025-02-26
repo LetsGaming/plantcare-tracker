@@ -12,4 +12,8 @@ const customTimestamp = (date = new Date()) => {
   return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 };
 
-module.exports = { customTimestamp };
+const formatToDBDate = (date) => {
+  return new Date(date).toISOString().slice(0, 19).replace("T", " ");
+};
+
+module.exports = { customTimestamp, formatToDBDate };
