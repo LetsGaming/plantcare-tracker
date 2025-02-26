@@ -1,17 +1,19 @@
 # PlantCare Tracker - Frontend
 
+## Overview
 This is the frontend for the PlantCare Tracker app, a web application for tracking and managing plant care activities. The frontend is built using Vue.js.
 
 ## Features
 - User-friendly interface for tracking plant care.
 - Dynamic forms for adding new plants and care logs.
-- Customizable reminders for watering, sunlight, and more.
 - Responsive design for mobile and desktop use.
+- WiP | Customizable reminders for watering, sunlight, and more.
 
 ## Tech Stack
-- **Vue.js**: JavaScript framework
-- **HTML & CSS**: Layout and styling
-- **Axios**: For API requests to the backend
+- **Ionic**: Framework for building cross-platform mobile apps.
+- **Vue**: JavaScript framework for building user interfaces.
+- **Typescript**: Superset of JavaScript that adds static typing.
+- **CSS**: Stylesheet language for layout and design.
 
 ## Project Setup
 
@@ -36,7 +38,7 @@ This is the frontend for the PlantCare Tracker app, a web application for tracki
    npm run serve
    ```
 
-5. Open the app in your browser at `http://localhost:8080`.
+5. Open the app in your browser at `http://localhost:8100`.
 
 ## Customization
 You can modify the components and styles by editing the files under the `src` folder.

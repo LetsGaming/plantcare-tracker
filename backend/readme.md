@@ -5,9 +5,7 @@ The backend of the **PlantCare Tracker** project is responsible for managing use
 
 ## Features
 - User Authentication (Register, Login)
-- CRUD operations for plants (Create, Read, Update, Delete)
-- Plant care scheduling
-- Notifications for plant watering and care
+- CRUD operations for plants, substrates, components and images (Create, Read, Update, Delete)
 
 ## Technology Stack
 - **Node.js** with **Express.js**
