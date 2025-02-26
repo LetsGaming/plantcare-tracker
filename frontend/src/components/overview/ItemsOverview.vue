@@ -154,12 +154,11 @@ export default defineComponent({
 }
 
 .item-image {
-  max-height: inherit;
-  max-width: inherit;
   border-radius: 15px 15px 0 0;
 }
 
-.item-image img {
+.item-image::part(image) {
+  max-width: 200px;
   max-height: 200px;
 }
 
