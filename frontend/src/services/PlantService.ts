@@ -59,7 +59,7 @@ export default class PlantService {
     if (
       !forceUpdate &&
       cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+      !Utils.isCacheExpired(cachedData.timestamp)
     ) {
       return cachedData.plants;
     }
@@ -80,7 +80,7 @@ export default class PlantService {
     if (
       cachedData &&
       !forceUpdate &&
-      !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)
+      !Utils.isCacheExpired(cachedData.timestamp)
     ) {
       const plant = cachedData.plants.find((p) => p.id == plantId);
       if (plant) {
