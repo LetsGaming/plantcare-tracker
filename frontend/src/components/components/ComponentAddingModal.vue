@@ -45,9 +45,20 @@ export default defineComponent({
     async addComponent(componentData: AddComponent) {
       try {
         const response = await ComponentService.addComponent(componentData);
-        if (response) this.$emit("added");
+        if (!response) return;
+        if (componentData.image) {
+          await this.uploadImage(response.id, componentData.image);
+        }
+        this.$emit("added");
       } catch (error) {
         ToastService.showError("Fehler beim Hinzufügen der Komponente");
+      }
+    },
+    async uploadImage(id: number, image: File) {
+      try {
+        await ComponentService.uploadComponentImage(id, image);
+      } catch (error) {
+        ToastService.showError("Fehler beim Hochladen des Bildes");
       }
     },
   },

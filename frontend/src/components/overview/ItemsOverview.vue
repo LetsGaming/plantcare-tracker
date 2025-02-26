@@ -159,6 +159,10 @@ export default defineComponent({
   border-radius: 15px 15px 0 0;
 }
 
+.item-image img {
+  max-height: 200px;
+}
+
 .card-details-container {
   height: 90%;
   margin-left: 2%;

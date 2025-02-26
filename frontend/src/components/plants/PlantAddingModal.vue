@@ -98,9 +98,23 @@ export default defineComponent({
     async addPlant(plantData: AddPlant) {
       try {
         const response = await PlantService.addPlant(plantData);
-        if (response) this.$emit("added");
+        if (!response) return;
+        if (plantData.image) {
+          await this.upladImage(response.plantId, plantData.image);
+        }
+        this.$emit("added");
       } catch (error) {
         ToastService.showError("Fehler beim Hinzufügen der Pflanze");
+      }
+    },
+    async upladImage(id: number, image: File) {
+      try {
+        const response = await PlantService.uploadPlantImage(id, image);
+        if (response) {
+          ToastService.showSuccess("Bild erfolgreich hochgeladen");
+        }
+      } catch (error) {
+        ToastService.showError("Fehler beim Hochladen des Bildes");
       }
     },
   },
