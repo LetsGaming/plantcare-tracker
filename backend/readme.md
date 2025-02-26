@@ -35,7 +35,8 @@ The backend of the **PlantCare Tracker** project is responsible for managing use
 3. Create a `.env` file with the following variables:
     ```bash
     PORT=5000
-
+    ALLOWED_ORIGINS=http://example1.com,http://example2.com,http://example3.com
+    
     # MySQL Database configuration
     DB_HOST=localhost
     DB_USER=plantcare-db-admin

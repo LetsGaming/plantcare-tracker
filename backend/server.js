@@ -9,19 +9,21 @@ const componentRouter = require("./src/routes/componentRoutes");
 const wateringRoutes = require("./src/routes/wateringRoutes");
 const imageRoutes = require("./src/routes/imageRoutes");
 const logger = require("./src/utils/logger");
-const loadEnv = require("./src/utils/envUtils");
 const path = require("path"); // Import path for path manipulation
+const dotenv = require("dotenv"); // Import dotenv to load environment variables
+
+// Load environment variables from .env file
+dotenv.config();
 
 const { versionPath } = require("./package.json");
 const imageProxy = require("./src/routes/proxyRoutes");
 const { limiter } = require("./src/middlewares/rateLimiter");
 
+// Parse ALLOWED_ORIGINS from environment variable
 const allowedOrigins = [
   "http://localhost:8100",
-  // Add more origins as needed
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",").map(origin => origin.trim()) : [])
 ];
-
-loadEnv();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
