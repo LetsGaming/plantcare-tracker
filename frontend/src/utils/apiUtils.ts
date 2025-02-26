@@ -4,8 +4,12 @@ import TokenUtils from "./tokenUtils";
 
 import config from "@/config.json";
 
-const API_URL = config.server.base_url + config.server.port ? config.server.port : "";
-const API_BASE_PATH = config.server.base_path + config.server.api_version;
+type Environment = 'development' | 'production';
+const environment = process.env.NODE_ENV || 'development';
+const envConfig = config[environment as Environment];
+
+const API_URL = envConfig.base_url + ('port' in envConfig ? `:${envConfig.port}` : '');
+const API_BASE_PATH = envConfig.base_path + envConfig.api_version;
 const API_BASE_URL = `${API_URL}${API_BASE_PATH}`;
 
 /**
