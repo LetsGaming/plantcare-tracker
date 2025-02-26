@@ -43,7 +43,7 @@ const isAdmin = (req, res, next) => {
   next(); // Proceed to the next middleware or route handler
 };
 
-function isGuest() {
+function isGuest(req) {
   const { role } = req.user || {};
 
   if (role?.toLowerCase() === "guest") {
@@ -58,7 +58,7 @@ const checkGuestPermission = (req, res, next) => {
   const method = req.method;
 
   // If the user is a guest and tries to access a non-GET route, deny access
-  if (isGuest() && method !== "GET") {
+  if (isGuest(req) && method !== "GET") {
     return res
       .status(403)
       .json({ message: "Guests can only access GET routes" });
