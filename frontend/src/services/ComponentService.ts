@@ -6,7 +6,6 @@ import Utils from "@/utils/utils";
 
 const COMPONENTS_ENDPOINT = "/components";
 const CACHE_KEY_COMPONENTS = "components_data";
-const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Common function to retrieve cached components
 async function getCachedComponents() {
@@ -50,7 +49,7 @@ const ComponentService = {
     // Try to get the cached data
     const cachedData = await getCachedComponents();
 
-    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
+    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       return cachedData.components;
     }
 
@@ -66,7 +65,7 @@ const ComponentService = {
   async getComponentById(id: number, forceUpdate: boolean = false): Promise<any> {
     const cachedData = await getCachedComponents();
 
-    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp, CACHE_EXPIRY_MS)) {
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       const component = cachedData.components.find((c) => c.id === id);
       if (component) {
         return component; // Return the cached component if found

@@ -12,6 +12,7 @@ const {
   errorResponse,
   notFoundResponse,
 } = require("../utils/responseUtils.js");
+const { formatToDBDate } = require("../utils/generalUtils.js");
 
 loadEnv();
 
@@ -26,7 +27,7 @@ const uploadImage = async (req, res) => {
     // Expecting generic entity details in the URL parameters
     const { entityType, entityId } = req.params;
     const { date = Date.now() } = req.body;
-    const parsedDate = new Date(date).toISOString().slice(0, 19).replace("T", " ");
+    const parsedDate = formatToDBDate(date);
 
     if (!imageFile) {
       return res

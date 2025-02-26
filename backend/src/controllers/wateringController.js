@@ -5,6 +5,7 @@ const {
   updateWateringRecord,
   deleteWateringRecord,
 } = require("../models/wateringModel");
+const { formatToDBDate } = require("../utils/generalUtils");
 
 const {
   errorResponse,
@@ -46,10 +47,11 @@ const addWateringRecord = async (req, res) => {
   const { date = Date().now(), usedFertilizer, fertilizerType } = req.body;
   const userId = req.user ? req.user.id : null;
 
+  const parsedDate = formatToDBDate(date);
   try {
     const result = await insertWateringRecord(
       plantId,
-      date,
+      parsedDate,
       usedFertilizer,
       fertilizerType,
       userId
