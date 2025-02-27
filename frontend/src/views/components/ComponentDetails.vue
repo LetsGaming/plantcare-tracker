@@ -1,7 +1,7 @@
 <template>
   <ion-page>
     <details-header
-      :show-edit-button="showEditButton"
+      :show-edit-button="isAdmin"
       @edit-click="showEditingModal = true"
       default-href="/tabs/components/overview"
     ></details-header>
@@ -47,13 +47,12 @@ import {
   IonCardContent,
   IonCardHeader,
 } from "@ionic/vue";
-import { defineComponent } from "vue";
+import { defineComponent, inject } from "vue";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
-import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "ComponentDetails",
@@ -78,11 +77,14 @@ export default defineComponent({
   data() {
     return {
       component: null as null | SubstrateComponent,
-      showEditButton: false,
       showEditingModal: false,
     };
   },
-  async mounted() {
+  setup() {
+    const isAdmin = inject("isAdmin") as boolean;
+    return { isAdmin };
+  },
+  async ionViewDidEnter() {
     await this.fetchComponent();
   },
   computed: {
@@ -96,7 +98,6 @@ export default defineComponent({
         this.component = await ComponentService.getComponentById(
           this.componentId
         );
-        this.showEditButton = await AuthUtils.isAdmin();
       } catch (error) {
         console.error("Error fetching component details:", error);
       }

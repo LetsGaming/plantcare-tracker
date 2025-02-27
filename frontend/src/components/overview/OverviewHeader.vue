@@ -22,7 +22,7 @@
         </ion-segment-button>
       </ion-segment>
 
-      <template v-if="!isGuest">
+      <template v-if="!isGuest && showAddButton">
         <ion-icon
           v-if="onAddClick && addIcon"
           :icon="addIcon"
@@ -44,7 +44,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType } from "vue";
+import { defineComponent, inject, PropType } from "vue";
 import {
   IonHeader,
   IonToolbar,
@@ -79,6 +79,10 @@ export default defineComponent({
       >,
       required: true,
     },
+    showAddButton: {
+      type: Boolean,
+      default: true,
+    },
     addIcon: {
       type: String,
       required: false,
@@ -106,12 +110,10 @@ export default defineComponent({
     };
   },
   setup() {
-    return { logOutOutline };
+    const isGuest = inject("isGuest") as boolean;
+    return { logOutOutline, isGuest };
   },
   methods: {
-    async isGuest() {
-      return await AuthUtils.isGuest();
-    },
     async logUserOut() {
       await AuthUtils.logout();
     },

@@ -168,15 +168,13 @@ export default defineComponent({
   },
   async mounted() {
     try {
-      if (await AuthUtils.isAuthenticated()) {
+      if (!(await AuthUtils.isAuthenticated())) return;
+
+      try {
+        await AuthUtils.refreshToken(1);
         this.redirectUser();
-      } else {
-        try {
-          await AuthUtils.refreshToken(1);
-          this.redirectUser();
-        } catch {
-          return;
-        }
+      } catch {
+        return;
       }
     } catch (error) {
       this.isCheckingLogin = false;

@@ -4,7 +4,7 @@
     <overview-header
       title="Komponenten"
       :segments="[{ value: 'all', label: 'Alle', icon: personCircle }]"
-      :showAddButton="showAddButton"
+      :showAddButton="isAdmin"
       :addIcon="addCircle"
       starting-segment="all"
       @segment-change="handleSegmentChange"
@@ -27,7 +27,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, inject } from "vue";
 import { IonContent, IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
@@ -37,7 +37,6 @@ import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
-import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "ComponentOverview",
@@ -56,7 +55,9 @@ export default defineComponent({
     };
   },
   setup() {
+    const isAdmin = inject("isAdmin") as boolean;
     return {
+      isAdmin,
       peopleCircle,
       personCircle,
       addCircle,
@@ -64,11 +65,6 @@ export default defineComponent({
   },
   async ionViewWillEnter() {
     await this.fetchComponents();
-  },
-  computed: {
-    async showAddButton() {
-      return await AuthUtils.isAdmin();
-    },
   },
   methods: {
     async fetchComponents() {
