@@ -271,7 +271,7 @@ export default defineComponent({
       }
     },
     redirectUser() {
-      this.$router.push({ name: "plant-overview" });
+      this.$router.replace({ name: "plant-overview" });
     },
   },
 });

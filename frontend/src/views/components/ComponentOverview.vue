@@ -27,7 +27,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, inject } from "vue";
+import { defineComponent } from "vue";
 import { IonContent, IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
@@ -37,6 +37,7 @@ import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "ComponentOverview",
@@ -52,18 +53,18 @@ export default defineComponent({
     return {
       components: [] as SubstrateComponent[],
       showAddingModal: false,
+      isAdmin: false,
     };
   },
   setup() {
-    const isAdmin = inject("isAdmin") as boolean;
     return {
-      isAdmin,
       peopleCircle,
       personCircle,
       addCircle,
     };
   },
   async ionViewWillEnter() {
+    this.isAdmin = await AuthUtils.isAdmin();
     await this.fetchComponents();
   },
   methods: {

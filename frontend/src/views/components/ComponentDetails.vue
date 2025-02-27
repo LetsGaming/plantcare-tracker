@@ -47,12 +47,13 @@ import {
   IonCardContent,
   IonCardHeader,
 } from "@ionic/vue";
-import { defineComponent, inject } from "vue";
+import { defineComponent } from "vue";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "ComponentDetails",
@@ -78,13 +79,11 @@ export default defineComponent({
     return {
       component: null as null | SubstrateComponent,
       showEditingModal: false,
+      isAdmin: false,
     };
   },
-  setup() {
-    const isAdmin = inject("isAdmin") as boolean;
-    return { isAdmin };
-  },
   async ionViewDidEnter() {
+    this.isAdmin = await AuthUtils.isAdmin();
     await this.fetchComponent();
   },
   computed: {

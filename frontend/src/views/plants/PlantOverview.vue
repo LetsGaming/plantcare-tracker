@@ -5,7 +5,7 @@
       title="Pflanzen"
       :segments="[
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
-        { value: 'private', label: 'Persönlich', icon: personCircle },
+        { value: 'private', label: 'Persönlich', icon: personCircle, hideFromGuests: true },
       ]"
       :addIcon="addCircle"
       starting-segment="private"

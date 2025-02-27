@@ -32,26 +32,6 @@ async function initializeApp() {
   // Create the Vue app with IonicVue and the router
   const app = createApp(App).use(IonicVue).use(router);
 
-  // Create global reactive state for roles
-  const isAdmin = ref(false);
-  const isGuest = ref(false);
-
-  try {
-    // Fetch both role statuses concurrently
-    const [adminStatus, guestStatus] = await Promise.all([
-      AuthUtils.isAdmin(),
-      AuthUtils.isGuest(),
-    ]);
-    isAdmin.value = adminStatus;
-    isGuest.value = guestStatus;
-  } catch (error) {
-    console.error('Error fetching role statuses:', error);
-  }
-
-  // Provide roles globally
-  app.provide('isAdmin', isAdmin);
-  app.provide('isGuest', isGuest);
-
   // Wait until the router is ready before mounting the app
   await router.isReady();
   app.mount('#app');

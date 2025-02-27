@@ -26,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, inject } from "vue";
+import { defineComponent, } from "vue";
 import {
   IonAccordion,
   IonAccordionGroup,
@@ -46,6 +46,7 @@ import WateringRecordsAdding from "./WateringRecordsAdding.vue";
 import CustomAccordion from "@/components/CustomAccordion.vue";
 
 import WateringService from "@/services/WateringService";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "WateringRecords",
@@ -72,10 +73,8 @@ export default defineComponent({
     },
   },
   setup() {
-    const isGuest = inject("isGuest") as boolean;
     return {
       addCircle,
-      isGuest,
     };
   },
   data() {
@@ -83,16 +82,21 @@ export default defineComponent({
       records: null as WateringRecord[] | null,
       mappedRecords: [] as AccordionItem[],
       showAddingModal: false,
+      isGuest: false,
     };
   },
-  async ionViewDidEnter() {
-    this.records = await WateringService.getWateringRecords(this.plantId);
-    this.records = this.records.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    this.mappedRecords = this.mapWateringsToAccordion(this.records);
+  async mounted() {
+    this.isGuest = await AuthUtils.isGuest();
+    await this.setRecords();
   },
   methods: {
+    async setRecords() {
+      this.records = await WateringService.getWateringRecords(this.plantId);
+      this.records = this.records.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      this.mappedRecords = this.mapWateringsToAccordion(this.records);
+    },
     async addRecord(addingRecord: AddWateringRecord) {
       const response = await WateringService.addWateringRecord(
         this.plantId,
