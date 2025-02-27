@@ -51,14 +51,19 @@ const AuthUtils = {
   async logout(): Promise<void> {
     try {
       ApiService.post<null, { message: string }>("/auth/logout", null);
-      await TokenService.clearToken();
-      await router.push({ name: "login" });
+      await this.handleLocalLogout();
     } catch (error) {
-      await TokenService.clearToken();
-      await router.push({ name: "login" });
+      console.error("Error logging out:", error);
+      await this.handleLocalLogout(); // Log out locally even if server request
     }
   },
 
+  async handleLocalLogout(): Promise<void> {
+    await TokenService.clearToken();
+    router.replace({ name: 'login' }).then(() => {
+      window.location.reload();
+    });
+  },  
   /**
    * Refresh the authentication token directly using `fetch`.
    * Retries up to a maximum number of attempts if the token refresh fails.

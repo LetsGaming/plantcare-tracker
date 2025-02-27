@@ -2,7 +2,7 @@
     "development": {
         "server": {
             "base_url": "http://localhost",
-            "port": ":5000",
+            "port": "5000",
             "base_path": "/api",
             "api_version": "/v1"
         },

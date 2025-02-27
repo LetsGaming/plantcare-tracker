@@ -26,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, inject } from "vue";
 import {
   IonAccordion,
   IonAccordionGroup,
@@ -46,7 +46,6 @@ import WateringRecordsAdding from "./WateringRecordsAdding.vue";
 import CustomAccordion from "@/components/CustomAccordion.vue";
 
 import WateringService from "@/services/WateringService";
-import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "WateringRecords",
@@ -73,8 +72,10 @@ export default defineComponent({
     },
   },
   setup() {
+    const isGuest = inject("isGuest") as boolean;
     return {
       addCircle,
+      isGuest,
     };
   },
   data() {
@@ -84,7 +85,7 @@ export default defineComponent({
       showAddingModal: false,
     };
   },
-  async mounted() {
+  async ionViewDidEnter() {
     this.records = await WateringService.getWateringRecords(this.plantId);
     this.records = this.records.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -92,9 +93,6 @@ export default defineComponent({
     this.mappedRecords = this.mapWateringsToAccordion(this.records);
   },
   methods: {
-    async isGuest() {
-      return await AuthUtils.isGuest();
-    },
     async addRecord(addingRecord: AddWateringRecord) {
       const response = await WateringService.addWateringRecord(
         this.plantId,
