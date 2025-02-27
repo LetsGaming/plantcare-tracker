@@ -132,12 +132,11 @@ const AuthUtils = {
    */
   async decodeAuthToken(): Promise<any | null> {
     const token = await TokenService.getToken();
-
     if (!token) return null;
 
     try {
       const payloadBase64 = token.split(".")[1]; // Get the payload part
-      const decodedPayload = atob(payloadBase64); // Decode Base64
+      const decodedPayload = atob(payloadBase64); // Decode Base64#
       return JSON.parse(decodedPayload); // Parse JSON
     } catch (error) {
       console.error("Error decoding token:", error);
@@ -149,9 +148,9 @@ const AuthUtils = {
    * Get the user role from the JWT payload.
    * @returns User role, or null if not found.
    */
-  async getUserRole(): Promise<string | null> {
+  async getUserRole(): Promise<string> {
     const payload = await this.decodeAuthToken();
-    return payload?.role || null;
+    return payload?.role || "";
   },
 
   /**

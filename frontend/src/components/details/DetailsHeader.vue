@@ -30,7 +30,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, inject, PropType } from "vue";
+import { defineComponent, PropType } from "vue";
 import {
   IonHeader,
   IonToolbar,
@@ -41,6 +41,7 @@ import {
   IonIcon,
 } from "@ionic/vue";
 import { create, cloudUpload } from "ionicons/icons";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "DetailsHeader",
@@ -76,14 +77,17 @@ export default defineComponent({
     },
   },
   setup() {
-    const isGuest = inject("isGuest") as boolean;
-    return { create, cloudUpload, isGuest };
+    return { create, cloudUpload };
   },
   data() {
     return {
       segmentValue: this.startingSegment,
+      isGuest: false,
     };
   },
+  async mounted() {
+    this.isGuest = await AuthUtils.isGuest();
+  }
 });
 </script>
 

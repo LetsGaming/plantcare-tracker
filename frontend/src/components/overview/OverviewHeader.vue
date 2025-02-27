@@ -12,14 +12,16 @@
 
     <ion-toolbar class="segment-toolbar">
       <ion-segment v-model="segmentValue" @ionChange="handleSegmentChange">
-        <ion-segment-button
-          v-for="segment in segments"
-          :key="segment.value"
-          :value="segment.value"
-        >
-          <ion-icon :icon="segment.icon" />
-          <ion-label>{{ segment.label }}</ion-label>
-        </ion-segment-button>
+        <template v-for="segment in segments">
+          <ion-segment-button
+            v-if="!segment.hideFromGuests || !isGuest"
+            :key="segment.value"
+            :value="segment.value"
+          >
+            <ion-icon :icon="segment.icon" />
+            <ion-label>{{ segment.label }}</ion-label>
+          </ion-segment-button>
+        </template>
       </ion-segment>
 
       <template v-if="!isGuest && showAddButton">
@@ -44,7 +46,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, inject, PropType } from "vue";
+import { defineComponent, PropType } from "vue";
 import {
   IonHeader,
   IonToolbar,
@@ -58,7 +60,7 @@ import { logOutOutline } from "ionicons/icons";
 import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
-  name: "CustomHeader",
+  name: "OverviewHeader",
   components: {
     IonHeader,
     IonToolbar,
@@ -75,7 +77,12 @@ export default defineComponent({
     },
     segments: {
       type: Array as PropType<
-        Array<{ value: string; label: string; icon: string }>
+        Array<{
+          value: string;
+          label: string;
+          icon: string;
+          hideFromGuests?: boolean;
+        }>
       >,
       required: true,
     },
@@ -107,11 +114,28 @@ export default defineComponent({
   data() {
     return {
       segmentValue: this.startingSegment,
+      isGuest: false,
     };
   },
   setup() {
-    const isGuest = inject("isGuest") as boolean;
-    return { logOutOutline, isGuest };
+    return { logOutOutline };
+  },
+  async mounted() {
+    this.isGuest = await AuthUtils.isGuest();
+
+    if (this.isGuest) {
+      // If the user is a guest, and the starting segment is hidden, find the first visible segment
+      const visibleSegments = this.segments.filter(
+        (segment) => !segment.hideFromGuests
+      );
+      if (visibleSegments.length > 0) {
+        this.segmentValue = visibleSegments[0].value; // Select the first visible segment for guests
+        // Manually trigger the segment change to emit the value change
+        this.handleSegmentChange({
+          detail: { value: this.segmentValue },
+        });
+      }
+    }
   },
   methods: {
     async logUserOut() {
@@ -119,7 +143,7 @@ export default defineComponent({
     },
     handleSegmentChange(event: any) {
       const value = event.detail.value;
-      this.onSegmentChange(value);
+      this.onSegmentChange(value); // Emit the segment change
     },
   },
 });
