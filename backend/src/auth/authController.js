@@ -80,10 +80,10 @@ const login = async (req, res) => {
     // Set the new refresh token in the cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: req.secure || req.headers["x-forwarded-proto"] === "https", // Only set secure if using HTTPS
       sameSite: "Strict",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    });    
 
     return successResponse(res, { accessToken });
   } catch (error) {
