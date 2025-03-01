@@ -1,7 +1,6 @@
 const path = require("path");
 const fs = require("fs").promises;
 const logger = require("../utils/logger");
-const loadEnv = require("../utils/envUtils.js");
 const {
   insertImage,
   selectImages,
@@ -14,7 +13,9 @@ const {
 } = require("../utils/responseUtils.js");
 const { formatToDBDate } = require("../utils/generalUtils.js");
 
-loadEnv();
+const dotenv = require("dotenv"); // Import dotenv to load environment variables
+// Load environment variables from .env file
+dotenv.config();
 
 const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg"];
 const NAS_PATH = process.env.NAS_PATH || null;

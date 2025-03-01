@@ -8,7 +8,7 @@ export default class WateringMapper {
       plantId: watering.plant_id,
       date: Utils.convertDateString(watering.watering_date),
       usedFertilizer: watering.used_fertilizer,
-      fertilizerType: watering.fertilizer_type,
+      fertilizerType: watering.fertilizer_type == null ? "Unbekannt" : watering.fertilizer_type === "organic" ? "Organisch" : "Mineralisch",
     };
   }
 

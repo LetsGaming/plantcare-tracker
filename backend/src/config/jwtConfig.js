@@ -1,6 +1,7 @@
-const loadEnv = require("../utils/envUtils");
+const dotenv = require("dotenv"); // Import dotenv to load environment variables
 
-loadEnv();
+// Load environment variables from .env file
+dotenv.config();
 
 module.exports = {
   JWT_SECRET: process.env.JWT_SECRET,

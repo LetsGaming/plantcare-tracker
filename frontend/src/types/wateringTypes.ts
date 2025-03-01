@@ -3,7 +3,7 @@ interface WateringRecord {
   plantId: number;
   date: string;
   usedFertilizer: boolean;
-  fertilizerType?: "organic" | "synthetic" | null;
+  fertilizerType?: "Organisch" | "Mineralisch" | "Unbekannt";
 }
 
 interface AddWateringRecord {
