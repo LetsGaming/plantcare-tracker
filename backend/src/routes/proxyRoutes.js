@@ -3,8 +3,9 @@ const express = require("express");
 const imageProxy = express.Router();
 const { errorResponse } = require("../utils/responseUtils");
 
-const loadEnv = require("../utils/envUtils");
-loadEnv();
+const dotenv = require("dotenv"); // Import dotenv to load environment variables
+// Load environment variables from .env file
+dotenv.config();
 
 const NAS_PATH = process.env.NAS_PATH || null;
 imageProxy.get("/uploads/:imageName", (req, res) => {
