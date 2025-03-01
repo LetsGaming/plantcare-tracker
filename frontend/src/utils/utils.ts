@@ -10,9 +10,15 @@ const Utils = {
     return envConfig;
   },
 
+  getAppTitle(): string {
+    return this.getConfig().frontend.app_title;
+  },
+
   getApiBaseUrl(): string {
     const envConfig = this.getConfig();
-    const apiUrl = envConfig.server.base_url + ('port' in envConfig.server ? `:${envConfig.server.port}` : "");
+    const apiUrl =
+      envConfig.server.base_url +
+      ("port" in envConfig.server ? `:${envConfig.server.port}` : "");
     return `${apiUrl}${envConfig.server.base_path}${envConfig.server.api_version}`;
   },
 
