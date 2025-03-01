@@ -1,6 +1,6 @@
 <template>
   <div class="form-container">
-    <IonCard style="margin-top: auto; margin-inline: 0px !important;">
+    <IonCard style="margin-top: auto; margin-inline: 0px !important">
       <IonCardHeader>
         <IonToolbar>
           <IonCardTitle>{{ cardTitle }}</IonCardTitle>
@@ -40,13 +40,9 @@
           </IonItem>
           <IonItem v-else-if="field.type === 'radio'">
             <IonLabel>{{ field.label }}</IonLabel>
-            <IonRadioGroup v-model="item[field.modelKey]">
-              <IonItem>
-                <IonRadio
-                  :slot="index < 1 ? 'start' : 'end'"
-                  v-for="(option, index) in field.options"
-                  :value="option.value"
-                >
+            <IonRadioGroup v-model="item[field.modelKey]" style="width: 100%;">
+              <IonItem v-for="(option, index) in field.options" :key="index">
+                <IonRadio :value="option.value">
                   {{ option.label }}
                 </IonRadio>
               </IonItem>
