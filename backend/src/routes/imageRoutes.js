@@ -1,5 +1,7 @@
 const express = require("express");
 const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 const sharp = require("sharp");
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const {
@@ -43,13 +45,25 @@ router.post(
         return res.status(400).json({ error: "No file uploaded." });
       }
 
-      // Move image processing to memory, delay saving it
-      req.processedImage = await sharp(req.file.buffer)
+      const NAS_PATH =
+        process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
+      if (!fs.existsSync(NAS_PATH)) {
+        fs.mkdirSync(NAS_PATH, { recursive: true });
+      }
+
+      const uniqueFilename = `${Date.now()}-${
+        path.parse(req.file.originalname).name
+      }.webp`;
+      const outputPath = path.join(NAS_PATH, uniqueFilename);
+
+      await sharp(req.file.buffer)
         .resize({ width: 1024 })
         .toFormat("webp")
         .webp({ quality: 70 })
-        .toBuffer(); // Keep in memory
+        .toFile(outputPath);
 
+      req.file.path = outputPath;
+      req.file.filename = uniqueFilename;
       next();
     } catch (error) {
       next(error);
