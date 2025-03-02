@@ -43,7 +43,7 @@ const selectPlants = async (conditions = {}, params = [], req) => {
   // Now, for each plant, get its substrate and images
   const plantsWithDetails = await Promise.all(
     plantsRows.map(async (plant) => {
-      const [substrate] = await selectSubstrate(plant.substrate_id);
+      const [substrate] = await selectSubstrate(plant.substrate_id, false);
 
       // Fetch images for the current plant
       const { latestImage, images } = await selectEntityImages(

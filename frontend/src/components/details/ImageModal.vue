@@ -10,14 +10,7 @@
     <ion-content class="ion-padding">
       <div class="enlarged-image-container">
         <ion-img :src="imageUrl" class="enlarged-image" />
-        <IonLabel
-          :class="
-            isPlatform('mobile')
-              ? 'enlarged-image-label-mobile'
-              : 'enlarged-image-label'
-          "
-          >{{ label }}</IonLabel
-        >
+        <IonLabel class="enlarged-image-label">{{ label }}</IonLabel>
       </div>
     </ion-content>
   </ion-modal>
@@ -33,7 +26,6 @@ import {
   IonHeader,
   IonToolbar,
   IonButtons,
-  isPlatform,
   IonButton,
 } from "@ionic/vue";
 import { defineComponent } from "vue";
@@ -70,9 +62,6 @@ export default defineComponent({
     closeModal() {
       this.$emit("close");
     },
-    isPlatform(platform: any) {
-      return isPlatform(platform);
-    },
   },
 });
 </script>
@@ -100,10 +89,12 @@ export default defineComponent({
   font-size: 24px;
 }
 
-.enlarged-image-label-mobile {
-  position: absolute;
-  top: 70dvh;
-  left: 5dvw;
-  font-size: 24px;
+@media (max-width: 768px) {
+  .enlarged-image-label {
+    position: absolute;
+    top: 70dvh;
+    left: 5dvw;
+    font-size: 24px;
+  }
 }
 </style>

@@ -6,7 +6,6 @@ import Utils from "@/utils/utils";
 
 const BASE_ENDPOINT = "/watering";
 const CACHE_KEY_WATERING_RECORDS = "watering_records_data";
-const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Helper function to get all cached watering records
 async function getCachedWateringRecords() {
@@ -128,13 +127,13 @@ export default class WateringService {
         addWateringRecord
       );
       if (response) {
-        const newRecord = {
-          id: response.waterRecordId,
-          plantId: plantId,
-          date: Utils.convertDateString(addWateringRecord.date.toISOString()),
-          usedFertilizer: addWateringRecord.usedFertilizer,
-          fertilizerType: addWateringRecord.fertilizerType || null,
-        } as WateringRecord;
+        const newRecord = WateringMapper.mapWateringRecord({
+          record_id: response.waterRecordId,
+          plant_id: plantId,
+          watering_date: addWateringRecord.date.toISOString(),
+          used_fertilizer: addWateringRecord.usedFertilizer,
+          fertilizer_type: addWateringRecord.fertilizerType ?? null,
+        });
         // Retrieve and update the cache
         const cachedData = await getCachedWateringRecords();
         const existingRecords = cachedData?.recordsByPlant[plantId] || [];

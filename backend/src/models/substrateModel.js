@@ -28,6 +28,11 @@ const selectSubstratesQuery = `
 
 // Function to select substrates with dynamic conditions
 const selectSubstrates = async (conditions = {}, params = []) => {
+  // Default selectImages to true if it's not provided
+  if (conditions.selectImages === undefined) {
+    conditions.selectImages = true;
+  }
+
   const whereClauses = [];
 
   if (conditions.user_id) {
@@ -43,7 +48,9 @@ const selectSubstrates = async (conditions = {}, params = []) => {
     params.push(conditions.id);
   }
 
-  const whereSQL = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+  const whereSQL = whereClauses.length
+    ? `WHERE ${whereClauses.join(" AND ")}`
+    : "";
   const query = `${selectSubstratesQuery} ${whereSQL}`;
 
   // Fetch rows from the database
@@ -69,12 +76,11 @@ const selectSubstrates = async (conditions = {}, params = []) => {
       substratesMap.set(substrate_id, {
         substrate_id,
         substrate_name,
-        substrate_image_url,
+        image_url: substrate_image_url,
         user_id: substrate_user_id,
         is_public: substrate_is_public,
         created_at: substrate_created_at,
         components: [],
-        images: [],
       });
     }
     const substrate = substratesMap.get(substrate_id);
@@ -91,20 +97,27 @@ const selectSubstrates = async (conditions = {}, params = []) => {
 
   const substrates = Array.from(substratesMap.values());
 
-  // For each substrate, fetch images concurrently
-  await Promise.all(
-    substrates.map(async (substrate) => {
-      const { latestImage, images } = await selectEntityImages("substrate", substrate.substrate_id);
-      substrate.image_url = latestImage;
-      substrate.images = images;
-    })
-  );
+  // Always fetch images if selectImages is true
+  if (conditions.selectImages) {
+    // For each substrate, fetch images concurrently
+    await Promise.all(
+      substrates.map(async (substrate) => {
+        const { latestImage, images } = await selectEntityImages(
+          "substrate",
+          substrate.substrate_id
+        );
+        substrate.image_url = latestImage;
+        substrate.images = images;
+      })
+    );
+  }
 
   return substrates;
 };
 
 // Wrapper for selecting a single substrate by ID
-const selectSubstrate = (id) => selectSubstrates({ id });
+const selectSubstrate = (id, selectImages = true) =>
+  selectSubstrates({ id, selectImages });
 
 // Wrapper for selecting public substrates
 const selectPublicSubstrates = () => selectSubstrates({ is_public: true });
@@ -127,7 +140,13 @@ const insertSubstrateComponent = (substrate_id, component_id, parts) =>
   );
 
 // Update a substrate
-const updateSubstrate = (id, name, user_id, image_url = null, is_public = false) =>
+const updateSubstrate = (
+  id,
+  name,
+  user_id,
+  image_url = null,
+  is_public = false
+) =>
   pool.query(
     "UPDATE substrates SET name = ?, image_url = ?, is_public = ? WHERE id = ? AND user_id = ?",
     [name, image_url, is_public, id, user_id]
@@ -167,5 +186,5 @@ module.exports = {
   updateSubstrate,
   updateSubstrateComponent,
   deleteSubstrateComponents,
-  deleteSubstrate
+  deleteSubstrate,
 };
