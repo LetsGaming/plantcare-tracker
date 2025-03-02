@@ -1,5 +1,5 @@
 const path = require("path");
-const fs = require("fs").promises;
+const fs = require("fs");
 const logger = require("../utils/logger");
 const {
   insertImage,
@@ -18,22 +18,18 @@ const dotenv = require("dotenv"); // Import dotenv to load environment variables
 dotenv.config();
 
 const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg"];
-const NAS_PATH = process.env.NAS_PATH || null;
+const NAS_PATH = process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
 const uploadDir = NAS_PATH || "/uploads";
 const uploadPath = NAS_PATH || path.resolve(__dirname, "../../uploads");
 
 const uploadImage = async (req, res) => {
   try {
-    const imageFile = req.file;
-    // Expecting generic entity details in the URL parameters
     const { entityType, entityId } = req.params;
     const { date = Date.now() } = req.body;
     const parsedDate = formatToDBDate(date);
 
-    if (!imageFile) {
-      return res
-        .status(400)
-        .json({ message: "No file was uploaded or 'image' field is missing." });
+    if (!req.file || !req.processedImage) {
+      return res.status(400).json({ message: "No valid image uploaded." });
     }
 
     if (!entityType || !entityId) {
@@ -42,20 +38,30 @@ const uploadImage = async (req, res) => {
         .json({ message: "Both entityType and entityId are required." });
     }
 
-    if (!allowedMimeTypes.includes(imageFile.mimetype)) {
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
       return res.status(400).json({
         message: "Uploaded file is not a valid image format (png, jpeg, jpg).",
       });
     }
+    if (!fs.existsSync(NAS_PATH)) {
+      fs.mkdirSync(NAS_PATH, { recursive: true });
+    }
 
+    const uniqueFilename = `${Date.now()}-${path.parse(req.file.originalname).name}.webp`;
+    const outputPath = path.join(NAS_PATH, uniqueFilename);
     // Construct base URL/path for the file
     let baseUrl = uploadDir;
     if (!NAS_PATH) {
       baseUrl = `${req.protocol}://${req.get("host")}${uploadDir}`;
     }
-    const filePath = path.join(baseUrl, imageFile.filename);
+    const filePath = path.join(baseUrl, uniqueFilename);
 
+    // First, insert the database entry
     await insertImage(entityType, entityId, filePath, parsedDate);
+
+    // If DB insert is successful, then save the file
+    await fs.promises.writeFile(outputPath, req.processedImage);
+
     successResponse(res, {
       message: "Image uploaded successfully.",
       path: filePath,
