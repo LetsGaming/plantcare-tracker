@@ -5,6 +5,13 @@ import Utils from "./utils";
 
 const API_BASE_URL = Utils.getApiBaseUrl();
 
+interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: T;
+}
+
 /**
  * Handles the response by checking if the success flag is true or false.
  * If the success flag is false, it throws an error with the message from the error field.
@@ -12,24 +19,30 @@ const API_BASE_URL = Utils.getApiBaseUrl();
  * @returns {Promise<any>} - Parsed JSON data if the request was successful.
  * @throws {Error} - Throws an error with the error message if success: false.
  */
-const handleResponse = async (response: Response) => {
-  const responseData = await response.json();
-
+const handleResponse = async (response: Response): Promise<any> => {
+  let responseData: ApiResponse;
+  try {
+    responseData = await response.json();
+  } catch (error) {
+    throw new Error("Failed to parse response JSON.");
+  }
+  if (typeof responseData !== "object" || responseData === null || typeof responseData.success !== "boolean") {
+    throw new Error("Unexpected response format.");
+  }
   if (responseData.success) {
-    if (responseData.message && responseData.message !== "Operation successful")
+    if (responseData.message && responseData.message !== "Operation successful") {
       ToastService.showSuccess(responseData.message);
-    return responseData.data; // Return the data field when success is true
+    }
+    return responseData.data;
   } else {
-    throw new Error(
-      responseData.error || responseData.message || "An unknown error occurred"
-    ); // Throw the error message
+    const errorMessage = responseData.error || responseData.message || "An unknown error occurred";
+    throw new Error(errorMessage);
   }
 };
 
 /**
- * Get the authorization headers for requests, including the token if available.
- * Note: This function sets the Content-Type to JSON and is used for non-file uploads.
- * @returns {HeadersInit} - The headers to be sent with the request.
+ * Retrieves authorization headers for requests (non-file uploads).
+ * @returns {Promise<HeadersInit>} - The headers to be sent with the request.
  */
 const getAuthHeaders = async (): Promise<HeadersInit> => {
   const token = await TokenUtils.getToken();
@@ -40,12 +53,12 @@ const getAuthHeaders = async (): Promise<HeadersInit> => {
 };
 
 /**
- * Handle 403 responses by refreshing the token and retrying the request.
- * If the token refresh fails, log the user out.
+ * Handles 403/401 responses by attempting to refresh the token and retrying the request.
+ * If the token refresh fails, it logs out the user.
  * @param {() => Promise<Response>} requestFn - The function to retry the request.
  * @returns {Promise<Response>} - The response after retrying with a refreshed token.
  */
-const handleNoAuth = async (requestFn: () => Promise<Response>) => {
+const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Response> => {
   try {
     await AuthUtils.refreshToken();
     return await requestFn();
@@ -56,33 +69,49 @@ const handleNoAuth = async (requestFn: () => Promise<Response>) => {
   }
 };
 
+interface RequestConfig {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  endpoint: string;
+  data?: any;
+  isFileUpload?: boolean;
+}
+
 /**
- * Makes an API request using the specified method, endpoint, and optional data.
- * Handles token refresh on 403 status and processes the response.
- * @param {'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'} method - The HTTP method to use for the request.
- * @param {string} endpoint - The API endpoint to call.
- * @param {any} [data] - The data to send with the request (for POST/PUT/PATCH).
+ * Performs an API request based on the given configuration.
+ * This function builds the fetch request, handles unauthorized responses,
+ * and returns parsed response data.
+ * @param {RequestConfig} config - The configuration for the request.
  * @returns {Promise<T>} - The parsed response data.
  */
-const makeRequest = async <T>(
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
-  endpoint: string,
-  data?: any
-): Promise<T> => {
-  const requestFn = async () =>
-    fetch(`${API_BASE_URL}${endpoint}`, {
-      method,
-      headers: await getAuthHeaders(),
-      credentials: "include",
-      ...(data && { body: JSON.stringify(data) }),
-    });
+const performRequest = async <T>(config: RequestConfig): Promise<T> => {
+  const { method, endpoint, data, isFileUpload } = config;
+
+  // Build the request function based on whether it is a file upload or not.
+  const requestFn = async (): Promise<Response> => {
+    if (isFileUpload) {
+      const token = await TokenUtils.getToken();
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      return fetch(`${API_BASE_URL}${endpoint}`, {
+        method,
+        headers,
+        credentials: "include",
+        body: data, // data should be an instance of FormData
+      });
+    } else {
+      const headers = await getAuthHeaders();
+      return fetch(`${API_BASE_URL}${endpoint}`, {
+        method,
+        headers,
+        credentials: "include",
+        ...(data ? { body: JSON.stringify(data) } : {}),
+      });
+    }
+  };
 
   let response = await requestFn();
 
-  if (
-    (response.status === 403 || response.status === 401) &&
-    !endpoint.includes("login")
-  ) {
+  // Handle unauthorized or forbidden responses (excluding login endpoint)
+  if ((response.status === 403 || response.status === 401) && !endpoint.includes("login")) {
     response = await handleNoAuth(requestFn);
   }
 
@@ -99,70 +128,48 @@ const ApiUtils = {
    * @returns {Promise<T>} - The parsed response data.
    */
   get<T>(endpoint: string): Promise<T> {
-    return makeRequest<T>("GET", endpoint);
+    return performRequest<T>({ method: "GET", endpoint });
   },
 
   /**
    * Makes a POST request to the specified endpoint with the provided data.
-   * @param {T} data - The data to send with the request.
    * @param {string} endpoint - The API endpoint to call.
+   * @param {T} data - The data to send with the request.
    * @returns {Promise<R>} - The parsed response data.
    */
   post<T, R>(endpoint: string, data: T): Promise<R> {
-    return makeRequest<R>("POST", endpoint, data);
+    return performRequest<R>({ method: "POST", endpoint, data });
   },
 
   /**
    * Uploads files to the specified endpoint using FormData.
    * Note: 'data' should be an instance of FormData.
-   * @param {FormData} data - The FormData containing the files and any additional data.
    * @param {string} endpoint - The API endpoint to call.
+   * @param {FormData} data - The FormData containing the files and any additional data.
    * @returns {Promise<R>} - The parsed response data.
    */
-  async upload<R>(endpoint: string, data: FormData): Promise<R> {
-    const requestFn = async () => {
-      const token = await TokenUtils.getToken();
-      // Only include the Authorization header; omit the Content-Type so the browser sets it
-      const headers: HeadersInit = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
-      return fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: data,
-      });
-    };
-
-    let response = await requestFn();
-
-    if (
-      (response.status === 403 || response.status === 401) &&
-      !endpoint.includes("login")
-    ) {
-      response = await handleNoAuth(requestFn);
-    }
-    return handleResponse(response);
+  upload<R>(endpoint: string, data: FormData): Promise<R> {
+    return performRequest<R>({ method: "POST", endpoint, data, isFileUpload: true });
   },
 
   /**
    * Makes a PUT request to the specified endpoint with the provided data.
-   * @param {T} data - The data to send with the request.
    * @param {string} endpoint - The API endpoint to call.
+   * @param {T} data - The data to send with the request.
    * @returns {Promise<R>} - The parsed response data.
    */
   put<T, R>(endpoint: string, data: T): Promise<R> {
-    return makeRequest<R>("PUT", endpoint, data);
+    return performRequest<R>({ method: "PUT", endpoint, data });
   },
 
   /**
    * Makes a PATCH request to the specified endpoint with the provided data.
-   * @param {T} data - The data to send with the request.
    * @param {string} endpoint - The API endpoint to call.
+   * @param {T} data - The data to send with the request.
    * @returns {Promise<R>} - The parsed response data.
    */
   patch<T, R>(endpoint: string, data: T): Promise<R> {
-    return makeRequest<R>("PATCH", endpoint, data);
+    return performRequest<R>({ method: "PATCH", endpoint, data });
   },
 
   /**
@@ -170,8 +177,8 @@ const ApiUtils = {
    * @param {string} endpoint - The API endpoint to call.
    * @returns {Promise<void>} - A promise that resolves when the delete is successful.
    */
-  async delete<T>(endpoint: string): Promise<void> {
-    return makeRequest<void>("DELETE", endpoint);
+  delete(endpoint: string): Promise<void> {
+    return performRequest<void>({ method: "DELETE", endpoint });
   },
 };
 

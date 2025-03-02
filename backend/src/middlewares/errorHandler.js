@@ -1,16 +1,35 @@
-const logger = require('../utils/logger');
+// src/middlewares/errorHandler.js
+const logger = require("../utils/logger");
 
-// Global Error Handler Middleware
-function errorHandler(err, req, res, next) {
-  const statusCode = err.status || 500;
+/**
+ * Middleware for handling 404 (Not Found) errors.
+ */
+const notFoundHandler = (req, res, next) => {
+  res.status(404).json({ error: { message: "Not Found" } });
+};
 
-  // Log the error with additional context
-  logger.error(`${statusCode} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
-  
-  res.status(statusCode).json({
-    status: 'error',
-    message: err.message || 'Internal Server Error',
+/**
+ * Global error-handling middleware.
+ * Logs the error and responds with a JSON error message.
+ */
+const globalErrorHandler = (err, req, res, next) => {
+  logger.error(err);
+
+  // If headers are already sent, delegate to the default Express error handler.
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  const status = err.status || 500;
+  res.status(status).json({
+    error: {
+      message: err.message || "Internal Server Error",
+      ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+    },
   });
-}
+};
 
-module.exports = errorHandler;
+module.exports = {
+  notFoundHandler,
+  globalErrorHandler,
+};

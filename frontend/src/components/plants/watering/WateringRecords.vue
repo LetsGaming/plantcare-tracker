@@ -26,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, } from "vue";
+import { defineComponent } from "vue";
 import {
   IonAccordion,
   IonAccordionGroup,
@@ -91,11 +91,13 @@ export default defineComponent({
   },
   methods: {
     async setRecords() {
-      this.records = await WateringService.getWateringRecords(this.plantId);
-      this.records = this.records.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      this.mappedRecords = this.mapWateringsToAccordion(this.records);
+      try {
+        this.records = await WateringService.getWateringRecords(this.plantId);
+        this.records = this.records.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        this.mappedRecords = this.mapWateringsToAccordion(this.records);
+      } catch (error) {}
     },
     async addRecord(addingRecord: AddWateringRecord) {
       const response = await WateringService.addWateringRecord(

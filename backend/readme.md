@@ -42,7 +42,9 @@ The backend of the **PlantCare Tracker** project is responsible for managing use
     DB_USER=plantcare-db-admin
     DB_PASSWORD=your_password
     DB_NAME=your_db_name
-
+    DB_CONNECTION_LIMIT=OPTIONAL
+    DB_QUEUE_LIMIT=OPTIONAL
+    
     # JWT configuration
     JWT_SECRET=your_jwt_secret 
     JWT_REFRESH_SECRET=your_jwt_refresh_secret
