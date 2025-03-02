@@ -156,7 +156,7 @@ const ComponentService = {
   async deleteComponent(id: number): Promise<void> {
     try {
       const deleteEndpoint = `${COMPONENTS_ENDPOINT}/admin/${id}`;
-      const response = await ApiUtils.delete<any>(deleteEndpoint);
+      const response = await ApiUtils.delete(deleteEndpoint);
 
       // Invalidate the cached components after deleting
       await invalidateComponentCache();
