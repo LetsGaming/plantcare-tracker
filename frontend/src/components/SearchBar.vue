@@ -5,50 +5,31 @@
       class="search-input"
       type="text"
       :placeholder="placeholder"
+      @input="emitSearch"
     />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType } from "vue";
+import { defineComponent } from "vue";
 
 export default defineComponent({
+  name: "SearchBar",
   props: {
-    items: {
-      type: Array as PropType<any[]>,
-      required: true,
-    },
-    searchKey: {
-      type: String as PropType<string>,
-      required: true,
-    },
     placeholder: {
-      type: String as PropType<string>,
+      type: String,
       default: "Search...",
     },
   },
-  emits: ["filtered"],
   data() {
     return {
       searchQuery: "",
     };
   },
-  mounted() {
-    this.filterItems();
-  },
-  watch: {
-    searchQuery() {
-      this.filterItems();
-    },
-  },
   methods: {
-    filterItems() {
-      const filtered = this.items.filter((item) =>
-        item[this.searchKey]
-          .toLowerCase()
-          .includes(this.searchQuery.toLowerCase())
-      );
-      this.$emit("filtered", filtered);
+    emitSearch() {
+      // Emit the current search query to the parent component
+      this.$emit("search", this.searchQuery);
     },
   },
 });
