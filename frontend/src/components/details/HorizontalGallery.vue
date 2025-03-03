@@ -1,7 +1,7 @@
 <template>
   <div class="gallery-container">
     <div class="gallery" ref="gallery">
-      <div v-for="(image, index) in images" :key="index" class="gallery-item">
+      <div v-for="(image, index) in sortedImages" :key="index" class="gallery-item">
         <ion-img
           :src="image.url"
           alt="Gallery image"
@@ -23,46 +23,47 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from "vue";
+import { defineComponent } from "vue";
 import { IonImg } from "@ionic/vue";
 import ImageModal from "./ImageModal.vue";
 
 export default defineComponent({
-  name: "ImageGallery",
+  name: "HorizontalGallery",
   components: {
     IonImg,
     ImageModal,
   },
   props: {
     images: {
-      type: Array as () => Array<{ url: string; date?: string }>,
+      type: Array as () => Image[],
       required: true,
     },
   },
-  setup() {
-    const enlargedImageUrl = ref("");
-    const enlargedImageLabel = ref("");
-    const isModalVisible = ref(false);
-
-    const enlargeImage = (url: string, label?: string) => {
-      enlargedImageUrl.value = url;
-      isModalVisible.value = true;
-
-      if (label) enlargedImageLabel.value = label;
-    };
-
-    const closeModal = () => {
-      isModalVisible.value = false;
-      enlargedImageUrl.value = "";
-    };
-
+  data() {
     return {
-      enlargedImageUrl,
-      enlargedImageLabel,
-      isModalVisible,
-      enlargeImage,
-      closeModal,
+      enlargedImageUrl: "",
+      enlargedImageLabel: "",
+      isModalVisible: false,
     };
+  },
+  computed: {
+    sortedImages() {
+      return [...this.images].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+    },
+  },
+  methods: {
+    enlargeImage(url: string, label?: string) {
+      this.enlargedImageUrl = url;
+      this.isModalVisible = true;
+
+      if (label) this.enlargedImageLabel = label;
+    },
+    closeModal() {
+      this.isModalVisible = false;
+      this.enlargedImageUrl = "";
+    },
   },
 });
 </script>
@@ -98,7 +99,7 @@ export default defineComponent({
 }
 
 .gallery-image::part(image) {
-  width: 350px; 
+  width: 350px;
   height: 300px;
   object-fit: cover;
 }

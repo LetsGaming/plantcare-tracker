@@ -59,7 +59,7 @@ router.post(
       await sharp(req.file.buffer)
         .resize({ width: 1024 })
         .toFormat("webp")
-        .webp({ quality: 70 })
+        .webp({ quality: 70, nearLossless: true })
         .toFile(outputPath);
 
       req.file.path = outputPath;

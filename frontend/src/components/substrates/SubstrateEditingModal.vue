@@ -19,14 +19,14 @@
             label: 'Sichtbarkeit',
             options: [
               { value: true, label: 'Öffentlich' },
-              { value: false, label: 'Privat' }
+              { value: false, label: 'Privat' },
             ],
           },
           {
             type: 'file',
             label: 'Bild hochladen',
             modelKey: 'image',
-          }
+          },
         ]"
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
@@ -38,10 +38,10 @@
       <div class="component-container-wrapper" v-if="step === 2">
         <ion-card class="component-container">
           <h2>Komponenten für das Substrat bearbeiten</h2>
+          <!-- Updated Search Bar Integration -->
           <SearchBar
-            :items="availableComponents"
-            searchKey="name"
-            @filtered="filteredComponents = $event"
+            placeholder="Komponenten suchen..."
+            @search="filterComponents"
           />
           <div class="component-list">
             <ion-row>
@@ -154,7 +154,7 @@ export default defineComponent({
         name: "",
         isPublic: false,
         image: null as File | null,
-      } as EditSubstrate,
+      },
       filteredComponents: [] as SubstrateComponent[],
       availableComponents: [] as SubstrateComponent[],
       selectedComponentIds: [] as number[],
@@ -167,6 +167,7 @@ export default defineComponent({
     this.editSubstrateData = {
       name: this.substrate.name,
       isPublic: this.substrate.isPublic,
+      image: null,
     };
 
     // Set up initial component selections based on the substrate's components
@@ -185,8 +186,10 @@ export default defineComponent({
       try {
         const response = await ComponentService.getComponents();
         this.availableComponents = response;
-        // Initialize the filtered list
-        this.filteredComponents = response;
+        // Initialize the filtered list with the full list of components
+        this.filteredComponents = [...this.availableComponents].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
       } catch (error) {
         console.error("Error fetching components:", error);
         ToastService.showError("Fehler beim Laden der Komponenten");
@@ -206,9 +209,21 @@ export default defineComponent({
         this.selectedComponentIds.push(id);
       }
     },
+    // New filtering method using the search query
+    filterComponents(query: string) {
+      const lowerQuery = query.toLowerCase();
+      const filtered = this.availableComponents.filter((component) =>
+        component.name.toLowerCase().includes(lowerQuery)
+      );
+      this.filteredComponents = filtered.sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+    },
     async editSubstrate() {
       if (this.selectedComponentIds.length === 0) {
-        ToastService.showWarning("Bitte wählen Sie mindestens eine Komponente aus!");
+        ToastService.showWarning(
+          "Bitte wählen Sie mindestens eine Komponente aus!"
+        );
         return;
       }
 
@@ -217,20 +232,20 @@ export default defineComponent({
         (id) => !this.selectedComponentIds.includes(id)
       );
 
-      const componentsData = {
+      const substrateData = {
         name: this.editSubstrateData.name,
         components: this.selectedComponentIds.map((id) => ({
           componentId: id,
           parts: this.componentParts[id] || 1,
         })),
         isPublic: this.editSubstrateData.isPublic,
-        image: this.editSubstrateData.image,
-      } as EditSubstrate;
+        image: this.editSubstrateData.image || undefined,
+      };
 
       try {
         const response = await SubstrateService.editSubstrate(
           this.substrate.id,
-          componentsData,
+          substrateData,
           removedComponents
         );
         if (response) {
@@ -245,7 +260,9 @@ export default defineComponent({
     },
     async deleteSubstrate() {
       try {
-        const response = await SubstrateService.deleteSubstrate(this.substrate.id);
+        const response = await SubstrateService.deleteSubstrate(
+          this.substrate.id
+        );
         if (response) {
           ToastService.showSuccess("Substrat erfolgreich gelöscht");
           this.$emit("close");

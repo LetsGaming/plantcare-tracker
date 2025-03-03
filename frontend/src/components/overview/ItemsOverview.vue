@@ -1,8 +1,6 @@
 <template>
   <search-bar
-    :items="items"
-    search-key="name"
-    @filtered="updateFilteredItems"
+    @search="filterItems"
     placeholder="Suche..."
     class="align-middle"
   />
@@ -35,11 +33,12 @@
                     <ion-card-subtitle
                       v-show="item.description"
                       class="item-description"
-                      >{{ item.description }}</ion-card-subtitle
                     >
-                    <ion-text color="medium" style="text-wrap: nowrap"
-                      >Klicke für mehr Details</ion-text
-                    >
+                      {{ item.description }}
+                    </ion-card-subtitle>
+                    <ion-text color="medium" style="text-wrap: nowrap">
+                      Klicke für mehr Details
+                    </ion-text>
                   </div>
                 </ion-col>
               </ion-row>
@@ -58,7 +57,6 @@ import {
   IonRow,
   IonCol,
   IonCard,
-  IonCardHeader,
   IonCardTitle,
   IonCardContent,
   IonText,
@@ -75,7 +73,6 @@ export default defineComponent({
     IonRow,
     IonCol,
     IonCard,
-    IonCardHeader,
     IonCardTitle,
     IonCardSubtitle,
     IonCardContent,
@@ -102,11 +99,17 @@ export default defineComponent({
   },
   data() {
     return {
+      // Holds the current search query for filtering purposes
+      currentSearch: "",
       filteredItems: [] as any[],
     };
   },
   methods: {
-    updateFilteredItems(filtered: any[]) {
+    filterItems(query: string) {
+      this.currentSearch = query;
+      const filtered = this.items.filter((item) =>
+        item.name.toLowerCase().includes(query.toLowerCase())
+      );
       this.filteredItems = this.sortItems(filtered);
     },
     sortItems(items: any[]) {
@@ -117,15 +120,19 @@ export default defineComponent({
     },
   },
   mounted() {
-    // Sort and initialize filteredItems with the sorted items
+    // Initialize filteredItems with all items (sorted) when the component mounts
     this.filteredItems = this.sortItems(this.items);
   },
   watch: {
-    // Watch for changes to the items prop and update filteredItems accordingly
+    // Reapply filtering when the items prop changes
     items: {
       immediate: true,
       handler(newItems) {
-        this.filteredItems = this.sortItems(newItems);
+        if (this.currentSearch) {
+          this.filterItems(this.currentSearch);
+        } else {
+          this.filteredItems = this.sortItems(newItems);
+        }
       },
     },
   },
@@ -160,7 +167,6 @@ export default defineComponent({
 .item-image::part(image) {
   max-width: 200px;
   max-height: 200px;
-
 }
 
 .card-details-container {

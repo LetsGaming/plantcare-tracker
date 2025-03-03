@@ -37,12 +37,10 @@
       <ion-card v-if="step === 2" class="component-container align-middle">
         <h2>Wähle Komponenten für das Substrat</h2>
 
-        <!-- Search Bar Integration -->
+        <!-- Updated Search Bar Integration -->
         <SearchBar
-          :items="sortedComponents"
-          searchKey="name"
           placeholder="Komponenten suchen..."
-          @filtered="updateFilteredComponents"
+          @search="filterComponents"
         />
 
         <!-- Filtered and Sorted SubstrateComponent List -->
@@ -94,19 +92,15 @@
 import { defineComponent } from "vue";
 import {
   IonModal,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
   IonContent,
-  IonButtons,
+  IonCard,
   IonButton,
   IonItem,
-  IonCard,
-  IonCheckbox,
-  IonInput,
-  IonText,
   IonRow,
   IonCol,
+  IonInput,
+  IonCheckbox,
+  IonText,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/FormComponent.vue";
@@ -120,19 +114,15 @@ export default defineComponent({
   emits: ["close", "added"],
   components: {
     IonModal,
-    IonHeader,
-    IonToolbar,
-    IonTitle,
     IonContent,
-    IonButtons,
+    IonCard,
     IonButton,
     IonItem,
-    IonCard,
-    IonCheckbox,
-    IonInput,
-    IonText,
     IonRow,
     IonCol,
+    IonInput,
+    IonCheckbox,
+    IonText,
     ModalHeader,
     FormComponent,
     SearchBar,
@@ -148,9 +138,9 @@ export default defineComponent({
       step: 1, // 1: form, 2: component selection
       substrate: {
         name: "",
-        image: null as File | null,
+        image: undefined as File | undefined,
         isPublic: false,
-      } as AddSubstrate,
+      },
       availableComponents: [] as SubstrateComponent[],
       filteredComponents: [] as SubstrateComponent[],
       selectedComponentIds: [] as number[],
@@ -169,7 +159,8 @@ export default defineComponent({
       try {
         const response = await ComponentService.getComponents();
         this.availableComponents = response;
-        this.filteredComponents = this.sortedComponents; // initialize filtered list
+        // Initialize the filtered list with the sorted components
+        this.filteredComponents = this.sortedComponents;
       } catch (error) {
         console.error("Error fetching components:", error);
         ToastService.showError("Fehler beim Laden der Komponenten");
@@ -190,8 +181,12 @@ export default defineComponent({
         this.selectedComponentIds.push(id);
       }
     },
-    updateFilteredComponents(filtered: SubstrateComponent[]) {
-      this.filteredComponents = filtered;
+    // New filtering method that uses the emitted search query
+    filterComponents(query: string) {
+      const lowerQuery = query.toLowerCase();
+      this.filteredComponents = this.sortedComponents.filter((component) =>
+        component.name.toLowerCase().includes(lowerQuery)
+      );
     },
     async addSubstrate() {
       if (this.selectedComponentIds.length === 0) {
@@ -247,39 +242,21 @@ export default defineComponent({
   async mounted() {
     await this.fetchAvailableComponents();
   },
-  setup() {
-    return { close };
-  },
 });
 </script>
 
 <style scoped>
-/* General styling for a better UI look */
-.step-indicator {
-  display: flex;
-  justify-content: space-between;
-  margin: 20px;
-  font-weight: bold;
-}
-
-.active-step {
-  color: var(--ion-color-primary);
-  font-weight: bold;
-}
-
 .component-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 16px;
 }
-
 .component-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-
 .component-content {
   display: contents;
   width: 100%;
@@ -293,21 +270,5 @@ export default defineComponent({
   display: flex;
   align-items: center;
   height: 100%;
-}
-
-h2 {
-  text-align: center;
-  margin-bottom: 16px;
-}
-
-ion-card {
-  width: 100%;
-}
-
-.component-item {
-  display: flex;
-  flex-wrap: wrap;
-  flex-direction: column;
-  --min-height: auto;
 }
 </style>
