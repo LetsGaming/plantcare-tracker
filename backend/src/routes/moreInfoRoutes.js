@@ -5,6 +5,6 @@ const { authenticateToken } = require("../middlewares/authMiddleware");
 const router = express.Router();
 
 // Route to get more information about a plant
-router.post("/", authenticateToken, getMoreInfo);
+router.post("/", getMoreInfo);
 
 module.exports = router;
