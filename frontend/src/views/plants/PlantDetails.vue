@@ -22,6 +22,7 @@
             :substrate="plant.substrate"
           ></substrate-container>
           <watering-records :plantId="plant.id"></watering-records>
+          <more-info :plantName="plant.name"></more-info>
         </section>
       </div>
       <PlantEditingModal
@@ -64,6 +65,7 @@ import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
+import MoreInfo from "@/components/plants/MoreInfo.vue";
 import PlantEditingModal from "../../components/plants/PlantEditingModal.vue";
 import ImageUploadModal from "@/components/ImageUploadModal.vue";
 
@@ -88,6 +90,7 @@ export default defineComponent({
     HorizontalGallery,
     SubstrateContainer,
     WateringRecords,
+    MoreInfo,
     ImageUploadModal,
     PlantEditingModal,
   },

@@ -20,7 +20,9 @@ const getEndpoint = (isPublic: boolean) =>
 
 // Helper function to retrieve cached data by key
 async function getCachedPlants(cacheKey: string) {
-  return await storageService.get<{ plants: Plant[]; timestamp: number }>(cacheKey);
+  return await storageService.get<{ plants: Plant[]; timestamp: number }>(
+    cacheKey
+  );
 }
 
 // Helper function to cache plants data
@@ -52,15 +54,15 @@ export default class PlantService {
     isPublic: boolean,
     forceUpdate: boolean = false
   ): Promise<Plant[]> {
+    if (forceUpdate) {
+      return await fetchAndCachePlants(isPublic);
+    }
+
     const cacheKey = getCacheKey(isPublic);
     const cachedData = await getCachedPlants(cacheKey);
 
     // Return cached data if it's still valid and not forcing update
-    if (
-      !forceUpdate &&
-      cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp)
-    ) {
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       return cachedData.plants;
     }
 

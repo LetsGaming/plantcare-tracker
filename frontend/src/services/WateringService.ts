@@ -71,17 +71,19 @@ export default class WateringService {
     plantId: number,
     forceUpdate: boolean = false
   ): Promise<WateringRecord[]> {
-    const cachedData = await getCachedWateringRecords();
-
-    if (
-      !forceUpdate &&
-      cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp)
-    ) {
-      return cachedData.recordsByPlant[plantId] || [];
+    if (forceUpdate) {
+      return fetchAndCacheWateringRecords(plantId);
     }
 
-    return await fetchAndCacheWateringRecords(plantId);
+    const cachedData = await getCachedWateringRecords();
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
+      return (
+        cachedData.recordsByPlant[plantId] ??
+        (await fetchAndCacheWateringRecords(plantId))
+      );
+    }
+
+    return fetchAndCacheWateringRecords(plantId);
   }
 
   // Fetch a specific watering record by ID
