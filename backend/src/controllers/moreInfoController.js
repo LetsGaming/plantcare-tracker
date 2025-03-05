@@ -147,9 +147,11 @@ const getMoreInfo = async (req, res) => {
   const { plantName } = req.body;
   if (!plantName)
     return res.status(400).json({ message: "plantName is required." });
+  let cleanedName = plantName.replace(/[^a-zA-Z0-9 ]/g, ""); // Remove special characters
+  cleanedName = plantName.replace(/\s*\([^)]*\)/g, ""); // Remove anything in parentheses
 
   try {
-    successResponse(res, { links: await generateLinks(plantName) });
+    successResponse(res, { links: await generateLinks(cleanedName) });
   } catch (error) {
     console.error("Error generating links:", error);
     errorResponse(res, "An error occurred while generating links.", 500, error);
