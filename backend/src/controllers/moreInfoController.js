@@ -151,9 +151,4 @@ const getMoreInfo = async (req, res) => {
   }
 };
 
-(async () => {
-  const links = await generateLinks("Alocasia Black Velvet");
-  console.log(links);
-})();
-
 module.exports = { getMoreInfo };
