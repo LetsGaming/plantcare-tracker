@@ -16,6 +16,7 @@ const substrateRoutes = require("./src/routes/substrateRoutes");
 const componentRouter = require("./src/routes/componentRoutes");
 const wateringRoutes = require("./src/routes/wateringRoutes");
 const imageRoutes = require("./src/routes/imageRoutes");
+const moreInfoRoutes = require("./src/routes/moreInfoRoutes");
 const imageProxy = require("./src/routes/proxyRoutes");
 const logger = require("./src/utils/logger");
 
@@ -103,6 +104,7 @@ function setupRoutes(app) {
   app.use(`${baseRoute}/components`, componentRouter);
   app.use(`${baseRoute}/watering`, wateringRoutes);
   app.use(`${baseRoute}/images`, imageRoutes);
+  app.use(`${baseRoute}/more-info`, moreInfoRoutes);
 }
 
 /**

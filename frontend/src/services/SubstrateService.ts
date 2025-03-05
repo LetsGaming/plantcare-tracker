@@ -7,7 +7,6 @@ import Utils from "@/utils/utils";
 const BASE_ENDPOINT = "/substrates";
 const CACHE_KEY_PUBLIC_SUBSTRATES = "public_substrates_data";
 const CACHE_KEY_PRIVATE_SUBSTRATES = "private_substrates_data";
-const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Helper function to get cache key based on substrate type
 const getCacheKey = (isPublic: boolean) =>
@@ -58,14 +57,14 @@ export default class SubstrateService {
     isPublic: boolean,
     forceUpdate: boolean = false
   ): Promise<any[]> {
+    if (forceUpdate) {
+      return await fetchAndCacheSubstrates(isPublic);
+    }
+
     const cacheKey = getCacheKey(isPublic);
     const cachedData = await getCachedSubstrates(cacheKey);
 
-    if (
-      !forceUpdate &&
-      cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp)
-    ) {
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       return cachedData.substrates;
     }
 

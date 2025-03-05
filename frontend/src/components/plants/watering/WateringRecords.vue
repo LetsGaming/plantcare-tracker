@@ -2,7 +2,7 @@
   <ion-card>
     <ion-card-header>
       <ion-toolbar>
-        <ion-title>Watering Records</ion-title>
+        <ion-title>Wässerungen</ion-title>
         <template v-if="!isGuest">
           <ion-icon
             :icon="addCircle"
@@ -12,7 +12,7 @@
         </template>
       </ion-toolbar>
     </ion-card-header>
-    <section class="watering-records">
+    <section class="watering-records" v-if="mappedRecords.length > 0">
       <ion-card-content>
         <CustomAccordion :items="mappedRecords" />
       </ion-card-content>

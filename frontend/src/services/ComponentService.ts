@@ -46,10 +46,14 @@ const ComponentService = {
    * @returns {Promise<any[]>} - A promise that resolves to an array of components.
    */
   async getComponents(forceUpdate: boolean = false): Promise<any[]> {
+    if(forceUpdate) {
+      return await fetchAndCacheComponents();
+    }
+
     // Try to get the cached data
     const cachedData = await getCachedComponents();
 
-    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       return cachedData.components;
     }
 
@@ -65,7 +69,7 @@ const ComponentService = {
   async getComponentById(id: number, forceUpdate: boolean = false): Promise<any> {
     const cachedData = await getCachedComponents();
 
-    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
+    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
       const component = cachedData.components.find((c) => c.id === id);
       if (component) {
         return component; // Return the cached component if found

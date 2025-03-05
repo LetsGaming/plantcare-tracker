@@ -1,20 +1,26 @@
 <template>
-  <div class="search-bar">
-    <input
-      v-model="searchQuery"
+  <ion-item class="search-bar" lines="none">
+    <ion-input
       class="search-input"
-      type="text"
+      v-model="searchQuery"
       :placeholder="placeholder"
-      @input="emitSearch"
-    />
-  </div>
+      @ionInput="emitSearch"
+      clear-input
+    ></ion-input>
+  </ion-item>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { IonItem, IonInput, IonIcon } from "@ionic/vue";
 
 export default defineComponent({
   name: "SearchBar",
+  components: {
+    IonItem,
+    IonInput,
+    IonIcon,
+  },
   props: {
     placeholder: {
       type: String,
@@ -31,6 +37,10 @@ export default defineComponent({
       // Emit the current search query to the parent component
       this.$emit("search", this.searchQuery);
     },
+    clearSearch() {
+      this.searchQuery = "";
+      this.emitSearch();
+    },
   },
 });
 </script>
@@ -45,7 +55,12 @@ export default defineComponent({
   padding: 10px;
   font-size: 1rem;
   border-radius: 8px;
-  border: 1px solid var(--ion-color-light);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.clear-icon {
+  cursor: pointer;
+  font-size: 1.5rem;
+  margin-left: 8px;
 }
 </style>

@@ -169,6 +169,10 @@ export default defineComponent({
   font-weight: 500;
   color: var(--detail-text-color);
   font-size: 1.2rem;
+  -webkit-padding-start: 20px;
+  padding-inline-start: 20px;
+  -webkit-padding-end: 20px;
+  padding-inline-end: 20px;
 }
 .component-header {
   background: var(--header-background-color);
