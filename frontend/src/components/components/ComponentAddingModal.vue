@@ -1,5 +1,5 @@
 <template>
-  <BaseModal
+  <BaseAddingModal
     :isOpen="isOpen"
     modalTitle="Komponente hinzufügen"
     formTitle="Komponenten Informationen"
@@ -13,13 +13,13 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import BaseModal from "@/components/modal/BaseAddingModal.vue";
+import BaseAddingModal from "@/components/modal/BaseAddingModal.vue";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "ComponentAddingModal",
-  components: { BaseModal },
+  components: { BaseAddingModal },
   props: { isOpen: { type: Boolean, required: true } },
   emits: ["close", "added"],
   data() {
@@ -49,6 +49,7 @@ export default defineComponent({
         if (componentData.image) {
           await this.uploadImage(response.id, componentData.image);
         }
+        this.clearComponentData();
         this.$emit("added");
       } catch (error) {
         ToastService.showError("Fehler beim Hinzufügen der Komponente");
@@ -60,6 +61,9 @@ export default defineComponent({
       } catch (error) {
         ToastService.showError("Fehler beim Hochladen des Bildes");
       }
+    },
+    clearComponentData() {
+      this.component = { name: "", fineness: "", image: undefined };
     },
   },
 });

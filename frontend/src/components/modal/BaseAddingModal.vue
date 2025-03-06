@@ -22,7 +22,7 @@ import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/FormComponent.vue";
 
 export default defineComponent({
-  name: "BaseModal",
+  name: "BaseAddingModal",
   components: {
     IonModal,
     IonContent,

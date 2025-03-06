@@ -1,5 +1,5 @@
 <template>
-  <ion-item class="search-bar" lines="none">
+  <div class="search-bar" lines="none">
     <ion-input
       class="search-input"
       v-model="searchQuery"
@@ -7,7 +7,7 @@
       @ionInput="emitSearch"
       clear-input
     ></ion-input>
-  </ion-item>
+  </div>
 </template>
 
 <script lang="ts">
@@ -47,15 +47,15 @@ export default defineComponent({
 
 <style scoped>
 .search-bar {
-  padding: 10px 0;
+  padding: 12px 16px; /* Added padding for better look */
+  border-radius: 20px; /* Increased border-radius for more rounded edges */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Stronger shadow for better visibility */
+  border: 1px solid rgba(0, 0, 0, 0.1); /* Optional light border for additional contrast */
 }
 
 .search-input {
   width: 100%;
-  padding: 10px;
   font-size: 1rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .clear-icon {

@@ -1,5 +1,5 @@
 <template>
-  <BaseModal
+  <BaseAddingModal
     :isOpen="isOpen"
     modalTitle="Pflanze hinzufügen"
     formTitle="Pflanzen Informationen"
@@ -15,7 +15,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import BaseModal from "@/components/modal/BaseAddingModal.vue";
+import BaseAddingModal from "@/components/modal/BaseAddingModal.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import PlantService from "@/services/PlantService";
 import ToastService from "@/services/general/ToastService";
@@ -23,7 +23,7 @@ import SubstrateService from "@/services/SubstrateService";
 
 export default defineComponent({
   name: "PlantAddingModal",
-  components: { BaseModal },
+  components: { BaseAddingModal },
   props: { isOpen: { type: Boolean, required: true } },
   emits: ["close", "added"],
   data() {
@@ -102,6 +102,7 @@ export default defineComponent({
         if (plantData.image) {
           await this.upladImage(response.plantId, plantData.image);
         }
+        this.clearPlantData();
         this.$emit("added");
       } catch (error) {
         ToastService.showError("Fehler beim Hinzufügen der Pflanze");
@@ -116,6 +117,15 @@ export default defineComponent({
       } catch (error) {
         ToastService.showError("Fehler beim Hochladen des Bildes");
       }
+    },
+    clearPlantData() {
+      this.plant = {
+        name: "",
+        species: "",
+        substrateId: 0,
+        isPublic: false,
+        image: undefined,
+      };
     },
   },
 });
