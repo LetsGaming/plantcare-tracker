@@ -75,6 +75,7 @@ export default defineComponent({
             { value: true, label: "Öffentlich" },
             { value: false, label: "Privat" },
           ],
+          defaultValue: Boolean(this.plant.isPublic),
         },
         { type: "file", modelKey: "image", label: "Bild hochladen" },
       ] as FormField[];
@@ -88,15 +89,26 @@ export default defineComponent({
   methods: {
     async fetchSubstrates() {
       try {
-        const response = await SubstrateService.getSubstrates(
-          this.plant.isPublic || false
-        );
+        const response = await SubstrateService.getAllSubstrates();
         this.substrates = response;
       } catch (error) {
         console.error("Error fetching substrates:", error);
       }
     },
     async addPlant(plantData: AddPlant) {
+      // Validate required parameters.
+      // Assuming a substrateId of 0 means nothing is selected.
+      if (
+        !plantData.name.trim() ||
+        !plantData.species.trim() ||
+        plantData.substrateId === 0
+      ) {
+        ToastService.showError(
+          "Bitte füllen Sie alle erforderlichen Felder aus."
+        );
+        return;
+      }
+
       try {
         const response = await PlantService.addPlant(plantData);
         if (!response) return;

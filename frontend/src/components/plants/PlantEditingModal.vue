@@ -17,7 +17,10 @@
             modelKey: 'substrateId',
             label: 'Substrat',
             placeholder: 'Substrat auswählen',
-            options: substrates.map(substrate => ({ value: substrate.id, label: substrate.name })),
+            options: substrates.map((substrate) => ({
+              value: substrate.id,
+              label: substrate.name,
+            })),
           },
           {
             type: 'radio',
@@ -27,6 +30,7 @@
               { value: true, label: 'Öffentlich' },
               { value: false, label: 'Privat' },
             ],
+            defaultValue: Boolean(plant.isPublic),
           },
         ]"
         cardTitle="Planzen Informationen"
@@ -42,10 +46,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import {
-  IonModal,
-  IonContent,
-} from "@ionic/vue";
+import { IonModal, IonContent } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
@@ -109,9 +110,7 @@ export default defineComponent({
   methods: {
     async fetchSubstrates() {
       try {
-        const response = await SubstrateService.getSubstrates(
-          this.plant.isPublic || false
-        );
+        const response = await SubstrateService.getAllSubstrates();
 
         this.substrates = response;
       } catch (error) {

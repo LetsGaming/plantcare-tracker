@@ -44,6 +44,10 @@ export default defineComponent({
   methods: {
     async addComponent(componentData: AddComponent) {
       try {
+        if (!componentData.name || !componentData.fineness) {
+          ToastService.showError("Bitte füllen Sie alle erforderlichen Felder aus.");
+          return;
+        }
         const response = await ComponentService.addComponent(componentData);
         if (!response) return;
         if (componentData.image) {

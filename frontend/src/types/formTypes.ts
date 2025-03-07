@@ -17,6 +17,7 @@ interface SelectField extends FormFieldBase {
 interface RadioField extends FormFieldBase {
   type: "radio";
   options: Array<{ value: string | boolean | number; label: string }>;
+  defaultValue?: string | boolean | number;
 }
 
 interface SwitchField extends FormFieldBase {
