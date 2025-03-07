@@ -21,6 +21,7 @@
               { value: true, label: 'Öffentlich' },
               { value: false, label: 'Privat' },
             ],
+            defaultValue: Boolean(substrate.isPublic),
           },
           {
             type: 'file',

@@ -49,6 +49,28 @@ async function fetchAndCacheSubstrates(isPublic: boolean): Promise<any[]> {
 
 export default class SubstrateService {
   /**
+   * Fetches all substrates from both public and private endpoints.
+   */
+  static async getAllSubstrates(): Promise<any[]> {
+    const privateSubstrates = await this.getSubstrates(false);
+    const publicSubstrates = await this.getSubstrates(true);
+
+    const uniqueSubstrates = new Map();
+
+    for (const substrate of privateSubstrates) {
+      uniqueSubstrates.set(substrate.id, substrate);
+    }
+
+    for (const substrate of publicSubstrates) {
+      if (!uniqueSubstrates.has(substrate.id)) {
+        uniqueSubstrates.set(substrate.id, substrate);
+      }
+    }
+
+    return Array.from(uniqueSubstrates.values());
+  }
+
+  /**
    * Fetches all substrates with caching.
    * @param isPublic Determines whether to use the public or private endpoint.
    * @param forceUpdate If true, forces a fresh fetch from the API.

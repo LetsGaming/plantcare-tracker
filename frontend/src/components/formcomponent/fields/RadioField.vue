@@ -3,7 +3,7 @@
     <IonItem>
       <IonLabel>{{ field.label }}</IonLabel>
 
-      <IonRadioGroup v-model="localValue">
+      <IonRadioGroup v-model="field.defaultValue">
         <IonItem v-for="(option, index) in field.options" :key="index">
           <IonRadio :value="option.value">
             {{ option.label }}
@@ -28,20 +28,6 @@ export default defineComponent({
     field: {
       type: Object as () => RadioField,
       required: true,
-    },
-    modelValue: {
-      type: [String, Number, Boolean],
-      default: "",
-    },
-  },
-  computed: {
-    localValue: {
-      get() {
-        return this.modelValue;
-      },
-      set(val: string | number | boolean) {
-        this.$emit("update:modelValue", val);
-      },
     },
   },
 });
