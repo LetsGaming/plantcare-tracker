@@ -21,19 +21,15 @@
             modelKey: 'date',
           },
           {
-            label: 'Dünger verwendet',
-            type: 'switch',
-            modelKey: 'usedFertilizer',
-          },
-          {
             type: 'radio',
             modelKey: 'fertilizerType',
             label: 'Düngertyp',
             options: [
               { value: 'organic', label: 'Organisch' },
               { value: 'synthetic', label: 'Mineralisch' },
+              { value: 'none', label: 'Kein Dünger' },
             ],
-          }
+          },
         ]"
         @submit-click="$emit('add-record', record)"
       ></form-component>
@@ -54,7 +50,7 @@ import {
   IonContent,
 } from "@ionic/vue";
 import { close } from "ionicons/icons";
-import FormComponent from "@/components/FormComponent.vue";
+import FormComponent from "@/components/formcomponent/FormComponent.vue";
 
 export default defineComponent({
   name: "WateringRecordsAdding",
@@ -90,7 +86,17 @@ export default defineComponent({
       } as AddWateringRecord,
     };
   },
-  methods: {
+  watch: {
+    "record.fertilizerType"(newVal) {
+      // If a fertilizer type is selected (and it's not "none"), mark as used
+      if (newVal && newVal !== "none") {
+        this.record.usedFertilizer = true;
+      } else {
+        // Otherwise, indicate that no fertilizer is used
+        this.record.usedFertilizer = false;
+        this.record.fertilizerType = null;
+      }
+    },
   },
 });
 </script>

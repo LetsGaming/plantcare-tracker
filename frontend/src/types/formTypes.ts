@@ -1,11 +1,11 @@
 interface FormFieldBase {
   modelKey: string;
   label: string;
+  required?: boolean;
 }
 
 interface InputField extends FormFieldBase {
   type: "input";
-  required?: boolean;
 }
 
 interface SelectField extends FormFieldBase {

@@ -15,7 +15,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import BaseAddingModal from "@/components/modal/BaseAddingModal.vue";
+import BaseAddingModal from "@/components/modal/BaseModal.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import PlantService from "@/services/PlantService";
 import ToastService from "@/services/general/ToastService";
@@ -65,6 +65,7 @@ export default defineComponent({
             value: substrate.id,
             label: substrate.name,
           })),
+          required: true,
         },
         {
           type: "radio",

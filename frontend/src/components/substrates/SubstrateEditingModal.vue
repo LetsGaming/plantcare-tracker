@@ -36,59 +36,22 @@
 
       <!-- Step 2: Edit Components -->
       <div class="component-container-wrapper" v-if="step === 2">
-        <ion-card class="component-container align-middle">
-          <ion-card-header style="max-width: 100%">
-            <ion-title>Komponenten für das Substrat bearbeiten</ion-title>
-            <SearchBar
-              placeholder="Komponenten suchen..."
-              @search="filterComponents"
-            />
-          </ion-card-header>
-
-          <ion-card-content style="max-width: 100%">
-            <div class="component-list">
-              <ion-row>
-                <ion-col
-                  v-for="component in filteredComponents"
-                  :key="component.id"
-                  class="component-item"
-                  size="2"
-                  size-xs="6"
-                >
-                  <div class="component-content">
-                    <ion-label>
-                      <h3>{{ component.name }}</h3>
-                      <p>Feinheit: {{ component.fineness }}</p>
-                    </ion-label>
-                    <div class="component-selection">
-                      <IonCheckbox
-                        :checked="selectedComponentIds.includes(component.id)"
-                        @ionChange="toggleSelectedComponent(component.id)"
-                      />
-                      <IonInput
-                        v-show="selectedComponentIds.includes(component.id)"
-                        v-model="componentParts[component.id]"
-                        type="number"
-                        placeholder="Teile"
-                        min="0.1"
-                      />
-                    </div>
-                  </div>
-                </ion-col>
-              </ion-row>
-            </div>
-
-            <!-- Action Buttons -->
-          </ion-card-content>
-        </ion-card>
-        <div class="action-buttons">
-          <IonButton expand="block" color="medium" @click="goToStepOne">
-            Zurück
-          </IonButton>
-          <IonButton expand="block" color="primary" @click="editSubstrate">
-            Substrat speichern
-          </IonButton>
-        </div>
+        <ComponentSelection
+          title="Komponenten für das Substrat bearbeiten"
+          :components="availableComponents"
+          :selectedComponentIds="selectedComponentIds"
+          :componentParts="componentParts"
+          @toggle-component="toggleSelectedComponent"
+        />
+      </div>
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <IonButton expand="full" color="medium" @click="goToStepOne">
+          Zurück
+        </IonButton>
+        <IonButton expand="full" color="primary" @click="editSubstrate">
+          Substrat speichern
+        </IonButton>
       </div>
     </IonContent>
   </IonModal>
@@ -115,8 +78,8 @@ import {
   IonIcon,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/FormComponent.vue";
-import SearchBar from "@/components/SearchBar.vue";
+import FormComponent from "@/components/formcomponent/FormComponent.vue";
+import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
@@ -143,7 +106,7 @@ export default defineComponent({
     IonIcon,
     ModalHeader,
     FormComponent,
-    SearchBar,
+    ComponentSelection,
   },
   props: {
     isOpen: {
@@ -193,9 +156,9 @@ export default defineComponent({
     async fetchAvailableComponents() {
       try {
         const response = await ComponentService.getComponents();
-        this.availableComponents = response;
+
         // Initialize the filtered list with the full list of components
-        this.filteredComponents = [...this.availableComponents].sort((a, b) =>
+        this.availableComponents = [...response].sort((a, b) =>
           a.name.localeCompare(b.name)
         );
       } catch (error) {
@@ -213,19 +176,10 @@ export default defineComponent({
       const index = this.selectedComponentIds.indexOf(id);
       if (index > -1) {
         this.selectedComponentIds.splice(index, 1);
+        delete this.componentParts[id]; // Clear input value when deselected
       } else {
         this.selectedComponentIds.push(id);
       }
-    },
-    // New filtering method using the search query
-    filterComponents(query: string) {
-      const lowerQuery = query.toLowerCase();
-      const filtered = this.availableComponents.filter((component) =>
-        component.name.toLowerCase().includes(lowerQuery)
-      );
-      this.filteredComponents = filtered.sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
     },
     async editSubstrate() {
       if (this.selectedComponentIds.length === 0) {
@@ -291,7 +245,6 @@ export default defineComponent({
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 100%;
 }
 
 .component-list {
@@ -322,5 +275,10 @@ ion-label p {
   justify-content: space-between;
   margin-top: 20px;
   gap: 10px;
+  padding-right: 20px;
+  padding-left: 20px;
+}
+.action-buttons ion-button {
+  width: 100%;
 }
 </style>

@@ -13,7 +13,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import BaseAddingModal from "@/components/modal/BaseAddingModal.vue";
+import BaseAddingModal from "@/components/modal/BaseModal.vue";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
 

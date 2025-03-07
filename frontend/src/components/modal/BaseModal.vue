@@ -10,6 +10,7 @@
         :extra-content-component="extraContentComponent"
         :extra-content-data="extraContentData"
         @submitClick="submitHandler"
+        @deleteClick="deleteHandler"
       />
     </IonContent>
   </IonModal>
@@ -19,10 +20,10 @@
 import { defineComponent, PropType } from "vue";
 import { IonModal, IonContent } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/FormComponent.vue";
+import FormComponent from "@/components/formcomponent/FormComponent.vue";
 
 export default defineComponent({
-  name: "BaseAddingModal",
+  name: "BaseModal",
   components: {
     IonModal,
     IonContent,
@@ -38,6 +39,7 @@ export default defineComponent({
     formFields: { type: Array as PropType<FormField[]>, required: true },
     extraContentComponent: { type: Object as PropType<any> },
     extraContentData: { type: Object as PropType<Record<string, any>> },
+    deleteHandler: { type: Function as PropType<() => void> },
   },
   emits: ["close", "submit"],
   methods: {
