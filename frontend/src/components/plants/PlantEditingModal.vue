@@ -47,7 +47,7 @@ import {
   IonContent,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/FormComponent.vue";
+import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 import PlantService from "@/services/PlantService";

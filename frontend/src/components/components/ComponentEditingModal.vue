@@ -1,32 +1,28 @@
 <template>
-  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader headerTitle="Komponente bearbeiten" @close="$emit('close')" />
-    <IonContent>
-      <form-component
-        :item="editComponentData"
-        :formFields="[
-          { type: 'input', modelKey: 'name', label: 'Name', required: false },
-          {
-            type: 'input',
-            modelKey: 'fineness',
-            label: 'Feinheit',
-            required: false,
-          },
-        ]"
-        cardTitle="Komponenten Informationen"
-        submitLabel="Komponente editieren"
-        @submitClick="editComponent"
-        @delete-click="deleteComponent"
-      />
-    </IonContent>
-  </IonModal>
+  <base-modal
+    :is-open="isOpen"
+    modal-title="Komponente bearbeiten"
+    :form-data="editComponentData"
+    :form-fields="[
+      { type: 'input', modelKey: 'name', label: 'Name', required: false },
+      {
+        type: 'input',
+        modelKey: 'fineness',
+        label: 'Feinheit',
+        required: false,
+      },
+    ]"
+    form-title="Komponenten Informationen"
+    submit-label="Komponente editieren"
+    @submit="editComponent"
+    @close="$emit('close')"
+    @delete-handler="deleteComponent"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { IonModal, IonContent } from "@ionic/vue";
-import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/FormComponent.vue";
+import BaseModal from "../modal/BaseModal.vue";
 
 import ComponentService from "@/services/ComponentService";
 
@@ -34,10 +30,7 @@ export default defineComponent({
   name: "ComponentEditingModal",
   emits: ["close", "edited"],
   components: {
-    IonModal,
-    IonContent,
-    ModalHeader,
-    FormComponent,
+    BaseModal,
   },
   props: {
     isOpen: {

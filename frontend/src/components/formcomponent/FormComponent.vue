@@ -15,57 +15,36 @@
       <IonCardContent v-if="item">
         <!-- Dynamic Form Fields -->
         <div v-for="field in formFields" :key="field.modelKey">
-          <IonItem v-if="field.type === 'input'">
-            <IonInput
-              v-model="item[field.modelKey]"
-              :label="field.label"
-              label-placement="floating"
-              :required="field.required"
-            />
-          </IonItem>
-          <IonItem v-else-if="field.type === 'select'">
-            <IonSelect
-              v-model="item[field.modelKey]"
-              :label="field.label"
-              :placeholder="field.placeholder"
-            >
-              <IonSelectOption
-                v-for="option in field.options"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </IonSelectOption>
-            </IonSelect>
-          </IonItem>
-          <IonItem v-else-if="field.type === 'radio'">
-            <IonLabel>{{ field.label }}</IonLabel>
-            <IonRadioGroup v-model="item[field.modelKey]" style="width: 100%;">
-              <IonItem v-for="(option, index) in field.options" :key="index">
-                <IonRadio :value="option.value">
-                  {{ option.label }}
-                </IonRadio>
-              </IonItem>
-            </IonRadioGroup>
-          </IonItem>
-          <IonItem v-else-if="field.type === 'date'">
-            <IonLabel>{{ field.label }}</IonLabel>
-            <input type="datetime-local" v-model="item[field.modelKey]" />
-          </IonItem>
-          <IonItem v-else-if="field.type === 'switch'">
-            <IonLabel>{{ field.label }}</IonLabel>
-            <IonToggle v-model="item[field.modelKey]" />
-          </IonItem>
-          <IonItem v-else-if="field.type === 'file'">
-            <IonLabel>{{ field.label }}</IonLabel>
-            <input
-              type="file"
-              accept="image/*"
-              @change="onFileChange"
-              ref="fileInput"
-              class="file-input"
-            />
-          </IonItem>
+          <InputField
+            v-if="field.type === 'input'"
+            :field="field"
+            v-model="item[field.modelKey]"
+          />
+          <SelectField
+            v-else-if="field.type === 'select'"
+            :field="field"
+            v-model="item[field.modelKey]"
+          />
+          <RadioField
+            v-else-if="field.type === 'radio'"
+            :field="field"
+            v-model="item[field.modelKey]"
+          />
+          <DateField
+            v-else-if="field.type === 'date'"
+            :field="field"
+            v-model="item[field.modelKey]"
+          />
+          <SwitchField
+            v-else-if="field.type === 'switch'"
+            :field="field"
+            v-model="item[field.modelKey]"
+          />
+          <UploadField
+            v-else-if="field.type === 'file'"
+            :field="field"
+            v-model="item[field.modelKey]"
+          />
         </div>
 
         <!-- Submit Button -->
@@ -98,17 +77,18 @@
       <div class="modal-card-container">
         <IonCard>
           <IonCardHeader>
-            <IonCardTitle
-              >Sind Sie sicher, dass Sie
+            <IonCardTitle>
+              Sind Sie sicher, dass Sie
               <span
                 style="
                   color: var(--ion-color-primary-tint);
                   white-space: nowrap;
                 "
-                >{{ item.name }}</span
               >
-              löschen wollen?</IonCardTitle
-            >
+                {{ item.name }}
+              </span>
+              löschen wollen?
+            </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
             <IonRow>
@@ -138,17 +118,9 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
-  IonItem,
-  IonInput,
-  IonSelect,
-  IonSelectOption,
-  IonLabel,
-  IonRadioGroup,
-  IonRadio,
   IonButton,
   IonToolbar,
   IonHeader,
-  IonToggle,
   IonIcon,
   IonModal,
   IonRow,
@@ -159,6 +131,13 @@ import {
 
 import { closeOutline, trashBin } from "ionicons/icons";
 
+import InputField from "@/components/formcomponent/fields/InputField.vue";
+import SelectField from "@/components/formcomponent/fields/SelectField.vue";
+import RadioField from "@/components/formcomponent/fields/RadioField.vue";
+import SwitchField from "@/components/formcomponent/fields/SwitchField.vue";
+import DateField from "@/components/formcomponent/fields/DateField.vue";
+import UploadField from "@/components/formcomponent/fields/UploadField.vue";
+
 export default defineComponent({
   name: "FormComponent",
   components: {
@@ -166,23 +145,21 @@ export default defineComponent({
     IonCardHeader,
     IonCardTitle,
     IonCardContent,
-    IonItem,
-    IonInput,
-    IonSelect,
-    IonSelectOption,
-    IonLabel,
-    IonRadioGroup,
-    IonRadio,
     IonButton,
     IonToolbar,
     IonHeader,
-    IonToggle,
     IonIcon,
     IonModal,
     IonRow,
     IonContent,
     IonButtons,
     IonTitle,
+    InputField,
+    SelectField,
+    RadioField,
+    SwitchField,
+    DateField,
+    UploadField,
   },
   props: {
     item: {

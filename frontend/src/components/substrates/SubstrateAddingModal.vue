@@ -34,56 +34,26 @@
       />
 
       <!-- Step 2: SubstrateComponent Selection -->
-      <ion-card v-if="step === 2" class="component-container align-middle">
-        <h2>Wähle Komponenten für das Substrat</h2>
 
-        <!-- Updated Search Bar Integration -->
-        <SearchBar
-          placeholder="Komponenten suchen..."
-          @search="filterComponents"
-        />
+      <!-- Filtered and Sorted SubstrateComponent List -->
+      <div class="component-list" v-if="step === 2">
+        <component-selection
+          title="Wähle Komponenten für das Substrat"
+          :components="availableComponents"
+          :selected-component-ids="selectedComponentIds"
+          :component-parts="componentParts"
+          @toggle-component="toggleSelectedComponent"
+        ></component-selection>
+      </div>
 
-        <!-- Filtered and Sorted SubstrateComponent List -->
-        <div class="component-list align-middle">
-          <ion-item
-            v-for="component in filteredComponents"
-            :key="component.id"
-            class="component-item"
-          >
-            <div class="component-content">
-              <ion-row style="width: 100%">
-                <ion-col>
-                  <div class="component-selection-title">
-                    <ion-text>
-                      {{ component.name }} ({{ component.fineness }})
-                    </ion-text>
-                  </div>
-                </ion-col>
-                <ion-col>
-                  <div class="component-selection">
-                    <IonCheckbox
-                      :value="component.id"
-                      @ionChange="toggleSelectedComponent(component.id)"
-                    />
-                    <IonInput
-                      v-if="selectedComponentIds.includes(component.id)"
-                      v-model="componentParts[component.id]"
-                      type="number"
-                      placeholder="Teile"
-                      min="1"
-                      style="text-align: left; margin-left: 5%"
-                    />
-                  </div>
-                </ion-col>
-              </ion-row>
-            </div>
-          </ion-item>
-        </div>
-
-        <IonButton expand="block" @click="addSubstrate">
-          Substrat hinzufügen
+      <div class="action-buttons">
+        <IonButton expand="full" color="medium" @click="goToStepOne">
+          Zurück
         </IonButton>
-      </ion-card>
+        <IonButton expand="full" color="primary" @click="addSubstrate">
+          Substrat speichern
+        </IonButton>
+      </div>
     </IonContent>
   </IonModal>
 </template>
@@ -103,8 +73,8 @@ import {
   IonText,
 } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/FormComponent.vue";
-import SearchBar from "@/components/SearchBar.vue";
+import FormComponent from "@/components/formcomponent/FormComponent.vue";
+import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import ComponentService from "@/services/ComponentService";
@@ -125,7 +95,7 @@ export default defineComponent({
     IonText,
     ModalHeader,
     FormComponent,
-    SearchBar,
+    ComponentSelection,
   },
   props: {
     isOpen: {
@@ -142,7 +112,6 @@ export default defineComponent({
         isPublic: false,
       },
       availableComponents: [] as SubstrateComponent[],
-      filteredComponents: [] as SubstrateComponent[],
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
     };
@@ -158,13 +127,18 @@ export default defineComponent({
     async fetchAvailableComponents() {
       try {
         const response = await ComponentService.getComponents();
-        this.availableComponents = response;
-        // Initialize the filtered list with the sorted components
-        this.filteredComponents = this.sortedComponents;
+
+        // Initialize the filtered list with the full list of components
+        this.availableComponents = [...response].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
       } catch (error) {
         console.error("Error fetching components:", error);
         ToastService.showError("Fehler beim Laden der Komponenten");
       }
+    },
+    goToStepOne() {
+      this.step = 1;
     },
     goToStepTwo() {
       if (!this.substrate.name) {
@@ -180,13 +154,6 @@ export default defineComponent({
       } else {
         this.selectedComponentIds.push(id);
       }
-    },
-    // New filtering method that uses the emitted search query
-    filterComponents(query: string) {
-      const lowerQuery = query.toLowerCase();
-      this.filteredComponents = this.sortedComponents.filter((component) =>
-        component.name.toLowerCase().includes(lowerQuery)
-      );
     },
     async addSubstrate() {
       if (this.selectedComponentIds.length === 0) {
@@ -270,5 +237,17 @@ export default defineComponent({
   display: flex;
   align-items: center;
   height: 100%;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+  gap: 10px;
+  padding-right: 20px;
+  padding-left: 20px;
+}
+.action-buttons ion-button {
+  width: 100%;
 }
 </style>
