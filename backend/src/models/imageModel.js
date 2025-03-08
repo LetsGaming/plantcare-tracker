@@ -39,8 +39,38 @@ const insertImage = (entityType, entityId, imageUrl, uploadDate) => {
   );
 };
 
+const updateImage = (id, fields) => {
+  const updates = [];
+  const params = [];
+
+  // Dynamically build the update query based on provided fields
+  if (fields.date) {
+    updates.push("upload_date = ?");
+    params.push(fields.date);
+  }
+  if (fields.filePath) {
+    updates.push("image_url = ?");
+    params.push(fields.filePath);
+  }
+
+  // If there are no fields to update, return early
+  if (updates.length === 0) {
+    throw new Error("No fields provided for update.");
+  }
+  // Add the ID to the parameters for the WHERE clause
+  params.push(id);
+
+  const query = `
+      UPDATE images 
+      SET ${updates.join(", ")}
+      WHERE id = ?
+    `;
+
+  return pool.query(query, params);
+};
+
 const deleteImage = (imageId) => {
   return pool.query("DELETE FROM images WHERE id = ?", [imageId]);
 };
 
-module.exports = { selectImages, insertImage, deleteImage };
+module.exports = { selectImages, insertImage, updateImage, deleteImage };

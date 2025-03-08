@@ -1,11 +1,12 @@
 // src/middlewares/errorHandler.js
 const logger = require("../utils/logger");
+const { errorResponse } = require("../utils/responseUtils");
 
 /**
  * Middleware for handling 404 (Not Found) errors.
  */
 const notFoundHandler = (req, res, next) => {
-  res.status(404).json({ error: { message: "Not Found" } });
+  return errorResponse(res, "Not Found", 404);
 };
 
 /**

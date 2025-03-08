@@ -26,7 +26,7 @@ interface APIPlant {
   plant_id: number;
   plant_name: string;
   plant_species: string;
-  is_public: boolean;
+  is_public: number;
   plant_created_at: string;
   image_url: string;
   substrate: any;

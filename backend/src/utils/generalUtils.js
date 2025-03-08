@@ -13,7 +13,12 @@ const customTimestamp = (date = new Date()) => {
 };
 
 const formatToDBDate = (date) => {
-  return new Date(date).toISOString().slice(0, 19).replace("T", " ");
+  const formattedDate = new Date(date)
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ");
+  console.log("formatted date", formattedDate);
+  return formattedDate;
 };
 
 const parseCustomDate = (dateString) => {
@@ -55,12 +60,18 @@ const parseCustomDate = (dateString) => {
           .slice(1)
           .map(Number);
       }
-
-      return new Date(year, month - 1, day, hours, minutes, seconds);
+      const isInvalidDate = isNaN(
+        new Date(year, month - 1, day, hours, minutes, seconds).getTime()
+      );
+      if (isInvalidDate) {
+        throw new Error("Invalid date");
+      }
+      const date = new Date(year, month - 1, day, hours, minutes, seconds);
+      console.log("parsed date", date);
+      return date;
     }
   }
 
-  throw new Error("Unsupported date format");
   throw new Error("Unsupported date format");
 };
 

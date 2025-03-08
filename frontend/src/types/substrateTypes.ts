@@ -33,7 +33,7 @@ interface EditSubstrate extends AddSubstrate {
 interface APISubstrate {
   substrate_id: number;
   substrate_name: string;
-  is_public: boolean;
+  is_public: number;
   image_url: string;
   components: any[];
 }

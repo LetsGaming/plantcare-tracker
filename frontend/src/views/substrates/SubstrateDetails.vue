@@ -53,7 +53,7 @@ import SubstrateService from "@/services/SubstrateService";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
-import ImageUploadModal from "@/components/modal/ImageUploadModal.vue";
+import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import SubstrateEditingModal from "@/components/substrates/SubstrateEditingModal.vue";
 
 export default defineComponent({

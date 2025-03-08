@@ -1,12 +1,16 @@
 <template>
   <div class="gallery-container">
     <div class="gallery" ref="gallery">
-      <div v-for="(image, index) in sortedImages" :key="index" class="gallery-item">
+      <div
+        v-for="(image, index) in sortedImages"
+        :key="index"
+        class="gallery-item"
+      >
         <ion-img
           :src="image.url"
           alt="Gallery image"
           class="gallery-image"
-          @click="enlargeImage(image.url, image.date)"
+          @click="enlargeImage(image)"
         />
         <div v-if="image.date" class="image-date">{{ image.date }}</div>
       </div>
@@ -14,10 +18,13 @@
 
     <!-- Use Ion Modal -->
     <ImageModal
+      v-if="enlargedImage"
       :isOpen="isModalVisible"
-      :imageUrl="enlargedImageUrl"
-      :label="enlargedImageLabel"
+      :imageUrl="enlargedImage.url"
+      :label="enlargedImage.date"
+      :showEditButton="showEditButton"
       @close="closeModal"
+      @editClick="editClick"
     />
   </div>
 </template>
@@ -25,10 +32,12 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonImg } from "@ionic/vue";
-import ImageModal from "./ImageModal.vue";
+import ImageModal from "../images/ImageModal.vue";
+import AuthUtils from "@/utils/authUtils";
 
 export default defineComponent({
   name: "HorizontalGallery",
+  emits: ["edit-click"],
   components: {
     IonImg,
     ImageModal,
@@ -38,12 +47,16 @@ export default defineComponent({
       type: Array as () => Image[],
       required: true,
     },
+    isPublic: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
-      enlargedImageUrl: "",
-      enlargedImageLabel: "",
+      enlargedImage: null as Image | null,
       isModalVisible: false,
+      showEditButton: false,
     };
   },
   computed: {
@@ -53,16 +66,24 @@ export default defineComponent({
       );
     },
   },
+  async mounted() {
+    await this.setShowEdit();
+  },
   methods: {
-    enlargeImage(url: string, label?: string) {
-      this.enlargedImageUrl = url;
+    async setShowEdit() {
+      this.showEditButton = !this.isPublic && !await AuthUtils.isGuest()
+    },
+    enlargeImage(image: Image) {
+      this.enlargedImage = image;
       this.isModalVisible = true;
-
-      if (label) this.enlargedImageLabel = label;
     },
     closeModal() {
       this.isModalVisible = false;
-      this.enlargedImageUrl = "";
+      this.enlargedImage = null;
+    },
+    editClick() {
+      this.$emit("edit-click", this.enlargedImage);
+      this.closeModal();
     },
   },
 });

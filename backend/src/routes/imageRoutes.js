@@ -6,6 +6,7 @@ const sharp = require("sharp");
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const {
   uploadImage,
+  updateSpecificImage,
   getImages,
   getImage,
   deleteSpecificImage,
@@ -14,6 +15,7 @@ const {
 const { imageGetLimiter } = require("../middlewares/rateLimiter");
 
 const dotenv = require("dotenv"); // Import dotenv to load environment variables
+const { errorResponse } = require("../utils/responseUtils");
 
 // Load environment variables from .env file
 dotenv.config();
@@ -81,6 +83,56 @@ router.get(
   imageGetLimiter,
   authenticateToken,
   getImage
+);
+
+router.patch(
+  "/image/:id",
+  authenticateToken,
+  upload.single("image"), // Multer processes "image" field from FormData
+  async (req, res, next) => {
+    try {
+      // Ensure at least one valid update field is provided
+      if (!req.file && !req.body.date) {
+        return errorResponse(res, "No file or date provided for update.", 400);
+      }
+
+      // Only delete the old image if a new one is provided
+      if (req.file) {
+        await deleteSpecificImage(req, res, false);
+
+        if (req.file.mimetype.includes("image")) {
+          const NAS_PATH =
+            process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
+
+          // Ensure upload directory exists
+          if (!fs.existsSync(NAS_PATH)) {
+            fs.mkdirSync(NAS_PATH, { recursive: true });
+          }
+
+          const uniqueFilename = `${Date.now()}-${
+            path.parse(req.file.originalname).name
+          }.webp`;
+          const outputPath = path.join(NAS_PATH, uniqueFilename);
+
+          // Convert and save image using Sharp
+          await sharp(req.file.buffer)
+            .resize({ width: 1024 })
+            .toFormat("webp")
+            .webp({ quality: 70, nearLossless: true })
+            .toFile(outputPath);
+
+          // Attach processed file path to request
+          req.file.path = outputPath;
+          req.file.filename = uniqueFilename;
+        }
+      }
+
+      next(); // Pass control to updateSpecificImage
+    } catch (error) {
+      next(error);
+    }
+  },
+  updateSpecificImage
 );
 
 // Delete a specific image by its ID
