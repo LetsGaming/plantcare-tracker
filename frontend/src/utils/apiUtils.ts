@@ -173,6 +173,17 @@ const ApiUtils = {
   },
 
   /**
+   * Makes a PATCH request to the specified endpoint with the provided data.
+   * This function is specifically for uploading images.
+   * @param {string} endpoint - The API endpoint to call.
+   * @param {T} data - The data to send with the request.
+   * @returns {Promise<R>} - The parsed response data.
+   */
+  patchImage<T, R>(endpoint: string, data: T): Promise<R> {
+    return performRequest<R>({ method: "PATCH", endpoint, data, isFileUpload: true });
+  },
+
+  /**
    * Makes a DELETE request to the specified endpoint.
    * @param {string} endpoint - The API endpoint to call.
    * @returns {Promise<void>} - A promise that resolves when the delete is successful.

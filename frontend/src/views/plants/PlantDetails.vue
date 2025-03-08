@@ -17,12 +17,14 @@
         />
 
         <section class="plant-info">
-          <horizontal-gallery :images="plant.images"></horizontal-gallery>
-          <substrate-container
-            :substrate="plant.substrate"
-          ></substrate-container>
-          <watering-records :plantId="plant.id"></watering-records>
-          <more-info :plantName="plant.name"></more-info>
+          <horizontal-gallery
+            :images="plant.images"
+            :is-public="isPublic"
+            @edit-click="handleImageEditClick"
+          />
+          <substrate-container :substrate="plant.substrate" />
+          <watering-records :plantId="plant.id" />
+          <more-info :plantName="plant.name" />
         </section>
       </div>
       <PlantEditingModal
@@ -37,6 +39,13 @@
         :card-title="`Bild für ${plant?.name} hochladen`"
         @close="showUploadModal = false"
         @submit="onImageUpload"
+      />
+      <ImageEditingModal
+        v-if="enlargedImage"
+        :is-open="showImageEditModal"
+        :image="enlargedImage"
+        @close="showImageEditModal = false"
+        @edited="handleImageEdited"
       />
     </ion-content>
   </ion-page>
@@ -67,7 +76,8 @@ import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import MoreInfo from "@/components/plants/MoreInfo.vue";
 import PlantEditingModal from "../../components/plants/PlantEditingModal.vue";
-import ImageUploadModal from "@/components/modal/ImageUploadModal.vue";
+import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
+import ImageEditingModal from "@/components/images/ImageEditingModal.vue";
 
 export default defineComponent({
   name: "PlantDetails",
@@ -92,6 +102,7 @@ export default defineComponent({
     WateringRecords,
     MoreInfo,
     ImageUploadModal,
+    ImageEditingModal,
     PlantEditingModal,
   },
   props: {
@@ -110,6 +121,8 @@ export default defineComponent({
       wateringRecords: [] as WateringRecord[],
       showEditModal: false,
       showUploadModal: false,
+      enlargedImage: null as Image | null,
+      showImageEditModal: false,
     };
   },
   async mounted() {
@@ -144,6 +157,21 @@ export default defineComponent({
         } catch (error) {
           console.error("Error uploading image:", error);
         }
+      }
+    },
+    async handleImageEditClick(image: Image) {
+      this.enlargedImage = image;
+      this.showImageEditModal = true;
+    },
+    async handleImageEdited() {
+      try {
+        this.plant = await PlantService.getPlantById(
+          this.plantId,
+          this.isPublic
+        );
+        this.showImageEditModal = false;
+      } catch (error) {
+        console.error("Error editing image:", error);
       }
     },
   },

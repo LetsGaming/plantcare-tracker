@@ -5,6 +5,13 @@
         <ion-buttons slot="start">
           <ion-button @click="closeModal()">Zurück</ion-button>
         </ion-buttons>
+        <ion-icon
+          v-if="showEditButton"
+          :icon="create"
+          style="width: 32px; height: 32px"
+          slot="end"
+          @click="onEditClick"
+        />
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
@@ -21,6 +28,7 @@ import {
   IonModal,
   IonContent,
   IonImg,
+  IonIcon,
   IonLabel,
   IonItem,
   IonHeader,
@@ -28,7 +36,8 @@ import {
   IonButtons,
   IonButton,
 } from "@ionic/vue";
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
+import { create } from "ionicons/icons";
 
 export default defineComponent({
   name: "ImageModal",
@@ -42,6 +51,7 @@ export default defineComponent({
     IonContent,
     IonItem,
     IonImg,
+    IonIcon,
     IonLabel,
   },
   props: {
@@ -57,6 +67,17 @@ export default defineComponent({
       type: String,
       default: "Image",
     },
+    showEditButton: {
+      type: Boolean,
+      default: false,
+    },
+    onEditClick: {
+      type: Function as PropType<() => void>,
+      required: false,
+    },
+  },
+  setup() {
+    return { create };
   },
   methods: {
     closeModal() {

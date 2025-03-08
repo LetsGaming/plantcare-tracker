@@ -29,14 +29,14 @@ export default defineComponent({
       required: true,
     },
     modelValue: {
-      type: String,
+      type: [String, Number, Boolean], // Accept multiple types
       default: "",
     },
   },
   computed: {
     localValue: {
       get() {
-        return this.modelValue;
+        return String(this.modelValue); // Convert to string
       },
       set(val: string) {
         this.$emit("update:modelValue", val);

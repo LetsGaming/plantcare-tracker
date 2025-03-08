@@ -5,7 +5,12 @@
       title="Pflanzen"
       :segments="[
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
-        { value: 'private', label: 'Persönlich', icon: personCircle, hideFromGuests: true },
+        {
+          value: 'private',
+          label: 'Persönlich',
+          icon: personCircle,
+          hideFromGuests: true,
+        },
       ]"
       :addIcon="addCircle"
       starting-segment="private"
@@ -15,11 +20,12 @@
 
     <!-- Content Area -->
     <ion-content>
-      <items-overview
-        :items="plants"
-        @item-click="navigateToPlant"
+      <items-overview :items="plants" @item-click="navigateToPlant" />
+      <plant-adding-modal
+        :is-open="showAddingModal"
+        @close="showAddingModal = false"
+        @added="handlePlantAdded"
       />
-      <plant-adding-modal :is-open="showAddingModal" @close="showAddingModal = false" @added="handlePlantAdded"/>
     </ion-content>
   </ion-page>
 </template>
@@ -86,7 +92,10 @@ export default defineComponent({
     },
     navigateToPlant(id: number) {
       const isPublic_Int = this.isPublic ? 1 : 0;
-      this.$router.push({ name: "plant", params: { id: id, public: isPublic_Int} });
+      this.$router.push({
+        name: "plant",
+        params: { id: id, public: isPublic_Int },
+      });
     },
   },
 });
