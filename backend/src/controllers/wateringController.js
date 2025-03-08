@@ -5,7 +5,7 @@ const {
   updateWateringRecord,
   deleteWateringRecord,
 } = require("../models/wateringModel");
-const { formatToDBDate } = require("../utils/generalUtils");
+const { formatToDBDate, parseCustomDate } = require("../utils/generalUtils");
 
 const {
   errorResponse,
@@ -79,7 +79,12 @@ const editWateringRecord = async (req, res) => {
   const { id } = req.params;
   const { date, usedFertilizer, fertilizerType } = req.body;
   const userId = req.user ? req.user.id : null;
-
+  let parsedDate;
+  try {
+    parsedDate = date ? formatToDBDate(parseCustomDate(date)) : null;
+  } catch (err) {
+    return errorResponse(res, err, 400);
+  }
   try {
     if (!date && usedFertilizer === undefined && !fertilizerType) {
       return errorResponse(
@@ -89,11 +94,11 @@ const editWateringRecord = async (req, res) => {
       );
     }
 
-    const result = await updateWateringRecord(
-      id,
-      { date, usedFertilizer, fertilizerType },
-      userId
-    );
+    const result = await updateWateringRecord(id, userId, {
+      date: parsedDate,
+      usedFertilizer,
+      fertilizerType,
+    });
 
     if (result.affectedRows === 0) {
       return errorResponse(
@@ -104,6 +109,7 @@ const editWateringRecord = async (req, res) => {
 
     successResponse(res, { message: "Watering record updated successfully" });
   } catch (err) {
+    console.error(err);
     errorResponse(res, err, 500, "Error updating watering record");
   }
 };

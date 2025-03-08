@@ -4,19 +4,18 @@
       <IonLabel>{{ field.label }}</IonLabel>
       <input type="file" accept="image/*" @change="onFileChange" />
     </IonItem>
-    <small v-if="field.required" class="required-note"
-      >This field is required</small
-    >
+    <RequiredNote v-if="field.required" />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonItem, IonLabel } from "@ionic/vue";
+import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
 
 export default defineComponent({
   name: "UploadFieldComponent",
-  components: { IonItem, IonLabel },
+  components: { IonItem, IonLabel, RequiredNote },
   props: {
     field: {
       type: Object as () => UploadField,
@@ -42,11 +41,7 @@ export default defineComponent({
 .field-wrapper {
   margin-bottom: 16px;
 }
-.required-note {
-  font-size: 0.75em;
-  color: red;
-  margin-left: 16px;
-}
+
 /* Style the file input button */
 /* Reset the button’s direction so its label reads normally */
 input[type="file"]::file-selector-button {

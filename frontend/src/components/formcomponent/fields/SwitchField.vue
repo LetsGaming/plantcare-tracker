@@ -4,19 +4,18 @@
       <IonLabel>{{ field.label }}</IonLabel>
       <IonToggle v-model="localValue" />
     </IonItem>
-    <small v-if="field.required" class="required-note"
-      >This field is required</small
-    >
+    <RequiredNote v-if="field.required" />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonItem, IonLabel, IonToggle } from "@ionic/vue";
+import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
 
 export default defineComponent({
   name: "SwitchFieldComponent",
-  components: { IonItem, IonLabel, IonToggle },
+  components: { IonItem, IonLabel, IonToggle, RequiredNote },
   props: {
     field: {
       type: Object as () => SwitchField,
@@ -43,10 +42,5 @@ export default defineComponent({
 <style scoped>
 .field-wrapper {
   margin-bottom: 16px;
-}
-.required-note {
-  font-size: 0.75em;
-  color: red;
-  margin-left: 16px;
 }
 </style>

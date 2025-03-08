@@ -12,28 +12,19 @@
     </IonHeader>
     <IonContent>
       <div class="modal-card-container">
-        <IonCard>
-          <IonCardHeader>
-            <IonCardTitle>{{ cardTitle }}</IonCardTitle>
-          </IonCardHeader>
-          <IonCardContent>
-            <IonItem>
-              <IonLabel>Bild hochladen</IonLabel>
-              <input
-                type="file"
-                accept="image/*"
-                @change="onFileChange"
-                ref="fileInput"
-                class="file-input"
-              />
-            </IonItem>
-
-            <!-- Submit Button -->
-            <IonButton expand="full" color="primary" @click="submitForm">
-              Bild hochladen
-            </IonButton>
-          </IonCardContent>
-        </IonCard>
+        <form-component
+          :item="fileItem"
+          :formFields="[
+            {
+              type: 'file',
+              label: 'Bild',
+              modelKey: 'file',
+              required: true,
+            },
+          ]"
+          submitLabel="Hochladen"
+          :onSubmitClick="submitForm"
+        />
       </div>
     </IonContent>
   </IonModal>
@@ -57,7 +48,9 @@ import {
   IonLabel,
   IonItem,
 } from "@ionic/vue";
+import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import { closeOutline } from "ionicons/icons";
+import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "ImageUploadModal",
@@ -77,6 +70,7 @@ export default defineComponent({
     IonCardContent,
     IonLabel,
     IonItem,
+    FormComponent,
   },
   props: {
     isOpen: {
@@ -99,20 +93,17 @@ export default defineComponent({
   },
   data() {
     return {
-      file: null as File | null,
+      fileItem: {
+        file: null as File | null,
+      },
     };
   },
   methods: {
-    onFileChange(e: Event) {
-      const target = e.target as HTMLInputElement;
-      const file = target.files?.[0];
-      if (file) {
-        this.file = file;
-      }
-    },
     submitForm() {
-      if (this.file) {
-        this.$emit("submit", this.file);
+      if (!this.fileItem.file) {
+        ToastService.showError("Bitte wählen Sie ein Bild aus.");
+      } else {
+        this.$emit("submit", this.fileItem.file);
       }
     },
   },

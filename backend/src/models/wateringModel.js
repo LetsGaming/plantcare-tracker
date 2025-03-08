@@ -81,10 +81,6 @@ const updateWateringRecord = async (recordId, userId, fields) => {
     updates.push("date = ?");
     params.push(fields.date);
   }
-  if (fields.amount) {
-    updates.push("amount = ?");
-    params.push(fields.amount);
-  }
   if (fields.usedFertilizer !== undefined) {
     updates.push("used_fertilizer = ?");
     params.push(fields.usedFertilizer);

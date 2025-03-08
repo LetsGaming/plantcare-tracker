@@ -67,7 +67,7 @@ import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import MoreInfo from "@/components/plants/MoreInfo.vue";
 import PlantEditingModal from "../../components/plants/PlantEditingModal.vue";
-import ImageUploadModal from "@/components/ImageUploadModal.vue";
+import ImageUploadModal from "@/components/modal/ImageUploadModal.vue";
 
 export default defineComponent({
   name: "PlantDetails",
