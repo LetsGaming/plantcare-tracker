@@ -14,14 +14,24 @@
     </ion-card-header>
     <section class="watering-records" v-if="mappedRecords.length > 0">
       <ion-card-content>
-        <CustomAccordion :items="mappedRecords" />
+        <ion-item v-for="record in mappedRecords">
+          <Accordion :item="record" @edit-click="handleEditClick" />
+        </ion-item>
       </ion-card-content>
     </section>
-    <WateringRecordsAdding
+    <WateringEditingModal
+      v-if="editRecord"
+      :is-open="showEditingModal"
+      :plantId="plantId"
+      :record="editRecord"
+      @close="showEditingModal = false"
+      @edited="handleEdited"
+    />
+    <WateringAddingModal
       :is-open="showAddingModal"
       @close="showAddingModal = false"
       @add-record="addRecord"
-    ></WateringRecordsAdding>
+    />
   </ion-card>
 </template>
 
@@ -42,8 +52,9 @@ import {
 } from "@ionic/vue";
 import { addCircle } from "ionicons/icons";
 
-import WateringRecordsAdding from "./WateringRecordsAdding.vue";
-import CustomAccordion from "@/components/CustomAccordion.vue";
+import WateringAddingModal from "./WateringAddingModal.vue";
+import WateringEditingModal from "./WateringEditingModal.vue";
+import Accordion from "@/components/accordion/Accordion.vue";
 
 import WateringService from "@/services/WateringService";
 import AuthUtils from "@/utils/authUtils";
@@ -63,8 +74,9 @@ export default defineComponent({
     IonCardTitle,
     IonCardContent,
     IonIcon,
-    WateringRecordsAdding,
-    CustomAccordion,
+    WateringAddingModal,
+    WateringEditingModal,
+    Accordion,
   },
   props: {
     plantId: {
@@ -81,7 +93,9 @@ export default defineComponent({
     return {
       records: null as WateringRecord[] | null,
       mappedRecords: [] as AccordionItem[],
+      editRecord: null as WateringRecord | null,
       showAddingModal: false,
+      showEditingModal: false,
       isGuest: false,
     };
   },
@@ -99,14 +113,24 @@ export default defineComponent({
         this.mappedRecords = this.mapWateringsToAccordion(this.records);
       } catch (error) {}
     },
+    async handleEditClick(item: AccordionItem) {
+      const record = this.records?.find((r) => r.id === item.id);
+      if (!record) return;
+      this.editRecord = record ?? null;
+      this.showEditingModal = true;
+    },
+    async handleEdited() {
+      this.showEditingModal = false;
+      await this.setRecords();
+    },
     async addRecord(addingRecord: AddWateringRecord) {
       const response = await WateringService.addWateringRecord(
         this.plantId,
         addingRecord
       );
       if (response) {
-        this.records = await WateringService.getWateringRecords(this.plantId);
         this.showAddingModal = false;
+        await this.setRecords();
       }
     },
     mapWateringsToAccordion(records: WateringRecord[]) {

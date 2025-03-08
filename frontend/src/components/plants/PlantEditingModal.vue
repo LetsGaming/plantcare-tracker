@@ -84,8 +84,7 @@ export default defineComponent({
         substrateId: 0,
         isPublic: false,
       } as EditPlant,
-      substrates: [] as Substrate[], // Substrate data will be fetched from API
-      showDeleteModal: false,
+      substrates: [] as Substrate[],
     };
   },
   setup() {
@@ -145,7 +144,6 @@ export default defineComponent({
       try {
         const response = await PlantService.deletePlant(this.plant.id);
         if (response) {
-          this.showDeleteModal = false;
           this.$emit("close");
           await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
         }

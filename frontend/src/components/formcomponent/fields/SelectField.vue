@@ -15,19 +15,18 @@
         </IonSelectOption>
       </IonSelect>
     </IonItem>
-    <small v-if="field.required" class="required-note"
-      >This field is required</small
-    >
+    <RequiredNote v-if="field.required" />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonItem, IonSelect, IonSelectOption } from "@ionic/vue";
+import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
 
 export default defineComponent({
   name: "SelectFieldComponent",
-  components: { IonItem, IonSelect, IonSelectOption },
+  components: { IonItem, IonSelect, IonSelectOption, RequiredNote },
   props: {
     field: {
       type: Object as () => SelectField,
@@ -54,10 +53,5 @@ export default defineComponent({
 <style scoped>
 .field-wrapper {
   margin-bottom: 16px;
-}
-.required-note {
-  font-size: 0.75em;
-  color: red;
-  margin-left: 16px;
 }
 </style>

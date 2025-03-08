@@ -27,7 +27,7 @@
                   placeholder="Search components..."
                   @search="filterComponents"
                 />
-                <CustomAccordion :items="filteredComponents" />
+                <AccordionList :items="filteredComponents" />
               </div>
             </div>
           </ion-accordion>
@@ -53,7 +53,7 @@ import {
 } from "@ionic/vue";
 import PieChart from "@/components/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
-import CustomAccordion from "../CustomAccordion.vue";
+import AccordionList from "@/components/accordion/AccordionList.vue";
 
 export default defineComponent({
   components: {
@@ -69,7 +69,7 @@ export default defineComponent({
     IonCardTitle,
     PieChart,
     SearchBar,
-    CustomAccordion,
+    AccordionList,
   },
   props: {
     substrate: {

@@ -53,7 +53,7 @@ async function fetchAndCacheWateringRecords(
 
 export default class WateringService {
   // Invalidate cache for a specific plant
-  static async invalidateWateringCache(plantId: number) {
+  static async invalidateWateringCacheForPlant(plantId: number) {
     const cachedData = await getCachedWateringRecords();
     if (!cachedData) return;
 
@@ -64,6 +64,10 @@ export default class WateringService {
       recordsByPlant: updatedRecordsByPlant,
       timestamp: Date.now(),
     });
+  }
+
+  static async invalidateWateringCache() {
+    await storageService.remove(CACHE_KEY_WATERING_RECORDS);
   }
 
   // Fetch records for a specific plant
@@ -129,18 +133,8 @@ export default class WateringService {
         addWateringRecord
       );
       if (response) {
-        const newRecord = WateringMapper.mapWateringRecord({
-          record_id: response.waterRecordId,
-          plant_id: plantId,
-          watering_date: addWateringRecord.date.toISOString(),
-          used_fertilizer: addWateringRecord.usedFertilizer,
-          fertilizer_type: addWateringRecord.fertilizerType ?? null,
-        });
         // Retrieve and update the cache
-        const cachedData = await getCachedWateringRecords();
-        const existingRecords = cachedData?.recordsByPlant[plantId] || [];
-        const data = [...existingRecords, newRecord] as WateringRecord[];
-        await cacheWateringRecords(plantId, data);
+        await this.invalidateWateringCacheForPlant(plantId);
       } else {
         throw new Error("Failed to add watering record");
       }
@@ -156,26 +150,16 @@ export default class WateringService {
   static async editWateringRecord(
     plantId: number,
     recordId: number,
-    updatedData: {
-      date?: string;
-      usedFertilizer?: boolean;
-      fertilizerType?: string;
-    }
+    updatedData: EditWateringRecord
   ): Promise<any> {
     try {
       const response = await ApiUtils.patch(
         `${BASE_ENDPOINT}/${recordId}`,
         updatedData
       );
-
-      // Retrieve and update the cache
-      const cachedData = await getCachedWateringRecords();
-      const existingRecords = cachedData?.recordsByPlant[plantId] || [];
-      const updatedRecords = existingRecords.map((record) =>
-        record.id === recordId ? { ...record, ...updatedData } : record
-      );
-
-      await cacheWateringRecords(plantId, updatedRecords as WateringRecord[]);
+      if (response) {
+        await this.invalidateWateringCacheForPlant(plantId);
+      }
       return response;
     } catch (error) {
       ToastService.showError(`Error updating watering record: ${error}`);
