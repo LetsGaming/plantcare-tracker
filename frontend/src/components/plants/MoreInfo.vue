@@ -23,7 +23,7 @@
                   :href="link"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style="width: 100%"
+                  style="width: 100%; font-size: 20px;"
                 >
                   <ion-item class="info-link">
                     <ion-label>{{ link }}</ion-label>
@@ -43,9 +43,7 @@
                   note="Disclaimer: AI-Modelle können fehlerhaft sein. Keine Gewähr für deren Richtigkeit."
                 />
                 <ion-item class="info-content">
-                  <ion-label>
-                    <div v-html="formatText(info.ai)" class="info-text"></div>
-                  </ion-label>
+                  <div v-html="addClassesToHtml(info.ai)" class="info-text" />
                 </ion-item>
               </template>
             </div>
@@ -116,19 +114,88 @@ export default defineComponent({
     async getLinks() {
       this.infos = await MoreInfoService.getMoreInfo(this.plantName);
     },
-    formatText(text: string) {
-      const strong =
-        "<strong style='color: var(--ion-color-primary);'>$1</strong>";
-      return text
-        .replace(/\*\*(.*?)\*\*/g, strong)
-        .replace(/###(.*?)###/g, strong)
-        .replace(/\n\n/g, "<br><br>")
-        .replace(/\n- /g, "<li>")
-        .replace(/\n/g, "</li>");
+    addClassesToHtml(content: string): string {
+      // Create a temporary div element to parse the HTML content
+      const div = document.createElement("div");
+      div.innerHTML = content;
+
+      // Add classes to specific elements
+      // Example: Adding classes to <ul>, <li>, <h1>, <p>, etc.
+
+      // Add class to all <ul> elements
+      const ulElements = div.querySelectorAll("ul");
+      ulElements.forEach((ul) => {
+        ul.classList.add("info-list");
+      });
+
+      // Add class to all <li> elements
+      const liElements = div.querySelectorAll("li");
+      liElements.forEach((li) => {
+        li.classList.add("info-item");
+      });
+
+      // Add class to all <p> elements
+      const pElements = div.querySelectorAll("p");
+      pElements.forEach((p) => {
+        p.classList.add("info-text-paragraph");
+      });
+
+      // Add class to all <h1> elements
+      const h1Elements = div.querySelectorAll("h1");
+      h1Elements.forEach((h1) => {
+        h1.classList.add("info-header");
+      });
+
+      // Add class to all <strong> elements
+      const strongElements = div.querySelectorAll("strong");
+      strongElements.forEach((strong) => {
+        strong.classList.add("info-strong");
+      });
+
+      // Add class to all <em> elements
+      const emElements = div.querySelectorAll("em");
+      emElements.forEach((em) => {
+        em.classList.add("info-em");
+      });
+
+      // Return the modified HTML content
+      return div.innerHTML;
     },
   },
 });
 </script>
+
+<style>
+/* Header styling */
+.info-header {
+  color: var(--ion-color-primary);
+}
+
+.info-header strong {
+  color: inherit; /* Ensure the strong element inherits the color from its parent */
+}
+
+/* Emphasized text styling */
+.info-em {
+  color: var(--ion-color-tertiary);
+}
+
+/* Item styling */
+.info-item {
+  color: var(
+    --ion-color-primary-tint
+  ) !important; /* Ensures this is not overridden */
+}
+
+.info-item strong {
+  color: inherit; /* Inherit color from the parent .info-item */
+}
+
+/* Strong element styling */
+.info-strong {
+  color: var(--ion-color-dark-tint);
+}
+</style>
 
 <style scoped>
 /* General card styling */

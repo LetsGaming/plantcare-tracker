@@ -38,7 +38,7 @@ async function cacheMoreInfo(plantName: string, newRecords: MoreInfo[]) {
 // Fetch and update cache for a specific plant
 async function fetchAndCacheMoreInfo(plantName: string): Promise<MoreInfo[]> {
   try {
-    const response = await ApiUtils.post(BASE_ENDPOINT, { plantName });
+    const response = await ApiUtils.post(BASE_ENDPOINT, { plantName, htmlFormatting: true });
     const newRecords = MoreInfoMapper.convertToMoreInfo(
       response as APIMoreInfo
     );
