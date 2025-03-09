@@ -117,51 +117,14 @@ export default defineComponent({
       this.infos = await MoreInfoService.getMoreInfo(this.plantName);
     },
     formatText(text: string) {
-      return (
-        text
-          // Bold (**text**) -> <strong> with Ionic primary color
-          .replace(
-            /\*\*(.*?)\*\*/g,
-            "<strong style='color: var(--ion-color-primary);'>$1</strong>"
-          )
-
-          // Italic (*text* or _text_) -> <em> with Ionic secondary color
-          .replace(
-            /(\*|_)(.*?)\1/g,
-            "<em style='color: var(--ion-color-secondary);'>$2</em>"
-          )
-
-          // Inline code (`code`) -> <code> with Ionic tertiary color and styling
-          .replace(
-            /`(.*?)`/g,
-            "<code style='background: var(--ion-color-tertiary); padding: 2px 4px; border-radius: 4px; font-family: monospace;'>$1</code>"
-          )
-
-          // Headings (### Heading) -> <h3> with Ionic styling
-          .replace(
-            /### (.*?)(\n|$)/g,
-            "<h3 style='color: var(--ion-color-primary); font-size: 1.2em;'>$1</h3>"
-          )
-          .replace(
-            /## (.*?)(\n|$)/g,
-            "<h2 style='color: var(--ion-color-primary); font-size: 1.5em;'>$1</h2>"
-          )
-          .replace(
-            /# (.*?)(\n|$)/g,
-            "<h1 style='color: var(--ion-color-primary); font-size: 1.8em;'>$1</h1>"
-          )
-
-          // Unordered lists (- item) -> <ul><li>item</li></ul> with Ionic styling
-          .replace(
-            /\n- (.*?)/g,
-            "<li style='color: var(--ion-color-medium); margin-left: 20px;'>$1</li>"
-          )
-          .replace(/(<li>.*<\/li>)/g, "<ul style='padding-left: 15px;'>$1</ul>") // Wraps <li> in <ul>
-
-          // New lines -> <br>
-          .replace(/\n\n/g, "<br><br>")
-          .replace(/\n/g, "<br>")
-      );
+      const strong =
+        "<strong style='color: var(--ion-color-primary);'>$1</strong>";
+      return text
+        .replace(/\*\*(.*?)\*\*/g, strong)
+        .replace(/###(.*?)###/g, strong)
+        .replace(/\n\n/g, "<br><br>")
+        .replace(/\n- /g, "<li>")
+        .replace(/\n/g, "</li>");
     },
   },
 });
