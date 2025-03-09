@@ -1,12 +1,12 @@
 interface BasePlant {
   name: string;
   species: string;
-  description: string;
   isPublic?: boolean;
 }
 
 interface Plant extends BasePlant {
   id: number;
+  description: string;
   created_at: string;
   imageUrl?: string;
   substrate: Substrate;
