@@ -3,7 +3,7 @@ const { getPlantCareFromOpenAI } = require("./moreInfo/openaiClient");
 const { generateLinks } = require("./moreInfo/plantSources");
 
 const getMoreInfo = async (req, res) => {
-  const { plantName } = req.body;
+  const { plantName, htmlFormatting } = req.body;
   if (!plantName)
     return res.status(400).json({ message: "plantName is required." });
 
@@ -13,7 +13,7 @@ const getMoreInfo = async (req, res) => {
 
   try {
     const links = await generateLinks(cleanedName);
-    const careTips = await getPlantCareFromOpenAI(cleanedName);
+    const careTips = await getPlantCareFromOpenAI(cleanedName, htmlFormatting);
     return successResponse(res, { links, ai: careTips });
   } catch (error) {
     console.error("Error generating links:", error);
