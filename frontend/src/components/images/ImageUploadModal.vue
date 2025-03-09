@@ -2,7 +2,7 @@
   <IonModal v-model:isOpen="isOpen">
     <IonHeader>
       <IonToolbar>
-        <IonTitle>Bild hochladen</IonTitle>
+        <IonTitle>{{ cardTitle }}</IonTitle>
         <IonButtons slot="end">
           <IonButton @click="onClose">
             <IonIcon :icon="closeOutline" />

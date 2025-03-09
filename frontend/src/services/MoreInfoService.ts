@@ -7,11 +7,6 @@ import MoreInfoMapper from "@/mapping/MoreInforMaping";
 const BASE_ENDPOINT = "/more-info";
 const CACHE_KEY_WATERING_RECORDS = "more_info_data";
 
-async function invalidateInfoCache() {
-  // Invalidate the cache for all info data
-  await storageService.remove(CACHE_KEY_WATERING_RECORDS);
-}
-
 async function getCachedMoreInfo() {
   return await storageService.get<{
     recordsByPlant: { [plantName: string]: MoreInfo[] };
@@ -38,10 +33,15 @@ async function cacheMoreInfo(plantName: string, newRecords: MoreInfo[]) {
 // Fetch and update cache for a specific plant
 async function fetchAndCacheMoreInfo(plantName: string): Promise<MoreInfo[]> {
   try {
-    const response = await ApiUtils.post(BASE_ENDPOINT, { plantName, htmlFormatting: true });
+    const response = await ApiUtils.post(BASE_ENDPOINT, {
+      plantName,
+      htmlFormatting: true,
+    });
     const newRecords = MoreInfoMapper.convertToMoreInfo(
       response as APIMoreInfo
     );
+
+    await cacheMoreInfo(plantName, newRecords);
 
     return newRecords;
   } catch (error) {
@@ -77,7 +77,11 @@ export default class MoreInfoService {
     const cacheKey = plantName;
     const cachedData = await getCachedMoreInfo();
 
-    if (!cachedData || !cachedData.recordsByPlant[cacheKey]) {
+    if (
+      !cachedData ||
+      !cachedData.recordsByPlant[cacheKey] ||
+      Utils.isCacheExpired(cachedData.timestamp)
+    ) {
       return await fetchAndCacheMoreInfo(plantName);
     }
 

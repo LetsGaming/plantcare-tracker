@@ -26,7 +26,7 @@
 
 <script lang="ts">
 import AuthUtils from "@/utils/authUtils";
-import { defineComponent, PropType, ref } from "vue";
+import { defineComponent, ref } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { create } from "ionicons/icons";
 
@@ -41,7 +41,7 @@ export default defineComponent({
     },
     showEditButton: {
       type: Boolean,
-      default: true,
+      default: false,
     },
   },
   data() {

@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from "@ionic/vue-router";
+import { createRouter, createWebHashHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 
 import AuthUtils from "@/utils/authUtils";
@@ -26,7 +26,7 @@ const ComponentDetails = () =>
 const createChildRoutes = (
   basePath: string,
   overviewComponent: any,
-  detailsComponent: any,
+  detailsComponent: any
 ) => {
   const routes = [
     {
@@ -67,11 +67,7 @@ const routes: Array<RouteRecordRaw> = [
         path: "plants",
         redirect: { name: "plant-overview" },
         component: WrapperComponent,
-        children: createChildRoutes(
-          "plant",
-          PlantOverview,
-          PlantDetails,
-        ),
+        children: createChildRoutes("plant", PlantOverview, PlantDetails),
       },
       {
         path: "substrates",
@@ -80,7 +76,7 @@ const routes: Array<RouteRecordRaw> = [
         children: createChildRoutes(
           "substrate",
           SubstrateOverview,
-          SubstrateDetails,
+          SubstrateDetails
         ),
       },
       {
@@ -90,7 +86,7 @@ const routes: Array<RouteRecordRaw> = [
         children: createChildRoutes(
           "component",
           ComponentOverview,
-          ComponentDetails,
+          ComponentDetails
         ),
       },
     ],
@@ -98,7 +94,7 @@ const routes: Array<RouteRecordRaw> = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes,
 });
 
@@ -106,11 +102,18 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   await Utils.closeAllOpenModals();
 
-  const isAuthed = await AuthUtils.isAuthenticated();
-  if (to.meta.requiresAuth && !isAuthed) {
-    return next({ name: "login" });
+  try {
+    const isAuthed = await AuthUtils.isAuthenticated();
+
+    if (to.meta.requiresAuth && !isAuthed) {
+      return next({ name: "login" });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Auth check failed:", error);
+    next({ name: "login" });
   }
-  next();
 });
 
 export default router;

@@ -40,11 +40,11 @@ const selectWateringRecords = async (conditions = {}, params = []) => {
   return rows;
 };
 
-const selectWateringRecord = (recordId, userId) =>
-  selectWateringRecords({ record_id: recordId, user_id: userId });
+const selectWateringRecord = (recordId) =>
+  selectWateringRecords({ record_id: recordId });
 
-const selectWateringRecordsForPlant = (plantId, userId) =>
-  selectWateringRecords({ plant_id: plantId, user_id: userId });
+const selectWateringRecordsForPlant = (plantId) =>
+  selectWateringRecords({ plant_id: plantId });
 
 // Insert a new watering record
 const insertWateringRecord = async (

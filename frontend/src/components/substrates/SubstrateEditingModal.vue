@@ -46,7 +46,7 @@
         />
       </div>
       <!-- Action Buttons -->
-      <div class="action-buttons">
+      <div class="action-buttons" v-if="step === 2">
         <IonButton expand="full" color="medium" @click="goToStepOne">
           Zurück
         </IonButton>
