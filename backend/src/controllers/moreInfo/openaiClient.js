@@ -35,7 +35,7 @@ const getPlantCareFromOpenAI = async (plantName) => {
         },
         {
             role: "user",
-            content: "Die Tipps sollten folgende Aufteilungen haben: Titel, Untertitel (Kurzbeschreibung), Licht (Beschreibung und Angabe in Lux), Temperatur (Beschreibung und Angabe in Grad Celsius), Luftfeuchtigkeit (Beschreibung und Angabe in Prozent), Wasser (Beschreibung und Hinweise wann eine Wässerung angebracht ist (Liste)), Düngung (Beschreibung und Angabe in PPM und N-P-K), Boden (Beschreibung und Auflistung an sinnvollen Bestandteilen), Probleme (Beschreibung und Lösung, Auflistung)."
+            content: "Die Tipps sollten folgende Aufteilungen haben: Titel, Untertitel (Kurzbeschreibung), Licht (Beschreibung und Angabe in Lux), Temperatur (Beschreibung und Angabe in Grad Celsius), Luftfeuchtigkeit (Beschreibung und Angabe in Prozent), Wasser (Beschreibung und Hinweise wann eine Wässerung angebracht ist (Liste)), Düngung (Beschreibung und Angabe in PPM und N-P-K), Boden (Beschreibung und Auflistung an sinnvollen Bestandteilen), Probleme (Beschreibung und Lösung, Auflistung). Formatiere die Tipps so, dass sie leicht lesbar sind."
         }
       ],
     });
