@@ -8,23 +8,46 @@
     <ion-card-content>
       <div v-for="(info, index) in infos" :key="index" class="info-links">
         <ion-accordion-group>
-          <ion-accordion>
+          <ion-accordion v-if="info.links">
             <ion-item slot="header" class="component-header">
               <ion-label>Links</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper">
-              <a
-                v-for="(link, index) in info.links"
-                :href="link"
-                target="_blank"
-                rel="noopener noreferrer"
-                style="width: 100%"
-              >
-                <ion-item class="info-link">
-                  <ion-label>{{ link }}</ion-label>
-                  <ion-icon :icon="openOutline" slot="end" />
+              <template v-if="info.links.length > 0">
+                <InfoNote
+                  note="Disclaimer: Links können fehlerhaft oder veraltet sein. Keine Gewähr für deren Richtigkeit."
+                />
+                <a
+                  v-for="(link, index) in info.links"
+                  :key="index"
+                  :href="link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style="width: 100%"
+                >
+                  <ion-item class="info-link">
+                    <ion-label>{{ link }}</ion-label>
+                    <ion-icon :icon="openOutline" slot="end" />
+                  </ion-item>
+                </a>
+              </template>
+            </div>
+          </ion-accordion>
+          <ion-accordion v-if="info.ai">
+            <ion-item slot="header" class="component-header">
+              <ion-label>KI-Pflanzenpflege</ion-label>
+            </ion-item>
+            <div slot="content" class="component-wrapper">
+              <template v-if="info.ai.length > 0">
+                <InfoNote
+                  note="Disclaimer: AI-Modelle können fehlerhaft sein. Keine Gewähr für deren Richtigkeit."
+                />
+                <ion-item class="info-content">
+                  <ion-label>
+                    <div v-html="formatText(info.ai)" class="info-text"></div>
+                  </ion-label>
                 </ion-item>
-              </a>
+              </template>
             </div>
           </ion-accordion>
         </ion-accordion-group>
@@ -49,6 +72,7 @@ import {
   IonToolbar,
   IonTitle,
 } from "@ionic/vue";
+import InfoNote from "@/components/InfoNote.vue";
 import MoreInfoService from "@/services/MoreInfoService";
 import { openOutline } from "ionicons/icons";
 
@@ -67,6 +91,7 @@ export default defineComponent({
     IonAccordionGroup,
     IonToolbar,
     IonTitle,
+    InfoNote,
   },
   props: {
     plantName: {
@@ -90,6 +115,13 @@ export default defineComponent({
   methods: {
     async getLinks() {
       this.infos = await MoreInfoService.getMoreInfo(this.plantName);
+    },
+    formatText(text: string) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, "<strong style='color: var(--ion-color-primary);'>$1</strong>")
+        .replace(/\n\n/g, "<br><br>")
+        .replace(/\n- /g, "<li>")
+        .replace(/\n/g, "</li>");
     },
   },
 });
@@ -131,6 +163,26 @@ export default defineComponent({
 .info-link ion-icon {
   margin-left: 8px;
   font-size: 1.1em;
+}
+
+.component-header {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+.component-wrapper {
+  padding: 10px;
+}
+.info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.info-text {
+  margin-bottom: 8px;
+}
+.info-list {
+  padding-left: 16px;
+  list-style-type: disc;
 }
 
 /* Dark mode support */

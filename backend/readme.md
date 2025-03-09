@@ -48,6 +48,10 @@ The backend of the **PlantCare Tracker** project is responsible for managing use
     # JWT configuration
     JWT_SECRET=your_jwt_secret 
     JWT_REFRESH_SECRET=your_jwt_refresh_secret
+
+    # OpenAI configuration
+    # Leave blank if you dont want AI functionality
+    OPENAI_API_KEY=YOUR_API_KEY 
     ```
 
 4. Start the server:
