@@ -8,8 +8,8 @@ const getMoreInfo = async (req, res) => {
     return res.status(400).json({ message: "plantName is required." });
 
   let cleanedName = plantName
-    .replace(/[^a-zA-Z0-9 ]/g, "")
-    .replace(/\s*\([^)]*\)/g, ""); // Clean input
+    .replace(/\s*\([^)]*\)/g, "") // Remove anything inside parentheses first
+    .replace(/[^a-zA-Z0-9 ]/g, ""); // Then clean up any remaining unwanted characters
 
   try {
     const links = await generateLinks(cleanedName);
