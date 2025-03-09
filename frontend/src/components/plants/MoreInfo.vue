@@ -154,12 +154,121 @@ export default defineComponent({
 });
 </script>
 
+<style>
+/* Header styling */
+.info-header {
+  color: var(--ion-color-primary);
+}
+
+.info-header strong {
+  color: inherit; /* Ensure the strong element inherits the color from its parent */
+}
+
+/* Emphasized text styling */
+.info-em {
+  color: var(--ion-color-tertiary);
+}
+
+/* Item styling */
+.info-item {
+  color: var(
+    --ion-color-primary-tint
+  ) !important; /* Ensures this is not overridden */
+}
+
+.info-item strong {
+  color: inherit; /* Inherit color from the parent .info-item */
+}
+
+/* Strong element styling */
+.info-strong {
+  color: var(--ion-color-dark-tint);
+}
+</style>
+
 <style scoped>
+/* General card styling */
+.info-card.sidenote {
+  margin: 8px;
+  box-shadow: none;
+  background-color: var(--ion-card-background, #fff);
+}
+
+.card-title {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: var(--ion-text-color);
+  margin: 0;
+  padding-bottom: 8px;
+}
+
+/* Links and icon styling */
 .info-loading,
 .info-not-found {
   text-align: center;
   font-size: 1.1rem;
   padding: 10px;
   color: var(--ion-text-color);
+}
+
+.info-links {
+  margin-top: 8px;
+}
+
+.info-item {
+  margin-bottom: 6px;
+}
+
+.info-link {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  font-size: 0.85em;
+  --color: var(--ion-text-color);
+}
+
+.info-link ion-icon {
+  margin-left: 8px;
+  font-size: 1.1em;
+}
+
+.component-header {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+.component-wrapper {
+  padding: 10px;
+}
+.info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.info-text {
+  margin-bottom: 8px;
+}
+.info-list {
+  padding-left: 16px;
+  list-style-type: disc;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .info-card.sidenote {
+    background-color: var(--ion-card-background, #333);
+    color: var(--ion-text-color);
+  }
+
+  .card-title {
+    color: var(--ion-text-color);
+  }
+
+  .info-link {
+    --color: var(--ion-text-color);
+  }
+
+  .info-link ion-icon {
+    color: var(--ion-text-color);
+  }
 }
 </style>
