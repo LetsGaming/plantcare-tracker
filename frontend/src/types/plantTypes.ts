@@ -1,6 +1,7 @@
 interface BasePlant {
   name: string;
   species: string;
+  description: string;
   isPublic?: boolean;
 }
 
@@ -26,6 +27,7 @@ interface APIPlant {
   plant_id: number;
   plant_name: string;
   plant_species: string;
+  plant_description?: string;
   is_public: number;
   plant_created_at: string;
   image_url: string;

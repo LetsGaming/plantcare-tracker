@@ -23,7 +23,7 @@
             @edit-click="handleImageEditClick"
           />
           <substrate-container :substrate="plant.substrate" />
-          <watering-records :plantId="plant.id" />
+          <watering-records :plantId="plant.id" :showAddingButton="!isPublic"/>
           <more-info :plantName="plant.name" />
         </section>
       </div>

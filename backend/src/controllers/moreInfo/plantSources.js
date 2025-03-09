@@ -3,7 +3,7 @@ const { parse } = require("node-html-parser");
 const { escape: encodeURIComponent } = require("querystring");
 const NodeCache = require("node-cache");
 
-const cache = new NodeCache({ stdTTL: 3600, checkperiod: 24 * 60 * 60 }); // Cache for 1 day
+const cache = new NodeCache({ stdTTL: 24 * 60 * 60, checkperiod: 3600 }); // Cache for 1 day
 
 const normalize = (str) =>
   str

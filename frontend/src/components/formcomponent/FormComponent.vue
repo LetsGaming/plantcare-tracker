@@ -1,6 +1,9 @@
 <template>
   <div class="form-container">
-    <IonCard style="margin-top: auto; margin-inline: 0px !important">
+    <IonCard
+      style="margin-top: auto; margin-inline: 0px !important"
+      class="align-middle"
+    >
       <IonCardHeader>
         <IonToolbar>
           <IonCardTitle>{{ cardTitle }}</IonCardTitle>
@@ -57,7 +60,7 @@
     <!-- Extra Content SubstrateComponent -->
     <div
       v-if="extraContentComponent && extraContentData"
-      class="extra-content-wrapper"
+      class="extra-content-wrapper align-middle"
     >
       <component :is="extraContentComponent" v-bind="extraContentData" />
     </div>

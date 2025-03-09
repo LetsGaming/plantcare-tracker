@@ -3,7 +3,7 @@
     <ion-card-header>
       <ion-toolbar>
         <ion-title>Wässerungen</ion-title>
-        <template v-if="!isGuest">
+        <template v-if="showAddingButton && !isGuest">
           <ion-icon
             :icon="addCircle"
             slot="end"
@@ -82,6 +82,10 @@ export default defineComponent({
     plantId: {
       type: Number,
       required: true,
+    },
+    showAddingButton: {
+      type: Boolean,
+      default: true,
     },
   },
   setup() {

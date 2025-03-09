@@ -29,16 +29,14 @@ const getWateringRecord = async (res, selectFn, id, userId = null) => {
 // Controller to fetch watering records for a specific plant
 const getWateringRecordsForPlant = async (req, res) => {
   const { plantId } = req.params;
-  const userId = req.user ? req.user.id : null;
 
-  await getWateringRecord(res, selectWateringRecordsForPlant, plantId, userId);
+  await getWateringRecord(res, selectWateringRecordsForPlant, plantId);
 };
 
 // Controller to fetch a specific watering record
 const getSpecificWateringRecord = async (req, res) => {
   const { id } = req.params;
-  const userId = req.user ? req.user.id : null;
-  await getWateringRecord(res, selectWateringRecord, id, userId);
+  await getWateringRecord(res, selectWateringRecord, id);
 };
 
 // Controller to add a new watering record
