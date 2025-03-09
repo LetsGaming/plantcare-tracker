@@ -100,7 +100,7 @@ const getPlantCareFromOpenAI = async (
         { role: "user", content: prompt },
       ],
       temperature: 0.7, // Balance between randomness and coherence
-      max_tokens: 500, // Limit token usage to save costs
+      max_tokens: 750, // Limit token usage to save costs
     });
 
     const careTips = response.choices?.[0]?.message?.content?.trim();
