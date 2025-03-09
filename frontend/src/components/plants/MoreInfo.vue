@@ -126,7 +126,7 @@ export default defineComponent({
           this.notFound = true;
           this.loading = false;
         }
-      }, 3000); // Set timeout for notFound message
+      }, 10000); // Set timeout for notFound message
 
       this.infos = await MoreInfoService.getMoreInfo(this.plantName);
       this.loading = false;
