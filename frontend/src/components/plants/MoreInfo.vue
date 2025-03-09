@@ -170,14 +170,10 @@ export default defineComponent({
 }
 
 /* Item styling */
-.info-item {
+.info-item .info-strong {
   color: var(
     --ion-color-primary-tint
   ) !important; /* Ensures this is not overridden */
-}
-
-.info-item strong {
-  color: inherit; /* Inherit color from the parent .info-item */
 }
 
 /* Strong element styling */
