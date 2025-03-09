@@ -1,21 +1,22 @@
 <template>
-  <InfoNote note="This field is required" />
+  <small class="info-note">{{ note }}</small>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import InfoNote from "@/components/InfoNote.vue";
 
 export default defineComponent({
-  name: "RequiredNote",
-  components: {
-    InfoNote,
+  name: "InfoNote",
+  props: {
+    note: {
+      type: String,
+      required: true,
+    },
   },
 });
 </script>
-
 <style scoped>
-.required-note {
+.info-note {
   font-size: 0.75em;
   color: red;
   margin-left: 16px;

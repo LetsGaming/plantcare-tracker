@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs").promises;
+const ExifParser = require("exif-parser");
 const logger = require("../utils/logger");
 const {
   insertImage,
@@ -26,10 +27,7 @@ const uploadPath = NAS_PATH || path.resolve(__dirname, "../../uploads");
 const uploadImage = async (req, res) => {
   try {
     const imageFile = req.file;
-    // Expecting generic entity details in the URL parameters
     const { entityType, entityId } = req.params;
-    const { date = Date.now() } = req.body;
-    const parsedDate = formatToDBDate(date);
 
     if (!imageFile) {
       return res
@@ -49,7 +47,22 @@ const uploadImage = async (req, res) => {
       });
     }
 
-    // Construct base URL/path for the file
+    // Read file and extract metadata
+    const fileBuffer = fs.readFileSync(imageFile.path);
+    const parser = ExifParser.create(fileBuffer);
+    const exifData = parser.parse();
+
+    let extractedDate =
+      exifData.tags.DateTimeOriginal || exifData.tags.CreateDate;
+    if (extractedDate) {
+      extractedDate = new Date(extractedDate * 1000); // Convert to JS Date
+    } else {
+      extractedDate = new Date(); // Fallback if no metadata date is found
+    }
+
+    const parsedDate = formatToDBDate(extractedDate);
+
+    // Construct file path
     let baseUrl = uploadDir;
     if (!NAS_PATH) {
       baseUrl = `${req.protocol}://${req.get("host")}${uploadDir}`;
@@ -60,6 +73,7 @@ const uploadImage = async (req, res) => {
     successResponse(res, {
       message: "Image uploaded successfully.",
       path: filePath,
+      date: parsedDate,
     });
   } catch (err) {
     logger.error("Error during image upload", err.message);

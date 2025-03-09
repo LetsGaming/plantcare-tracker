@@ -3,6 +3,7 @@ export default class MoreInfoMapper {
   static mapMoreInfo(moreInfo: APIMoreInfo): MoreInfo {
     return {
       links: moreInfo.links,
+      ai: moreInfo.ai,
     };
   }
 
