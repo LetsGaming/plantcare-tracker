@@ -7,7 +7,7 @@
         }}</ion-title>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
+    <ion-content class="ion-padding" :scroll-y="false">
       <div v-if="isCheckingLogin" class="login-loading-container align-middle">
         <ion-spinner></ion-spinner>
       </div>

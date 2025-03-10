@@ -17,6 +17,7 @@ export default defineComponent({
 </script>
 <style scoped>
 .info-note {
+  display: block;
   font-size: 12px;
   color: red;
 }
