@@ -8,6 +8,7 @@
     <ion-card-content>
       <div v-if="loading" class="info-loading">
         <ion-label>Lade Informationen...</ion-label>
+        <ion-spinner style="padding-left: 15px" />
       </div>
       <div v-else-if="notFound" class="info-not-found">
         <ion-label>Keine weiteren Informationen gefunden.</ion-label>
@@ -26,6 +27,7 @@
             <div slot="content" class="component-wrapper">
               <template v-if="info.links.length > 0">
                 <InfoNote
+                  class="disclaimer"
                   note="Disclaimer: Links können fehlerhaft oder veraltet sein. Keine Gewähr für deren Richtigkeit."
                 />
                 <a
@@ -51,6 +53,7 @@
             <div slot="content" class="component-wrapper">
               <template v-if="info.ai.length > 0">
                 <InfoNote
+                  class="disclaimer"
                   note="Disclaimer: AI-Modelle können fehlerhaft sein. Keine Gewähr für deren Richtigkeit."
                 />
                 <ion-item class="info-content">
@@ -78,6 +81,7 @@ import {
   IonAccordionGroup,
   IonToolbar,
   IonTitle,
+  IonSpinner,
 } from "@ionic/vue";
 import InfoNote from "@/components/InfoNote.vue";
 import MoreInfoService from "@/services/MoreInfoService";
@@ -96,6 +100,7 @@ export default defineComponent({
     IonAccordionGroup,
     IonToolbar,
     IonTitle,
+    IonSpinner,
     InfoNote,
   },
   props: {
@@ -121,14 +126,33 @@ export default defineComponent({
   },
   methods: {
     async getLinks() {
-      setTimeout(() => {
-        if (this.infos.length === 0) {
-          this.notFound = true;
-          this.loading = false;
-        }
-      }, 10000); // Set timeout for notFound message
+      this.loading = true;
+      this.notFound = false; // Reset notFound at the start
 
-      this.infos = await MoreInfoService.getMoreInfo(this.plantName);
+      let timeoutReached = false;
+
+      // Set a timeout to update UI after 10s if data hasn't arrived yet
+      const timeout = setTimeout(() => {
+        timeoutReached = true;
+        if (this.infos.length === 0) {
+          this.notFound = true; // Only mark as "not found" if still empty
+        }
+      }, 10000);
+
+      try {
+        this.infos = await MoreInfoService.getMoreInfo(this.plantName);
+      } catch (error) {
+        console.error("Error fetching more info:", error);
+      }
+
+      clearTimeout(timeout); // Stop the timeout if data arrives
+
+      if (this.infos.length > 0) {
+        this.notFound = false; // If we got data, ensure "not found" isn't shown
+      } else if (timeoutReached) {
+        this.notFound = true; // If timeout was reached and still no data, show "not found"
+      }
+
       this.loading = false;
     },
     addClassesToHtml(content: string): string {
@@ -184,10 +208,8 @@ export default defineComponent({
 
 <style scoped>
 /* General card styling */
-.info-card.sidenote {
-  margin: 8px;
-  box-shadow: none;
-  background-color: var(--ion-card-background, #fff);
+.disclaimer {
+  padding-left: 15px;
 }
 
 .card-title {
@@ -204,7 +226,6 @@ export default defineComponent({
   text-align: center;
   font-size: 1.1rem;
   padding: 10px;
-  color: var(--ion-text-color);
 }
 
 .info-links {
@@ -232,9 +253,7 @@ export default defineComponent({
   font-weight: bold;
   font-size: 1.1rem;
 }
-.component-wrapper {
-  padding: 10px;
-}
+
 .info-content {
   display: flex;
   flex-direction: column;
@@ -250,11 +269,6 @@ export default defineComponent({
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-  .info-card.sidenote {
-    background-color: var(--ion-card-background, #333);
-    color: var(--ion-text-color);
-  }
-
   .card-title {
     color: var(--ion-text-color);
   }

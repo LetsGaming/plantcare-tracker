@@ -1,9 +1,16 @@
 <template>
   <section class="details-banner">
     <ion-img
-      :src="imageUrl || '/no-image.png'"
+      v-if="imageUrl"
+      :src="imageUrl"
       :alt="bannerTitle + ' Image'"
       class="details-banner__image"
+    />
+    <ion-img
+      v-else
+      src="/no-image.png"
+      alt="No Image"
+      class="details-banner__image no-image"
     />
     <div class="details-banner__content">
       <h2 class="details-banner__title">{{ bannerTitle }}</h2>
@@ -56,6 +63,10 @@ export default defineComponent({
 
 .details-banner__image::part(image) {
   object-fit: cover;
+}
+
+.no-image::part(image) {
+  object-fit: contain !important;
 }
 
 .details-banner__content {
