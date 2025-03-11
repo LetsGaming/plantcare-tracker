@@ -3,7 +3,7 @@
     <ion-card-header>
       <ion-toolbar>
         <ion-title>Wässerungen</ion-title>
-        <template v-if="showAddingButton && !isGuest">
+        <template v-if="showAddButton && !isGuest">
           <ion-icon
             :icon="addCircle"
             slot="end"
@@ -15,7 +15,7 @@
     <section class="watering-records" v-if="mappedRecords.length > 0">
       <ion-card-content>
         <ion-item v-for="record in mappedRecords">
-          <Accordion :item="record" @edit-click="handleEditClick" />
+          <Accordion :item="record" @edit-click="handleEditClick" :show-edit-button="showEditButton && !isGuest"/>
         </ion-item>
       </ion-card-content>
     </section>
@@ -83,7 +83,11 @@ export default defineComponent({
       type: Number,
       required: true,
     },
-    showAddingButton: {
+    showAddButton: {
+      type: Boolean,
+      default: true,
+    },
+    showEditButton: {
       type: Boolean,
       default: true,
     },
