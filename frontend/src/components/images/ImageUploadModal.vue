@@ -21,6 +21,11 @@
               modelKey: 'file',
               required: true,
             },
+            {
+              type: 'date',
+              label: 'Datum',
+              modelKey: 'date',
+            }
           ]"
           submitLabel="Hochladen"
           :onSubmitClick="submitForm"
@@ -95,6 +100,7 @@ export default defineComponent({
     return {
       fileItem: {
         file: null as File | null,
+        date: null as Date | null,
       },
     };
   },
@@ -103,7 +109,7 @@ export default defineComponent({
       if (!this.fileItem.file) {
         ToastService.showError("Bitte wählen Sie ein Bild aus.");
       } else {
-        this.$emit("submit", this.fileItem.file);
+        this.$emit("submit", this.fileItem);
       }
     },
   },

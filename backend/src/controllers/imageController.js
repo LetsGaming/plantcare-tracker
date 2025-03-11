@@ -48,7 +48,7 @@ const uploadImage = async (req, res) => {
     }
 
     // Read file and extract metadata
-    const fileBuffer = fs.readFileSync(imageFile.path);
+    const fileBuffer = await fs.readFile(imageFile.path);
     const parser = ExifParser.create(fileBuffer);
     const exifData = parser.parse();
 

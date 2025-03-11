@@ -133,9 +133,18 @@ export default class PlantService {
     }
   }
 
-  static async uploadPlantImage(plantId: number, image: File): Promise<any> {
+  static async uploadPlantImage(
+    plantId: number,
+    image: File,
+    date?: string | Date
+  ): Promise<any> {
     try {
-      const response = await ImageService.uploadImage(image, "plant", plantId);
+      const response = await ImageService.uploadImage(
+        image,
+        "plant",
+        plantId,
+        date
+      );
       await this.invalidatePlantCache(); // Invalidate the cache after uploading an image
       await WateringService.invalidateWateringCacheForPlant(plantId);
       return response;
