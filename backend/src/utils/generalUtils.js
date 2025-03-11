@@ -67,7 +67,6 @@ const parseCustomDate = (dateString) => {
         throw new Error("Invalid date");
       }
       const date = new Date(year, month - 1, day, hours, minutes, seconds);
-      console.log("parsed date", date);
       return date;
     }
   }

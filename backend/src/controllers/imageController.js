@@ -1,6 +1,5 @@
 const path = require("path");
 const fs = require("fs").promises;
-const ExifParser = require("exif-parser");
 const logger = require("../utils/logger");
 const {
   insertImage,
@@ -30,37 +29,31 @@ const uploadImage = async (req, res) => {
     const { entityType, entityId } = req.params;
 
     if (!imageFile) {
-      return res
-        .status(400)
-        .json({ message: "No file was uploaded or 'image' field is missing." });
+      return errorResponse(
+        res,
+        "No file was uploaded or 'image' field is missing.",
+        400
+      );
     }
 
     if (!entityType || !entityId) {
-      return res
-        .status(400)
-        .json({ message: "Both entityType and entityId are required." });
+      return errorResponse(
+        res,
+        "Both entityType and entityId are required.",
+        400
+      );
     }
 
+    // Validate MIME type (png, jpeg, jpg)
     if (!allowedMimeTypes.includes(imageFile.mimetype)) {
-      return res.status(400).json({
-        message: "Uploaded file is not a valid image format (png, jpeg, jpg).",
-      });
+      return errorResponse(
+        res,
+        "Invalid image format. Only PNG, JPEG, and JPG files are allowed.",
+        400
+      );
     }
-
-    // Read file and extract metadata
-    const fileBuffer = await fs.readFile(imageFile.path);
-    const parser = ExifParser.create(fileBuffer);
-    const exifData = parser.parse();
-
-    let extractedDate =
-      exifData.tags.DateTimeOriginal || exifData.tags.CreateDate;
-    if (extractedDate) {
-      extractedDate = new Date(extractedDate * 1000); // Convert to JS Date
-    } else {
-      extractedDate = new Date(); // Fallback if no metadata date is found
-    }
-
-    const parsedDate = formatToDBDate(extractedDate);
+    const { date = Date.now() } = req.body;
+    const parsedDate = formatToDBDate(date);
 
     // Construct file path
     let baseUrl = uploadDir;

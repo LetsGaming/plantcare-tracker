@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
+const ExifParser = require("exif-parser");
 const sharp = require("sharp");
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const {
@@ -16,6 +17,7 @@ const { imageGetLimiter } = require("../middlewares/rateLimiter");
 
 const dotenv = require("dotenv"); // Import dotenv to load environment variables
 const { errorResponse } = require("../utils/responseUtils");
+const logger = require("../utils/logger");
 
 // Load environment variables from .env file
 dotenv.config();
@@ -36,6 +38,36 @@ const upload = multer({
     }
   },
 });
+
+// Helper function to extract the image's creation date
+async function extractImageDate(fileBuffer) {
+  let extractedDate;
+
+  // Try to extract EXIF data from the image buffer
+  try {
+    const parser = ExifParser.create(fileBuffer);
+    const exifData = parser.parse();
+
+    // Extract DateTimeOriginal or CreateDate from EXIF data
+    extractedDate =
+      exifData?.tags?.DateTimeOriginal || exifData?.tags?.CreateDate;
+
+    // Check if extracted date is a valid Unix timestamp (seconds)
+    if (extractedDate && !isNaN(extractedDate)) {
+      // If the date is a Unix timestamp in seconds, convert to milliseconds
+      if (String(extractedDate).length === 10) {
+        extractedDate = new Date(extractedDate * 1000); // Convert to milliseconds
+      } else {
+        extractedDate = new Date(extractedDate); // If it's already a valid Date string
+      }
+    }
+  } catch (err) {
+    logger.error("Error extracting EXIF data", err);
+    return null;
+  }
+
+  return extractedDate;
+}
 
 router.post(
   "/:entityType/:entityId",
@@ -58,7 +90,9 @@ router.post(
       }.webp`;
       const outputPath = path.join(NAS_PATH, uniqueFilename);
 
-      await sharp(req.file.buffer)
+      const imageBuffer = req.file.buffer;
+      const extractedDate = await extractImageDate(imageBuffer);
+      await sharp(imageBuffer)
         .resize({ width: 1024 })
         .toFormat("webp")
         .webp({ quality: 70, nearLossless: true })
@@ -66,6 +100,7 @@ router.post(
 
       req.file.path = outputPath;
       req.file.filename = uniqueFilename;
+      req.body.date = extractedDate;
       next();
     } catch (error) {
       next(error);
@@ -114,8 +149,10 @@ router.patch(
           }.webp`;
           const outputPath = path.join(NAS_PATH, uniqueFilename);
 
+          const imageBuffer = req.file.buffer;
+          const extractedDate = await extractImageDate(imageBuffer);
           // Convert and save image using Sharp
-          await sharp(req.file.buffer)
+          await sharp(imageBuffer)
             .resize({ width: 1024 })
             .toFormat("webp")
             .webp({ quality: 70, nearLossless: true })
@@ -124,6 +161,7 @@ router.patch(
           // Attach processed file path to request
           req.file.path = outputPath;
           req.file.filename = uniqueFilename;
+          req.body.date = extractedDate;
         }
       }
 
