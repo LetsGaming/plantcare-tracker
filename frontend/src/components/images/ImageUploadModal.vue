@@ -27,6 +27,7 @@
               modelKey: 'date',
             }
           ]"
+          cardTitle="Bild hochladen"
           submitLabel="Hochladen"
           :onSubmitClick="submitForm"
         />

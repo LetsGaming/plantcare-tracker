@@ -1,7 +1,7 @@
 <template>
   <div class="form-container">
     <IonCard
-      style="margin-top: auto; margin-inline: 0px !important"
+      style="margin-top: auto; margin-inline: 0px !important; display: block;"
       class="align-middle"
     >
       <IonCardHeader>
