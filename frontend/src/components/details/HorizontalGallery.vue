@@ -71,15 +71,19 @@ export default defineComponent({
   },
   methods: {
     async setShowEdit() {
-      this.showEditButton = !this.isPublic && !await AuthUtils.isGuest()
+      this.showEditButton = !this.isPublic && !(await AuthUtils.isGuest());
     },
     enlargeImage(image: Image) {
       this.enlargedImage = image;
-      this.isModalVisible = true;
+      this.$nextTick(() => {
+        this.isModalVisible = true;
+      });
     },
     closeModal() {
       this.isModalVisible = false;
-      this.enlargedImage = null;
+      this.$nextTick(() => {
+        this.enlargedImage = null;
+      });
     },
     editClick() {
       this.$emit("edit-click", this.enlargedImage);
