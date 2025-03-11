@@ -7,10 +7,15 @@ export default class ImageService {
   static async uploadImage(
     image: File,
     entityType: "plant" | "substrate" | "component",
-    entityId: number
+    entityId: number,
+    date?: string | Date
   ) {
     const formData = new FormData();
     formData.append("image", image);
+    if (date) {
+      formData.append("date", date.toString());
+    }
+
     const url = `/images/${entityType}/${entityId}`;
     const response = await ApiUtils.upload(url, formData);
     return response;

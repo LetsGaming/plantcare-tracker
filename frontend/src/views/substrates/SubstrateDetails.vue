@@ -113,10 +113,14 @@ export default defineComponent({
     showUpload() {
       this.showUploadModal = true;
     },
-    async onImageUpload(file: File) {
+    async onImageUpload(fileItem: any) {
       if (this.substrate) {
         try {
-          await SubstrateService.uploadSubstrateImage(this.substrate.id, file);
+          await SubstrateService.uploadSubstrateImage(
+            this.substrate.id,
+            fileItem.file,
+            fileItem.date
+          );
           this.substrate = await SubstrateService.getSubstrateById(
             this.substrateId,
             this.isPublic

@@ -23,7 +23,11 @@
             @edit-click="handleImageEditClick"
           />
           <substrate-container :substrate="plant.substrate" />
-          <watering-records :plantId="plant.id" :showAddButton="!isPublic" :showEditButton="!isPublic"/>
+          <watering-records
+            :plantId="plant.id"
+            :showAddButton="!isPublic"
+            :showEditButton="!isPublic"
+          />
           <more-info :plantName="plant.name" />
         </section>
       </div>
@@ -145,10 +149,14 @@ export default defineComponent({
       this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
       this.showEditModal = false;
     },
-    async onImageUpload(file: File) {
+    async onImageUpload(fileItem: any) {
       if (this.plant) {
         try {
-          await PlantService.uploadPlantImage(this.plant.id, file);
+          await PlantService.uploadPlantImage(
+            this.plant.id,
+            fileItem.file,
+            fileItem.date
+          );
           this.plant = await PlantService.getPlantById(
             this.plantId,
             this.isPublic

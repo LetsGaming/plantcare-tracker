@@ -230,11 +230,15 @@ export default class SubstrateService {
    */
   static async uploadSubstrateImage(
     substrateId: number,
-    image: File
+    image: File,
+    date?: string | Date
   ): Promise<any> {
     try {
       const formData = new FormData();
       formData.append("image", image);
+      if (date) {
+        formData.append("date", date.toString());
+      }
       const url = `/images/substrate/${substrateId}`;
       const response = await ApiUtils.upload(url, formData);
       await invalidateSubstrateCache();
