@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {authenticateToken} = require('../middlewares/authMiddleware');
+const { cleanRequestBody } = require("../middlewares/generalMiddleware");
 const {
   getPrivatePlants,
   getSpecificPlant,
@@ -23,7 +24,7 @@ router.get('/public', authenticateToken, getPublicPlants);
 router.post('/', authenticateToken, addPlant);
 
 // Partially update an existing plant (authentication required)
-router.patch('/:id', authenticateToken, editPlant);
+router.patch('/:id', authenticateToken, cleanRequestBody, editPlant);
 
 router.delete('/:id', authenticateToken, deleteSpecificPlant);
 

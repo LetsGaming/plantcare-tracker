@@ -33,7 +33,7 @@
 import { defineComponent } from "vue";
 import { IonImg } from "@ionic/vue";
 import ImageModal from "../images/ImageModal.vue";
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 
 export default defineComponent({
   name: "HorizontalGallery",
@@ -71,7 +71,7 @@ export default defineComponent({
   },
   methods: {
     async setShowEdit() {
-      this.showEditButton = !this.isPublic && !(await AuthUtils.isGuest());
+      this.showEditButton = !this.isPublic && !(await UserService.isGuest());
     },
     enlargeImage(image: Image) {
       this.enlargedImage = image;

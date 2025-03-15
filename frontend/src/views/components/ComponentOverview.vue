@@ -37,7 +37,7 @@ import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 
 export default defineComponent({
   name: "ComponentOverview",
@@ -64,7 +64,7 @@ export default defineComponent({
     };
   },
   async ionViewWillEnter() {
-    this.isAdmin = await AuthUtils.isAdmin();
+    this.isAdmin = await UserService.isAdmin();
     await this.fetchComponents();
   },
   methods: {

@@ -37,7 +37,7 @@
                       {{ item.description }}
                     </ion-card-subtitle>
                     <ion-text color="medium" style="text-wrap: nowrap">
-                      Klicke für mehr Details
+                      Mehr Details
                     </ion-text>
                   </div>
                 </ion-col>
@@ -161,12 +161,13 @@ export default defineComponent({
 }
 
 .item-image {
+  object-fit: cover;
   border-radius: 15px 15px 0 0;
 }
 
 .item-image::part(image) {
-  max-width: 200px;
-  max-height: 200px;
+  width: 200px;
+  height: 200px;
 }
 
 .card-details-container {

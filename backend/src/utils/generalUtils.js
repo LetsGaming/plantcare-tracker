@@ -1,3 +1,19 @@
+const removeEmptyFields = (obj) => {
+  if (typeof obj !== 'object' || obj === null) return obj; // Ensure obj is an object
+
+  return Object.entries(obj)
+    .filter(([_, value]) => {
+      if (value === null || value === undefined || value === '') return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+      if (typeof value === 'object' && Object.keys(value).length === 0) return false;
+      return true;
+    })
+    .reduce((acc, [key, value]) => {
+      acc[key] = typeof value === 'object' ? removeEmptyFields(value) : value;
+      return acc;
+    }, {});
+}
+
 // Custom timestamp function
 const customTimestamp = (date = new Date()) => {
   const formatNumber = (num) => String(num).padStart(2, "0");
@@ -74,4 +90,4 @@ const parseCustomDate = (dateString) => {
   throw new Error("Unsupported date format");
 };
 
-module.exports = { customTimestamp, formatToDBDate, parseCustomDate };
+module.exports = { removeEmptyFields, customTimestamp, formatToDBDate, parseCustomDate };

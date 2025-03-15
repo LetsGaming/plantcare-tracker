@@ -53,7 +53,7 @@ import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 
 export default defineComponent({
   name: "ComponentDetails",
@@ -83,7 +83,7 @@ export default defineComponent({
     };
   },
   async ionViewDidEnter() {
-    this.isAdmin = await AuthUtils.isAdmin();
+    this.isAdmin = await UserService.isAdmin();
     await this.fetchComponent();
   },
   computed: {

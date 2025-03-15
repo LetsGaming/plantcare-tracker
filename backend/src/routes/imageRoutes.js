@@ -5,6 +5,7 @@ const path = require("path");
 const ExifParser = require("exif-parser");
 const sharp = require("sharp");
 const { authenticateToken } = require("../middlewares/authMiddleware");
+const { cleanRequestBody } = require("../middlewares/generalMiddleware");
 const {
   uploadImage,
   updateSpecificImage,
@@ -123,6 +124,7 @@ router.get(
 router.patch(
   "/image/:id",
   authenticateToken,
+  cleanRequestBody,
   upload.single("image"), // Multer processes "image" field from FormData
   async (req, res, next) => {
     try {

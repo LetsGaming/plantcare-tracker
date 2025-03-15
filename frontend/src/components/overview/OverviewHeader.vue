@@ -1,6 +1,9 @@
 <template>
   <ion-header>
     <ion-toolbar class="header-toolbar">
+      <ion-buttons slot="start" class="menu-button">
+        <ion-menu-button></ion-menu-button>
+      </ion-buttons>
       <ion-title>{{ title }}</ion-title>
       <ion-icon
         :icon="logOutOutline"
@@ -55,9 +58,11 @@ import {
   IonSegmentButton,
   IonLabel,
   IonIcon,
+  IonButtons,
+  IonMenuButton,
 } from "@ionic/vue";
 import { logOutOutline } from "ionicons/icons";
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 
 export default defineComponent({
   name: "OverviewHeader",
@@ -69,6 +74,8 @@ export default defineComponent({
     IonSegmentButton,
     IonLabel,
     IonIcon,
+    IonButtons,
+    IonMenuButton,
   },
   props: {
     title: {
@@ -121,7 +128,7 @@ export default defineComponent({
     return { logOutOutline };
   },
   async mounted() {
-    this.isGuest = await AuthUtils.isGuest();
+    this.isGuest = await UserService.isGuest();
 
     if (this.isGuest) {
       // If the user is a guest, and the starting segment is hidden, find the first visible segment
@@ -139,7 +146,7 @@ export default defineComponent({
   },
   methods: {
     async logUserOut() {
-      await AuthUtils.logout();
+      await UserService.logout();
     },
     handleSegmentChange(event: any) {
       const value = event.detail.value;
@@ -153,7 +160,6 @@ export default defineComponent({
 .header-toolbar {
   text-align: center;
   background-color: var(--ion-color-primary);
-  color: white;
 }
 
 .segment-toolbar {

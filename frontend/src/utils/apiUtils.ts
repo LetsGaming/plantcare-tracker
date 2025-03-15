@@ -1,7 +1,8 @@
 import ToastService from "@/services/general/ToastService";
-import AuthUtils from "./authUtils";
 import TokenUtils from "./tokenUtils";
 import Utils from "./utils";
+
+import UserService from "@/services/UserService";
 
 const API_BASE_URL = Utils.getApiBaseUrl();
 
@@ -60,10 +61,10 @@ const getAuthHeaders = async (): Promise<HeadersInit> => {
  */
 const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Response> => {
   try {
-    await AuthUtils.refreshToken();
+    await UserService.refreshToken();
     return await requestFn();
   } catch (error) {
-    await AuthUtils.logout();
+    await UserService.logout();
     ToastService.showError("Session expired. You have been logged out.");
     throw new Error("Session expired. You have been logged out.");
   }

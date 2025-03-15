@@ -15,6 +15,10 @@ ion-icon {
   cursor: pointer;
 }
 
+ion-toolbar {
+  text-align: center;
+}
+
 .modal-card-container {
   display: flex;
   justify-content: center;
