@@ -261,7 +261,7 @@ export default defineComponent({
   font-size: 24px;
 }
 
-@media (min-width: 768px) {
+@media (max-width: 768px) {
   .enlarged-image-label {
     top: 75dvh;
     font-size: 24px;
