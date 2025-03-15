@@ -5,8 +5,8 @@ PlantCare Tracker is a web application designed to help users manage and track t
 - User-friendly interface built with Vue.
 - Track multiple plants with individual care logs.
 - View plant health history (watering, interactive photo gallery).
+- Set watering, fertilizing, and other reminders.
 - WiP | Custom notifications for plant care.
-- WiP | Set watering, fertilizing, and other reminders.
 
 ## Tech Stack
 - **Frontend**: Ionic, Vue, CSS, TypeScript

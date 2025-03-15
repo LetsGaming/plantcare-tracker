@@ -7,7 +7,7 @@ This is the frontend for the PlantCare Tracker app, a web application for tracki
 - User-friendly interface for tracking plant care.
 - Dynamic forms for adding new plants and care logs.
 - Responsive design for mobile and desktop use.
-- WiP | Customizable reminders for watering, sunlight, and more.
+- Customizable reminders for watering, sunlight, and more.
 
 ## Tech Stack
 - **Ionic**: Framework for building cross-platform mobile apps.
