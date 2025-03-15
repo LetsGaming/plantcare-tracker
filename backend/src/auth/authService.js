@@ -47,7 +47,6 @@ const comparePasswords = async (plainPassword, hashedPassword) => {
 // Update user profile by user ID
 const updateUserProfile = async (userId, updateFields) => {
   try {
-    console.log(updateFields);
     const updateSetClause = Object.keys(updateFields)
       .map((field) => `${field} = ?`)
       .join(", ");

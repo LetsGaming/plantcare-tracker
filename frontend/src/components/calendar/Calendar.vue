@@ -1,0 +1,175 @@
+<template>
+  <div>
+    <ion-card>
+      <ion-card-header>
+        <ion-toolbar>
+          <ion-title>Erinnerungen</ion-title>
+          <ion-icon
+            v-if="showSettingsButton"
+            slot="end"
+            :icon="settings"
+            @click="$emit('settings-click')"
+          />
+        </ion-toolbar>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-datetime
+          v-model="selectedDate"
+          presentation="date"
+          :highlighted-dates="reminderDates"
+        ></ion-datetime>
+
+        <!-- Dropdown für Kategorien -->
+        <ion-select
+          v-model="selectedCategory"
+          placeholder="Kategorie auswählen"
+        >
+          <ion-select-option
+            v-for="cat in categories"
+            :key="cat.name"
+            :value="cat"
+          >
+            {{ cat.name }}
+          </ion-select-option>
+        </ion-select>
+
+        <ion-button expand="full" @click="addDate"
+          >Erinnerung hinzufügen</ion-button
+        >
+      </ion-card-content>
+    </ion-card>
+  </div>
+</template>
+
+<script lang="ts">
+import { defineComponent } from "vue";
+import {
+  IonCard,
+  IonCardHeader,
+  IonCardTitle,
+  IonCardContent,
+  IonDatetime,
+  IonButton,
+  IonSelect,
+  IonSelectOption,
+  IonTitle,
+  IonIcon,
+  IonToolbar,
+} from "@ionic/vue";
+import { settings } from "ionicons/icons";
+import storageService from "@/services/general/StorageService";
+
+export default defineComponent({
+  name: "Calendar",
+  emits: ["settings-click"],
+  components: {
+    IonCard,
+    IonCardHeader,
+    IonCardTitle,
+    IonCardContent,
+    IonDatetime,
+    IonButton,
+    IonSelect,
+    IonSelectOption,
+    IonTitle,
+    IonIcon,
+    IonToolbar,
+  },
+  props: {
+    showSettingsButton: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  setup() {
+    return {
+      settings,
+    };
+  },
+  data() {
+    return {
+      selectedDate: "",
+      selectedCategory: null as {
+        name: string;
+        textColor: string;
+        backgroundColor: string;
+      } | null,
+      // Gespeicherte Reminder-Daten
+      reminderDates: [] as CalendarDates[],
+      // Vordefinierte Kategorien mit eigenen Farben
+      categories: [] as Category[],
+    };
+  },
+  async mounted() {
+    document.addEventListener(
+      "categories-changed",
+      this.handleCategoriesChanged as EventListener
+    );
+    document.addEventListener(
+      "dates-changed",
+      this.handleDatesChanged as EventListener
+    );
+    await this.getSavedDates();
+    await this.getSavedCategories();
+  },
+  methods: {
+    handleCategoriesChanged(event: CustomEvent<Category[]>) {
+      this.categories = event.detail;
+    },
+    handleDatesChanged(event: CustomEvent<CalendarDates[]>) {
+      this.reminderDates = [];
+      this.$nextTick(() => {
+        this.reminderDates = event.detail;
+      });
+    },
+    async getSavedDates() {
+      const datesStorage = (await storageService.get(
+        "reminder_dates"
+      )) as StoredCalendarDates | null;
+
+      if (datesStorage && datesStorage.calendarDates) {
+        this.reminderDates = datesStorage.calendarDates;
+      } else {
+        this.categories = []; // Ensure it's always an array
+      }
+    },
+    async getSavedCategories() {
+      const categoriesStorage = (await storageService.get(
+        "date_categories"
+      )) as StoredCategories | null;
+
+      if (categoriesStorage && categoriesStorage.categories) {
+        this.categories = categoriesStorage.categories;
+      } else {
+        this.categories = []; // Ensure it's always an array
+      }
+    },
+    addDate() {
+      if (!this.selectedDate || !this.selectedCategory) {
+        // Optional: Hier könnte eine Fehlermeldung an den Nutzer ausgegeben werden, falls Datum oder Kategorie nicht ausgewählt wurde.
+        return;
+      }
+      // Extrahiere das Datum ohne Zeitanteil
+      const dateWithoutTime = new Date(this.selectedDate)
+        .toISOString()
+        .split("T")[0];
+      // Verwende die Farben der ausgewählten Kategorie
+      this.reminderDates.push({
+        date: dateWithoutTime,
+        category: this.selectedCategory.name,
+        textColor: this.selectedCategory.textColor,
+        backgroundColor: this.selectedCategory.backgroundColor,
+      });
+      // Reset der Eingabefelder
+      this.selectedDate = "";
+      this.saveDates();
+    },
+    async saveDates() {
+      const plainDates = JSON.parse(JSON.stringify(this.reminderDates)); // Deep copy
+      await storageService.set("reminder_dates", {
+        calendarDates: plainDates,
+      });
+    },
+  },
+});
+</script>

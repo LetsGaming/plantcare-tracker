@@ -12,36 +12,41 @@
     </ion-header>
 
     <ion-content>
-      <ion-list>
-        <ion-item lines="none">
-          <ion-grid>
-            <ion-row>
-              <ion-col>
-                <ion-label class="profile-label">Username:</ion-label>
-              </ion-col>
-              <ion-col>
-                <ion-label>{{ username }}</ion-label>
-              </ion-col>
-            </ion-row>
-          </ion-grid>
-        </ion-item>
-        <ion-item lines="none">
-          <ion-grid>
-            <ion-row>
-              <ion-col>
-                <ion-label class="profile-label">Rolle:</ion-label>
-              </ion-col>
-              <ion-col>
-                <ion-label>{{ role }}</ion-label>
-              </ion-col>
-            </ion-row>
-          </ion-grid>
-        </ion-item>
-      </ion-list>
+      <ion-card class="align-middle" style="display: block;">
+        <ion-list>
+          <ion-item lines="none">
+            <ion-grid>
+              <ion-row>
+                <ion-col>
+                  <ion-label class="profile-label">Username:</ion-label>
+                </ion-col>
+                <ion-col>
+                  <ion-label>{{ username }}</ion-label>
+                </ion-col>
+              </ion-row>
+            </ion-grid>
+          </ion-item>
+          <ion-item lines="none">
+            <ion-grid>
+              <ion-row>
+                <ion-col>
+                  <ion-label class="profile-label">Rolle:</ion-label>
+                </ion-col>
+                <ion-col>
+                  <ion-label>{{ role }}</ion-label>
+                </ion-col>
+              </ion-row>
+            </ion-grid>
+          </ion-item>
+        </ion-list>
 
-      <ion-button v-if="showEditButton" expand="full" @click="openEditingModal"
-        >Edit</ion-button
-      >
+        <ion-button
+          v-if="showEditButton"
+          expand="full"
+          @click="openEditingModal"
+          >Edit</ion-button
+        >
+      </ion-card>
 
       <profile-editing-modal
         :is-open="showEditingModal"
@@ -68,6 +73,7 @@ import {
   IonGrid,
   IonRow,
   IonCol,
+  IonCard,
 } from "@ionic/vue";
 import { close } from "ionicons/icons";
 import ProfileEditingModal from "@/components/profile/ProfileEditingModal.vue";
@@ -90,6 +96,7 @@ export default defineComponent({
     IonGrid,
     IonRow,
     IonCol,
+    IonCard,
     ProfileEditingModal,
   },
   setup() {

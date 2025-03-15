@@ -19,6 +19,12 @@
           <ion-icon slot="start" :icon="personIcon" />
           <ion-label>Profil</ion-label>
         </ion-item>
+        <ion-item>
+          <calendar
+            :show-settings-button="true"
+            @settings-click="showDateSettings = true"
+          />
+        </ion-item>
       </ion-list>
     </ion-content>
 
@@ -36,6 +42,10 @@
       </ion-toolbar>
     </ion-footer>
   </ion-menu>
+  <calendar-settings-modal
+    :is-open="showDateSettings"
+    @close="showDateSettings = false"
+  />
 </template>
 
 <script lang="ts">
@@ -58,6 +68,8 @@ import {
   menuController,
 } from "@ionic/vue";
 import { close, person } from "ionicons/icons";
+import Calendar from "./calendar/Calendar.vue";
+import CalendarSettingsModal from "./calendar/CalendarSettingsModal.vue";
 
 import storageService from "@/services/general/StorageService";
 
@@ -78,18 +90,21 @@ export default defineComponent({
     IonLabel,
     IonToggle,
     IonFooter,
+    Calendar,
+    CalendarSettingsModal,
   },
   data() {
     return {
       darkMode: false,
       closeIcon: close,
       personIcon: person,
+      showDateSettings: false,
     };
   },
   async mounted() {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
     try {
-      const storedDark = await storageService.get("darkMode");
+      const storedDark = await storageService.get("dark_mode");
       const isDark =
         typeof storedDark === "boolean" ? storedDark : prefersDark.matches;
       this.toggleDarkMode(isDark);
@@ -107,7 +122,7 @@ export default defineComponent({
     async toggleDarkMode(value: boolean) {
       this.darkMode = value;
       try {
-        await storageService.set("darkMode", value);
+        await storageService.set("dark_mode", value);
       } catch (error) {
         console.error("Failed to set dark mode preference:", error);
       }
