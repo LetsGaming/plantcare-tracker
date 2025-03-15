@@ -25,7 +25,7 @@
 </template>
 
 <script lang="ts">
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 import { defineComponent, ref } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { create } from "ionicons/icons";
@@ -59,7 +59,7 @@ export default defineComponent({
     return { isOpen, toggle, create };
   },
   async mounted() {
-    this.isGuest = await AuthUtils.isGuest();
+    this.isGuest = await UserService.isGuest();
   },
   methods: {
     onEditClick() {
@@ -70,17 +70,8 @@ export default defineComponent({
 </script>
 
 <style scoped>
-:root {
-  --background-color: var(--ion-color-light);
-  --card-background-color: var(--ion-color-white);
-  --header-background-color: var(--ion-color-light-tint);
-  --text-color: var(--ion-color-dark);
-  --detail-text-color: var(--ion-color-medium);
-  --accent-color: var(--ion-color-primary);
-}
-
 .card {
-  background: var(--card-background-color);
+  background: var(--ion-color-white);
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -92,6 +83,7 @@ export default defineComponent({
 }
 
 .accordion-toggle {
+  color: var(--ion-text-color);
   width: 100%;
   background: none;
   border: none;
@@ -106,12 +98,8 @@ export default defineComponent({
   padding: 10px 0;
 }
 
-.accordion-toggle:focus {
-  outline: 2px solid var(--accent-color);
-}
-
 .accordion-toggle:hover {
-  color: var(--accent-color);
+  color: var(--ion-color-primary);
 }
 
 .icons-container {
@@ -122,7 +110,7 @@ export default defineComponent({
 
 .edit-icon {
   font-size: 1.2rem;
-  color: var(--accent-color);
+  color: var(--ion-color-primary);
   cursor: pointer;
   transition: color 0.3s ease;
 }
@@ -150,7 +138,7 @@ export default defineComponent({
   margin-top: 10px;
   padding-left: 20px;
   font-size: 0.9rem;
-  color: var(--detail-text-color);
+  color: var(--ion-color-medium);
   border-radius: 6px;
 }
 </style>

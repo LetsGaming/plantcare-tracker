@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
+const { cleanRequestBody } = require("../middlewares/generalMiddleware");
 const {
   getPrivateSubstrates,
   getPublicSubstrates,
@@ -25,13 +26,13 @@ router.get('/public', authenticateToken, getPublicSubstrates);
 router.post('/', authenticateToken, addSubstrate);
 
 // Partially update an existing substrate (authentication required)
-router.patch('/:id', authenticateToken, editSubstrate);
+router.patch('/:id', authenticateToken, cleanRequestBody, editSubstrate);
 
 // Add components to a substrate (authentication required)
 router.post('/components/:id', authenticateToken, addSubstrateComponents);
 
 // Edit components of a substrate (authentication required)
-router.patch('/components/:id', authenticateToken, editSubstrateComponents);
+router.patch('/components/:id', authenticateToken, cleanRequestBody, editSubstrateComponents);
 
 router.delete('/:id', authenticateToken, deleteSpecificSubstrate);
 

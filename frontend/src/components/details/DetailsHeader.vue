@@ -41,7 +41,7 @@ import {
   IonIcon,
 } from "@ionic/vue";
 import { create, cloudUpload } from "ionicons/icons";
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 
 export default defineComponent({
   name: "DetailsHeader",
@@ -86,15 +86,14 @@ export default defineComponent({
     };
   },
   async mounted() {
-    this.isGuest = await AuthUtils.isGuest();
-  }
+    this.isGuest = await UserService.isGuest();
+  },
 });
 </script>
 
 <style scoped>
 .header-toolbar {
   background-color: var(--ion-color-primary);
-  color: white;
 }
 
 .segment-toolbar {

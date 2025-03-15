@@ -134,7 +134,7 @@ import {
   eyeOffOutline,
   eyeOutline,
 } from "ionicons/icons";
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
@@ -168,10 +168,10 @@ export default defineComponent({
   },
   async mounted() {
     try {
-      if (!(await AuthUtils.isAuthenticated())) return;
+      if (!(await UserService.isAuthenticated())) return;
 
       try {
-        await AuthUtils.refreshToken(1);
+        await UserService.refreshToken(1);
         this.redirectUser();
       } catch {
         return;
@@ -192,7 +192,7 @@ export default defineComponent({
     async guestLogin() {
       this.loading = true;
       try {
-        await AuthUtils.guestLogin();
+        await UserService.guestLogin();
         this.redirectUser();
       } catch (error) {
         ToastService.showError(
@@ -219,7 +219,7 @@ export default defineComponent({
       this.loading = true;
       try {
         const data = { username: this.username, password: this.password };
-        await AuthUtils.login(data);
+        await UserService.login(data);
         this.redirectUser();
       } catch (error) {
         ToastService.showError(
@@ -256,7 +256,7 @@ export default defineComponent({
       this.loading = true;
       try {
         const data = { username: this.username, password: this.password };
-        await AuthUtils.register(data);
+        await UserService.register(data);
         ToastService.showSuccess("Registration successful. Please login.");
         this.isRegisterMode = false; // Switch back to login mode
       } catch (error) {

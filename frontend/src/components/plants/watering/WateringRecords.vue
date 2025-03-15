@@ -15,7 +15,11 @@
     <section class="watering-records" v-if="mappedRecords.length > 0">
       <ion-card-content>
         <ion-item v-for="record in mappedRecords">
-          <Accordion :item="record" @edit-click="handleEditClick" :show-edit-button="showEditButton && !isGuest"/>
+          <Accordion
+            :item="record"
+            @edit-click="handleEditClick"
+            :show-edit-button="showEditButton && !isGuest"
+          />
         </ion-item>
       </ion-card-content>
     </section>
@@ -57,7 +61,7 @@ import WateringEditingModal from "./WateringEditingModal.vue";
 import Accordion from "@/components/accordion/Accordion.vue";
 
 import WateringService from "@/services/WateringService";
-import AuthUtils from "@/utils/authUtils";
+import UserService from "@/services/UserService";
 
 export default defineComponent({
   name: "WateringRecords",
@@ -108,7 +112,7 @@ export default defineComponent({
     };
   },
   async mounted() {
-    this.isGuest = await AuthUtils.isGuest();
+    this.isGuest = await UserService.isGuest();
     await this.setRecords();
   },
   methods: {

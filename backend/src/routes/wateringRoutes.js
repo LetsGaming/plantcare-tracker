@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
+const { cleanRequestBody } = require("../middlewares/generalMiddleware");
 const {
   getWateringRecordsForPlant,
   getSpecificWateringRecord,
@@ -19,7 +20,7 @@ router.get('/:id', authenticateToken, getSpecificWateringRecord);
 router.post('/:plantId', authenticateToken, addWateringRecord);
 
 // Partially update an existing watering record (authentication required)
-router.patch('/:id', authenticateToken, editWateringRecord);
+router.patch('/:id', authenticateToken, cleanRequestBody, editWateringRecord);
 
 // Delete a specific watering record (authentication required)
 router.delete('/:id', authenticateToken, deleteSpecificWateringRecord);

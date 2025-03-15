@@ -5,13 +5,17 @@ const logger = require("../utils/logger");
 // Find user by username
 const findUserByUsername = async (username) => {
   try {
-    const [users] = await pool.query("SELECT * FROM users WHERE username = ?", [username]);
+    const [users] = await pool.query("SELECT * FROM users WHERE username = ?", [
+      username,
+    ]);
     if (users.length > 0) {
       return users[0]; // Return the first user found
     }
     return null; // User not found
   } catch (error) {
-    logger.error(`Error finding user by username '${username}': ${error.message}`);
+    logger.error(
+      `Error finding user by username '${username}': ${error.message}`
+    );
     throw new Error("Error finding user");
   }
 };
@@ -19,7 +23,10 @@ const findUserByUsername = async (username) => {
 // Create a new user
 const createUser = async (username, password) => {
   try {
-    const [result] = await pool.query("INSERT INTO users (username, password) VALUES (?, ?)", [username, password]);
+    const [result] = await pool.query(
+      "INSERT INTO users (username, password) VALUES (?, ?)",
+      [username, password]
+    );
     return { id: result.insertId, username }; // Return the newly created user's ID and username
   } catch (error) {
     logger.error(`Error creating user '${username}': ${error.message}`);
@@ -40,6 +47,7 @@ const comparePasswords = async (plainPassword, hashedPassword) => {
 // Update user profile by user ID
 const updateUserProfile = async (userId, updateFields) => {
   try {
+    console.log(updateFields);
     const updateSetClause = Object.keys(updateFields)
       .map((field) => `${field} = ?`)
       .join(", ");
@@ -53,8 +61,26 @@ const updateUserProfile = async (userId, updateFields) => {
     }
     return { id: userId, ...updateFields }; // Return updated user data
   } catch (error) {
-    logger.error(`Error updating profile for user ID '${userId}': ${error.message}`);
+    logger.error(
+      `Error updating profile for user ID '${userId}': ${error.message}`
+    );
     throw new Error("Error updating user profile");
+  }
+};
+
+const deleteUser = async (userId) => {
+  try {
+    const [result] = await pool.query("DELETE FROM users WHERE id = ?", [
+      userId,
+    ]);
+
+    if (result.affectedRows === 0) {
+      return null; // User not found
+    }
+    return { id: userId }; // Return deleted user ID
+  } catch (error) {
+    logger.error(`Error deleting user with ID '${userId}': ${error.message}`);
+    throw new Error("Error deleting user");
   }
 };
 
@@ -63,4 +89,5 @@ module.exports = {
   createUser,
   comparePasswords,
   updateUserProfile,
+  deleteUser
 };

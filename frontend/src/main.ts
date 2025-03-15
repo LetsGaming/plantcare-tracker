@@ -2,7 +2,6 @@ import { createApp, ref } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import { IonicVue } from "@ionic/vue";
-import AuthUtils from "@/utils/authUtils";
 
 /* Core CSS required for Ionic components */
 import "@ionic/vue/css/core.css";
@@ -21,7 +20,7 @@ import "@ionic/vue/css/flex-utils.css";
 import "@ionic/vue/css/display.css";
 
 /* Dark mode */
-import "@ionic/vue/css/palettes/dark.system.css";
+import "@ionic/vue/css/palettes/dark.class.css";
 
 /* Theme variables */
 import "./theme/variables.css";

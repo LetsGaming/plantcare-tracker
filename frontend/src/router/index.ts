@@ -1,13 +1,14 @@
 import { createRouter, createWebHashHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 
-import AuthUtils from "@/utils/authUtils";
 import Utils from "@/utils/utils";
+import UserService from "@/services/UserService";
 
 // Dynamic imports for lazy loading
 const Login = () => import("@/views/Login.vue");
 const TabsPage = () => import("@/views/TabsPage.vue");
 const WrapperComponent = () => import("@/views/WrapperComponent.vue");
+const Profile = () => import("@/views/Profile.vue");
 
 const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
 const PlantDetails = () => import("@/views/plants/PlantDetails.vue");
@@ -60,6 +61,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: false },
   },
   {
+    path: "/profile",
+    name: "profile",
+    component: Profile,
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/tabs",
     component: TabsPage,
     children: [
@@ -103,7 +110,7 @@ router.beforeEach(async (to, from, next) => {
   await Utils.closeAllOpenModals();
 
   try {
-    const isAuthed = await AuthUtils.isAuthenticated();
+    const isAuthed = await UserService.isAuthenticated();
 
     if (to.meta.requiresAuth && !isAuthed) {
       return next({ name: "login" });

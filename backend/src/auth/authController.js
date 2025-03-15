@@ -83,7 +83,7 @@ const login = async (req, res) => {
       secure: req.secure || req.headers["x-forwarded-proto"] === "https", // Only set secure if using HTTPS
       sameSite: "Strict",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });    
+    });
 
     return successResponse(res, { accessToken });
   } catch (error) {
@@ -207,6 +207,51 @@ const updateProfile = async (req, res) => {
   }
 };
 
+const updateUserProfile = async (req, res) => {
+  const userId = req.user.id;
+  const updateFields = req.body;
+
+  if (Object.keys(updateFields).length === 0) {
+    return errorResponse(res, "Invalid input data", 400);
+  }
+
+  try {
+    const updatedUser = await authService.updateUserProfile(userId, updateFields);
+
+    if (!updatedUser) {
+      return notFoundResponse(res, "User not found");
+    }
+
+    logger.info(`User profile with id '${userId}' updated successfully`);
+    return successResponse(res, { message: "Profile updated successfully" });
+  } catch (error) {
+    logger.error(`Error updating profile with id '${userId}': ${error.message}`);
+    return errorResponse(res, "Internal Server Error", 500);
+  }
+}
+
+const deleteProfile = async (req, res) => {
+  const userId = req.user.id;
+
+  if (!id) {
+    return errorResponse(res, "Invalid input data", 400);
+  }
+
+  try {
+    const deletedUser = await authService.deleteUser(userId);
+
+    if (!deletedUser) {
+      return notFoundResponse(res, "User not found");
+    }
+
+    logger.info(`User with id '${id}' deleted successfully`);
+    return successResponse(res, { message: "User deleted successfully" });
+  } catch (error) {
+    logger.error(`Error deleting user with id '${id}': ${error.message}`);
+    return errorResponse(res, "Internal Server Error", 500);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -214,4 +259,6 @@ module.exports = {
   refreshAccessToken,
   logout,
   updateProfile,
+  updateUserProfile,
+  deleteProfile,
 };
