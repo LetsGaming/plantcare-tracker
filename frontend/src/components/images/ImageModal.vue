@@ -35,21 +35,8 @@
 </template>
 
 <script lang="ts">
-import {
-  IonModal,
-  IonContent,
-  IonImg,
-  IonIcon,
-  IonLabel,
-  IonItem,
-  IonHeader,
-  IonToolbar,
-  IonButtons,
-  IonButton,
-} from "@ionic/vue";
+import { IonModal, IonContent, IonImg, IonLabel } from "@ionic/vue";
 import { defineComponent, PropType, ref } from "vue";
-import { create } from "ionicons/icons";
-
 import EditingHeader from "../modal/EditingHeader.vue";
 
 export default defineComponent({
@@ -57,14 +44,8 @@ export default defineComponent({
   emits: ["close"],
   components: {
     IonModal,
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonButton,
     IonContent,
-    IonItem,
     IonImg,
-    IonIcon,
     IonLabel,
     EditingHeader,
   },
@@ -143,6 +124,12 @@ export default defineComponent({
           offsetY.value = startOffsetY + centerY * (zoomScale.value - 1);
         }
       }
+
+      // Reset position when zooming out completely
+      if (zoomScale.value === 1) {
+        offsetX.value = 0;
+        offsetY.value = 0;
+      }
     };
 
     // Handle mouse scroll zoom with correct positioning
@@ -154,7 +141,7 @@ export default defineComponent({
         event.deltaY < 0
           ? zoomScale.value * zoomFactor
           : zoomScale.value / zoomFactor;
-      const limitedScale = Math.min(Math.max(1, newScale), 3); // Limit between 1 and 3
+      const limitedScale = Math.min(Math.max(1, newScale), 3);
 
       // Get image bounding box
       const target = event.currentTarget as HTMLElement;
@@ -170,7 +157,7 @@ export default defineComponent({
         offsetY.value -=
           (mouseY - rect.height / 2) * (limitedScale - zoomScale.value);
       } else {
-        // If fully zoomed out, reset position to center
+        // Reset position when zooming out completely
         offsetX.value = 0;
         offsetY.value = 0;
       }
@@ -190,7 +177,6 @@ export default defineComponent({
     // Handle mouse dragging
     const onMouseMove = (event: MouseEvent) => {
       if (isDragging.value && zoomScale.value > 1) {
-        // Prevent movement at scale 1
         offsetX.value += event.clientX - lastX.value;
         offsetY.value += event.clientY - lastY.value;
         lastX.value = event.clientX;
@@ -204,7 +190,6 @@ export default defineComponent({
     };
 
     return {
-      create,
       zoomScale,
       offsetX,
       offsetY,
@@ -218,6 +203,9 @@ export default defineComponent({
   },
   methods: {
     closeModal() {
+      this.zoomScale = 1;
+      this.offsetX = 0;
+      this.offsetY = 0;
       this.$emit("close");
     },
   },
