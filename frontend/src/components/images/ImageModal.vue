@@ -260,4 +260,11 @@ export default defineComponent({
   left: 2dvw;
   font-size: 24px;
 }
+
+@media (min-width: 768px) {
+  .enlarged-image-label {
+    top: 75dvh;
+    font-size: 24px;
+  }
+}
 </style>
