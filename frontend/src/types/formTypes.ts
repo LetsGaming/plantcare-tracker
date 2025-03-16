@@ -8,6 +8,10 @@ interface InputField extends FormFieldBase {
   type: "input";
 }
 
+interface PasswordField extends FormFieldBase {
+  type: "password";
+}
+
 interface SelectField extends FormFieldBase {
   type: "select";
   placeholder?: string;
@@ -34,6 +38,7 @@ interface UploadField extends FormFieldBase {
 
 type FormField =
   | InputField
+  | PasswordField
   | SelectField
   | RadioField
   | SwitchField

@@ -1,7 +1,7 @@
 <template>
   <div class="form-container">
     <IonCard
-      style="margin-top: auto; margin-inline: 0px !important; display: block;"
+      style="margin-top: auto; margin-inline: 0px !important; display: block"
       class="align-middle"
     >
       <IonCardHeader>
@@ -20,6 +20,11 @@
         <div v-for="field in formFields" :key="field.modelKey">
           <InputField
             v-if="field.type === 'input'"
+            :field="field"
+            v-model="item[field.modelKey]"
+          />
+          <PasswordField
+            v-else-if="field.type === 'password'"
             :field="field"
             v-model="item[field.modelKey]"
           />
@@ -135,6 +140,7 @@ import {
 import { closeOutline, trashBin } from "ionicons/icons";
 
 import InputField from "@/components/formcomponent/fields/InputField.vue";
+import PasswordField from "@/components/formcomponent/fields/PasswordField.vue";
 import SelectField from "@/components/formcomponent/fields/SelectField.vue";
 import RadioField from "@/components/formcomponent/fields/RadioField.vue";
 import SwitchField from "@/components/formcomponent/fields/SwitchField.vue";
@@ -158,6 +164,7 @@ export default defineComponent({
     IonButtons,
     IonTitle,
     InputField,
+    PasswordField,
     SelectField,
     RadioField,
     SwitchField,

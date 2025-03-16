@@ -33,6 +33,11 @@ const invalidateRefreshToken = (userId, refreshToken) => {
   }
 };
 
+// Delete all refresh tokens for a specific user (on profile change)
+const deleteRefreshTokens = (userId) => {
+  activeSessions.delete(userId);
+};
+
 // Find user by refresh token (support multiple)
 const findUserByRefreshToken = (refreshToken) => {
   for (const [userId, tokens] of activeSessions.entries()) {
@@ -48,4 +53,5 @@ module.exports = {
   getRefreshTokens,
   invalidateRefreshToken,
   findUserByRefreshToken,
+  deleteRefreshTokens,
 };

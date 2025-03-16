@@ -57,7 +57,6 @@ import {
   IonToolbar,
 } from "@ionic/vue";
 import { settings } from "ionicons/icons";
-import storageService from "@/services/general/StorageService";
 import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
