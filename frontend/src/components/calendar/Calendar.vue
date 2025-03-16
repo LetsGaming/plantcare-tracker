@@ -58,6 +58,7 @@ import {
 } from "@ionic/vue";
 import { settings } from "ionicons/icons";
 import storageService from "@/services/general/StorageService";
+import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
   name: "Calendar",
@@ -123,26 +124,10 @@ export default defineComponent({
       });
     },
     async getSavedDates() {
-      const datesStorage = (await storageService.get(
-        "reminder_dates"
-      )) as StoredCalendarDates | null;
-
-      if (datesStorage && datesStorage.calendarDates) {
-        this.reminderDates = datesStorage.calendarDates;
-      } else {
-        this.categories = []; // Ensure it's always an array
-      }
+      this.reminderDates = await CalendarService.getDates();
     },
     async getSavedCategories() {
-      const categoriesStorage = (await storageService.get(
-        "date_categories"
-      )) as StoredCategories | null;
-
-      if (categoriesStorage && categoriesStorage.categories) {
-        this.categories = categoriesStorage.categories;
-      } else {
-        this.categories = []; // Ensure it's always an array
-      }
+      this.categories = await CalendarService.getCategories();
     },
     addDate() {
       if (!this.selectedDate || !this.selectedCategory) {
@@ -165,10 +150,7 @@ export default defineComponent({
       this.saveDates();
     },
     async saveDates() {
-      const plainDates = JSON.parse(JSON.stringify(this.reminderDates)); // Deep copy
-      await storageService.set("reminder_dates", {
-        calendarDates: plainDates,
-      });
+      await CalendarService.saveDates(this.reminderDates);
     },
   },
 });
