@@ -38,6 +38,35 @@ export default class CalendarService {
     this.dispatchDatesChanged(dates);
   }
 
+  static async deleteOldDates(): Promise<void> {
+    const doDelete = await storageService.get("delete_after_thirty");
+    if (!doDelete) {
+      return;
+    }
+    const dates = await this.getDates();
+    const currentDate = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(currentDate.getDate() - 30);
+
+    const filteredDates = dates.filter((dateEntry) => {
+      const entryDate = new Date(dateEntry.date);
+      return entryDate >= thirtyDaysAgo;
+    });
+
+    if (filteredDates.length !== dates.length) {
+      await this.saveDates(filteredDates);
+    }
+  }
+
+  static async getDeleteAfterThirty(): Promise<boolean> {
+    const doDelete = await storageService.get("delete_after_thirty");
+    return Boolean(doDelete) || false;
+  }
+
+  static async saveDeleteAfterThirty(doDelete: boolean): Promise<void> {
+    await storageService.set("delete_after_thirty", doDelete);
+  }
+
   // Dispatch category changes event
   private static dispatchCategoriesChanged(categories: Category[]) {
     const event = new CustomEvent("categories-changed", { detail: categories });

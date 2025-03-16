@@ -186,10 +186,32 @@ const logout = (req, res) => {
 // Update user profile
 const updateProfile = async (req, res) => {
   const { id } = req.params;
-  const updateFields = req.body;
+  // Clone the request body to avoid modifying the original object directly
+  const updateFields = { ...req.body };
 
   if (!id || Object.keys(updateFields).length === 0) {
     return errorResponse(res, "Invalid input data", 400);
+  }
+
+  // Check if a password update is requested
+  if (updateFields.password) {
+    // Ensure passwordConfirmation is provided
+    if (!updateFields.passwordConfirmation) {
+      return errorResponse(res, "Password confirmation is required", 400);
+    }
+    // Ensure the password and confirmation match
+    if (updateFields.password !== updateFields.passwordConfirmation) {
+      return errorResponse(res, "Passwords do not match", 400);
+    }
+    try {
+      // Hash the new password before updating
+      updateFields.password = await bcrypt.hash(updateFields.password, 10);
+    } catch (hashError) {
+      logger.error(`Password hashing error: ${hashError.message}`);
+      return errorResponse(res, "Error processing password", 500);
+    }
+    // Remove the confirmation field as it's no longer needed
+    delete updateFields.passwordConfirmation;
   }
 
   try {
@@ -216,19 +238,26 @@ const updateUserProfile = async (req, res) => {
   }
 
   try {
-    const updatedUser = await authService.updateUserProfile(userId, updateFields);
+    const updatedUser = await authService.updateUserProfile(
+      userId,
+      updateFields
+    );
 
     if (!updatedUser) {
       return notFoundResponse(res, "User not found");
     }
 
+    authStore.deleteRefreshTokens(userId);
+
     logger.info(`User profile with id '${userId}' updated successfully`);
     return successResponse(res, { message: "Profile updated successfully" });
   } catch (error) {
-    logger.error(`Error updating profile with id '${userId}': ${error.message}`);
+    logger.error(
+      `Error updating profile with id '${userId}': ${error.message}`
+    );
     return errorResponse(res, "Internal Server Error", 500);
   }
-}
+};
 
 const deleteProfile = async (req, res) => {
   const userId = req.user.id;
@@ -243,7 +272,7 @@ const deleteProfile = async (req, res) => {
     if (!deletedUser) {
       return notFoundResponse(res, "User not found");
     }
-
+    authStore.deleteRefreshTokens(userId);
     logger.info(`User with id '${id}' deleted successfully`);
     return successResponse(res, { message: "User deleted successfully" });
   } catch (error) {

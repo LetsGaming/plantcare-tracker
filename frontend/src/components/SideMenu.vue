@@ -15,11 +15,11 @@
 
     <ion-content>
       <ion-list>
-        <ion-item lines="none" button @click="navigateToProfile">
+        <ion-item button @click="navigateToProfile">
           <ion-icon slot="start" :icon="personIcon" />
           <ion-label>Profil</ion-label>
         </ion-item>
-        <ion-item>
+        <ion-item lines="none">
           <calendar
             :show-settings-button="true"
             @settings-click="showDateSettings = true"

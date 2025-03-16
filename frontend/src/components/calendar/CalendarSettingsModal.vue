@@ -14,7 +14,20 @@
         <ion-card-content>
           <ion-list>
             <ion-item v-for="(category, index) in categories" :key="index">
-              <ion-label>{{ category.name }}</ion-label>
+              <ion-grid>
+                <ion-row>
+                  <ion-col>
+                    <ion-label>{{ category.name }}</ion-label>
+                  </ion-col>
+                  <ion-col>
+                    <input
+                      v-model="category.backgroundColor"
+                      type="color"
+                      :disabled="true"
+                    />
+                  </ion-col>
+                </ion-row>
+              </ion-grid>
               <ion-button fill="clear" @click="editCategory(index)">
                 <ion-icon :icon="create" />
               </ion-button>
@@ -56,6 +69,14 @@
           <ion-card-title>Erinnerungen</ion-card-title>
         </ion-card-header>
         <ion-card-content>
+          <IonItem>
+            <IonToggle
+              :checked="doDeleteAfterThirty"
+              label-placement="start"
+              @ion-change="setDelete"
+              >Erinnerungen nach 30 Tagen löschen?</IonToggle
+            >
+          </IonItem>
           <ion-list>
             <ion-item v-for="(date, index) in reminderDates" :key="index">
               <ion-grid>
@@ -116,7 +137,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, h } from "vue";
 import {
   IonModal,
   IonButton,
@@ -135,10 +156,10 @@ import {
   IonCol,
   IonSelect,
   IonSelectOption,
+  IonToggle,
 } from "@ionic/vue";
 import { create, trash } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
-import storageService from "@/services/general/StorageService";
 import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
@@ -163,6 +184,7 @@ export default defineComponent({
     ModalHeader,
     IonSelect,
     IonSelectOption,
+    IonToggle,
   },
   props: { isOpen: Boolean },
   data() {
@@ -184,12 +206,19 @@ export default defineComponent({
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       } as CalendarDates,
+      doDeleteAfterThirty: false,
     };
   },
   setup() {
     return { create, trash };
   },
   async mounted() {
+    document.addEventListener(
+      "dates-changed",
+      this.handleDatesChanged as EventListener
+    );
+    this.doDeleteAfterThirty = await CalendarService.getDeleteAfterThirty();
+    await CalendarService.deleteOldDates();
     await this.loadCategories();
     await this.loadDates();
   },
@@ -258,6 +287,9 @@ export default defineComponent({
     },
     async saveDates() {
       await CalendarService.saveDates(this.reminderDates);
+    },
+    handleDatesChanged(event: CustomEvent<CalendarDates[]>) {
+      this.reminderDates = event.detail;
     },
     async deleteDate(index: number) {
       this.reminderDates.splice(index, 1);
@@ -371,6 +403,10 @@ export default defineComponent({
       }
 
       newCategory.textColor = contrastColor;
+    },
+    async setDelete(event: CustomEvent) {
+      this.doDeleteAfterThirty = event.detail.checked;
+      await CalendarService.saveDeleteAfterThirty(this.doDeleteAfterThirty);
     },
   },
 });

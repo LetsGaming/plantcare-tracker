@@ -7,13 +7,13 @@
         :formFields="[
           { type: 'input', modelKey: 'username', label: 'Name', required: false },
           {
-            type: 'input',
+            type: 'password',
             modelKey: 'password',
             label: 'Passwort',
             required: false,
           },
           {
-            type: 'input',
+            type: 'password',
             modelKey: 'passwordConfirmation',
             label: 'Passwort bestätigen',
             required: false,
