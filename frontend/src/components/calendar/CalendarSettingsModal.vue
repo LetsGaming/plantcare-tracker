@@ -139,6 +139,7 @@ import {
 import { create, trash } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
 import storageService from "@/services/general/StorageService";
+import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
   name: "CalendarSettingsModal",
@@ -195,22 +196,10 @@ export default defineComponent({
   methods: {
     // Categories Methods
     async loadCategories() {
-      const categoriesStorage = (await storageService.get(
-        "date_categories"
-      )) as StoredCategories | null;
-
-      if (categoriesStorage && categoriesStorage.categories) {
-        this.categories = categoriesStorage.categories;
-      } else {
-        this.categories = []; // Ensure it's always an array
-      }
+      this.categories = await CalendarService.getCategories();
     },
     async saveCategories() {
-      const plainCategories = JSON.parse(JSON.stringify(this.categories)); // Deep copy
-      await storageService.set("date_categories", {
-        categories: plainCategories,
-      });
-      this.dispatchCategoriesChanged();
+      await CalendarService.saveCategories(this.categories);
     },
     async addCategory() {
       if (this.newCategory.name.trim()) {
@@ -265,22 +254,10 @@ export default defineComponent({
 
     // Dates Methods
     async loadDates() {
-      const datesStorage = (await storageService.get(
-        "reminder_dates"
-      )) as StoredCalendarDates | null;
-
-      if (datesStorage && datesStorage.calendarDates) {
-        this.reminderDates = datesStorage.calendarDates;
-      } else {
-        this.reminderDates = []; // Ensure it's always an array
-      }
+      this.reminderDates = await CalendarService.getDates();
     },
     async saveDates() {
-      const plainDates = JSON.parse(JSON.stringify(this.reminderDates)); // Deep copy
-      await storageService.set("reminder_dates", {
-        calendarDates: plainDates,
-      });
-      this.dispatchDatesChanged();
+      await CalendarService.saveDates(this.reminderDates);
     },
     async deleteDate(index: number) {
       this.reminderDates.splice(index, 1);
@@ -394,20 +371,6 @@ export default defineComponent({
       }
 
       newCategory.textColor = contrastColor;
-    },
-    dispatchCategoriesChanged() {
-      const event = new CustomEvent("categories-changed", {
-        detail: this.categories,
-      });
-
-      document.dispatchEvent(event);
-    },
-    dispatchDatesChanged() {
-      const event = new CustomEvent("dates-changed", {
-        detail: this.reminderDates,
-      });
-
-      document.dispatchEvent(event);
     },
   },
 });

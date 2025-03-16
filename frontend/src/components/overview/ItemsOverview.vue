@@ -17,8 +17,9 @@
         <ion-card class="item-card" @click="navigateToItem(item.id)">
           <ion-card-content>
             <ion-grid>
-              <ion-row>
-                <ion-col>
+              <ion-row class="item-row">
+                <!-- Image Column -->
+                <ion-col size-xs="12" size-sm="5" size-md="6">
                   <div class="item-image-wrapper">
                     <ion-img
                       :src="item.imageUrl || '/no-image.png'"
@@ -27,8 +28,12 @@
                     />
                   </div>
                 </ion-col>
-                <ion-col>
-                  <ion-card-title>{{ item.name }}</ion-card-title>
+
+                <!-- Text Column -->
+                <ion-col size-xs="12" size-sm="7" size-md="6" class="text-col">
+                  <ion-card-title class="item-title">{{
+                    item.name
+                  }}</ion-card-title>
                   <div class="card-details-container">
                     <ion-card-subtitle
                       v-show="item.description"
@@ -36,9 +41,7 @@
                     >
                       {{ item.description }}
                     </ion-card-subtitle>
-                    <ion-text color="medium" style="text-wrap: nowrap">
-                      Mehr Details
-                    </ion-text>
+                    <ion-text color="medium">Mehr Details</ion-text>
                   </div>
                 </ion-col>
               </ion-row>
@@ -155,9 +158,15 @@ export default defineComponent({
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
+.item-title {
+  text-align: center;
+}
+
 .item-image-wrapper {
-  max-height: 200px;
-  max-width: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .item-image {
@@ -182,5 +191,16 @@ export default defineComponent({
 .item-description {
   padding: 5%;
   text-align: center;
+}
+
+@media (max-width: 768px) {
+  .item-grid {
+    display: flex;
+    flex-direction: column;
+  }
+ 
+  .card-details-container {
+    text-align: center;
+  }
 }
 </style>
