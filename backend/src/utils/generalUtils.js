@@ -29,65 +29,13 @@ const customTimestamp = (date = new Date()) => {
 };
 
 const formatToDBDate = (date) => {
-  const formattedDate = new Date(date)
-    .toISOString()
-    .slice(0, 19)
-    .replace("T", " ");
-  console.log("formatted date", formattedDate);
+  const localDate = new Date(date);  // Parse date string (could include time zone)
+  const formattedDate = localDate
+    .toISOString()   // Converts to UTC in ISO format (e.g., '2025-03-17T15:30:00.000Z')
+    .slice(0, 19)    // Slice the ISO string to get the format: 'YYYY-MM-DDTHH:MM:SS'
+    .replace("T", " ");  // Replace the 'T' with a space for SQL format ('YYYY-MM-DD HH:MM:SS')
   return formattedDate;
 };
 
-const parseCustomDate = (dateString) => {
-  // Define possible date formats
-  const formats = [
-    /^(\d{2})\.(\d{2})\.(\d{4}), (\d{2}):(\d{2}):(\d{2})$/, // DD.MM.YYYY, HH:MM:SS
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/, // YYYY-MM-DDTHH:MM (ISO 8601 without seconds)
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/, // YYYY-MM-DDTHH:MM:SS (ISO 8601)
-    /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})$/, // MM/DD/YYYY HH:MM:SS
-    /^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})$/, // YYYY/MM/DD HH:MM:SS
-    /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):(\d{2})$/, // DD.MM.YYYY HH:MM:SS (without comma)
-  ];
 
-  for (const format of formats) {
-    const match = dateString.match(format);
-    if (match) {
-      let year,
-        month,
-        day,
-        hours,
-        minutes,
-        seconds = 0;
-      if (format === formats[0]) {
-        [day, month, year, hours, minutes, seconds] = match
-          .slice(1)
-          .map(Number);
-      } else if (format === formats[1]) {
-        [year, month, day, hours, minutes] = match.slice(1).map(Number);
-      } else if (format === formats[2] || format === formats[4]) {
-        [year, month, day, hours, minutes, seconds] = match
-          .slice(1)
-          .map(Number);
-      } else if (format === formats[3]) {
-        [month, day, year, hours, minutes, seconds] = match
-          .slice(1)
-          .map(Number);
-      } else if (format === formats[5]) {
-        [day, month, year, hours, minutes, seconds] = match
-          .slice(1)
-          .map(Number);
-      }
-      const isInvalidDate = isNaN(
-        new Date(year, month - 1, day, hours, minutes, seconds).getTime()
-      );
-      if (isInvalidDate) {
-        throw new Error("Invalid date");
-      }
-      const date = new Date(year, month - 1, day, hours, minutes, seconds);
-      return date;
-    }
-  }
-
-  throw new Error("Unsupported date format");
-};
-
-module.exports = { removeEmptyFields, customTimestamp, formatToDBDate, parseCustomDate };
+module.exports = { removeEmptyFields, customTimestamp, formatToDBDate };
