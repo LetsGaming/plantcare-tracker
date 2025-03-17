@@ -29,24 +29,23 @@ const Utils = {
   },
 
   convertDateString(dateString: string, userLocale = navigator.language) {
-    // Create a new Date object from the input string
+    // Create a new Date object from the input string (assumed to be in UTC)
     const date = new Date(dateString);
 
     // Get the user's preferred options for date formatting
-    const options = {
+    const options: Intl.DateTimeFormatOptions = {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
-      hour12: false, // Set to true 12-hour format prefered
-    } as Intl.DateTimeFormatOptions;
+      hour12: false, // Set to true for 12-hour format preference
+      timeZoneName: "short", // Include the time zone abbreviation (e.g., "UTC", "CET")
+    };
 
-    // Format the date according to the user's locale
-    const formattedDate = new Intl.DateTimeFormat(userLocale, options).format(
-      date
-    );
+    // Format the date to the user's local time zone using toLocaleString
+    const formattedDate = date.toLocaleString(userLocale, options);
 
     return formattedDate;
   },

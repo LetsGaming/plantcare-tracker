@@ -16,6 +16,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonLabel, IonInput } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "DateFieldComponent",
@@ -35,26 +36,40 @@ export default defineComponent({
       get() {
         if (!this.modelValue) return "";
 
-        // Try to parse manually if modelValue is in DD.MM.YYYY, HH:mm:ss format
-        const match =
-          typeof this.modelValue === "string" &&
-          this.modelValue.match(
-            /^(\d{2})\.(\d{2})\.(\d{4}), (\d{2}):(\d{2}):(\d{2})$/
-          );
-        if (match) {
-          const [, day, month, year, hours, minutes] = match;
-          return `${year}-${month}-${day}T${hours}:${minutes}`;
-        }
-
-        // Otherwise, attempt regular conversion
-        const date = new Date(this.modelValue);
-        if (isNaN(date.getTime())) return ""; // Handle invalid date
-
-        return date.toISOString().slice(0, 16); // Convert to YYYY-MM-DDTHH:mm
+        // Parse the modelValue and convert it to the correct datetime format for local time display
+        const localDate = Utils.convertDateString(this.modelValue); // Convert to local time if needed
+        return this.formatDateForInput(localDate);
       },
       set(val: string) {
-        this.$emit("update:modelValue", val);
+        // Convert the local input back to the user's local timezone
+        const localDate = this.convertToLocalTime(val);
+        this.$emit("update:modelValue", localDate);
       },
+    },
+  },
+  methods: {
+    // Format the date for the input element in the correct format (yyyy-MM-ddThh:mm)
+    formatDateForInput(date: string): string {
+      const parsedDate = new Date(date);
+
+      const year = parsedDate.getFullYear();
+      const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+      const day = String(parsedDate.getDate()).padStart(2, "0");
+      const hours = String(parsedDate.getHours()).padStart(2, "0");
+      const minutes = String(parsedDate.getMinutes()).padStart(2, "0");
+
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    },
+
+    // Convert the local value back to the local timezone
+    convertToLocalTime(val: string): string {
+      const localDate = new Date(val); // Parse the input value to a Date object
+      const offset = localDate.getTimezoneOffset(); // Get timezone offset in minutes
+
+      // Adjust the date to be in local timezone
+      localDate.setMinutes(localDate.getMinutes() - offset);
+
+      return localDate.toISOString(); // Return the date in ISO format (which will use UTC)
     },
   },
 });

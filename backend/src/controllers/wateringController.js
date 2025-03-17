@@ -5,7 +5,7 @@ const {
   updateWateringRecord,
   deleteWateringRecord,
 } = require("../models/wateringModel");
-const { formatToDBDate, parseCustomDate } = require("../utils/generalUtils");
+const { formatToDBDate, } = require("../utils/generalUtils");
 
 const {
   errorResponse,
@@ -79,7 +79,7 @@ const editWateringRecord = async (req, res) => {
   const userId = req.user ? req.user.id : null;
   let parsedDate;
   try {
-    parsedDate = date ? formatToDBDate(parseCustomDate(date)) : null;
+    parsedDate = date ? formatToDBDate(date) : null;
   } catch (err) {
     return errorResponse(res, err, 400);
   }

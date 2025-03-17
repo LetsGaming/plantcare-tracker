@@ -104,7 +104,7 @@ const updateSpecificImage = async (req, res) => {
 
     let parsedDate;
     if (date) {
-      parsedDate = formatToDBDate(parseCustomDate(date));
+      parsedDate = formatToDBDate(date);
     }
 
     let filePath;
