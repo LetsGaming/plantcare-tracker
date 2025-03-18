@@ -67,6 +67,16 @@ export default class CalendarService {
     await storageService.set("delete_after_thirty", doDelete);
   }
 
+  static async getFirstDayOfWeek(): Promise<number> {
+    const day = await storageService.get("first_day_of_week");
+    return typeof day === "number" ? day : 0;
+  }
+
+  static async saveFirstDayOfWeek(day: number): Promise<void> {
+    await storageService.set("first_day_of_week", day);
+    this.dispatchFirstDayOfWeekChanged(day);
+  }
+
   // Dispatch category changes event
   private static dispatchCategoriesChanged(categories: Category[]) {
     const event = new CustomEvent("categories-changed", { detail: categories });
@@ -76,6 +86,11 @@ export default class CalendarService {
   // Dispatch date changes event
   private static dispatchDatesChanged(dates: CalendarDates[]) {
     const event = new CustomEvent("dates-changed", { detail: dates });
+    document.dispatchEvent(event);
+  }
+
+  private static dispatchFirstDayOfWeekChanged(day: number) {
+    const event = new CustomEvent("first-day-of-week-changed", { detail: day });
     document.dispatchEvent(event);
   }
 }
