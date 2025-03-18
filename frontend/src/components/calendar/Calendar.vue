@@ -17,6 +17,7 @@
           v-model="selectedDate"
           presentation="date"
           :highlighted-dates="reminderDates"
+          :first-day-of-week="firstDayOfWeek"
         ></ion-datetime>
 
         <!-- Dropdown für Kategorien -->
@@ -98,29 +99,35 @@ export default defineComponent({
       reminderDates: [] as CalendarDates[],
       // Vordefinierte Kategorien mit eigenen Farben
       categories: [] as Category[],
+      firstDayOfWeek: 0,
     };
   },
   async mounted() {
-    document.addEventListener(
-      "categories-changed",
-      this.handleCategoriesChanged as EventListener
-    );
-    document.addEventListener(
-      "dates-changed",
-      this.handleDatesChanged as EventListener
-    );
+    this.setupListeners();
+    await this.getFirstDay();
     await this.getSavedDates();
     await this.getSavedCategories();
   },
   methods: {
-    handleCategoriesChanged(event: CustomEvent<Category[]>) {
-      this.categories = event.detail;
-    },
-    handleDatesChanged(event: CustomEvent<CalendarDates[]>) {
-      this.reminderDates = [];
-      this.$nextTick(() => {
-        this.reminderDates = event.detail;
+    setupListeners() {
+      document.addEventListener("categories-changed", (event) => {
+        const customEvent = event as CustomEvent<Category[]>;
+        this.categories = customEvent.detail;
       });
+      document.addEventListener("dates-changed", (event) => {
+        const customEvent = event as CustomEvent<CalendarDates[]>;
+        this.reminderDates = [];
+        this.$nextTick(() => {
+          this.reminderDates = customEvent.detail;
+        });
+      });
+      document.addEventListener("first-day-of-week-changed", (event) => {
+        const customEvent = event as CustomEvent<number>;
+        this.firstDayOfWeek = customEvent.detail;
+      });
+    },
+    async getFirstDay() {
+      this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
     },
     async getSavedDates() {
       this.reminderDates = await CalendarService.getDates();

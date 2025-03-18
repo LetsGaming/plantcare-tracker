@@ -6,6 +6,39 @@
     />
 
     <ion-content>
+      <!-- First Day of the Week Setting -->
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>Generelle Einstellungen</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <ion-item>
+            <ion-select
+              v-model="firstDayOfWeek"
+              label="Wochentag auswählen"
+              placeholder="Wählen Sie einen Tag"
+              @ionChange="updateFirstDay"
+            >
+              <ion-select-option :value="0">Sonntag</ion-select-option>
+              <ion-select-option :value="1">Montag</ion-select-option>
+              <ion-select-option :value="2">Dienstag</ion-select-option>
+              <ion-select-option :value="3">Mittwoch</ion-select-option>
+              <ion-select-option :value="4">Donnerstag</ion-select-option>
+              <ion-select-option :value="5">Freitag</ion-select-option>
+              <ion-select-option :value="6">Samstag</ion-select-option>
+            </ion-select>
+          </ion-item>
+          <IonItem>
+            <IonToggle
+              :checked="doDeleteAfterThirty"
+              label-placement="start"
+              @ion-change="setDelete"
+              >Erinnerungen nach 30 Tagen löschen?</IonToggle
+            >
+          </IonItem>
+        </ion-card-content>
+      </ion-card>
+
       <!-- Categories List Section -->
       <ion-card>
         <ion-card-header>
@@ -69,14 +102,6 @@
           <ion-card-title>Erinnerungen</ion-card-title>
         </ion-card-header>
         <ion-card-content>
-          <IonItem>
-            <IonToggle
-              :checked="doDeleteAfterThirty"
-              label-placement="start"
-              @ion-change="setDelete"
-              >Erinnerungen nach 30 Tagen löschen?</IonToggle
-            >
-          </IonItem>
           <ion-list>
             <ion-item v-for="(date, index) in reminderDates" :key="index">
               <ion-grid>
@@ -207,6 +232,8 @@ export default defineComponent({
         backgroundColor: "#FFFFFF",
       } as CalendarDates,
       doDeleteAfterThirty: false,
+      // New setting for first day of the week (0 = Sonntag, 1 = Montag, etc.)
+      firstDayOfWeek: 0,
     };
   },
   setup() {
@@ -221,8 +248,17 @@ export default defineComponent({
     await CalendarService.deleteOldDates();
     await this.loadCategories();
     await this.loadDates();
+    // Load saved first day of the week, defaulting to 0 (Sonntag) if not set
+    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(
+      () => 0
+    );
   },
   methods: {
+    // First Day of Week Methods
+    async updateFirstDay() {
+      await CalendarService.saveFirstDayOfWeek(this.firstDayOfWeek);
+    },
+
     // Categories Methods
     async loadCategories() {
       this.categories = await CalendarService.getCategories();
@@ -295,14 +331,12 @@ export default defineComponent({
       this.reminderDates.splice(index, 1);
       await this.saveDates();
     },
-
     editDate(index: number) {
       const dateToEdit = this.reminderDates[index];
       this.editedDate = { ...dateToEdit };
       this.isEditingDate = true;
       this.editDateIndex = index;
     },
-
     async updateDate() {
       if (this.editDateIndex > -1) {
         const category = this.categories.find(
@@ -311,7 +345,6 @@ export default defineComponent({
         if (!category) {
           return;
         }
-
         this.reminderDates[this.editDateIndex] = {
           date: this.editedDate.date,
           category: this.editedDate.category,
@@ -322,7 +355,6 @@ export default defineComponent({
         this.cancelEditDate();
       }
     },
-
     cancelEditDate() {
       this.editedDate = {
         date: "",
@@ -336,73 +368,84 @@ export default defineComponent({
 
     // Color contrast logic
     setContrastColor(newCategory: Category) {
-      const bgColor = newCategory.backgroundColor;
-      function hexToRgb(hex: string): [number, number, number] {
-        hex = hex.replace(/^#/, "");
-        if (hex.length === 3) {
-          hex = hex
-            .split("")
-            .map((char) => char + char)
-            .join("");
+      function hexToHsl(hex: string): [number, number, number] {
+        let r = parseInt(hex.substring(1, 3), 16) / 255;
+        let g = parseInt(hex.substring(3, 5), 16) / 255;
+        let b = parseInt(hex.substring(5, 7), 16) / 255;
+
+        let max = Math.max(r, g, b),
+          min = Math.min(r, g, b);
+        let h = 0,
+          s = 0,
+          l = (max + min) / 2;
+
+        if (max !== min) {
+          let d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          switch (max) {
+            case r:
+              h = (g - b) / d + (g < b ? 6 : 0);
+              break;
+            case g:
+              h = (b - r) / d + 2;
+              break;
+            case b:
+              h = (r - g) / d + 4;
+              break;
+          }
+          h /= 6;
         }
-        const bigint = parseInt(hex, 16);
-        return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+
+        return [h * 360, s, l]; // Convert h to degrees
       }
 
-      function getLuminance([r, g, b]: [number, number, number]): number {
-        const a = [r, g, b].map((v) => {
-          v /= 255;
-          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-        });
-        return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-      }
-
-      function getContrastRatio(l1: number, l2: number): number {
-        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-      }
-
-      function generateColor(contrastWithBg: number): string {
+      function hslToHex(h: number, s: number, l: number): string {
         let r, g, b;
-        // We want to generate bright or dark colors depending on the background
-        if (contrastWithBg > 0.5) {
-          // Generate dark color if the background is light
-          r = Math.floor(Math.random() * 100); // Darker red
-          g = Math.floor(Math.random() * 100); // Darker green
-          b = Math.floor(Math.random() * 100); // Darker blue
-        } else {
-          // Generate bright color if the background is dark
-          r = Math.floor(Math.random() * 156) + 100; // Lighter red
-          g = Math.floor(Math.random() * 156) + 100; // Lighter green
-          b = Math.floor(Math.random() * 156) + 100; // Lighter blue
+
+        function hueToRgb(p: number, q: number, t: number) {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1 / 6) return p + (q - p) * 6 * t;
+          if (t < 1 / 2) return q;
+          if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+          return p;
         }
-        return `rgb(${r}, ${g}, ${b})`;
-      }
 
-      const bgRgb = hexToRgb(bgColor);
-      const bgLuminance = getLuminance(bgRgb);
+        if (s === 0) {
+          r = g = b = l;
+        } else {
+          let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          let p = 2 * l - q;
+          r = hueToRgb(p, q, h / 360 + 1 / 3);
+          g = hueToRgb(p, q, h / 360);
+          b = hueToRgb(p, q, h / 360 - 1 / 3);
+        }
 
-      // Generate a color with contrast against the background color
-      const contrastColor = generateColor(bgLuminance);
-
-      // Ensure that the contrast ratio with the background is high enough (contrast ratio > 4.5 is good for readability)
-      const contrastWithBg = getContrastRatio(
-        getLuminance(bgRgb),
-        getLuminance(
-          hexToRgb(
-            contrastColor.replace(
-              /^rgb\((\d+), (\d+), (\d+)\)$/,
-              (_, r, g, b) => `${r},${g},${b}`
-            )
+        return (
+          "#" +
+          (
+            (1 << 24) +
+            (Math.round(r * 255) << 16) +
+            (Math.round(g * 255) << 8) +
+            Math.round(b * 255)
           )
-        )
-      );
-
-      if (contrastWithBg < 4.5) {
-        // If contrast is not high enough, tweak the color (e.g., make it brighter/darker)
-        return generateColor(bgLuminance); // Re-generate a color with a better contrast ratio
+            .toString(16)
+            .slice(1)
+        );
       }
 
-      newCategory.textColor = contrastColor;
+      let [h, s, l] = hexToHsl(newCategory.backgroundColor);
+
+      // Adjust hue to a contrasting color (shift by 180° for best contrast)
+      h = (h + 180) % 360;
+
+      // Ensure saturation is high enough for vibrant color
+      s = Math.max(0.6, s);
+
+      // Ensure brightness is in contrast with the background
+      l = l > 0.5 ? 0.2 : 0.8;
+
+      newCategory.textColor = hslToHex(h, s, l);
     },
     async setDelete(event: CustomEvent) {
       this.doDeleteAfterThirty = event.detail.checked;
