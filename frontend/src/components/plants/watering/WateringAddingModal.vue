@@ -31,6 +31,8 @@
             ],
           },
         ]"
+        submit-label="Hinzufügen"
+        :is-loading="isLoading"
         @submit-click="$emit('add-record', record)"
       ></form-component>
     </ion-content>
@@ -68,6 +70,10 @@ export default defineComponent({
   },
   props: {
     isOpen: {
+      type: Boolean,
+      required: true,
+    },
+    isLoading: {
       type: Boolean,
       required: true,
     },

@@ -56,9 +56,23 @@
         </div>
 
         <!-- Submit Button -->
-        <IonButton expand="full" color="primary" @click="submitForm">
+        <IonButton
+          expand="full"
+          color="primary"
+          :disabled="isLoading"
+          @click="submitForm"
+        >
           {{ submitLabel }}
         </IonButton>
+        <ion-item v-if="isLoading">
+          <ion-label>Bitte warten...</ion-label>
+          <ion-spinner
+            v-if="isLoading"
+            slot="end"
+            name="crescent"
+            style="margin-inline: auto"
+          />
+        </ion-item>
       </IonCardContent>
     </IonCard>
 
@@ -135,6 +149,7 @@ import {
   IonContent,
   IonButtons,
   IonTitle,
+  IonSpinner,
 } from "@ionic/vue";
 
 import { closeOutline, trashBin } from "ionicons/icons";
@@ -150,6 +165,7 @@ import UploadField from "@/components/formcomponent/fields/UploadField.vue";
 export default defineComponent({
   name: "FormComponent",
   components: {
+    IonSpinner,
     IonCard,
     IonCardHeader,
     IonCardTitle,
@@ -195,6 +211,10 @@ export default defineComponent({
     extraContentData: {
       type: Object as PropType<Record<string, any>>, // Data to pass to the extra component
       default: () => ({}),
+    },
+    isLoading: {
+      type: Boolean,
+      default: false,
     },
     onSubmitClick: {
       type: Function as PropType<() => void>,

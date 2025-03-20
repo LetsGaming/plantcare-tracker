@@ -29,6 +29,7 @@
           ]"
           cardTitle="Bild hochladen"
           submitLabel="Hochladen"
+          :isLoading="isLoading"
           :onSubmitClick="submitForm"
         />
       </div>
@@ -79,6 +80,10 @@ export default defineComponent({
     FormComponent,
   },
   props: {
+    isLoading: {
+      type: Boolean,
+      required: true,
+    },
     isOpen: {
       type: Boolean,
       required: true,

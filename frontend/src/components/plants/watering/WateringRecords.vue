@@ -33,6 +33,7 @@
     />
     <WateringAddingModal
       :is-open="showAddingModal"
+      :is-loading="isLoading"
       @close="showAddingModal = false"
       @add-record="addRecord"
     />
@@ -109,6 +110,7 @@ export default defineComponent({
       showAddingModal: false,
       showEditingModal: false,
       isGuest: false,
+      isLoading: false,
     };
   },
   async mounted() {
@@ -136,12 +138,16 @@ export default defineComponent({
       await this.setRecords();
     },
     async addRecord(addingRecord: AddWateringRecord) {
+      this.isLoading = true;
       const response = await WateringService.addWateringRecord(
         this.plantId,
         addingRecord
       );
       if (response) {
-        this.showAddingModal = false;
+        this.isLoading = false;
+        this.$nextTick(() => {
+          this.showAddingModal = false;
+        });
         await this.setRecords();
       }
     },
