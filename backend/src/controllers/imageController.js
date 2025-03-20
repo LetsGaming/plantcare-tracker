@@ -168,11 +168,9 @@ const getImage = async (req, res) => {
 
 const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
   const { id } = req.params;
-  console.log("Image ID:", id);
   try {
     // Retrieve the image details before deleting
     const [imageResults] = await selectImages({ id });
-
     if (!imageResults.length) {
       if (deleteFromDb)
         return notFoundResponse(res, "Image not found or already deleted");
@@ -180,12 +178,10 @@ const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
     }
 
     let imagePath = imageResults[0].image_url;
-    console.log("Image Path:", imagePath);
     if (imagePath.startsWith("http")) {
       const filename = path.basename(imagePath); // Extract just the filename
       imagePath = path.join(uploadPath, filename); // Construct the local file path
     }
-    console.log("Local Image Path:", imagePath);
     // Check if file exists before trying to delete
     await deleteImageOnSystem(imagePath);
 
