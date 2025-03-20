@@ -6,6 +6,7 @@
     submitLabel="Komponente hinzufügen"
     :formData="component"
     :formFields="componentFormFields"
+    :isLoading="isLoading"
     @submit="addComponent"
     @close="$emit('close')"
   />
@@ -25,6 +26,7 @@ export default defineComponent({
   data() {
     return {
       component: { name: "", fineness: "", image: undefined } as AddComponent,
+      isLoading: false,
     };
   },
   computed: {
@@ -45,24 +47,35 @@ export default defineComponent({
     async addComponent(componentData: AddComponent) {
       try {
         if (!componentData.name || !componentData.fineness) {
-          ToastService.showError("Bitte füllen Sie alle erforderlichen Felder aus.");
+          ToastService.showError(
+            "Bitte füllen Sie alle erforderlichen Felder aus."
+          );
           return;
         }
+        this.isLoading = true;
         const response = await ComponentService.addComponent(componentData);
         if (!response) return;
         if (componentData.image) {
           await this.uploadImage(response.id, componentData.image);
         }
+        this.isLoading = false;
         this.clearComponentData();
         this.$emit("added");
       } catch (error) {
+        this.isLoading = false;
         ToastService.showError("Fehler beim Hinzufügen der Komponente");
       }
     },
     async uploadImage(id: number, image: File) {
       try {
-        await ComponentService.uploadComponentImage(id, image);
+        this.isLoading = true;
+        const resposne = await ComponentService.uploadComponentImage(id, image);
+        if (resposne) {
+          this.isLoading = false;
+          ToastService.showSuccess("Bild erfolgreich hochgeladen");
+        }
       } catch (error) {
+        this.isLoading = false;
         ToastService.showError("Fehler beim Hochladen des Bildes");
       }
     },

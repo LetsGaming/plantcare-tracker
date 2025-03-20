@@ -14,6 +14,7 @@
     ]"
     form-title="Komponenten Informationen"
     submit-label="Komponente editieren"
+    :is-loading="isLoading"
     @submit="editComponent"
     @close="$emit('close')"
     @delete-handler="deleteComponent"
@@ -25,6 +26,7 @@ import { defineComponent, PropType } from "vue";
 import BaseModal from "../modal/BaseModal.vue";
 
 import ComponentService from "@/services/ComponentService";
+import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "ComponentEditingModal",
@@ -48,6 +50,7 @@ export default defineComponent({
         name: "",
         fineness: "",
       } as EditComponent,
+      isLoading: false,
     };
   },
   mounted() {
@@ -65,22 +68,36 @@ export default defineComponent({
         if (this.editComponentData.fineness === "") {
           this.editComponentData.fineness = this.component.fineness;
         }
-        await ComponentService.editComponent(
+        this.isLoading = true;
+        const reponse = await ComponentService.editComponent(
           this.component.id,
           this.editComponentData
         );
-        this.$emit("edited");
+        if (reponse) {
+          this.isLoading = false;
+          this.$emit("edited");
+        }
       } catch (error) {
+        this.isLoading = false;
         console.error(error);
+        ToastService.showError("Fehler beim Bearbeiten der Komponente");
       }
     },
     async deleteComponent() {
       try {
-        await ComponentService.deleteComponent(this.component.id);
-        this.$emit("close");
-        this.$router.push({ name: "component-overview" });
+        this.isLoading = true;
+        const response = await ComponentService.deleteComponent(
+          this.component.id
+        );
+        if (response) {
+          this.isLoading = false;
+          this.$emit("close");
+          this.$router.push({ name: "component-overview" });
+        }
       } catch (error) {
+        this.isLoading = false;
         console.error(error);
+        ToastService.showError("Fehler beim Löschen der Komponente");
       }
     },
   },
