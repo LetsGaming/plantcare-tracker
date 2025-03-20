@@ -15,6 +15,10 @@ const selectImagesQuery = `
 const selectImages = (conditions = {}, params = []) => {
   let whereClauses = [];
 
+  if (conditions.id) {
+    whereClauses.push("images.id = ?");
+    params.push(conditions.id);
+  }
   if (conditions.entity_type) {
     whereClauses.push("images.entity_type = ?");
     params.push(conditions.entity_type);
