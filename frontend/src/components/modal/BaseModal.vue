@@ -9,6 +9,7 @@
         :submitLabel="submitLabel"
         :extra-content-component="extraContentComponent"
         :extra-content-data="extraContentData"
+        :is-loading="isLoading"
         @submitClick="submitHandler"
         @deleteClick="deleteHandler"
       />
@@ -31,6 +32,7 @@ export default defineComponent({
     FormComponent,
   },
   props: {
+    isLoading: { type: Boolean, required: true },
     isOpen: { type: Boolean, required: true },
     modalTitle: { type: String, required: true },
     formTitle: { type: String, required: true },

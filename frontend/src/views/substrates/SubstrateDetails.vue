@@ -25,6 +25,7 @@
         :card-title="`Bild für ${substrate?.name} hochladen`"
         @close="showUploadModal = false"
         @submit="onImageUpload"
+        :is-loading="isLoading"
       />
       <SubstrateEditingModal
         v-if="substrate"
@@ -89,6 +90,7 @@ export default defineComponent({
       substrate: null as null | Substrate,
       showUploadModal: false,
       showEditModal: false,
+      isLoading: false,
     };
   },
   async mounted() {
@@ -116,6 +118,7 @@ export default defineComponent({
     async onImageUpload(fileItem: any) {
       if (this.substrate) {
         try {
+          this.isLoading = true;
           await SubstrateService.uploadSubstrateImage(
             this.substrate.id,
             fileItem.file,
@@ -125,8 +128,12 @@ export default defineComponent({
             this.substrateId,
             this.isPublic
           );
-          this.showUploadModal = false;
+          this.isLoading = false;
+          this.$nextTick(() => {
+            this.showUploadModal = false;
+          });
         } catch (error) {
+          this.isLoading = false;
           console.error("Error uploading image:", error);
         }
       }

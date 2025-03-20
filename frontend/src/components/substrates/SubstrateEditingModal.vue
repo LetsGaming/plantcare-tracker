@@ -33,6 +33,7 @@
         submitLabel="Weiter"
         @submit-click="goToStepTwo"
         @delete-click="deleteSubstrate"
+        :is-loading="isLoading"
       ></form-component>
 
       <!-- Step 2: Edit Components -->
@@ -50,7 +51,12 @@
         <IonButton expand="full" color="medium" @click="goToStepOne">
           Zurück
         </IonButton>
-        <IonButton expand="full" color="primary" @click="editSubstrate">
+        <IonButton
+          expand="full"
+          color="primary"
+          @click="editSubstrate"
+          :disabled="isLoading"
+        >
           Substrat speichern
         </IonButton>
       </div>
@@ -132,6 +138,7 @@ export default defineComponent({
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
       originalComponentIds: [] as number[],
+      isLoading: false,
     };
   },
   async mounted() {
@@ -206,32 +213,38 @@ export default defineComponent({
       };
 
       try {
+        this.isLoading = true;
         const response = await SubstrateService.editSubstrate(
           this.substrate.id,
           substrateData,
           removedComponents
         );
         if (response) {
+          this.isLoading = false;
           ToastService.showSuccess("Substrat erfolgreich aktualisiert");
           this.$emit("close");
           this.$router.push({ name: "substrate-overview" });
         }
       } catch (error) {
+        this.isLoading = false;
         console.error("Error editing substrate:", error);
         ToastService.showError("Fehler beim Aktualisieren des Substrats");
       }
     },
     async deleteSubstrate() {
       try {
+        this.isLoading = true;
         const response = await SubstrateService.deleteSubstrate(
           this.substrate.id
         );
         if (response) {
+          this.isLoading = false;
           ToastService.showSuccess("Substrat erfolgreich gelöscht");
           this.$emit("close");
           this.$router.push({ name: "substrate-overview" });
         }
       } catch (error) {
+        this.isLoading = false;
         console.error("Error deleting substrate:", error);
         ToastService.showError("Fehler beim Löschen des Substrats");
       }

@@ -42,7 +42,7 @@ const upload = multer({
 
 // Helper function to extract the image's creation date
 async function extractImageDate(fileBuffer) {
-  let extractedDate;
+  let extractedDate = Date(); // Default to current date if extraction fails
 
   // Try to extract EXIF data from the image buffer
   try {
@@ -64,7 +64,6 @@ async function extractImageDate(fileBuffer) {
     }
   } catch (err) {
     logger.error("Error extracting EXIF data", err);
-    return null;
   }
 
   return extractedDate;

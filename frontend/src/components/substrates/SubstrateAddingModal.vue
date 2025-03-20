@@ -32,6 +32,7 @@
         cardTitle="Substrat Informationen"
         submitLabel="Weiter"
         @submit-click="goToStepTwo"
+        :is-loading="isLoading"
       />
 
       <!-- Step 2: SubstrateComponent Selection -->
@@ -51,7 +52,12 @@
         <IonButton expand="full" color="medium" @click="goToStepOne">
           Zurück
         </IonButton>
-        <IonButton expand="full" color="primary" @click="addSubstrate">
+        <IonButton
+          expand="full"
+          color="primary"
+          @click="addSubstrate"
+          :disabled="isLoading"
+        >
           Substrat speichern
         </IonButton>
       </div>
@@ -115,6 +121,7 @@ export default defineComponent({
       availableComponents: [] as SubstrateComponent[],
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
+      isLoading: false,
     };
   },
   computed: {
@@ -173,6 +180,7 @@ export default defineComponent({
       };
 
       try {
+        this.isLoading = true;
         const response = await SubstrateService.addSubstrateWithComponents(
           this.substrate,
           componentsData
@@ -181,6 +189,7 @@ export default defineComponent({
         if (response) {
           const substrateId = response.substrate.substrateId;
           if (!this.substrate.image) {
+            this.isLoading = false;
             ToastService.showSuccess(
               "Substrat und Komponenten erfolgreich hinzugefügt"
             );
@@ -190,18 +199,26 @@ export default defineComponent({
           }
         }
       } catch (error) {
+        this.isLoading = false;
         console.error("Error adding substrate:", error);
         ToastService.showError("Fehler beim Hinzufügen des Substrats");
       }
     },
     async imageUpload(id: number, file: File) {
       try {
-        await SubstrateService.uploadSubstrateImage(id, file);
-        ToastService.showSuccess(
-          "Substrat und Komponenten erfolgreich hinzugefügt"
-        );
-        this.$emit("added");
+        this.isLoading = true;
+        const response = await SubstrateService.uploadSubstrateImage(id, file);
+        if (response) {
+          this.isLoading = false;
+          ToastService.showSuccess(
+            "Substrat und Komponenten erfolgreich hinzugefügt"
+          );
+          this.$emit("added");
+        } else {
+          ToastService.showError("Fehler beim Hochladen des Bildes");
+        }
       } catch (error) {
+        this.isLoading = false;
         console.error("Error uploading image:", error);
         ToastService.showError("Fehler beim Hochladen des Bildes");
       }

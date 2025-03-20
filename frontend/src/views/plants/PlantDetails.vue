@@ -43,6 +43,7 @@
         :card-title="`Bild für ${plant?.name} hochladen`"
         @close="showUploadModal = false"
         @submit="onImageUpload"
+        :is-loading="isLoading"
       />
       <ImageEditingModal
         v-if="enlargedImage"
@@ -127,6 +128,7 @@ export default defineComponent({
       showUploadModal: false,
       enlargedImage: null as Image | null,
       showImageEditModal: false,
+      isLoading: false,
     };
   },
   async mounted() {
@@ -152,6 +154,7 @@ export default defineComponent({
     async onImageUpload(fileItem: any) {
       if (this.plant) {
         try {
+          this.isLoading = true;
           await PlantService.uploadPlantImage(
             this.plant.id,
             fileItem.file,
@@ -161,8 +164,12 @@ export default defineComponent({
             this.plantId,
             this.isPublic
           );
-          this.showUploadModal = false;
+          this.isLoading = false;
+          this.$nextTick(() => {
+            this.showUploadModal = false;
+          });
         } catch (error) {
+          this.isLoading = false;
           console.error("Error uploading image:", error);
         }
       }

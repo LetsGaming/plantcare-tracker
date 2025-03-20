@@ -5,7 +5,12 @@
       <form-component
         :item="editProfileData"
         :formFields="[
-          { type: 'input', modelKey: 'username', label: 'Name', required: false },
+          {
+            type: 'input',
+            modelKey: 'username',
+            label: 'Name',
+            required: false,
+          },
           {
             type: 'password',
             modelKey: 'password',
@@ -59,14 +64,12 @@ export default defineComponent({
         password: "",
         passwordConfirmation: "",
       } as EditProfile,
+      isLoading: false,
     };
   },
   methods: {
     async editProfile() {
-      if (
-        !this.editProfileData.username &&
-        !this.editProfileData.password
-      ) {
+      if (!this.editProfileData.username && !this.editProfileData.password) {
         ToastService.showError("Bitte füllen Sie mindestens ein Feld aus");
         return;
       }
@@ -78,13 +81,20 @@ export default defineComponent({
         ToastService.showError("Passwörter stimmen nicht überein");
         return;
       }
-
-      await UserService.editProfile(this.editProfileData);
-      this.$emit("close");
+      this.isLoading = true;
+      const response = await UserService.editProfile(this.editProfileData);
+      if (response) {
+        this.isLoading = false;
+        this.$emit("close");
+      }
     },
     async deleteProfile() {
-      await UserService.deleteProfile();
-      this.$emit("close");
+      this.isLoading = true;
+      const response = await UserService.deleteProfile();
+      if (response) {
+        this.isLoading = false;
+        this.$emit("close");
+      }
     },
   },
 });

@@ -21,6 +21,8 @@
           cardTitle="Bild Informationen"
           submitLabel="Bearbeiten"
           :onSubmitClick="submitForm"
+          :onDeleteClick="deleteImage"
+          :isLoading="isLoading"
         />
       </div>
     </IonContent>
@@ -77,6 +79,7 @@ export default defineComponent({
         image: undefined,
         date: "",
       },
+      isLoading: false,
     };
   },
   setup(props) {
@@ -94,12 +97,26 @@ export default defineComponent({
           ToastService.showError("Bitte fülle mindestens ein Feld aus.");
           return;
         }
+        this.isLoading = true;
         const response = await ImageService.editImage(
           this.image.id,
           this.imageEditData.date,
           this.imageEditData.image
         );
         if (response) {
+          this.isLoading = false;
+          this.$emit("edited");
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    async deleteImage() {
+      try {
+        this.isLoading = true;
+        const response = await ImageService.deleteImage(this.image.id);
+        if (response) {
+          this.isLoading = false;
           this.$emit("edited");
         }
       } catch (error) {

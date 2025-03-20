@@ -37,6 +37,7 @@
         submitLabel="Pflanze editieren"
         :extraContentComponent="SubstrateContainer"
         :extraContentData="{ substrate: selectedSubstrate }"
+        :isLoading="isLoading"
         @submitClick="editPlant"
         @delete-click="deletePlant"
       ></form-component>
@@ -85,6 +86,7 @@ export default defineComponent({
         isPublic: false,
       } as EditPlant,
       substrates: [] as Substrate[],
+      isLoading: false,
     };
   },
   setup() {
@@ -128,11 +130,13 @@ export default defineComponent({
       }
 
       try {
+        this.isLoading = true;
         const response = await PlantService.editPlant(
           this.plant.id,
           this.editPlantData
         );
         if (response) {
+          this.isLoading = false;
           this.$emit("edited");
         }
       } catch (error) {
@@ -142,8 +146,10 @@ export default defineComponent({
     },
     async deletePlant() {
       try {
+        this.isLoading = true;
         const response = await PlantService.deletePlant(this.plant.id);
         if (response) {
+          this.isLoading = false;
           this.$emit("close");
           await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
         }

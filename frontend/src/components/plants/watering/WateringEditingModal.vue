@@ -24,6 +24,7 @@
         ]"
         cardTitle="Wässerungsinformationen"
         submitLabel="Wässerung editieren"
+        :is-loading="isLoading"
         @submit-click="editRecord"
         @delete-click="deleteRecord"
       ></form-component>
@@ -63,6 +64,7 @@ export default defineComponent({
         usedFertilizer: false,
         fertilizerType: null,
       } as EditWateringRecord,
+      isLoading: false,
     };
   },
   mounted() {
@@ -84,7 +86,6 @@ export default defineComponent({
       }
     },
     async editRecord() {
-      console.log(this.editWateringRecord);
       if (this.editWateringRecord.fertilizerType === "none") {
         this.editWateringRecord.fertilizerType = null;
         this.editWateringRecord.usedFertilizer = false;
@@ -92,6 +93,7 @@ export default defineComponent({
         this.editWateringRecord.usedFertilizer = true;
       }
 
+      this.isLoading = true;
       const recordId = this.record.id;
       const response = await WateringService.editWateringRecord(
         this.plantId,
@@ -99,16 +101,19 @@ export default defineComponent({
         this.editWateringRecord
       );
       if (response) {
+        this.isLoading = false;
         this.$emit("edited");
       }
     },
     async deleteRecord() {
+      this.isLoading = true;
       const recordId = this.record.id;
       const response = await WateringService.deleteWateringRecord(
         this.plantId,
         recordId
       );
       if (response) {
+        this.isLoading = false;
         this.$emit("close");
         await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
       }

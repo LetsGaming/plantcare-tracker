@@ -187,10 +187,10 @@ const ApiUtils = {
   /**
    * Makes a DELETE request to the specified endpoint.
    * @param {string} endpoint - The API endpoint to call.
-   * @returns {Promise<void>} - A promise that resolves when the delete is successful.
+   * @returns {Promise<R>} - A promise that resolves when the delete is successful.
    */
-  delete(endpoint: string): Promise<void> {
-    return performRequest<void>({ method: "DELETE", endpoint });
+  delete<R>(endpoint: string): Promise<R> {
+    return performRequest<R>({ method: "DELETE", endpoint });
   },
 };
 
