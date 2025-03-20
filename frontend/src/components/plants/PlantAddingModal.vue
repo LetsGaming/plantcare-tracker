@@ -8,6 +8,7 @@
     :formFields="plantFormFields"
     :extra-content-component="SubstrateContainer"
     :extra-content-data="{ substrate: selectedSubstrate }"
+    :is-loading="isLoading"
     @submit="addPlant"
     @close="$emit('close')"
   />
@@ -36,6 +37,7 @@ export default defineComponent({
         image: undefined,
       } as AddPlant,
       substrates: [] as Substrate[],
+      isLoading: false,
     };
   },
   setup() {
@@ -110,11 +112,13 @@ export default defineComponent({
       }
 
       try {
+        this.isLoading = true;
         const response = await PlantService.addPlant(plantData);
         if (!response) return;
         if (plantData.image) {
           await this.upladImage(response.plantId, plantData.image);
         }
+        this.isLoading = false;
         this.clearPlantData();
         this.$emit("added");
       } catch (error) {
@@ -123,6 +127,7 @@ export default defineComponent({
     },
     async upladImage(id: number, image: File) {
       try {
+        this.isLoading = true;
         const response = await PlantService.uploadPlantImage(id, image);
         if (response) {
           ToastService.showSuccess("Bild erfolgreich hochgeladen");

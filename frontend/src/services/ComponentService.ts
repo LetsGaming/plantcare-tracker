@@ -46,7 +46,7 @@ const ComponentService = {
    * @returns {Promise<any[]>} - A promise that resolves to an array of components.
    */
   async getComponents(forceUpdate: boolean = false): Promise<any[]> {
-    if(forceUpdate) {
+    if (forceUpdate) {
       return await fetchAndCacheComponents();
     }
 
@@ -66,10 +66,17 @@ const ComponentService = {
    * @param {number} id - The ID of the component.
    * @returns {Promise<any>} - A promise that resolves to the component data.
    */
-  async getComponentById(id: number, forceUpdate: boolean = false): Promise<any> {
+  async getComponentById(
+    id: number,
+    forceUpdate: boolean = false
+  ): Promise<any> {
     const cachedData = await getCachedComponents();
 
-    if (!forceUpdate && cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
+    if (
+      !forceUpdate &&
+      cachedData &&
+      !Utils.isCacheExpired(cachedData.timestamp)
+    ) {
       const component = cachedData.components.find((c) => c.id === id);
       if (component) {
         return component; // Return the cached component if found
@@ -99,7 +106,10 @@ const ComponentService = {
   async addComponent(componentData: any): Promise<any> {
     try {
       const addEndpoint = `${COMPONENTS_ENDPOINT}/admin`;
-      const response = await ApiUtils.post<any, any>(addEndpoint, componentData);
+      const response = await ApiUtils.post<any, any>(
+        addEndpoint,
+        componentData
+      );
 
       // Invalidate the cached components after adding a new component
       await invalidateComponentCache();
@@ -121,7 +131,10 @@ const ComponentService = {
   async editComponent(id: number, componentData: any): Promise<any> {
     try {
       const updateEndpoint = `${COMPONENTS_ENDPOINT}/admin/${id}`;
-      const response = await ApiUtils.put<any, any>(updateEndpoint, componentData);
+      const response = await ApiUtils.put<any, any>(
+        updateEndpoint,
+        componentData
+      );
 
       // Invalidate the cached components after updating
       await invalidateComponentCache();
@@ -157,7 +170,7 @@ const ComponentService = {
    * @param {number} id - The ID of the component to delete.
    * @returns {Promise<void>} - A promise that resolves when the component is deleted.
    */
-  async deleteComponent(id: number): Promise<void> {
+  async deleteComponent(id: number): Promise<any> {
     try {
       const deleteEndpoint = `${COMPONENTS_ENDPOINT}/admin/${id}`;
       const response = await ApiUtils.delete(deleteEndpoint);
