@@ -62,17 +62,13 @@
           :disabled="isLoading"
           @click="submitForm"
         >
-          {{ submitLabel }}
-        </IonButton>
-        <ion-item v-if="isLoading">
-          <ion-label>Bitte warten...</ion-label>
+          <span v-if="isLoading">Bitte warten...</span>
           <ion-spinner
             v-if="isLoading"
-            slot="end"
             name="crescent"
-            style="margin-inline: auto"
           />
-        </ion-item>
+          <span v-else>{{ submitLabel }}</span>
+        </IonButton>
       </IonCardContent>
     </IonCard>
 
