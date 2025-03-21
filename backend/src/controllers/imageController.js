@@ -63,11 +63,15 @@ const uploadImage = async (req, res) => {
     const filePath = path.join(baseUrl, imageFile.filename);
 
     await insertImage(entityType, entityId, filePath, parsedDate);
-    successResponse(res, {
-      message: "Image uploaded successfully.",
-      path: filePath,
-      date: parsedDate,
-    });
+    successResponse(
+      res,
+      {
+        path: filePath,
+        date: parsedDate,
+      },
+      "Image uploaded successfully.",
+      201
+    );
   } catch (err) {
     logger.error("Error during image upload", err.message);
     errorResponse(
@@ -117,10 +121,13 @@ const updateSpecificImage = async (req, res) => {
       filePath = path.join(baseUrl, imageFile.filename);
     }
     await updateImage(id, { date: parsedDate, filePath: filePath });
-    successResponse(res, {
-      message: "Image uploaded successfully.",
-      path: filePath,
-    });
+    successResponse(
+      res,
+      {
+        path: filePath,
+      },
+      "Image updated successfully."
+    );
   } catch (err) {
     logger.error("Error during image upload", err.message);
     errorResponse(
@@ -195,7 +202,7 @@ const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
           "Image not found or not authorized to delete"
         );
       }
-      successResponse(res, { message: "Image deleted successfully" });
+      successResponse(res, { deleted: true }, "Image deleted successfully");
     } else {
       return true;
     }
@@ -216,7 +223,7 @@ const deleteImagesByEntityHandler = async (req, res) => {
     return errorResponse(res, result.message);
   }
 
-  successResponse(res, { message: result.message });
+  successResponse(res, { deleted: true }, result.message);
 };
 
 /**

@@ -47,7 +47,12 @@ const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await authService.createUser(username, hashedPassword);
 
-    return successResponse(res, { id: newUser.id, username }, 201);
+    return successResponse(
+      res,
+      { id: newUser.id, username },
+      "User created successfully",
+      201
+    );
   } catch (error) {
     logger.error(`Register error: ${error.message}`);
     return errorResponse(res, "Internal Server Error", 500);
@@ -176,7 +181,7 @@ const logout = (req, res) => {
     // Clear the refresh token cookie
     res.clearCookie("refreshToken");
 
-    return successResponse(res, { message: "Logged out" });
+    return successResponse(res, { loggedOut: true }, "Logged out successfully");
   } catch (error) {
     logger.error(`Logout error: ${error.message}`);
     return errorResponse(res, "Internal Server Error", 500);
@@ -222,7 +227,11 @@ const updateProfile = async (req, res) => {
     }
 
     logger.info(`User profile with id '${id}' updated successfully`);
-    return successResponse(res, { message: "Profile updated successfully" });
+    return successResponse(
+      res,
+      { updated: true },
+      "Profile updated successfully"
+    );
   } catch (error) {
     logger.error(`Error updating profile with id '${id}': ${error.message}`);
     return errorResponse(res, "Internal Server Error", 500);
@@ -250,7 +259,11 @@ const updateUserProfile = async (req, res) => {
     authStore.deleteRefreshTokens(userId);
 
     logger.info(`User profile with id '${userId}' updated successfully`);
-    return successResponse(res, { message: "Profile updated successfully" });
+    return successResponse(
+      res,
+      { updated: true },
+      "Profile updated successfully"
+    );
   } catch (error) {
     logger.error(
       `Error updating profile with id '${userId}': ${error.message}`
@@ -274,7 +287,11 @@ const deleteProfile = async (req, res) => {
     }
     authStore.deleteRefreshTokens(userId);
     logger.info(`User with id '${id}' deleted successfully`);
-    return successResponse(res, { message: "User deleted successfully" });
+    return successResponse(
+      res,
+      { deleted: true },
+      "Profile deleted successfully"
+    );
   } catch (error) {
     logger.error(`Error deleting user with id '${id}': ${error.message}`);
     return errorResponse(res, "Internal Server Error", 500);

@@ -45,8 +45,10 @@ async function fetchAndCacheWateringRecords(
 
     await cacheWateringRecords(plantId, newRecords);
     return newRecords;
-  } catch (error) {
-    ToastService.showError(`Error fetching watering records: ${error}`);
+  } catch (error: any) {
+    if (error.message != "Watering record not found") {
+      ToastService.showError(`Error fetching watering records: ${error}`);
+    }
     throw error;
   }
 }

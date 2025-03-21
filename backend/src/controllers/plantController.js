@@ -6,8 +6,12 @@ const {
   updatePlant,
   deletePlant,
 } = require("../models/plantModel");
-const {deleteImagesByEntity} =require("../controllers/imageController")
-const { errorResponse, successResponse, notFoundResponse } = require("../utils/responseUtils");
+const { deleteImagesByEntity } = require("../controllers/imageController");
+const {
+  errorResponse,
+  successResponse,
+  notFoundResponse,
+} = require("../utils/responseUtils");
 
 // Centralized validation logic for plant data
 const validatePlantData = (name, species, substrateId) => {
@@ -43,7 +47,7 @@ const getPlants = async (res, selectPlantsFn, userId = null) => {
 // Controller for fetching private plants
 const getPrivatePlants = async (req, res) => {
   const userId = req.user.id;
-  
+
   await getPlants(res, selectPrivatePlants, userId);
 };
 
@@ -74,7 +78,7 @@ const addPlant = async (req, res) => {
     );
     const plantId = plant.insertId;
 
-    successResponse(res, { plantId }, 201);
+    successResponse(res, { plantId }, "Plant added successfully", 201);
   } catch (err) {
     const status =
       err.message === "Name, species, and substrateId are required."
@@ -111,7 +115,7 @@ const editPlant = async (req, res) => {
       );
     }
 
-    successResponse(res, { message: "Plant updated successfully" });
+    successResponse(res, { updated: true }, "Plant updated successfully");
   } catch (err) {
     errorResponse(res, err, 500, "Error updating plant");
   }
@@ -125,16 +129,19 @@ const deleteSpecificPlant = async (req, res) => {
     const result = await deletePlant(id, userId);
 
     if (result.affectedRows === 0) {
-      return notFoundResponse(res, "Plant not found or not authorized to delete");
+      return notFoundResponse(
+        res,
+        "Plant not found or not authorized to delete"
+      );
     }
 
     await deleteImagesByEntity("plant", id);
 
-    successResponse(res, { message: "Plant deleted successfully" });
+    successResponse(res, { deleted: true }, "Plant deleted successfully");
   } catch (err) {
     errorResponse(res, err, 500, "Error deleting plant");
   }
-}
+};
 
 module.exports = {
   getPrivatePlants,
@@ -142,5 +149,5 @@ module.exports = {
   getSpecificPlant,
   addPlant,
   editPlant,
-  deleteSpecificPlant
+  deleteSpecificPlant,
 };
