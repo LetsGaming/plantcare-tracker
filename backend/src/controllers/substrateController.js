@@ -1,3 +1,4 @@
+const { add } = require("winston");
 const {
   selectPrivateSubstrates,
   selectPublicSubstrates,
@@ -77,7 +78,12 @@ const addSubstrate = async (req, res) => {
       image_url || null,
       isPublic || false
     );
-    successResponse(res, { substrateId: result.insertId }, 201);
+    successResponse(
+      res,
+      { substrateId: result.insertId },
+      "Substrate added successfully",
+      201
+    );
   } catch (err) {
     const status = err.message.includes("required") ? 400 : 500;
     errorResponse(res, err, status);
@@ -122,7 +128,7 @@ const editSubstrate = async (req, res) => {
     if (removedComponents && removedComponents.length > 0) {
       await deleteSubstrateComponents(id, removedComponents);
     }
-    successResponse(res, { message: "Substrate updated successfully" });
+    successResponse(res, { updated: true }, "Substrate updated successfully");
   } catch (err) {
     errorResponse(res, err, 500, "Error updating substrate");
   }
@@ -144,7 +150,8 @@ const addSubstrateComponents = async (req, res) => {
     await Promise.all(insertPromises);
     successResponse(
       res,
-      { message: "Substrate components added successfully." },
+      { added: true },
+      "Substrate components added successfully",
       201
     );
   } catch (err) {
@@ -174,9 +181,7 @@ const editSubstrateComponents = async (req, res) => {
       return updateSubstrateComponent(id, componentId, decimalParts);
     });
     await Promise.all(updatePromises);
-    successResponse(res, {
-      message: "Substrate components updated successfully.",
-    });
+    successResponse(res, { updated: true }, "Substrate components updated");
   } catch (err) {
     errorResponse(res, err);
   }
@@ -198,7 +203,7 @@ const deleteSpecificSubstrate = async (req, res) => {
 
     await deleteImagesByEntity("substrate", id);
 
-    successResponse(res, { message: "Substrate deleted successfully" });
+    successResponse(res, { deleted: true }, "Substrate deleted successfully");
   } catch (err) {
     errorResponse(res, err, 500, "Error deleting plant");
   }

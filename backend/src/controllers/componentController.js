@@ -68,7 +68,7 @@ const editComponent = async (req, res) => {
     validateComponentData({ name, fineness });
 
     await updateComponent(id, name, fineness);
-    successResponse(res, { message: "Component updated successfully." });
+    successResponse(res, { updated: true }, "Component updated successfully");
   } catch (err) {
     errorResponse(res, err);
   }
@@ -85,7 +85,7 @@ const removeComponent = async (req, res) => {
     }
 
     await deleteImagesByEntity("component", id);
-    successResponse(res, { message: "Component deleted successfully." });
+    successResponse(res, { deleted: true }, "Component deleted successfully");
   } catch (err) {
     errorResponse(res, err);
   }

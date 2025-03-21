@@ -5,7 +5,7 @@ const {
   updateWateringRecord,
   deleteWateringRecord,
 } = require("../models/wateringModel");
-const { formatToDBDate, } = require("../utils/generalUtils");
+const { formatToDBDate } = require("../utils/generalUtils");
 
 const {
   errorResponse,
@@ -65,7 +65,12 @@ const addWateringRecord = async (req, res) => {
 
     const recordId = result.insertId;
 
-    successResponse(res, { waterRecordId: recordId }, 201);
+    successResponse(
+      res,
+      { waterRecordId: recordId },
+      "Watering record added successfully",
+      201
+    );
   } catch (err) {
     const status = err.message === "Date is required." ? 400 : 500;
     errorResponse(res, err, status);
@@ -105,7 +110,11 @@ const editWateringRecord = async (req, res) => {
       );
     }
 
-    successResponse(res, { message: "Watering record updated successfully" });
+    successResponse(
+      res,
+      { updated: true },
+      "Watering record updated successfully"
+    );
   } catch (err) {
     console.error(err);
     errorResponse(res, err, 500, "Error updating watering record");
@@ -127,7 +136,7 @@ const deleteSpecificWateringRecord = async (req, res) => {
       );
     }
 
-    successResponse(res, { message: "Watering record deleted successfully" });
+    successResponse(res, { deleted: true }, "Watering record deleted successfully");
   } catch (err) {
     errorResponse(res, err, 500, "Error deleting watering record");
   }
