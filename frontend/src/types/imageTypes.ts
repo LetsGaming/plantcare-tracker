@@ -10,6 +10,6 @@ interface AddImage {
 }
 
 interface EditImage {
-  date?: number | string;
+  date?: number;
   file?: File;
 }
