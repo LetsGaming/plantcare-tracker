@@ -20,6 +20,10 @@ const selectPlantsQuery = `
 const selectPlants = async (conditions = {}, params = [], req) => {
   let whereClauses = [];
 
+  if (conditions.id) {
+    whereClauses.push("plants.id = ?");
+    params.push(conditions.id);
+  }
   if (conditions.user_id) {
     whereClauses.push("plants.user_id = ?");
     params.push(conditions.user_id);
@@ -27,10 +31,6 @@ const selectPlants = async (conditions = {}, params = [], req) => {
   if (conditions.is_public !== undefined) {
     whereClauses.push("plants.is_public = ?");
     params.push(conditions.is_public);
-  }
-  if (conditions.id) {
-    whereClauses.push("plants.id = ?");
-    params.push(conditions.id);
   }
 
   const whereSQL = whereClauses.length
@@ -133,5 +133,5 @@ module.exports = {
   selectPlant,
   insertPlant,
   updatePlant,
-  deletePlant
+  deletePlant,
 };

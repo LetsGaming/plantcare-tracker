@@ -12,7 +12,7 @@ const {
   errorResponse,
   notFoundResponse,
 } = require("../utils/responseUtils.js");
-const { formatToDBDate, parseCustomDate } = require("../utils/generalUtils.js");
+const { formatToDBDate } = require("../utils/generalUtils.js");
 
 const dotenv = require("dotenv"); // Import dotenv to load environment variables
 // Load environment variables from .env file

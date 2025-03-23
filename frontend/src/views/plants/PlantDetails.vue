@@ -51,7 +51,7 @@
         :image="enlargedImage"
         @close="showImageEditModal = false"
         @edited="handleImageEdited"
-        
+
       />
     </ion-content>
   </ion-page>
@@ -183,7 +183,8 @@ export default defineComponent({
       try {
         this.plant = await PlantService.getPlantById(
           this.plantId,
-          this.isPublic
+          this.isPublic,
+          true
         );
         this.showImageEditModal = false;
       } catch (error) {

@@ -31,7 +31,6 @@ export default class ImageService {
     }
     const url = `${BASE_ENDPOINT}/image/${imageId}`;
     const response = await ApiUtils.patchImage(url, formData);
-    await PlantService.invalidatePlantCache();
     return response;
   }
 

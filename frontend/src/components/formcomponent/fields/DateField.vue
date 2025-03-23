@@ -16,7 +16,6 @@
 import { defineComponent } from "vue";
 import { IonItem, IonLabel, IonInput } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
-import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "DateFieldComponent",
@@ -27,7 +26,7 @@ export default defineComponent({
       required: true,
     },
     modelValue: {
-      type: Number,
+      type: String,
       default: "",
     },
   },

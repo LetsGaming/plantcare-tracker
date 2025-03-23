@@ -73,8 +73,7 @@ async function extractImageDate(fileBuffer) {
   } catch (err) {
     logger.error("Error extracting EXIF data", err);
   }
-
-  return extractedDate.getTime(); // Return extracted date in milliseconds
+  return extractedDate; // Return extracted date in milliseconds
 }
 
 router.post(
@@ -160,6 +159,9 @@ router.patch(
 
           const imageBuffer = req.file.buffer;
           const extractedDate = await extractImageDate(imageBuffer);
+          if (extractedDate) {
+            req.body.date = extractedDate.getTime();
+          }
           // Convert and save image using Sharp
           await sharp(imageBuffer)
             .resize({ width: 1024 })
@@ -170,7 +172,6 @@ router.patch(
           // Attach processed file path to request
           req.file.path = outputPath;
           req.file.filename = uniqueFilename;
-          req.body.date = extractedDate;
         }
       }
 
