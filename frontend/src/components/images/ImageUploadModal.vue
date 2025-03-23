@@ -25,7 +25,7 @@
               type: 'date',
               label: 'Datum',
               modelKey: 'date',
-            }
+            },
           ]"
           cardTitle="Bild hochladen"
           submitLabel="Hochladen"
@@ -105,9 +105,9 @@ export default defineComponent({
   data() {
     return {
       fileItem: {
-        file: null as File | null,
-        date: null as Date | null,
-      },
+        date: undefined,
+        file: undefined as File | undefined,
+      } as AddImage,
     };
   },
   methods: {

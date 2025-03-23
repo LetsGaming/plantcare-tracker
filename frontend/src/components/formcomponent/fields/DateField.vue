@@ -27,22 +27,22 @@ export default defineComponent({
       required: true,
     },
     modelValue: {
-      type: String,
+      type: Number,
       default: "",
     },
   },
   computed: {
     localValue: {
       get() {
-        if (!this.modelValue) return "";
-
-        // Parse the modelValue and convert it to the correct datetime format for local time display
-        const localDate = Utils.convertDateString(this.modelValue); // Convert to local time if needed
-        return this.formatDateForInput(localDate);
+        let value = String(this.modelValue);
+        if (!value) {
+          value = new Date().toISOString();
+        }
+        return this.formatDateForInput(value);
       },
       set(val: string) {
         // Convert the local input back to the user's local timezone
-        const localDate = this.convertToLocalTime(val);
+        const localDate = this.convertToMillis(val);
         this.$emit("update:modelValue", localDate);
       },
     },
@@ -62,14 +62,9 @@ export default defineComponent({
     },
 
     // Convert the local value back to the local timezone
-    convertToLocalTime(val: string): string {
-      const localDate = new Date(val); // Parse the input value to a Date object
-      const offset = localDate.getTimezoneOffset(); // Get timezone offset in minutes
-
-      // Adjust the date to be in local timezone
-      localDate.setMinutes(localDate.getMinutes() - offset);
-
-      return localDate.toISOString(); // Return the date in ISO format (which will use UTC)
+    convertToMillis(date: string): number {
+      const parsedDate = new Date(date);
+      return parsedDate.getTime();
     },
   },
 });

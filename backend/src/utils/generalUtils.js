@@ -1,18 +1,19 @@
 const removeEmptyFields = (obj) => {
-  if (typeof obj !== 'object' || obj === null) return obj; // Ensure obj is an object
+  if (typeof obj !== "object" || obj === null) return obj; // Ensure obj is an object
 
   return Object.entries(obj)
     .filter(([_, value]) => {
-      if (value === null || value === undefined || value === '') return false;
+      if (value === null || value === undefined || value === "") return false;
       if (Array.isArray(value) && value.length === 0) return false;
-      if (typeof value === 'object' && Object.keys(value).length === 0) return false;
+      if (typeof value === "object" && Object.keys(value).length === 0)
+        return false;
       return true;
     })
     .reduce((acc, [key, value]) => {
-      acc[key] = typeof value === 'object' ? removeEmptyFields(value) : value;
+      acc[key] = typeof value === "object" ? removeEmptyFields(value) : value;
       return acc;
     }, {});
-}
+};
 
 // Custom timestamp function
 const customTimestamp = (date = new Date()) => {
@@ -28,14 +29,20 @@ const customTimestamp = (date = new Date()) => {
   return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 };
 
-const formatToDBDate = (date) => {
-  const localDate = new Date(date);  // Parse date string (could include time zone)
-  const formattedDate = localDate
-    .toISOString()   // Converts to UTC in ISO format (e.g., '2025-03-17T15:30:00.000Z')
-    .slice(0, 19)    // Slice the ISO string to get the format: 'YYYY-MM-DDTHH:MM:SS'
-    .replace("T", " ");  // Replace the 'T' with a space for SQL format ('YYYY-MM-DD HH:MM:SS')
-  return formattedDate;
-};
+const formatToDBDate = (dateString) => {
+  // Create a Date object with the given date and time zone
+  const date = new Date(dateString);
 
+  // Convert to UTC string, then extract relevant parts
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0"); // Months are 0-based
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+
+  // Format as YYYY-MM-DD HH:MM:SS (database-friendly)
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
 
 module.exports = { removeEmptyFields, customTimestamp, formatToDBDate };

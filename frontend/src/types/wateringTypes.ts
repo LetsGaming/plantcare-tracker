@@ -7,13 +7,13 @@ interface WateringRecord {
 }
 
 interface AddWateringRecord {
-  date: Date;
+  date?: number;
   usedFertilizer: boolean;
   fertilizerType?: "organic" | "synthetic" | null;
 }
 
 interface EditWateringRecord {
-  date?: string;
+  date?: number | string;
   usedFertilizer: boolean;
   fertilizerType: "organic" | "synthetic" | "none" | null;
 }

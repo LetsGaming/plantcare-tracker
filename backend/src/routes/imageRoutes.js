@@ -42,7 +42,7 @@ const upload = multer({
 
 // Helper function to extract the image's creation date
 async function extractImageDate(fileBuffer) {
-  let extractedDate = Date(); // Default to current date if extraction fails
+  let extractedDate = new Date(); // Default to current date if extraction fails
 
   // Try to extract EXIF data from the image buffer
   try {
@@ -53,20 +53,28 @@ async function extractImageDate(fileBuffer) {
     extractedDate =
       exifData?.tags?.DateTimeOriginal || exifData?.tags?.CreateDate;
 
-    // Check if extracted date is a valid Unix timestamp (seconds)
-    if (extractedDate && !isNaN(extractedDate)) {
-      // If the date is a Unix timestamp in seconds, convert to milliseconds
-      if (String(extractedDate).length === 10) {
+    // Check if extracted date is a valid Date string or Unix timestamp (seconds)
+    if (extractedDate) {
+      // If it's a Unix timestamp in seconds, convert to milliseconds
+      if (
+        typeof extractedDate === "number" &&
+        String(extractedDate).length === 10
+      ) {
         extractedDate = new Date(extractedDate * 1000); // Convert to milliseconds
       } else {
-        extractedDate = new Date(extractedDate); // If it's already a valid Date string
+        extractedDate = new Date(extractedDate); // If it's a valid Date string
+      }
+
+      // Check if the resulting date is valid
+      if (isNaN(extractedDate.getTime())) {
+        extractedDate = new Date(); // If invalid, fallback to current date
       }
     }
   } catch (err) {
     logger.error("Error extracting EXIF data", err);
   }
 
-  return extractedDate;
+  return extractedDate.getTime(); // Return extracted date in milliseconds
 }
 
 router.post(

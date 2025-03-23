@@ -21,10 +21,10 @@ export default class ImageService {
     return response;
   }
 
-  static async editImage(imageId: number, date?: string, image?: File) {
+  static async editImage(imageId: number, date?: number, image?: File) {
     const formData = new FormData();
     if (date) {
-      formData.append("date", date);
+      formData.append("date", date.toString());
     }
     if (image) {
       formData.append("image", image);

@@ -42,7 +42,7 @@ const getSpecificWateringRecord = async (req, res) => {
 // Controller to add a new watering record
 const addWateringRecord = async (req, res) => {
   const { plantId } = req.params;
-  const { date = Date().now(), usedFertilizer, fertilizerType } = req.body;
+  const { date = new Date().getTime(), usedFertilizer, fertilizerType } = req.body;
   const userId = req.user ? req.user.id : null;
 
   const parsedDate = formatToDBDate(date);
@@ -136,7 +136,11 @@ const deleteSpecificWateringRecord = async (req, res) => {
       );
     }
 
-    successResponse(res, { deleted: true }, "Watering record deleted successfully");
+    successResponse(
+      res,
+      { deleted: true },
+      "Watering record deleted successfully"
+    );
   } catch (err) {
     errorResponse(res, err, 500, "Error deleting watering record");
   }
