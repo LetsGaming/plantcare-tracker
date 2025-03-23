@@ -59,7 +59,11 @@ const getPublicPlants = async (req, res) => {
 // Controller for fetching a single plant
 const getSpecificPlant = async (req, res) => {
   const { id } = req.params;
-  await getPlant(res, selectPlant, id);
+  const [plant] = await selectPlant(id);
+  if(!plant) {
+    return notFoundResponse(res, "Plant not found");
+  }
+  successResponse(res, plant);
 };
 
 // Controller for adding a new plant

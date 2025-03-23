@@ -30,6 +30,17 @@ async function cachePlants(cacheKey: string, plants: Plant[]) {
   await storageService.set(cacheKey, { plants, timestamp: Date.now() });
 }
 
+async function cachePlant(plant: Plant, isPublic: boolean) {
+  const cacheKey = getCacheKey(isPublic);
+  const cachedData = await getCachedPlants(cacheKey);
+  if (!cachedData) return;
+  const updatedPlants = [...cachedData.plants, plant];
+  await storageService.set(cacheKey, {
+    plants: updatedPlants,
+    timestamp: cachedData.timestamp,
+  });
+}
+
 // Fetch plants from the API and cache them
 async function fetchAndCachePlants(isPublic: boolean): Promise<Plant[]> {
   try {
@@ -43,11 +54,37 @@ async function fetchAndCachePlants(isPublic: boolean): Promise<Plant[]> {
   }
 }
 
+async function fetchAndCachePlant(plantId: number, isPublic: boolean): Promise<Plant> {
+  try {
+    const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
+    const plant = PlantMapper.convertToPlants(response)[0];
+    await cachePlant(plant, isPublic);
+    return plant;
+  } catch (error) {
+    ToastService.showError(`Error fetching plant: ${error}`);
+    throw error;
+  }
+}
+
 export default class PlantService {
   // Invalidate both public and private plant caches
-  static async invalidatePlantCache() {
+  static async invalidatePlantsCache() {
     await storageService.remove(CACHE_KEY_PUBLIC_PLANTS);
     await storageService.remove(CACHE_KEY_PRIVATE_PLANTS);
+  }
+
+  static async invalidatePlantCache(plantId: number, isPublic: boolean) {
+    await WateringService.invalidateWateringCacheForPlant(plantId);
+    const cacheKey = getCacheKey(isPublic);
+    const cachedData = await getCachedPlants(cacheKey);
+    if (!cachedData) return;
+    // Keep the plant with the given plantId and remove the others
+    const updatedPlants = cachedData.plants.filter((p) => p.id !== plantId);
+    // Re-cache the updated plants list (with just the requested plant)
+    await storageService.set(cacheKey, {
+      plants: updatedPlants,
+      timestamp: cachedData.timestamp,
+    });
   }
 
   static async getPlants(
@@ -92,13 +129,9 @@ export default class PlantService {
 
     // If not found in cache, fetch from API (try both public and private endpoints)
     try {
-      const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
-      const plant = PlantMapper.convertToPlants(response)[0];
-
       // Invalidate both caches after fetching individual plant
-      await this.invalidatePlantCache();
-      await WateringService.invalidateWateringCacheForPlant(plantId);
-      return plant;
+      await this.invalidatePlantCache(plantId, isPublic);
+      return await fetchAndCachePlant(plantId, isPublic);
     } catch (error) {
       ToastService.showError(`Error fetching plant details: ${error}`);
       throw error;
@@ -108,7 +141,7 @@ export default class PlantService {
   static async addPlant(plantToAdd: AddPlant): Promise<any> {
     try {
       const response = await ApiUtils.post(BASE_ENDPOINT, plantToAdd);
-      await this.invalidatePlantCache(); // Invalidate the cache after adding a plant
+      await this.invalidatePlantsCache(); // Invalidate the cache after adding a plant
       return response;
     } catch (error) {
       ToastService.showError(`Error adding plant: ${error}`);
@@ -125,7 +158,10 @@ export default class PlantService {
         `${BASE_ENDPOINT}/${plantId}`,
         updatedPlantData
       );
-      await this.invalidatePlantCache(); // Invalidate the cache after editing a plant
+      await this.invalidatePlantCache(
+        plantId,
+        updatedPlantData.isPublic || false
+      ); // Invalidate the cache after editing a plant
       return response;
     } catch (error) {
       ToastService.showError(`Error updating plant: ${error}`);
@@ -145,8 +181,7 @@ export default class PlantService {
         plantId,
         date
       );
-      await this.invalidatePlantCache(); // Invalidate the cache after uploading an image
-      await WateringService.invalidateWateringCacheForPlant(plantId);
+      await this.invalidatePlantCache(plantId, false); // Invalidate the cache after uploading an image
       return response;
     } catch (error) {
       ToastService.showError(`Error uploading plant image: ${error}`);
@@ -157,7 +192,7 @@ export default class PlantService {
   static async deletePlant(plantId: number): Promise<any> {
     try {
       const response = await ApiUtils.delete(`${BASE_ENDPOINT}/${plantId}`);
-      await this.invalidatePlantCache(); // Invalidate the cache after deleting a plant
+      await this.invalidatePlantsCache(); // Invalidate the cache after deleting a plant
       await WateringService.invalidateWateringCacheForPlant(plantId);
       return response;
     } catch (error) {
