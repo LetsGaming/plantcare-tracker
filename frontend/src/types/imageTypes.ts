@@ -3,3 +3,13 @@ interface Image {
   url: string;
   date: string;
 }
+
+interface AddImage {
+  date?: number;
+  file: File;
+}
+
+interface EditImage {
+  date?: number | string;
+  file?: File;
+}

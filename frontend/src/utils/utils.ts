@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import { modalController } from "@ionic/vue";
 
 import config from "@/config.json";
@@ -28,26 +29,31 @@ const Utils = {
     return Date.now() - timestamp > expiry_ms;
   },
 
-  convertDateString(dateString: string, userLocale = navigator.language) {
-    // Create a new Date object from the input string (assumed to be in UTC)
-    const date = new Date(dateString);
+  convertDateString(dateString: string) {
+    // Check if the dateString is already formatted (basic check)
+    if (
+      isNaN(Date.parse(dateString)) &&
+      !/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateString)
+    ) {
+      return dateString; // Return as-is if it doesn't look like an ISO date
+    }
 
-    // Get the user's preferred options for date formatting
-    const options: Intl.DateTimeFormatOptions = {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false, // Set to true for 12-hour format preference
-      timeZoneName: "short", // Include the time zone abbreviation (e.g., "UTC", "CET")
-    };
+    // Get the local time zone
+    const timeZone = DateTime.local().zoneName;
 
-    // Format the date to the user's local time zone using toLocaleString
-    const formattedDate = date.toLocaleString(userLocale, options);
+    // If the date string is already in UTC (ends with 'Z'), parse it directly without 'zone: utc'
+    let utcDate = DateTime.fromISO(dateString);
 
-    return formattedDate;
+    // If the date string is in UTC (i.e., ends with 'Z'), make sure it's treated as UTC by adjusting the time zone
+    if (dateString.endsWith("Z")) {
+      utcDate = utcDate.setZone("utc", { keepLocalTime: true });
+    }
+
+    // Now convert to the local time zone
+    const localDate = utcDate.setZone(timeZone);
+
+    // Format the date in the desired format
+    return localDate.toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY);
   },
 
   async closeOpenModal() {

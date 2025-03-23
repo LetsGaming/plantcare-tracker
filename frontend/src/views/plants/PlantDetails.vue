@@ -51,6 +51,7 @@
         :image="enlargedImage"
         @close="showImageEditModal = false"
         @edited="handleImageEdited"
+        
       />
     </ion-content>
   </ion-page>

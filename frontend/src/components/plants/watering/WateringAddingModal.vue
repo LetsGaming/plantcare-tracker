@@ -86,7 +86,7 @@ export default defineComponent({
   data() {
     return {
       record: {
-        date: new Date(),
+        date: undefined,
         usedFertilizer: false,
         fertilizerType: null,
       } as AddWateringRecord,

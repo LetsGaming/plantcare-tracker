@@ -76,24 +76,21 @@ export default defineComponent({
   data() {
     return {
       imageEditData: {
-        image: undefined,
-        date: "",
-      },
+        file: undefined,
+        date: undefined,
+      } as EditImage,
       isLoading: false,
     };
   },
-  setup(props) {
+  setup() {
     return {
       closeOutline,
     };
   },
-  mounted() {
-    this.imageEditData.date = this.image.date;
-  },
   methods: {
     async submitForm() {
       try {
-        if (!this.imageEditData.image && !this.imageEditData.date) {
+        if (!this.imageEditData.file && !this.imageEditData.date) {
           ToastService.showError("Bitte fülle mindestens ein Feld aus.");
           return;
         }
@@ -101,7 +98,7 @@ export default defineComponent({
         const response = await ImageService.editImage(
           this.image.id,
           this.imageEditData.date,
-          this.imageEditData.image
+          this.imageEditData.file
         );
         if (response) {
           this.isLoading = false;
