@@ -24,6 +24,7 @@
                     <ion-img
                       :src="item.imageUrl || '/no-image.png'"
                       :alt="`${item.name} Image`"
+                      @ion-error="($event) => ($event.target.src = '/no-image.png')"
                       class="item-image"
                     />
                   </div>

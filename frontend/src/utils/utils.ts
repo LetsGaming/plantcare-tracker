@@ -4,6 +4,23 @@ import { modalController } from "@ionic/vue";
 import config from "@/config.json";
 type Environment = "development" | "production";
 
+const getLocalDate = (dateString: string) => {
+  // Get the local time zone
+  const timeZone = DateTime.local().zoneName;
+
+  // If the date string is already in UTC (ends with 'Z'), parse it directly without 'zone: utc'
+  let utcDate = DateTime.fromISO(dateString);
+
+  // If the date string is in UTC (i.e., ends with 'Z'), make sure it's treated as UTC by adjusting the time zone
+  if (dateString.endsWith("Z")) {
+    utcDate = utcDate.setZone("utc", { keepLocalTime: true });
+  }
+
+  // Now convert to the local time zone
+  const localDate = utcDate.setZone(timeZone);
+  return localDate;
+};
+
 const Utils = {
   getConfig() {
     const environment = process.env.NODE_ENV || "development";
@@ -29,6 +46,12 @@ const Utils = {
     return Date.now() - timestamp > expiry_ms;
   },
 
+  convertToMillis(dateString: string): number {
+    const localDate = getLocalDate(dateString);
+    // Format the date in the desired format
+    return localDate.toLocal().toMillis();
+  },
+
   convertDateString(dateString: string) {
     // Check if the dateString is already formatted (basic check)
     if (
@@ -38,19 +61,7 @@ const Utils = {
       return dateString; // Return as-is if it doesn't look like an ISO date
     }
 
-    // Get the local time zone
-    const timeZone = DateTime.local().zoneName;
-
-    // If the date string is already in UTC (ends with 'Z'), parse it directly without 'zone: utc'
-    let utcDate = DateTime.fromISO(dateString);
-
-    // If the date string is in UTC (i.e., ends with 'Z'), make sure it's treated as UTC by adjusting the time zone
-    if (dateString.endsWith("Z")) {
-      utcDate = utcDate.setZone("utc", { keepLocalTime: true });
-    }
-
-    // Now convert to the local time zone
-    const localDate = utcDate.setZone(timeZone);
+    const localDate = getLocalDate(dateString);
 
     // Format the date in the desired format
     return localDate.toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY);

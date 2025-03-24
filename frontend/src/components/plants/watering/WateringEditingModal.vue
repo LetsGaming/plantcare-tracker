@@ -69,7 +69,7 @@ export default defineComponent({
   },
   mounted() {
     this.editWateringRecord = {
-      date: this.record.date,
+      date: this.record.date_millis,
       usedFertilizer: this.record.usedFertilizer,
       fertilizerType: this.mapFertilizerType(this.record.fertilizerType || ""),
     };

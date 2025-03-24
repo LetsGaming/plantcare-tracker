@@ -26,17 +26,19 @@ export default defineComponent({
       required: true,
     },
     modelValue: {
-      type: String,
+      type: Number,
       default: "",
     },
+  },
+  mounted() {
+    if (!this.modelValue) {
+      this.$emit("update:modelValue", new Date().getTime());
+    }
   },
   computed: {
     localValue: {
       get() {
-        let value = String(this.modelValue);
-        if (!value) {
-          value = new Date().toISOString();
-        }
+        let value = this.modelValue;
         return this.formatDateForInput(value);
       },
       set(val: string) {
@@ -48,7 +50,7 @@ export default defineComponent({
   },
   methods: {
     // Format the date for the input element in the correct format (yyyy-MM-ddThh:mm)
-    formatDateForInput(date: string): string {
+    formatDateForInput(date: number): string {
       const parsedDate = new Date(date);
 
       const year = parsedDate.getFullYear();

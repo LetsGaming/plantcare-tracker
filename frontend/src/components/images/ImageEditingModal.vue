@@ -87,6 +87,9 @@ export default defineComponent({
       closeOutline,
     };
   },
+  mounted() {
+    this.imageEditData.date = this.image.date_millis;
+  },
   methods: {
     async submitForm() {
       try {
