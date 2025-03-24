@@ -42,38 +42,32 @@ const upload = multer({
 
 // Helper function to extract the image's creation date
 async function extractImageDate(fileBuffer) {
-  let extractedDate = new Date(); // Default to current date if extraction fails
+  const defaultDate = new Date();
 
-  // Try to extract EXIF data from the image buffer
   try {
     const parser = ExifParser.create(fileBuffer);
     const exifData = parser.parse();
+    if (!exifData || !exifData.tags) return defaultDate;
 
-    // Extract DateTimeOriginal or CreateDate from EXIF data
-    extractedDate =
-      exifData?.tags?.DateTimeOriginal || exifData?.tags?.CreateDate;
+    let extractedDate = exifData.tags.DateTimeOriginal || exifData.tags.CreateDate;
+    if (!extractedDate) return defaultDate;
 
-    // Check if extracted date is a valid Date string or Unix timestamp (seconds)
-    if (extractedDate) {
-      // If it's a Unix timestamp in seconds, convert to milliseconds
-      if (
-        typeof extractedDate === "number" &&
-        String(extractedDate).length === 10
-      ) {
-        extractedDate = new Date(extractedDate * 1000); // Convert to milliseconds
-      } else {
-        extractedDate = new Date(extractedDate); // If it's a valid Date string
-      }
-
-      // Check if the resulting date is valid
-      if (isNaN(extractedDate.getTime())) {
-        extractedDate = new Date(); // If invalid, fallback to current date
-      }
+    // Handle Unix timestamp (seconds) case
+    if (typeof extractedDate === "number" && String(extractedDate).length === 10) {
+      extractedDate = new Date(extractedDate * 1000);
+      const offset = extractedDate.getTimezoneOffset() * 60000;
+      extractedDate = new Date(extractedDate.getTime() + offset);
+    } else {
+      extractedDate = new Date(extractedDate);
     }
+
+    if (isNaN(extractedDate.getTime())) return defaultDate;
+
+    return extractedDate;
   } catch (err) {
     logger.error("Error extracting EXIF data", err);
+    return defaultDate;
   }
-  return extractedDate; // Return extracted date in milliseconds
 }
 
 router.post(
@@ -99,6 +93,9 @@ router.post(
 
       const imageBuffer = req.file.buffer;
       const extractedDate = await extractImageDate(imageBuffer);
+      if (extractedDate) {
+        req.body.date = extractedDate.getTime();
+      }
       await sharp(imageBuffer)
         .resize({ width: 1024 })
         .toFormat("webp")
