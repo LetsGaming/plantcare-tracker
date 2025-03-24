@@ -2,6 +2,7 @@ interface Image {
   id: number;
   url: string;
   date: string;
+  date_millis: number;
 }
 
 interface AddImage {

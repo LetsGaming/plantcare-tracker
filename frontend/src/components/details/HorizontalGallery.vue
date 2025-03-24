@@ -11,6 +11,7 @@
           alt="Gallery image"
           class="gallery-image"
           @click="enlargeImage(image)"
+          @ion-error="($event) => ($event.target.src = '/no-image.png')"
         />
         <div v-if="image.date" class="image-date">{{ image.date }}</div>
       </div>

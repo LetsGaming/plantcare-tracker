@@ -4,6 +4,7 @@
       v-if="imageUrl"
       :src="imageUrl"
       :alt="bannerTitle + ' Image'"
+      @ion-error="($event) => ($event.target.src = '/no-image.png')"
       class="details-banner__image"
     />
     <ion-img

@@ -4,10 +4,11 @@ export default class ImageMapper {
   // Helper function to map substrate
   static mapImage(image: any): Image {
     return {
-        id: image.id,
-        url: image.url,
-        date: Utils.convertDateString(image.date)
-    }
+      id: image.id,
+      url: image.url,
+      date: Utils.convertDateString(image.date),
+      date_millis: Utils.convertToMillis(image.date),
+    };
   }
 
   // Convert API response to Substrate array

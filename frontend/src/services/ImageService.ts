@@ -1,5 +1,4 @@
 import ApiUtils from "@/utils/apiUtils";
-import PlantService from "./PlantService";
 
 const BASE_ENDPOINT = "/images";
 
