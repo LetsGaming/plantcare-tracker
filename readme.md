@@ -1,5 +1,5 @@
 # PlantCare Tracker
-PlantCare Tracker is a web application designed to help users manage and track the health and care of their plants. It allows users to log watering schedules, sunlight exposure, soil health, and other vital metrics to ensure plants thrive.
+PlantCare Tracker is a web application designed to help users manage and track the health and care of their plants. It allows users to log watering schedules, substrate to ensure plants thrive.
 
 ## Features
 - User-friendly interface built with Vue.

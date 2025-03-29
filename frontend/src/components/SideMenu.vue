@@ -104,7 +104,7 @@ export default defineComponent({
   async mounted() {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
     try {
-      const storedDark = await storageService.get("dark_mode");
+      const storedDark = await storageService.get("darkMode");
       const isDark =
         typeof storedDark === "boolean" ? storedDark : prefersDark.matches;
       this.toggleDarkMode(isDark);
@@ -122,7 +122,7 @@ export default defineComponent({
     async toggleDarkMode(value: boolean) {
       this.darkMode = value;
       try {
-        await storageService.set("dark_mode", value);
+        await storageService.set("darkMode", value);
       } catch (error) {
         console.error("Failed to set dark mode preference:", error);
       }
