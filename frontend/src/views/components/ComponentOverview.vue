@@ -11,18 +11,16 @@
       @add-click="showAddingModal = true"
     />
 
-    <!-- Content Area -->
-    <ion-content>
-      <items-overview
-        :items="components"
-        @item-click="navigateToComponent"
-      ></items-overview>
-      <component-adding-modal
-        :is-open="showAddingModal"
-        @close="showAddingModal = false"
-        @added="handleComponentAdded"
-      />
-    </ion-content>
+    <items-overview
+      :items="components"
+      @item-click="navigateToComponent"
+      @refresh-items="refreshComponents"
+    ></items-overview>
+    <component-adding-modal
+      :is-open="showAddingModal"
+      @close="showAddingModal = false"
+      @added="handleComponentAdded"
+    />
   </ion-page>
 </template>
 
@@ -44,7 +42,6 @@ export default defineComponent({
   components: {
     IonPage,
     IonContent,
-
     OverviewHeader,
     ItemsOverview,
     ComponentAddingModal,
@@ -73,6 +70,13 @@ export default defineComponent({
         this.components = await ComponentService.getComponents();
       } catch (error) {
         console.error("Error fetching plants:", error);
+      }
+    },
+    async refreshComponents() {
+      try {
+        this.components = await ComponentService.getComponents(true);
+      } catch (error) {
+        console.error("Error refreshing components:", error);
       }
     },
     handleSegmentChange(value: string) {

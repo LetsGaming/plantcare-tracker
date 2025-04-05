@@ -1,57 +1,75 @@
 <template>
-  <search-bar
-    @search="filterItems"
-    placeholder="Suche..."
-    class="align-middle"
-  />
-  <ion-grid class="item-grid">
-    <ion-row>
-      <ion-col
-        size-xs="12"
-        size-sm="8"
-        size-md="4"
-        size-lg="3"
-        v-for="item in filteredItems"
-        :key="item.id"
-      >
-        <ion-card class="item-card" @click="navigateToItem(item.id)">
-          <ion-card-content>
-            <ion-grid>
-              <ion-row class="item-row">
-                <!-- Image Column -->
-                <ion-col size-xs="12" size-sm="5" size-md="6">
-                  <div class="item-image-wrapper">
-                    <ion-img
-                      :src="item.imageUrl || '/no-image.png'"
-                      :alt="`${item.name} Image`"
-                      @ion-error="($event) => ($event.target.src = '/no-image.png')"
-                      class="item-image"
-                    />
-                  </div>
-                </ion-col>
+  <template v-if="items.length">
+    <pull-to-refresh @refresh="onRefreshItems">
+      <div>
+        <search-bar
+          @search="filterItems"
+          placeholder="Suche..."
+          class="align-middle"
+        />
+        <ion-grid class="item-grid">
+          <ion-row>
+            <ion-col
+              size-xs="12"
+              size-sm="8"
+              size-md="4"
+              size-lg="3"
+              v-for="item in filteredItems"
+              :key="item.id"
+            >
+              <ion-card class="item-card" @click="navigateToItem(item.id)">
+                <ion-card-content>
+                  <ion-grid>
+                    <ion-row class="item-row">
+                      <!-- Image Column -->
+                      <ion-col size-xs="12" size-sm="5" size-md="6">
+                        <div class="item-image-wrapper">
+                          <ion-img
+                            :src="item.imageUrl || '/no-image.png'"
+                            :alt="`${item.name} Image`"
+                            @ion-error="
+                              ($event) => ($event.target.src = '/no-image.png')
+                            "
+                            class="item-image"
+                          />
+                        </div>
+                      </ion-col>
 
-                <!-- Text Column -->
-                <ion-col size-xs="12" size-sm="7" size-md="6" class="text-col">
-                  <ion-card-title class="item-title">{{
-                    item.name
-                  }}</ion-card-title>
-                  <div class="card-details-container">
-                    <ion-card-subtitle
-                      v-show="item.description"
-                      class="item-description"
-                    >
-                      {{ item.description }}
-                    </ion-card-subtitle>
-                    <ion-text color="medium">Mehr Details</ion-text>
-                  </div>
-                </ion-col>
-              </ion-row>
-            </ion-grid>
-          </ion-card-content>
-        </ion-card>
-      </ion-col>
-    </ion-row>
-  </ion-grid>
+                      <!-- Text Column -->
+                      <ion-col
+                        size-xs="12"
+                        size-sm="7"
+                        size-md="6"
+                        class="text-col"
+                      >
+                        <ion-card-title class="item-title">{{
+                          item.name
+                        }}</ion-card-title>
+                        <div class="card-details-container">
+                          <ion-card-subtitle
+                            v-show="item.description"
+                            class="item-description"
+                          >
+                            {{ item.description }}
+                          </ion-card-subtitle>
+                          <ion-text color="medium">Mehr Details</ion-text>
+                        </div>
+                      </ion-col>
+                    </ion-row>
+                  </ion-grid>
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
+          </ion-row>
+        </ion-grid>
+      </div>
+    </pull-to-refresh>
+  </template>
+  <template v-else>
+    <ion-text color="secondary" class="align-middle">
+      Keine Einträge gefunden.
+    </ion-text>
+  </template>
 </template>
 
 <script lang="ts">
@@ -69,6 +87,7 @@ import {
 } from "@ionic/vue";
 
 import SearchBar from "@/components/SearchBar.vue";
+import PullToRefresh from "@/components/PullToRefresh.vue";
 
 export default defineComponent({
   name: "ItemGrid",
@@ -83,6 +102,7 @@ export default defineComponent({
     IonText,
     IonImg,
     SearchBar,
+    PullToRefresh,
   },
   props: {
     items: {
@@ -98,6 +118,10 @@ export default defineComponent({
     },
     onItemClick: {
       type: Function as PropType<(id: number) => void>,
+      required: true,
+    },
+    onRefreshItems: {
+      type: Function as PropType<() => Promise<void>>,
       required: true,
     },
   },
@@ -199,7 +223,7 @@ export default defineComponent({
     display: flex;
     flex-direction: column;
   }
- 
+
   .card-details-container {
     text-align: center;
   }
