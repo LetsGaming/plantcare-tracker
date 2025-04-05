@@ -13,6 +13,11 @@
       </ion-toolbar>
     </ion-card-header>
     <section class="watering-records" v-if="mappedRecords.length > 0">
+      <ion-card-header>
+        <ion-card-title class="record-title">
+          Letzte Wässerung vor {{ daysAgo }} Tagen
+        </ion-card-title>
+      </ion-card-header>
       <ion-card-content>
         <ion-item v-for="record in mappedRecords">
           <Accordion
@@ -107,6 +112,7 @@ export default defineComponent({
       records: null as WateringRecord[] | null,
       mappedRecords: [] as AccordionItem[],
       editRecord: null as WateringRecord | null,
+      daysAgo: 0,
       showAddingModal: false,
       showEditingModal: false,
       isGuest: false,
@@ -123,6 +129,11 @@ export default defineComponent({
         this.records = await WateringService.getWateringRecords(this.plantId);
         this.records = this.records.sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        this.daysAgo = Math.floor(
+          (new Date().getTime() -
+            new Date(this.records[0].date_millis).getTime()) /
+            (1000 * 60 * 60 * 24)
         );
         this.mappedRecords = this.mapWateringsToAccordion(this.records);
       } catch (error) {}
@@ -152,16 +163,18 @@ export default defineComponent({
       }
     },
     mapWateringsToAccordion(records: WateringRecord[]) {
-      return records.map((record) => ({
-        id: record.id,
-        name: record.date,
-        details: {
-          "Dünger genutzt": record.usedFertilizer ? "Ja" : "Nein",
-          ...(record.usedFertilizer && {
-            "Dünger Typ": record.fertilizerType ?? "",
-          }),
-        },
-      }));
+      return records.map((record) => {
+        return {
+          id: record.id,
+          name: record.date,
+          details: {
+            "Dünger genutzt": record.usedFertilizer ? "Ja" : "Nein",
+            ...(record.usedFertilizer && {
+              "Dünger Typ": record.fertilizerType ?? "",
+            }),
+          },
+        };
+      });
     },
   },
 });
@@ -180,5 +193,14 @@ export default defineComponent({
   padding: 16px;
   border-radius: 8px;
   margin-top: 8px;
+}
+
+.record-title {
+  font-weight: 500;
+  font-size: 1.2rem;
+  -webkit-padding-start: 20px;
+  padding-inline-start: 20px;
+  -webkit-padding-end: 20px;
+  padding-inline-end: 20px;
 }
 </style>

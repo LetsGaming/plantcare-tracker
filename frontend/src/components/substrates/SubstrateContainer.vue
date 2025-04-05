@@ -142,16 +142,8 @@ export default defineComponent({
 </script>
 
 <style scoped>
-:root {
-  --background-color: var(--ion-color-light);
-  --card-background-color: var(--ion-color-white);
-  --header-background-color: var(--ion-color-light-tint);
-  --text-color: var(--ion-color-dark);
-  --detail-text-color: var(--ion-color-medium);
-  --accent-color: var(--ion-color-primary);
-}
 .card {
-  background: var(--card-background-color);
+  background: var(--ion-color-white);
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -167,7 +159,6 @@ export default defineComponent({
 }
 .substrate-title {
   font-weight: 500;
-  color: var(--detail-text-color);
   font-size: 1.2rem;
   -webkit-padding-start: 20px;
   padding-inline-start: 20px;
@@ -175,7 +166,6 @@ export default defineComponent({
   padding-inline-end: 20px;
 }
 .component-header {
-  background: var(--header-background-color);
   border-radius: 8px;
   font-weight: bold;
   font-size: 1.2rem;

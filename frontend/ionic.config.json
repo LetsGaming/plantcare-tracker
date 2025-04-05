@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "plantcare-frontend",
   "integrations": {
     "capacitor": {}
   },
