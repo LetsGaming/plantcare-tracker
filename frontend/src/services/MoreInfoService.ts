@@ -5,13 +5,13 @@ import Utils from "@/utils/utils";
 import MoreInfoMapper from "@/mapping/MoreInforMaping";
 
 const BASE_ENDPOINT = "/more-info";
-const CACHE_KEY_WATERING_RECORDS = "more_info_data";
+const CACHE_KEY_MORE_INFO = "more_info_data";
 
 async function getCachedMoreInfo() {
   return await storageService.get<{
     recordsByPlant: { [plantName: string]: MoreInfo[] };
     timestamp: number;
-  }>(CACHE_KEY_WATERING_RECORDS);
+  }>(CACHE_KEY_MORE_INFO);
 }
 
 async function cacheMoreInfo(plantName: string, newRecords: MoreInfo[]) {
@@ -24,7 +24,7 @@ async function cacheMoreInfo(plantName: string, newRecords: MoreInfo[]) {
     [plantName]: newRecords,
   };
 
-  await storageService.set(CACHE_KEY_WATERING_RECORDS, {
+  await storageService.set(CACHE_KEY_MORE_INFO, {
     recordsByPlant: updatedRecordsByPlant,
     timestamp: Date.now(),
   });
@@ -33,9 +33,9 @@ async function cacheMoreInfo(plantName: string, newRecords: MoreInfo[]) {
 // Fetch and update cache for a specific plant
 async function fetchAndCacheMoreInfo(plantName: string): Promise<MoreInfo[]> {
   try {
-    const response = await ApiUtils.post(BASE_ENDPOINT, {
+    const response = await ApiUtils.getWithParams(BASE_ENDPOINT, {
       plantName,
-      htmlFormatting: true,
+      htmlFormatting: "true",
     });
     const newRecords = MoreInfoMapper.convertToMoreInfo(
       response as APIMoreInfo
@@ -45,7 +45,7 @@ async function fetchAndCacheMoreInfo(plantName: string): Promise<MoreInfo[]> {
 
     return newRecords;
   } catch (error) {
-    ToastService.showError(`Error fetching watering records: ${error}`);
+    ToastService.showError(`Error fetching more info: ${error}`);
     throw error;
   }
 }
@@ -59,7 +59,7 @@ export default class MoreInfoService {
     const updatedRecordsByPlant = { ...cachedData.recordsByPlant };
     delete updatedRecordsByPlant[plantName];
 
-    await storageService.set(CACHE_KEY_WATERING_RECORDS, {
+    await storageService.set(CACHE_KEY_MORE_INFO, {
       recordsByPlant: updatedRecordsByPlant,
       timestamp: Date.now(),
     });
