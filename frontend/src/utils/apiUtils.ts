@@ -27,16 +27,24 @@ const handleResponse = async (response: Response): Promise<any> => {
   } catch (error) {
     throw new Error("Failed to parse response JSON.");
   }
-  if (typeof responseData !== "object" || responseData === null || typeof responseData.success !== "boolean") {
+  if (
+    typeof responseData !== "object" ||
+    responseData === null ||
+    typeof responseData.success !== "boolean"
+  ) {
     throw new Error("Unexpected response format.");
   }
   if (responseData.success) {
-    if (responseData.message && responseData.message !== "Operation successful") {
+    if (
+      responseData.message &&
+      responseData.message !== "Operation successful"
+    ) {
       ToastService.showSuccess(responseData.message);
     }
     return responseData.data;
   } else {
-    const errorMessage = responseData.error || responseData.message || "An unknown error occurred";
+    const errorMessage =
+      responseData.error || responseData.message || "An unknown error occurred";
     throw new Error(errorMessage);
   }
 };
@@ -59,7 +67,9 @@ const getAuthHeaders = async (): Promise<HeadersInit> => {
  * @param {() => Promise<Response>} requestFn - The function to retry the request.
  * @returns {Promise<Response>} - The response after retrying with a refreshed token.
  */
-const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Response> => {
+const handleNoAuth = async (
+  requestFn: () => Promise<Response>
+): Promise<Response> => {
   try {
     await UserService.refreshToken();
     return await requestFn();
@@ -91,7 +101,9 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
   const requestFn = async (): Promise<Response> => {
     if (isFileUpload) {
       const token = await TokenUtils.getToken();
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
       return fetch(`${API_BASE_URL}${endpoint}`, {
         method,
         headers,
@@ -112,7 +124,10 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
   let response = await requestFn();
 
   // Handle unauthorized or forbidden responses (excluding login endpoint)
-  if ((response.status === 403 || response.status === 401) && !endpoint.includes("login")) {
+  if (
+    (response.status === 403 || response.status === 401) &&
+    !endpoint.includes("login")
+  ) {
     response = await handleNoAuth(requestFn);
   }
 
@@ -126,10 +141,29 @@ const ApiUtils = {
   /**
    * Makes a GET request to the specified endpoint.
    * @param {string} endpoint - The API endpoint to call.
+   * @param {T} data - The data to send with the request.
    * @returns {Promise<T>} - The parsed response data.
    */
   get<T>(endpoint: string): Promise<T> {
     return performRequest<T>({ method: "GET", endpoint });
+  },
+
+  /**
+   * Makes a GET request to the specified endpoint with the provided data.
+   * @param {string} endpoint - The API endpoint to call.
+   * @param {T} data - The data to send with the request (usually an object).
+   * @returns {Promise<R>} - The parsed response data.
+   */
+  getWithParams<T extends Record<string, string> | undefined, R>(
+    endpoint: string,
+    data: T
+  ): Promise<R> {
+    // Use URLSearchParams to convert the object into a query string
+    const queryString = new URLSearchParams(data).toString();
+    return performRequest<R>({
+      method: "GET",
+      endpoint: `${endpoint}?${queryString}`,
+    });
   },
 
   /**
@@ -150,7 +184,12 @@ const ApiUtils = {
    * @returns {Promise<R>} - The parsed response data.
    */
   upload<R>(endpoint: string, data: FormData): Promise<R> {
-    return performRequest<R>({ method: "POST", endpoint, data, isFileUpload: true });
+    return performRequest<R>({
+      method: "POST",
+      endpoint,
+      data,
+      isFileUpload: true,
+    });
   },
 
   /**
@@ -181,7 +220,12 @@ const ApiUtils = {
    * @returns {Promise<R>} - The parsed response data.
    */
   patchImage<T, R>(endpoint: string, data: T): Promise<R> {
-    return performRequest<R>({ method: "PATCH", endpoint, data, isFileUpload: true });
+    return performRequest<R>({
+      method: "PATCH",
+      endpoint,
+      data,
+      isFileUpload: true,
+    });
   },
 
   /**
