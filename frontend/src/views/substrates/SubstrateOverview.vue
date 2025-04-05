@@ -5,7 +5,12 @@
       title="Substrate"
       :segments="[
         { value: 'public', label: 'Öffentlich', icon: peopleCircle },
-        { value: 'private', label: 'Persönlich', icon: personCircle, hideFromGuests: true },
+        {
+          value: 'private',
+          label: 'Persönlich',
+          icon: personCircle,
+          hideFromGuests: true,
+        },
       ]"
       :showAddButton="true"
       :addIcon="addCircle"
@@ -15,17 +20,16 @@
     />
 
     <!-- Content Area -->
-    <ion-content>
-      <items-overview
-        :items="substrates"
-        @item-click="navigateToSubstrate"
-      ></items-overview>
-      <substrate-adding-modal
-        :is-open="showAddingModal"
-        @close="showAddingModal = false"
-        @added="handleSubstrateAdded"
-      />
-    </ion-content>
+    <items-overview
+      :items="substrates"
+      @item-click="navigateToSubstrate"
+      @refresh-items="refreshSubstrates"
+    ></items-overview>
+    <substrate-adding-modal
+      :is-open="showAddingModal"
+      @close="showAddingModal = false"
+      @added="handleSubstrateAdded"
+    />
   </ion-page>
 </template>
 
@@ -39,13 +43,13 @@ import SubstrateService from "@/services/SubstrateService";
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import SubstrateAddingModal from "@/components/substrates/SubstrateAddingModal.vue";
+import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "SubstrateOverview",
   components: {
     IonPage,
     IonContent,
-
     OverviewHeader,
     ItemsOverview,
     SubstrateAddingModal,
@@ -77,8 +81,40 @@ export default defineComponent({
       try {
         this.substrates = await SubstrateService.getSubstrates(this.isPublic);
       } catch (error) {
+        this.showError();
         console.error("Error fetching substrates:", error);
       }
+    },
+    async refreshSubstrates() {
+      try {
+        this.substrates = await SubstrateService.getSubstrates(
+          this.isPublic,
+          true
+        );
+        if (this.substrates.length === 0) {
+          ToastService.showError(
+            this.isPublic
+              ? "Öffentliche Substrate sind nicht verfügbar."
+              : "Keine persönlichen Substrate gefunden."
+          );
+        } else {
+          ToastService.showSuccess(
+            this.isPublic
+              ? "Öffentliche Substrate aktualisiert."
+              : "Persönliche Substrate aktualisiert."
+          );
+        }
+      } catch (error) {
+        this.showError();
+        console.error("Error refreshing substrates:", error);
+      }
+    },
+    showError() {
+      ToastService.showError(
+        this.isPublic
+          ? "Fehler beim Abrufen öffentlicher Substrate."
+          : "Fehler beim Abrufen persönlicher Substrate."
+      );
     },
     handleSegmentChange(value: string) {
       this.showPublic = value;

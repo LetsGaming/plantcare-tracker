@@ -19,20 +19,19 @@
     />
 
     <!-- Content Area -->
-    <ion-content>
-      <items-overview :items="plants" @item-click="navigateToPlant" />
-      <plant-adding-modal
-        :is-open="showAddingModal"
-        @close="showAddingModal = false"
-        @added="handlePlantAdded"
-      />
-    </ion-content>
+
+    <items-overview :items="plants" @item-click="navigateToPlant" @refresh-items="refreshPlants"/>
+    <plant-adding-modal
+      :is-open="showAddingModal"
+      @close="showAddingModal = false"
+      @added="handlePlantAdded"
+    />
   </ion-page>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonContent, IonPage } from "@ionic/vue";
+import { IonPage, IonContent } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
 import PlantService from "@/services/PlantService";
@@ -41,13 +40,13 @@ import PlantService from "@/services/PlantService";
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
+import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "PlantOverview",
   components: {
     IonPage,
     IonContent,
-
     OverviewHeader,
     ItemsOverview,
     PlantAddingModal,
@@ -78,9 +77,45 @@ export default defineComponent({
     async fetchPlants() {
       try {
         this.plants = await PlantService.getPlants(this.isPublic);
+        if (this.plants.length === 0) {
+          this.showError();
+        }
       } catch (error) {
+        ToastService.showError(
+          this.isPublic
+            ? "Fehler beim Abrufen öffentlicher Pflanzen."
+            : "Fehler beim Abrufen persönlicher Pflanzen."
+        );
         console.error("Error fetching plants:", error);
       }
+    },
+    async refreshPlants() {
+      try {
+        this.plants = await PlantService.getPlants(this.isPublic, true);
+        if (this.plants.length === 0) {
+          this.showError();
+        } else {
+          ToastService.showSuccess(
+            this.isPublic
+              ? "Öffentliche Pflanzen aktualisiert."
+              : "Persönliche Pflanzen aktualisiert."
+          );
+        }
+      } catch (error) {
+        ToastService.showError(
+          this.isPublic
+            ? "Fehler beim Aktualisieren öffentlicher Pflanzen."
+            : "Fehler beim Aktualisieren persönlicher Pflanzen."
+        );
+        console.error("Error refreshing plants:", error);
+      }
+    },
+    showError() {
+      ToastService.showError(
+        this.isPublic
+          ? "Öffentliche Pflanzen sind nicht verfügbar."
+          : "Keine persönlichen Pflanzen gefunden."
+      );
     },
     handleSegmentChange(value: string) {
       this.showPublic = value;
