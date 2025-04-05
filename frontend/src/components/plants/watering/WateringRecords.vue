@@ -15,7 +15,8 @@
     <section class="watering-records" v-if="mappedRecords.length > 0">
       <ion-card-header>
         <ion-card-title class="record-title">
-          Letzte Wässerung vor {{ daysAgo }} Tagen
+          Letzte Wässerung: <span v-if="daysAgo < 1">Heute</span>
+          <span v-else>Vor {{ daysAgo }} Tagen</span>
         </ion-card-title>
       </ion-card-header>
       <ion-card-content>
@@ -128,7 +129,9 @@ export default defineComponent({
       try {
         this.records = await WateringService.getWateringRecords(this.plantId);
         this.records = this.records.sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          (a, b) =>
+            new Date(b.date_millis).getTime() -
+            new Date(a.date_millis).getTime()
         );
         this.daysAgo = Math.floor(
           (new Date().getTime() -
