@@ -7,7 +7,6 @@ import UserService from "@/services/UserService";
 // Dynamic imports for lazy loading
 const Login = () => import("@/views/Login.vue");
 const TabsPage = () => import("@/views/TabsPage.vue");
-const WrapperComponent = () => import("@/views/WrapperComponent.vue");
 const Profile = () => import("@/views/Profile.vue");
 
 const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
@@ -23,31 +22,7 @@ const ComponentOverview = () =>
 const ComponentDetails = () =>
   import("@/views/components/ComponentDetails.vue");
 
-// Helper function to create children routes with the same structure
-const createChildRoutes = (
-  basePath: string,
-  overviewComponent: any,
-  detailsComponent: any
-) => {
-  const routes = [
-    {
-      path: "overview",
-      name: `${basePath}-overview`,
-      component: overviewComponent,
-    },
-    {
-      path: `${basePath}/:id/:public`,
-      name: basePath,
-      component: detailsComponent,
-      props: true,
-    },
-  ];
-
-  return routes.map((route) => ({
-    ...route,
-    meta: { requiresAuth: true },
-  }));
-};
+const authMeta = { requiresAuth: true };
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -58,43 +33,56 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login",
     name: "login",
     component: Login,
-    meta: { requiresAuth: false },
+    meta: authMeta,
   },
   {
     path: "/profile",
     name: "profile",
     component: Profile,
-    meta: { requiresAuth: true },
+    meta: authMeta,
   },
   {
     path: "/tabs",
     component: TabsPage,
     children: [
       {
-        path: "plants",
-        redirect: { name: "plant-overview" },
-        component: WrapperComponent,
-        children: createChildRoutes("plant", PlantOverview, PlantDetails),
+        name: "plant-overview",
+        path: "plants/overview",
+        meta: authMeta,
+        component: PlantOverview,
       },
       {
+        name: "plant-details",
+        path: "plants/details/:id/:public",
+        meta: authMeta,
+        props: true,
+        component: PlantDetails,
+      },
+      {
+        name: "substrate-overview",
         path: "substrates",
-        redirect: { name: "substrate-overview" },
-        component: WrapperComponent,
-        children: createChildRoutes(
-          "substrate",
-          SubstrateOverview,
-          SubstrateDetails
-        ),
+        meta: authMeta,
+        component: SubstrateOverview,
       },
       {
+        name: "substrate-details",
+        path: "substrates/details/:id/:public",
+        meta: authMeta,
+        props: true,
+        component: SubstrateDetails,
+      },
+      {
+        name: "component-overview",
         path: "components",
-        redirect: { name: "component-overview" },
-        component: WrapperComponent,
-        children: createChildRoutes(
-          "component",
-          ComponentOverview,
-          ComponentDetails
-        ),
+        meta: authMeta,
+        component: ComponentOverview,
+      },
+      {
+        name: "component-details",
+        path: "components/details/:id/:public",
+        meta: authMeta,
+        props: true,
+        component: ComponentDetails,
       },
     ],
   },

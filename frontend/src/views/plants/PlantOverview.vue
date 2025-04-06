@@ -128,7 +128,7 @@ export default defineComponent({
     navigateToPlant(id: number) {
       const isPublic_Int = this.isPublic ? 1 : 0;
       this.$router.push({
-        name: "plant",
+        name: "plants-details",
         params: { id: id, public: isPublic_Int },
       });
     },
