@@ -127,7 +127,7 @@ export default defineComponent({
     navigateToSubstrate(id: number) {
       const isPublic_Int = this.isPublic ? 1 : 0;
       this.$router.push({
-        name: "substrates-details",
+        name: "substrate-details",
         params: { id: id, public: isPublic_Int },
       });
     },
