@@ -87,7 +87,10 @@ export default defineComponent({
       await this.fetchComponents();
     },
     navigateToComponent(id: number) {
-      this.$router.push({ name: "components-details", params: { id: id, public: 1 } });
+      this.$router.push({
+        name: "component-details",
+        params: { id: id, public: 1 },
+      });
     },
   },
 });
