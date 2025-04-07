@@ -26,3 +26,13 @@ interface APIWateringRecord {
   used_fertilizer: boolean;
   fertilizer_type: "organic" | "synthetic" | null;
 }
+
+interface FertilizerType {
+  id: number;
+  name: string;
+}
+
+interface APIFertilizerType {
+  fertilizer_id: number;
+  fertilizer_name: string;
+}

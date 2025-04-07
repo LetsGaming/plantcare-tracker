@@ -2,7 +2,7 @@
   <ion-modal :is-open="isOpen" @did-dismiss="$emit('close')">
     <ion-header>
       <ion-toolbar>
-        <ion-title>Wasserung hinzufügen</ion-title>
+        <ion-title>Wässerung hinzufügen</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="$emit('close')">
             <ion-icon :icon="close" />
@@ -14,23 +14,7 @@
       <form-component
         card-title="Wässerung hinzufügen"
         :item="record"
-        :formFields="[
-          {
-            label: 'Datum',
-            type: 'date',
-            modelKey: 'date',
-          },
-          {
-            type: 'radio',
-            modelKey: 'fertilizerType',
-            label: 'Düngertyp',
-            options: [
-              { value: 'organic', label: 'Organisch' },
-              { value: 'synthetic', label: 'Mineralisch' },
-              { value: 'none', label: 'Kein Dünger' },
-            ],
-          },
-        ]"
+        :formFields="formFields"
         submit-label="Hinzufügen"
         :is-loading="isLoading"
         @submit-click="$emit('add-record', record)"
@@ -53,6 +37,7 @@ import {
 } from "@ionic/vue";
 import { close } from "ionicons/icons";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
+import WateringService from "@/services/WateringService";
 
 export default defineComponent({
   name: "WateringRecordsAdding",
@@ -69,39 +54,51 @@ export default defineComponent({
     FormComponent,
   },
   props: {
-    isOpen: {
-      type: Boolean,
-      required: true,
-    },
-    isLoading: {
-      type: Boolean,
-      required: true,
-    },
-  },
-  setup() {
-    return {
-      close,
-    };
+    isOpen: { type: Boolean, required: true },
+    isLoading: { type: Boolean, required: true },
   },
   data() {
     return {
+      close,
+      fertilizerOptions: [] as { label: string; value: string }[],
       record: {
         date: undefined,
         usedFertilizer: false,
-        fertilizerType: null,
+        fertilizerTypeId: null,
       } as AddWateringRecord,
     };
   },
   watch: {
-    "record.fertilizerType"(newVal) {
-      // If a fertilizer type is selected (and it's not "none"), mark as used
-      if (newVal && newVal !== "none") {
-        this.record.usedFertilizer = true;
-      } else {
-        // Otherwise, indicate that no fertilizer is used
+    "record.fertilizerTypeId"(newVal) {
+      this.record.usedFertilizer = newVal && newVal !== "none";
+      if (newVal === "none") {
+        this.record.fertilizerTypeId = null;
         this.record.usedFertilizer = false;
-        this.record.fertilizerType = null;
       }
+    },
+  },
+  async mounted() {
+    const types = await WateringService.getFertilizerTypes();
+    this.fertilizerOptions = types.map((t) => ({
+      label: t.name,
+      value: t.id,
+    }));
+  },
+  computed: {
+    formFields() {
+      return [
+        { label: "Datum", type: "date", modelKey: "date" },
+        {
+          type: "radio",
+          modelKey: "fertilizerTypeId",
+          label: "Düngertyp",
+          options: [
+            ...this.fertilizerOptions,
+            { label: "Kein Dünger", value: "none" },
+          ],
+          defaultValue: "none",
+        },
+      ];
     },
   },
 });

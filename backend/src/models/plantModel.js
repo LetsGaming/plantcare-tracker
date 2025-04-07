@@ -18,10 +18,6 @@ const buildWhereClause = (conditions, params) => {
   if (conditions.is_public !== undefined) {
     whereClauses.push("plants.is_public = ?");
     params.push(conditions.is_public);
-  } else {
-    // If is_public is not provided, set it to false by default
-    whereClauses.push("plants.is_public = ?");
-    params.push(false);
   }
 
   return whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";

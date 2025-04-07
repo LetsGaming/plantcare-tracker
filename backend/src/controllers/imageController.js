@@ -13,6 +13,7 @@ const {
   notFoundResponse,
 } = require("../utils/responseUtils.js");
 const { formatToDBDate } = require("../utils/generalUtils.js");
+const { getPublicImagePath } = require("../utils/imageUtils.js");
 
 const dotenv = require("dotenv"); // Import dotenv to load environment variables
 // Load environment variables from .env file
@@ -29,113 +30,69 @@ const uploadImage = async (req, res) => {
     const { entityType, entityId } = req.params;
 
     if (!imageFile) {
-      return errorResponse(
-        res,
-        "No file was uploaded or 'image' field is missing.",
-        400
-      );
+      return errorResponse(res, "No file was uploaded or 'image' field is missing.", 400);
     }
 
     if (!entityType || !entityId) {
-      return errorResponse(
-        res,
-        "Both entityType and entityId are required.",
-        400
-      );
+      return errorResponse(res, "Both entityType and entityId are required.", 400);
     }
 
-    // Validate MIME type (png, jpeg, jpg)
     if (!allowedMimeTypes.includes(imageFile.mimetype)) {
-      return errorResponse(
-        res,
-        "Invalid image format. Only PNG, JPEG, and JPG files are allowed.",
-        400
-      );
+      return errorResponse(res, "Invalid image format. Only PNG, JPEG, and JPG files are allowed.", 400);
     }
+
     const { date = Date.now() } = req.body;
     const parsedDate = formatToDBDate(date);
 
-    // Construct file path
-    let baseUrl = uploadDir;
-    if (!NAS_PATH) {
-      baseUrl = `${req.protocol}://${req.get("host")}${uploadDir}`;
-    }
-    const filePath = path.join(baseUrl, imageFile.filename);
+    const filePath = getPublicImagePath(req, entityType, imageFile.filename);
 
     await insertImage(entityType, entityId, filePath, parsedDate);
+
     successResponse(
       res,
-      {
-        path: filePath,
-        date: parsedDate,
-      },
+      { path: filePath, date: parsedDate },
       "Image uploaded successfully.",
       201
     );
   } catch (err) {
     logger.error("Error during image upload", err.message);
-    errorResponse(
-      res,
-      "An error occurred while uploading the image.",
-      500,
-      err
-    );
+    errorResponse(res, "An error occurred while uploading the image.", 500, err);
   }
 };
 
 const updateSpecificImage = async (req, res) => {
   try {
     const imageFile = req.file;
-    // Expecting generic entity details in the URL parameters
-    const { id } = req.params;
+    const { id, entityType } = req.params;
     const { date } = req.body;
+
     if (!id) {
       return errorResponse(res, "Image ID is required to update the image.");
     }
 
     if (!date && !imageFile) {
-      return errorResponse(
-        res,
-        "At least one of 'date' or 'image' fields is required to update the image."
-      );
+      return errorResponse(res, "At least one of 'date' or 'image' fields is required to update the image.");
     }
 
-    if (!allowedMimeTypes.includes(imageFile.mimetype)) {
+    if (imageFile && !allowedMimeTypes.includes(imageFile.mimetype)) {
       return res.status(400).json({
         message: "Uploaded file is not a valid image format (png, jpeg, jpg).",
       });
     }
 
-    let parsedDate;
-    if (date) {
-      parsedDate = formatToDBDate(date);
-    }
+    let parsedDate = date ? formatToDBDate(date) : undefined;
+    let filePath = imageFile ? getPublicImagePath(req, entityType, imageFile.filename) : undefined;
 
-    let filePath;
-    if (imageFile) {
-      // Construct base URL/path for the file
-      let baseUrl = uploadDir;
-      if (!NAS_PATH) {
-        baseUrl = `${req.protocol}://${req.get("host")}${uploadDir}`;
-      }
-      filePath = path.join(baseUrl, imageFile.filename);
-    }
-    await updateImage(id, { date: parsedDate, filePath: filePath });
+    await updateImage(id, { date: parsedDate, filePath });
+
     successResponse(
       res,
-      {
-        path: filePath,
-      },
+      { path: filePath },
       "Image updated successfully."
     );
   } catch (err) {
     logger.error("Error during image upload", err.message);
-    errorResponse(
-      res,
-      "An error occurred while uploading the image.",
-      500,
-      err
-    );
+    errorResponse(res, "An error occurred while uploading the image.", 500, err);
   }
 };
 
@@ -174,7 +131,7 @@ const getImage = async (req, res) => {
 };
 
 const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
-  const { id } = req.params;
+  const {entityType, id } = req.params;
   try {
     // Retrieve the image details before deleting
     const [imageResults] = await selectImages({ id });
@@ -187,7 +144,8 @@ const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
     let imagePath = imageResults[0].image_url;
     if (imagePath.startsWith("http")) {
       const filename = path.basename(imagePath); // Extract just the filename
-      imagePath = path.join(uploadPath, filename); // Construct the local file path
+      const basePath = path.join(uploadPath, entityType);
+      imagePath = path.join(basePath, filename); // Construct the local file path
     }
     // Check if file exists before trying to delete
     await deleteImageOnSystem(imagePath);

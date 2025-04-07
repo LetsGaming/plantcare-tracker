@@ -1,6 +1,10 @@
 // imageUtils.js
 const { selectImages } = require("../models/imageModel");
 
+const getPublicImagePath = (req, entityType, filename) => {
+  return `${req.protocol}://${req.get("host")}/uploads/${entityType}/${filename}`;
+};
+
 // Helper function to format image URLs
 const formatImageUrl = (url) => {
   // Replace single backslashes with forward slashes
@@ -26,12 +30,12 @@ async function selectEntityImages(entityType, entityId) {
     url: formatImageUrl(image.image_url),
     date: image.upload_date,
   }));
-  
+
   // Assume the first image is the primary one (or adjust logic as needed).
-  const latestImage = images.length > 0 ? formatImageUrl(images[images.length -1].url) : null;
-  
+  const latestImage = images.length > 0 ? formatImageUrl(images[images.length - 1].url) : null;
+
   return { latestImage, images };
 }
 
 // Export the functions
-module.exports = { selectEntityImages };
+module.exports = { selectEntityImages, getPublicImagePath };

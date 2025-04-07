@@ -63,8 +63,8 @@ const selectFertilizerTypes = async () => {
   `;
   const [rows] = await pool.query(query);
   return rows.map((row) => ({
-    fertilizer_type_id: row.id,
-    fertilizer_type_name: row.name,
+    fertilizer_id: row.id,
+    fertilizer_name: row.name,
   }));
 };
 
@@ -74,22 +74,19 @@ const insertWateringRecord = async (
   date,
   usedFertilizer,
   fertilizerTypeId, // Now we expect a fertilizer_type_id
-  userId
 ) => {
   const query = `
-    INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)  // Use fertilizer_type_id
-    SELECT p.id, ?, ?, ?
-    FROM plants p
-    WHERE p.id = ? AND p.user_id = ?
+    INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)
+    VALUES (?, ?, ?, ?)
   `;
 
   const [result] = await pool.query(query, [
+    plantId,
     date,
     usedFertilizer,
-    fertilizerTypeId, // Insert fertilizer_type_id
-    plantId,
-    userId,
+    fertilizerTypeId,
   ]);
+
   return result;
 };
 
@@ -127,7 +124,6 @@ const updateWateringRecord = async (recordId, userId, fields) => {
   `;
 
   params.push(userId); // Add userId to parameters after recordId
-
   const [result] = await pool.query(query, params);
   return result;
 };

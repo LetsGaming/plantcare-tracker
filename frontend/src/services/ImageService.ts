@@ -2,10 +2,12 @@ import ApiUtils from "@/utils/apiUtils";
 
 const BASE_ENDPOINT = "/images";
 
+type entityType = "plant" | "substrate" | "component";
+
 export default class ImageService {
   static async uploadImage(
     image: File,
-    entityType: "plant" | "substrate" | "component",
+    entityType: entityType,
     entityId: number,
     date?: string | Date
   ) {
@@ -20,7 +22,12 @@ export default class ImageService {
     return response;
   }
 
-  static async editImage(imageId: number, date?: number, image?: File) {
+  static async editImage(
+    imageId: number,
+    entityType: entityType,
+    date?: number,
+    image?: File
+  ) {
     const formData = new FormData();
     if (date) {
       formData.append("date", date.toString());
@@ -28,7 +35,7 @@ export default class ImageService {
     if (image) {
       formData.append("image", image);
     }
-    const url = `${BASE_ENDPOINT}/image/${imageId}`;
+    const url = `${BASE_ENDPOINT}/image/${entityType}/${imageId}`;
     const response = await ApiUtils.patchImage(url, formData);
     return response;
   }
@@ -39,10 +46,7 @@ export default class ImageService {
     return response;
   }
 
-  static async deleteAllImages(
-    entityType: "plant" | "substrate" | "component",
-    entityId: number
-  ) {
+  static async deleteAllImages(entityType: entityType, entityId: number) {
     const url = `${BASE_ENDPOINT}/${entityType}/${entityId}`;
     const response = await ApiUtils.delete(url);
     return response;

@@ -17,43 +17,52 @@ const entityRelations = {
 };
 
 // Function to select images with dynamic conditions
-const selectImages = (conditions = {}, params = []) => {
+const selectImages = async (conditions = {}, params = []) => {
   let whereClauses = [];
   let joinClauses = [];
 
-  // Loop through each entity type and check if the condition is passed
-  Object.keys(entityRelations).forEach((entityType) => {
-    const entityId = conditions[`${entityType}_id`];
-    if (entityId) {
-      const entityTable = entityRelations[entityType];
-      joinClauses.push(`JOIN ${entityTable} ON images.id = ${entityTable}.image_id`);
+  // Check if the entityType is provided
+  const entityType = conditions.entity_type; // entity_type is passed to the function now
+  const entityId = conditions.entity_id;
+  
+  // If entityType and entityId exist, create conditions for the correct entity
+  if (entityType && entityId) {
+    const entityTable = entityRelations[entityType]; // Ensure entityRelations has the proper mapping
+    if (entityTable) {
+      joinClauses.push(
+        `JOIN ${entityTable} ON images.id = ${entityTable}.image_id`
+      );
       whereClauses.push(`${entityTable}.${entityType}_id = ?`);
       params.push(entityId);
     }
-  });
+  }
 
-  const whereSQL = whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : "";
+  const whereSQL = whereClauses.length
+    ? ` WHERE ${whereClauses.join(" AND ")}`
+    : "";
   const joinSQL = joinClauses.length ? joinClauses.join(" ") : "";
 
   const query = `${selectImagesQuery} ${joinSQL} ${whereSQL}`;
-  return pool.query(query, params);
+  return await pool.query(query, params);
 };
 
 // Generic function to insert an image and associate it with an entity
-const insertImage = (entityType, entityId, imageUrl) => {
+const insertImage = async (entityType, entityId, imageUrl) => {
   const entityTable = entityRelations[entityType];
   if (!entityTable) {
-    throw new Error('Invalid entity type');
+    throw new Error("Invalid entity type");
   }
 
-  return pool.query("INSERT INTO images (image_url) VALUES (?)", [imageUrl])
-    .then(result => {
-      const imageId = result.insertId;
-      return pool.query(
-        `INSERT INTO ${entityTable} (${entityType}_id, image_id) VALUES (?, ?)`,
-        [entityId, imageId]
-      );
-    });
+  const [rows] = await pool.query("INSERT INTO images (image_url) VALUES (?)", [
+    imageUrl,
+  ]);
+  const imageId = rows.insertId;
+  if (!imageId) {
+    throw new Error("Image insertion failed");
+  }
+  const insertQuery = `INSERT INTO ${entityTable} (${entityType}_id, image_id) VALUES (?, ?)`;
+  const insertParams = [entityId, imageId];
+  return await pool.query(insertQuery, insertParams);
 };
 
 // Update image details (url and date)
@@ -68,6 +77,10 @@ const updateImage = (id, fields) => {
   if (fields.date) {
     updates.push("upload_date = ?");
     params.push(fields.date);
+  }
+  if(fields.filePath) {
+    updates.push("image_url = ?");
+    params.push(fields.filePath);
   }
 
   if (updates.length === 0) {
@@ -87,7 +100,7 @@ const deleteImage = (imageId) => {
   );
 
   // After deleting the associations, delete the image itself
-  return Promise.all(deleteRelations).then(() => 
+  return Promise.all(deleteRelations).then(() =>
     pool.query("DELETE FROM images WHERE id = ?", [imageId])
   );
 };
