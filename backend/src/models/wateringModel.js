@@ -6,12 +6,13 @@ const selectWateringRecordsQuery = `
     wr.id as record_id,
     wr.date as watering_date,
     wr.used_fertilizer,
-    wr.fertilizer_type,
+    ft.name as fertilizer_type,  // Join to get fertilizer type name
     p.id as plant_id,
     p.name as plant_name,
     p.user_id as owner_id
   FROM watering_records wr
   LEFT JOIN plants p ON wr.plant_id = p.id
+  LEFT JOIN fertilizer_types ft ON wr.fertilizer_type_id = ft.id  // Join fertilizer_types table
 `;
 
 // Helper function to build the WHERE clause dynamically
@@ -55,25 +56,37 @@ const selectWateringRecord = (recordId) =>
 const selectWateringRecordsForPlant = (plantId) =>
   selectWateringRecords({ plant_id: plantId });
 
+const selectFertilizerTypes = async () => {
+  const query = `
+    SELECT id, name 
+    FROM fertilizer_types
+  `;
+  const [rows] = await pool.query(query);
+  return rows.map((row) => ({
+    fertilizer_type_id: row.id,
+    fertilizer_type_name: row.name,
+  }));
+};
+
 // Insert a new watering record
 const insertWateringRecord = async (
   plantId,
   date,
   usedFertilizer,
-  fertilizerType,
+  fertilizerTypeId, // Now we expect a fertilizer_type_id
   userId
 ) => {
   const query = `
-    INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type)
+    INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)  // Use fertilizer_type_id
     SELECT p.id, ?, ?, ?
     FROM plants p
-    WHERE p.id = ? AND p.user_id = ? 
+    WHERE p.id = ? AND p.user_id = ?
   `;
 
   const [result] = await pool.query(query, [
     date,
     usedFertilizer,
-    fertilizerType,
+    fertilizerTypeId, // Insert fertilizer_type_id
     plantId,
     userId,
   ]);
@@ -94,9 +107,9 @@ const updateWateringRecord = async (recordId, userId, fields) => {
     updates.push("used_fertilizer = ?");
     params.push(fields.usedFertilizer);
   }
-  if (fields.fertilizerType) {
-    updates.push("fertilizer_type = ?");
-    params.push(fields.fertilizerType);
+  if (fields.fertilizerTypeId) {
+    updates.push("fertilizer_type_id = ?");
+    params.push(fields.fertilizerTypeId);
   }
 
   // If no fields to update, throw an error
@@ -134,6 +147,7 @@ const deleteWateringRecord = async (recordId, userId) => {
 module.exports = {
   selectWateringRecord,
   selectWateringRecordsForPlant,
+  selectFertilizerTypes,
   insertWateringRecord,
   updateWateringRecord,
   deleteWateringRecord,
