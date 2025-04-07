@@ -42,11 +42,7 @@ const selectComponents = async (conditions = {}, params = []) => {
   // Group rows by component_id, in case there are duplicate rows due to joins
   const componentsMap = new Map();
   for (const row of rows) {
-    const {
-      component_id,
-      component_name,
-      component_fineness,
-    } = row;
+    const { component_id, component_name, component_fineness } = row;
 
     if (!componentsMap.has(component_id)) {
       // initialize the grouped object with base properties and empty arrays for join data
@@ -78,16 +74,25 @@ const selectComponents = async (conditions = {}, params = []) => {
   return components;
 };
 
+const selectFinenessLevels = () => {
+  const [rows] = pool.query("SELECT * FROM fineness_levels");
+
+  return rows.map((row) => ({
+    fineness_id: row.id,
+    fineness_name: row.name,
+  }));
+};
+
 // Wrapper for selecting a single component by ID
 const selectComponent = (id, selectImages = true) =>
   selectComponents({ id, selectImages }).then((rows) => rows[0] || null);
 
 // Insert a new component
 const insertComponent = (name, fineness_id) => {
-  return pool.query("INSERT INTO components (name, fineness_id) VALUES (?, ?)", [
-    name,
-    fineness_id,
-  ]);
+  return pool.query(
+    "INSERT INTO components (name, fineness_id) VALUES (?, ?)",
+    [name, fineness_id]
+  );
 };
 
 // Update a component by ID
@@ -106,6 +111,7 @@ const deleteComponent = (id) => {
 module.exports = {
   selectComponents,
   selectComponent,
+  selectFinenessLevels,
   insertComponent,
   updateComponent,
   deleteComponent,
