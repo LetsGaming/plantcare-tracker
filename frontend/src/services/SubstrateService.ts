@@ -134,7 +134,7 @@ export default class SubstrateService {
    * Adds a new substrate.
    * @param substrateData The data for the new substrate.
    */
-  static async addSubstrate(substrateData: any): Promise<any> {
+  static async addSubstrate(substrateData: AddSubstrate): Promise<any> {
     try {
       const response = await ApiUtils.post(BASE_ENDPOINT, substrateData);
       await invalidateSubstrateCache();
@@ -164,6 +164,7 @@ export default class SubstrateService {
 
       let response = await ApiUtils.patch(`${BASE_ENDPOINT}/${id}`, {
         name: substrateData.name,
+        isPublic: substrateData.isPublic,
         removedComponents,
       });
 

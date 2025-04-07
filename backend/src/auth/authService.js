@@ -5,9 +5,10 @@ const logger = require("../utils/logger");
 // Find user by username
 const selectUserByUsername = async (username) => {
   try {
-    const [users] = await pool.query("SELECT * FROM users WHERE username = ?", [
-      username,
-    ]);
+    const [users] = await pool.query(
+      "SELECT users.id, username, password, roles.name AS role FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE username = ?",
+      [username]
+    );
     if (users.length > 0) {
       return users[0]; // Return the first user found
     }

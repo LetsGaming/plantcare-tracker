@@ -15,54 +15,8 @@ const buildWhereClause = (conditions, params) => {
   if (conditions.is_public !== undefined) {
     whereClauses.push("substrates.is_public = ?");
     params.push(conditions.is_public);
-  } else {
-    // If is_public is not provided, set it to false by default
-    whereClauses.push("substrates.is_public = ?");
-    params.push(false);
   }
   return whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
-};
-
-// Helper function to group rows into substrates with components
-const groupSubstratesById = (rows) => {
-  const substratesMap = new Map();
-  rows.forEach((row) => {
-    const {
-      substrate_id,
-      substrate_name,
-      substrate_image_url,
-      substrate_user_id,
-      substrate_is_public,
-      substrate_created_at,
-      component_id,
-      component_name,
-      component_fineness,
-      substrate_component_parts,
-    } = row;
-
-    if (!substratesMap.has(substrate_id)) {
-      substratesMap.set(substrate_id, {
-        substrate_id,
-        substrate_name,
-        image_url: substrate_image_url,
-        user_id: substrate_user_id,
-        is_public: substrate_is_public,
-        created_at: substrate_created_at,
-        components: [],
-      });
-    }
-    const substrate = substratesMap.get(substrate_id);
-
-    if (component_id) {
-      substrate.components.push({
-        component_id,
-        component_name,
-        component_fineness,
-        parts: substrate_component_parts,
-      });
-    }
-  });
-  return Array.from(substratesMap.values());
 };
 
 // Main query to fetch substrates and their components
@@ -70,24 +24,25 @@ const selectSubstratesQuery = `
   SELECT 
     substrates.id AS substrate_id,
     substrates.name AS substrate_name,
-    substrates.image_url AS substrate_image_url,
     substrates.user_id AS substrate_user_id,
     substrates.is_public AS substrate_is_public,
     substrates.created_at AS substrate_created_at,
 
-    substrate_components.id AS substrate_component_id,
     substrate_components.substrate_id AS substrate_component_substrate_id,
     substrate_components.component_id AS substrate_component_component_id,
     substrate_components.parts AS substrate_component_parts,
 
     components.id AS component_id,
     components.name AS component_name,
-    components.fineness AS component_fineness
+    fineness_levels.name AS component_fineness_name
+
   FROM substrates
   LEFT JOIN substrate_components 
     ON substrates.id = substrate_components.substrate_id
   LEFT JOIN components 
     ON substrate_components.component_id = components.id
+  LEFT JOIN fineness_levels
+    ON components.fineness_id = fineness_levels.id
 `;
 
 const selectSubstrates = async (conditions = {}, params = []) => {
@@ -102,7 +57,30 @@ const selectSubstrates = async (conditions = {}, params = []) => {
   const [rows] = await pool.query(query, params);
 
   // Group substrates by substrate_id
-  const substrates = groupSubstratesById(rows);
+  const substrateMap = new Map();
+  for (const row of rows) {
+    const substrate = substrateMap.get(row.substrate_id) || {
+      substrate_id: row.substrate_id,
+      substrate_name: row.substrate_name,
+      user_id: row.substrate_user_id,
+      is_public: row.substrate_is_public,
+      created_at: row.substrate_created_at,
+      components: [],
+    };
+  
+    if (row.component_id) {
+      substrate.components.push({
+        component_id: row.component_id,
+        component_name: row.component_name,
+        component_fineness: row.component_fineness_name,
+        parts: row.substrate_component_parts,
+      });
+    }
+  
+    substrateMap.set(row.substrate_id, substrate);
+  }
+  
+  const substrates = Array.from(substrateMap.values());
 
   // Fetch images concurrently if selectImages is true
   if (conditions.selectImages) {
@@ -127,8 +105,13 @@ const insertEntity = async (query, params) => {
 };
 
 // Wrapper for selecting a single substrate by ID
-const selectSubstrate = (id, selectImages = true) =>
-  selectSubstrates({ id, selectImages });
+const selectSubstrate = async (id, selectImages = true) => {
+  const subs =  await selectSubstrates({ id, selectImages });
+  if (subs && subs.length > 0) {
+    return subs[0]; // Return the first (and only) substrate
+  } 
+  return null;
+}
 
 // Wrapper for selecting public substrates
 const selectPublicSubstrates = () => selectSubstrates({ is_public: true });
@@ -137,10 +120,10 @@ const selectPublicSubstrates = () => selectSubstrates({ is_public: true });
 const selectPrivateSubstrates = (user_id) => selectSubstrates({ user_id });
 
 // Insert a substrate
-const insertSubstrate = (name, user_id, image_url = null, is_public = false) =>
+const insertSubstrate = (name, user_id, is_public = false) =>
   insertEntity(
-    "INSERT INTO substrates (name, user_id, image_url, is_public) VALUES (?, ?, ?, ?)",
-    [name, user_id, image_url, is_public]
+    "INSERT INTO substrates (name, user_id, is_public) VALUES (?, ?, ?)",
+    [name, user_id, is_public]
   );
 
 // Insert a substrate component
@@ -156,17 +139,34 @@ const updateEntity = async (query, params) => {
 };
 
 // Update a substrate
-const updateSubstrate = (
-  id,
-  name,
-  user_id,
-  image_url = null,
-  is_public = false
-) =>
-  updateEntity(
-    "UPDATE substrates SET name = ?, image_url = ?, is_public = ? WHERE id = ? AND user_id = ?",
-    [name, image_url, is_public, id, user_id]
-  );
+const updateSubstrate = (id, user_id, name, is_public) => {
+  const updates = [];
+  const params = [];
+
+  // Dynamically add fields to the update statement
+  if (name !== undefined) {
+    updates.push("name = ?");
+    params.push(name);
+  }
+  if (is_public !== undefined) {
+    updates.push("is_public = ?");
+    params.push(is_public);
+  }
+
+  // Only proceed if there's something to update
+  if (updates.length > 0) {
+    params.push(id, user_id);
+
+    const query = `UPDATE substrates SET ${updates.join(
+      ", "
+    )} WHERE id = ? AND user_id = ?`;
+
+    return updateEntity(query, params);
+  }
+
+  // If no fields to update, return early or handle as needed
+  return Promise.reject("No fields to update");
+};
 
 // Update a substrate component
 const updateSubstrateComponent = (substrate_id, component_id, parts) =>

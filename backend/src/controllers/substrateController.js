@@ -68,16 +68,11 @@ const getSpecificSubstrate = async (req, res) => {
 
 // Controller for adding a new substrate
 const addSubstrate = async (req, res) => {
-  const { name, image_url, isPublic } = req.body;
+  const { name, isPublic } = req.body;
   const userId = req.user ? req.user.id : null;
   try {
     validateSubstrateData(name);
-    const [result] = await insertSubstrate(
-      name,
-      userId,
-      image_url || null,
-      isPublic || false
-    );
+    const [result] = await insertSubstrate(name, userId, isPublic || false);
     successResponse(
       res,
       { substrateId: result.insertId },
@@ -93,12 +88,11 @@ const addSubstrate = async (req, res) => {
 // Controller for updating a substrate
 const editSubstrate = async (req, res) => {
   const { id } = req.params;
-  const { name, image_url, isPublic, removedComponents } = req.body;
+  const { name, isPublic, removedComponents } = req.body;
   const userId = req.user ? req.user.id : null;
   try {
     if (
       !name &&
-      !image_url &&
       isPublic === undefined &&
       (!removedComponents || removedComponents.length === 0)
     ) {
@@ -112,9 +106,8 @@ const editSubstrate = async (req, res) => {
     if (name || image_url || isPublic !== undefined) {
       const result = await updateSubstrate(
         id,
-        name,
         userId,
-        image_url || null,
+        name,
         isPublic
       );
       if (result.affectedRows === 0) {
@@ -164,10 +157,17 @@ const editSubstrateComponents = async (req, res) => {
   const { id } = req.params;
   const { components } = req.body;
   const userId = req.user ? req.user.id : null;
+
   try {
-    if (!components || !Array.isArray(components) || components.length === 0) {
-      throw new Error("Components array is required.");
+    if (!components || components.length === 0) {
+      return errorResponse(res, "Components array is required.", 400);
     }
+
+    if (!Array.isArray(Object.values(components))) {
+      return errorResponse(res, "Components should be an array.", 400);
+    }
+    const compArray = Object.values(components);
+
     const [substrate] = await selectSubstrate(id);
     if (substrate.user_id != userId) {
       return errorResponse(
@@ -176,7 +176,7 @@ const editSubstrateComponents = async (req, res) => {
         403
       );
     }
-    const updatePromises = components.map(({ componentId, parts }) => {
+    const updatePromises = compArray.map(({ componentId, parts }) => {
       const decimalParts = parseFloat(parts).toFixed(2);
       return updateSubstrateComponent(id, componentId, decimalParts);
     });

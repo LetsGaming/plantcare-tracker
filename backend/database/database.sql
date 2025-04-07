@@ -1,3 +1,5 @@
+START TRANSACTION;
+
 -- Benutzerrollen ausgelagert
 CREATE TABLE roles (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -22,7 +24,7 @@ CREATE TABLE fineness_levels (
   name VARCHAR(50) NOT NULL UNIQUE
 );
 
-INSERT INTO fineness_levels (name) VALUES ('coarse', 'medium', 'fine');
+INSERT INTO fineness_levels (name) VALUES ('coarse'), ('medium'), ('fine');
 
 -- Komponenten
 CREATE TABLE components (
@@ -115,3 +117,5 @@ CREATE TABLE watering_records (
   FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE,
   FOREIGN KEY (fertilizer_type_id) REFERENCES fertilizer_types(id)
 );
+
+COMMIT;
