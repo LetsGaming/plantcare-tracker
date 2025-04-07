@@ -6,13 +6,13 @@ const selectWateringRecordsQuery = `
     wr.id as record_id,
     wr.date as watering_date,
     wr.used_fertilizer,
-    ft.name as fertilizer_type,  // Join to get fertilizer type name
+    ft.name as fertilizer_type, 
     p.id as plant_id,
     p.name as plant_name,
     p.user_id as owner_id
   FROM watering_records wr
   LEFT JOIN plants p ON wr.plant_id = p.id
-  LEFT JOIN fertilizer_types ft ON wr.fertilizer_type_id = ft.id  // Join fertilizer_types table
+  LEFT JOIN fertilizer_types ft ON wr.fertilizer_type_id = ft.id 
 `;
 
 // Helper function to build the WHERE clause dynamically

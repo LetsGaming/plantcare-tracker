@@ -1,6 +1,6 @@
 <template>
-  <template v-if="items.length">
-    <pull-to-refresh @refresh="onRefreshItems">
+  <pull-to-refresh @refresh="onRefreshItems">
+    <template v-if="items.length">
       <div>
         <search-bar
           @search="filterItems"
@@ -63,13 +63,13 @@
           </ion-row>
         </ion-grid>
       </div>
-    </pull-to-refresh>
-  </template>
-  <template v-else>
-    <ion-text color="secondary" class="align-middle">
-      Keine Einträge gefunden.
-    </ion-text>
-  </template>
+    </template>
+    <template v-else>
+      <ion-text color="secondary" class="align-middle">
+        Keine Einträge gefunden.
+      </ion-text>
+    </template>
+  </pull-to-refresh>
 </template>
 
 <script lang="ts">

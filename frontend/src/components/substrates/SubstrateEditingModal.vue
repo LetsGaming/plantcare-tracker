@@ -208,7 +208,7 @@ export default defineComponent({
           componentId: id,
           parts: this.componentParts[id] || 1,
         })),
-        isPublic: this.editSubstrateData.isPublic,
+        isPublic: this.editSubstrateData.isPublic || undefined,
         image: this.editSubstrateData.image || undefined,
       };
 

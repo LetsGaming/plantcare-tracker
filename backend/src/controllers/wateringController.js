@@ -22,7 +22,7 @@ const getWateringRecord = async (res, selectFn, id, userId = null) => {
     }
     successResponse(res, records);
   } catch (err) {
-    errorResponse(res, err, 500, "Error fetching watering record(s)");
+    errorResponse(res, "Error fetching watering record(s)", 500, err);
   }
 };
 
@@ -42,7 +42,11 @@ const getSpecificWateringRecord = async (req, res) => {
 // Controller to add a new watering record
 const addWateringRecord = async (req, res) => {
   const { plantId } = req.params;
-  const { date = new Date().getTime(), usedFertilizer, fertilizerType } = req.body;
+  const {
+    date = new Date().getTime(),
+    usedFertilizer,
+    fertilizerType,
+  } = req.body;
   const userId = req.user ? req.user.id : null;
 
   const parsedDate = formatToDBDate(date);
