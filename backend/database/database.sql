@@ -22,7 +22,7 @@ CREATE TABLE fineness_levels (
   name VARCHAR(50) NOT NULL UNIQUE
 );
 
-INSERT INTO fineness_levels (name) VALUES ('Grob', 'Mittel', 'Fein');
+INSERT INTO fineness_levels (name) VALUES ('coarse', 'medium', 'fine');
 
 -- Komponenten
 CREATE TABLE components (
