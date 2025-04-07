@@ -80,22 +80,27 @@ router.post(
         return res.status(400).json({ error: "No file uploaded." });
       }
 
+      // Use entityType to create a specific directory for each entity type
       const NAS_PATH =
         process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
-      if (!fs.existsSync(NAS_PATH)) {
-        fs.mkdirSync(NAS_PATH, { recursive: true });
+
+      // Create the entityType directory if it doesn't exist
+      const entityTypePath = path.join(NAS_PATH, req.params.entityType);
+      if (!fs.existsSync(entityTypePath)) {
+        fs.mkdirSync(entityTypePath, { recursive: true });
       }
 
-      const uniqueFilename = `${Date.now()}-${
-        path.parse(req.file.originalname).name
-      }.webp`;
-      const outputPath = path.join(NAS_PATH, uniqueFilename);
+      // Define unique filename based on timestamp and original name, store in the correct entity type directory
+      const uniqueFilename = `${Date.now()}-${path.parse(req.file.originalname).name}.webp`;
+      const outputPath = path.join(entityTypePath, uniqueFilename);
 
       const imageBuffer = req.file.buffer;
       const extractedDate = await extractImageDate(imageBuffer);
       if (extractedDate) {
         req.body.date = extractedDate.getTime();
       }
+
+      // Resize and save image as WebP format
       await sharp(imageBuffer)
         .resize({ width: 1024 })
         .toFormat("webp")
@@ -105,6 +110,8 @@ router.post(
       req.file.path = outputPath;
       req.file.filename = uniqueFilename;
       req.body.date = extractedDate;
+
+      // Proceed to the next middleware/controller
       next();
     } catch (error) {
       next(error);

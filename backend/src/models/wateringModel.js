@@ -14,35 +14,44 @@ const selectWateringRecordsQuery = `
   LEFT JOIN plants p ON wr.plant_id = p.id
 `;
 
-// Function to select watering records with dynamic conditions
-const selectWateringRecords = async (conditions = {}, params = []) => {
-  let whereClauses = [];
+// Helper function to build the WHERE clause dynamically
+const buildWhereClause = (conditions, params) => {
+  const whereClauses = [];
 
+  // If plant_id is provided, add condition
   if (conditions.plant_id) {
     whereClauses.push("wr.plant_id = ?");
     params.push(conditions.plant_id);
   }
+
+  // If user_id is provided, add condition
   if (conditions.user_id) {
     whereClauses.push("p.user_id = ?");
     params.push(conditions.user_id);
   }
+  // If record_id is provided, add condition
   if (conditions.record_id) {
     whereClauses.push("wr.id = ?");
     params.push(conditions.record_id);
   }
 
-  const whereSQL = whereClauses.length
-    ? ` WHERE ${whereClauses.join(" AND ")}`
-    : "";
+  return whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+};
+
+// Function to select watering records with dynamic conditions
+const selectWateringRecords = async (conditions = {}, params = []) => {
+  const whereSQL = buildWhereClause(conditions, params);
   const query = `${selectWateringRecordsQuery} ${whereSQL}`;
 
   const [rows] = await pool.query(query, params);
   return rows;
 };
 
+// Select a specific watering record by recordId
 const selectWateringRecord = (recordId) =>
   selectWateringRecords({ record_id: recordId });
 
+// Select all watering records for a specific plant by plantId
 const selectWateringRecordsForPlant = (plantId) =>
   selectWateringRecords({ plant_id: plantId });
 
@@ -58,7 +67,7 @@ const insertWateringRecord = async (
     INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type)
     SELECT p.id, ?, ?, ?
     FROM plants p
-    WHERE p.id = ? AND p.user_id = ?
+    WHERE p.id = ? AND p.user_id = ? 
   `;
 
   const [result] = await pool.query(query, [
@@ -68,7 +77,6 @@ const insertWateringRecord = async (
     plantId,
     userId,
   ]);
-
   return result;
 };
 
@@ -77,6 +85,7 @@ const updateWateringRecord = async (recordId, userId, fields) => {
   const updates = [];
   const params = [];
 
+  // Dynamically build the update query based on provided fields
   if (fields.date) {
     updates.push("date = ?");
     params.push(fields.date);
@@ -90,6 +99,7 @@ const updateWateringRecord = async (recordId, userId, fields) => {
     params.push(fields.fertilizerType);
   }
 
+  // If no fields to update, throw an error
   if (updates.length === 0) {
     throw new Error("No fields provided for update.");
   }
