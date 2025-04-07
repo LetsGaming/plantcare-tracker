@@ -1,13 +1,15 @@
 const pool = require("../config/db");
 const { selectEntityImages } = require("../utils/imageUtils");
 
-// Base query for selecting components
+// Base query for selecting components with a join to the fineness_levels table
 const selectComponentsQuery = `
   SELECT 
     components.id as component_id,
     components.name as component_name,
-    components.fineness as component_fineness
+    components.fineness_id,
+    fineness_levels.name as component_fineness
   FROM components
+  JOIN fineness_levels ON components.fineness_id = fineness_levels.id
 `;
 
 // Function to select components with dynamic conditions
@@ -24,7 +26,11 @@ const selectComponents = async (conditions = {}, params = []) => {
     whereClauses.push("components.id = ?");
     params.push(conditions.id);
   }
-  // (Add more condition filters if needed, similar to selectSubstrates)
+
+  if (conditions.fineness_id) {
+    whereClauses.push("components.fineness_id = ?");
+    params.push(conditions.fineness_id);
+  }
 
   const whereSQL = whereClauses.length
     ? `WHERE ${whereClauses.join(" AND ")}`
@@ -40,10 +46,6 @@ const selectComponents = async (conditions = {}, params = []) => {
       component_id,
       component_name,
       component_fineness,
-      // if your query includes joined columns (for example, component_part details),
-      // you can destructure them here
-      component_part_id,
-      component_part_detail,
     } = row;
 
     if (!componentsMap.has(component_id)) {
@@ -52,18 +54,7 @@ const selectComponents = async (conditions = {}, params = []) => {
         component_id,
         component_name,
         component_fineness,
-        parts: [],
-        // Default values; these will be set if selectImages is requested
-        image_url: null,
         images: [],
-      });
-    }
-
-    // If your query returns join rows that include parts information, push them into parts array
-    if (component_part_id) {
-      componentsMap.get(component_id).parts.push({
-        part_id: component_part_id,
-        detail: component_part_detail,
       });
     }
   }
@@ -92,18 +83,18 @@ const selectComponent = (id, selectImages = true) =>
   selectComponents({ id, selectImages }).then((rows) => rows[0] || null);
 
 // Insert a new component
-const insertComponent = (name, fineness) => {
-  return pool.query("INSERT INTO components (name, fineness) VALUES (?, ?)", [
+const insertComponent = (name, fineness_id) => {
+  return pool.query("INSERT INTO components (name, fineness_id) VALUES (?, ?)", [
     name,
-    fineness,
+    fineness_id,
   ]);
 };
 
 // Update a component by ID
-const updateComponent = (id, name, fineness) => {
+const updateComponent = (id, name, fineness_id) => {
   return pool.query(
-    "UPDATE components SET name = ?, fineness = ? WHERE id = ?",
-    [name, fineness, id]
+    "UPDATE components SET name = ?, fineness_id = ? WHERE id = ?",
+    [name, fineness_id, id]
   );
 };
 
