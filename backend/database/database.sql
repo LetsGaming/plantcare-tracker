@@ -18,6 +18,9 @@ CREATE TABLE users (
   FOREIGN KEY (role_id) REFERENCES roles(id)
 );
 
+INSERT INTO users (username, password, role_id) VALUES
+('guest', '$2a$10$JAz/R6ThStgqqGds62uJfeNBgLXsPc9dKp3sGFpCcjjLS3JLQxNBa', 2); -- guest
+
 -- Feinheitsgrade ausgelagert
 CREATE TABLE fineness_levels (
   id INT AUTO_INCREMENT PRIMARY KEY,
