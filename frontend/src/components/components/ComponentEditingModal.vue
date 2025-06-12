@@ -21,9 +21,9 @@
     form-title="Komponenten Informationen"
     submit-label="Komponente editieren"
     :is-loading="isLoading"
+    :delete-handler="deleteComponent"
     @close="$emit('close')"
     @submit-click="editComponent"
-    @delete-click="deleteComponent"
   />
 </template>
 
