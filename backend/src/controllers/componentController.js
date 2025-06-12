@@ -51,7 +51,7 @@ const addComponent = async (req, res) => {
   try {
     validateComponentData({ name, fineness });
     const [result] = await insertComponent(name, fineness);
-    componentId = result.id;
+    componentId = result.insertId;
 
     successResponse(res, { id: componentId }, "Component added successfully", 201);
   } catch (err) {
