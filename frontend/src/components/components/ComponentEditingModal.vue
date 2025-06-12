@@ -6,18 +6,24 @@
     :form-fields="[
       { type: 'input', modelKey: 'name', label: 'Name', required: false },
       {
-        type: 'input',
+        type: 'select',
         modelKey: 'fineness',
         label: 'Feinheit',
+        placeholder: 'Feinheit auswählen',
+        options: [
+          { value: '1', label: 'Grob' },
+          { value: '2', label: 'Mittel' },
+          { value: '3', label: 'Fein' },
+        ],
         required: false,
       },
     ]"
     form-title="Komponenten Informationen"
     submit-label="Komponente editieren"
     :is-loading="isLoading"
-    @submit="editComponent"
     @close="$emit('close')"
-    @delete-handler="deleteComponent"
+    @submit-click="editComponent"
+    @delete-click="deleteComponent"
   />
 </template>
 
@@ -54,9 +60,16 @@ export default defineComponent({
     };
   },
   mounted() {
+    const mapped_fineness = {
+      1: "coarse",
+      2: "medium",
+      3: "fine",
+    };
+
     this.editComponentData = {
       name: this.component.name,
-      fineness: this.component.fineness,
+      fineness:
+        mapped_fineness[Number(this.component.fineness) as 1 | 2 | 3] || "",
     };
   },
   methods: {
