@@ -158,21 +158,21 @@ export default class SubstrateService {
     removedComponents: number[]
   ): Promise<any> {
     try {
-      if (!substrateData.name && !substrateData.components) {
-        throw new Error("Substrate name or components are required.");
+      // Validate that at least one field is being updated
+      if (
+        !substrateData.name &&
+        !substrateData.isPublic &&
+        !substrateData.image &&
+        removedComponents.length === 0
+      ) {
+        throw new Error("No fields to update");
       }
-
+      
       let response = await ApiUtils.patch(`${BASE_ENDPOINT}/${id}`, {
         name: substrateData.name,
         isPublic: substrateData.isPublic,
         removedComponents,
       });
-
-      if (substrateData.components) {
-        response = await ApiUtils.patch(`${BASE_ENDPOINT}/components/${id}`, {
-          components: substrateData.components,
-        });
-      }
 
       if (substrateData.image) {
         const formData = new FormData();
@@ -184,6 +184,23 @@ export default class SubstrateService {
       return response;
     } catch (error) {
       ToastService.showError(`Error updating substrate: ${error}`);
+      throw error;
+    }
+  }
+
+  static async editSubstrateComponents(
+    id: number,
+    componentsData: EditSubstrateComponent[]
+  ): Promise<any> {
+    try {
+      const response = await ApiUtils.patch(
+        `${BASE_ENDPOINT}/components/${id}`,
+        componentsData
+      );
+      await invalidateSubstrateCache();
+      return response;
+    } catch (error) {
+      ToastService.showError(`Error updating substrate components: ${error}`);
       throw error;
     }
   }

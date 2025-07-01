@@ -60,11 +60,11 @@ export default defineComponent({
   data() {
     return {
       close,
-      fertilizerOptions: [] as { label: string; value: string }[],
+      fertilizerOptions: [] as { label: string; value: number }[],
       record: {
         date: undefined,
         usedFertilizer: false,
-        fertilizerTypeId: null,
+        fertilizerTypeId: undefined,
       } as AddWateringRecord,
     };
   },
@@ -72,7 +72,7 @@ export default defineComponent({
     "record.fertilizerTypeId"(newVal) {
       this.record.usedFertilizer = newVal && newVal !== "none";
       if (newVal === "none") {
-        this.record.fertilizerTypeId = null;
+        this.record.fertilizerTypeId = undefined;
         this.record.usedFertilizer = false;
       }
     },
@@ -85,11 +85,11 @@ export default defineComponent({
     }));
   },
   computed: {
-    formFields() {
+    formFields(): FormField[] {
       return [
-        { label: "Datum", type: "date", modelKey: "date" },
+        { label: "Datum", type: "date" as const, modelKey: "date" },
         {
-          type: "radio",
+          type: "radio" as const,
           modelKey: "fertilizerTypeId",
           label: "Düngertyp",
           options: [

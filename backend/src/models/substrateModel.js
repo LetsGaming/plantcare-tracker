@@ -67,7 +67,7 @@ const selectSubstrates = async (conditions = {}, params = []) => {
       created_at: row.substrate_created_at,
       components: [],
     };
-  
+
     if (row.component_id) {
       substrate.components.push({
         component_id: row.component_id,
@@ -76,10 +76,10 @@ const selectSubstrates = async (conditions = {}, params = []) => {
         parts: row.substrate_component_parts,
       });
     }
-  
+
     substrateMap.set(row.substrate_id, substrate);
   }
-  
+
   const substrates = Array.from(substrateMap.values());
 
   // Fetch images concurrently if selectImages is true
@@ -106,12 +106,12 @@ const insertEntity = async (query, params) => {
 
 // Wrapper for selecting a single substrate by ID
 const selectSubstrate = async (id, selectImages = true) => {
-  const subs =  await selectSubstrates({ id, selectImages });
+  const subs = await selectSubstrates({ id, selectImages });
   if (subs && subs.length > 0) {
     return subs[0]; // Return the first (and only) substrate
-  } 
+  }
   return null;
-}
+};
 
 // Wrapper for selecting public substrates
 const selectPublicSubstrates = () => selectSubstrates({ is_public: true });
@@ -171,8 +171,7 @@ const updateSubstrate = (id, user_id, name, is_public) => {
 // Update a substrate component
 const updateSubstrateComponent = (substrate_id, component_id, parts) =>
   insertEntity(
-    `
-      INSERT INTO substrate_components (substrate_id, component_id, parts)
+    ` INSERT INTO substrate_components (substrate_id, component_id, parts)
       VALUES (?, ?, ?)
       ON DUPLICATE KEY UPDATE parts = ?`,
     [substrate_id, component_id, parts, parts]
