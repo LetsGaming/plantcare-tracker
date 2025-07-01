@@ -183,7 +183,7 @@ const editSubstrateComponents = async (req, res) => {
     await Promise.all(updatePromises);
     successResponse(res, { updated: true }, "Substrate components updated");
   } catch (err) {
-    errorResponse(res, err);
+    errorResponse(res, "Error updating substrate components", 500, err);
   }
 };
 

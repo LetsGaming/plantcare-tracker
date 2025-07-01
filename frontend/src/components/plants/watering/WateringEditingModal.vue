@@ -36,10 +36,10 @@ export default defineComponent({
       editWateringRecord: {
         date: undefined,
         usedFertilizer: false,
-        fertilizerType: null,
+        fertilizerTypeId: undefined,
       } as EditWateringRecord,
       isLoading: false,
-      fertilizerOptions: [] as { label: string; value: string }[],
+      fertilizerOptions: [] as { label: string; value: number }[],
     };
   },
   async mounted() {
@@ -49,18 +49,21 @@ export default defineComponent({
       value: t.id,
     }));
 
+    const fertilizerTypeId = types.find(
+      (t) => t.name === this.record.fertilizerType
+    )?.id;
     this.editWateringRecord = {
       date: this.record.date_millis,
       usedFertilizer: this.record.usedFertilizer,
-      fertilizerTypeId: this.record.fertilizerTypeId,
+      fertilizerTypeId: fertilizerTypeId || undefined,
     };
   },
   computed: {
-    formFields() {
+    formFields(): FormField[] {
       return [
-        { label: "Datum", type: "date", modelKey: "date" },
+        { label: "Datum", type: "date" as const, modelKey: "date" },
         {
-          type: "radio",
+          type: "radio" as const,
           modelKey: "fertilizerTypeId",
           label: "Düngertyp",
           options: [
@@ -74,8 +77,8 @@ export default defineComponent({
   },
   methods: {
     async editRecord() {
-      if (this.editWateringRecord.fertilizerTypeId === "none") {
-        this.editWateringRecord.fertilizerTypeId = null;
+      if (String(this.editWateringRecord.fertilizerTypeId) === "none") {
+        this.editWateringRecord.fertilizerTypeId = undefined;
         this.editWateringRecord.usedFertilizer = false;
       } else {
         this.editWateringRecord.usedFertilizer = true;
