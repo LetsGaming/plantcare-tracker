@@ -1,6 +1,5 @@
 // server.js
 const express = require("express");
-const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -69,7 +68,7 @@ function setupMiddleware(app) {
   app.options("*", cors(corsOptions));
 
   // Parse JSON bodies and cookies
-  app.use(bodyParser.json());
+  app.use(express.json());
   app.use(cookieParser());
 
   // Apply rate limiting and guest permission checks
