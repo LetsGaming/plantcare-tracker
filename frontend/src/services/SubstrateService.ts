@@ -195,7 +195,7 @@ export default class SubstrateService {
     try {
       const response = await ApiUtils.patch(
         `${BASE_ENDPOINT}/components/${id}`,
-        componentsData
+        { components: componentsData }
       );
       await invalidateSubstrateCache();
       return response;
