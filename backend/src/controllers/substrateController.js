@@ -104,12 +104,7 @@ const editSubstrate = async (req, res) => {
     }
     // Update primary substrate data if provided
     if (name || image_url || isPublic !== undefined) {
-      const result = await updateSubstrate(
-        id,
-        userId,
-        name,
-        isPublic
-      );
+      const result = await updateSubstrate(id, userId, name, isPublic);
       if (result.affectedRows === 0) {
         return errorResponse(
           res,
@@ -159,14 +154,11 @@ const editSubstrateComponents = async (req, res) => {
   const userId = req.user ? req.user.id : null;
 
   try {
-    if (!components || components.length === 0) {
+    if (!Array.isArray(components) || components.length === 0) {
       return errorResponse(res, "Components array is required.", 400);
     }
 
-    if (!Array.isArray(Object.values(components))) {
-      return errorResponse(res, "Components should be an array.", 400);
-    }
-    const compArray = Object.values(components);
+    const compArray = components;
 
     const [substrate] = await selectSubstrate(id);
     if (substrate.user_id != userId) {
@@ -176,10 +168,12 @@ const editSubstrateComponents = async (req, res) => {
         403
       );
     }
+
     const updatePromises = compArray.map(({ componentId, parts }) => {
       const decimalParts = parseFloat(parts).toFixed(2);
       return updateSubstrateComponent(id, componentId, decimalParts);
     });
+
     await Promise.all(updatePromises);
     successResponse(res, { updated: true }, "Substrate components updated");
   } catch (err) {
