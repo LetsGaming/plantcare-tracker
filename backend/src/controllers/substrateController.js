@@ -150,15 +150,18 @@ const addSubstrateComponents = async (req, res) => {
 // Controller for editing substrate components
 const editSubstrateComponents = async (req, res) => {
   const { id } = req.params;
-  const { components } = req.body;
+  let { components } = req.body;
   const userId = req.user ? req.user.id : null;
 
   try {
+    // Convert numeric-keyed object to array if needed
+    if (components && typeof components === 'object' && !Array.isArray(components)) {
+      components = Object.values(components);
+    }
+
     if (!Array.isArray(components) || components.length === 0) {
       return errorResponse(res, "Components array is required.", 400);
     }
-
-    const compArray = components;
 
     const [substrate] = await selectSubstrate(id);
     if (substrate.user_id != userId) {
@@ -169,7 +172,7 @@ const editSubstrateComponents = async (req, res) => {
       );
     }
 
-    const updatePromises = compArray.map(({ componentId, parts }) => {
+    const updatePromises = components.map(({ componentId, parts }) => {
       const decimalParts = parseFloat(parts).toFixed(2);
       return updateSubstrateComponent(id, componentId, decimalParts);
     });
