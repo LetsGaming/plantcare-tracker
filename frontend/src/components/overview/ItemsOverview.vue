@@ -88,6 +88,7 @@ import {
 
 import SearchBar from "@/components/SearchBar.vue";
 import PullToRefresh from "@/components/PullToRefresh.vue";
+import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "ItemGrid",
@@ -134,10 +135,7 @@ export default defineComponent({
   },
   methods: {
     filterItems(query: string) {
-      this.currentSearch = query;
-      const filtered = this.items.filter((item) =>
-        item.name.toLowerCase().includes(query.toLowerCase())
-      );
+      const filtered = Utils.baseSearchFilter(query, this.items);
       this.filteredItems = this.sortItems(filtered);
     },
     sortItems(items: any[]) {
