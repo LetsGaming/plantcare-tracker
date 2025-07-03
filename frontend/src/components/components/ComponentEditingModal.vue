@@ -88,6 +88,7 @@ export default defineComponent({
         );
         if (reponse) {
           this.isLoading = false;
+          this.resetComponent();
           this.$emit("edited");
         }
       } catch (error) {
@@ -104,6 +105,7 @@ export default defineComponent({
         );
         if (response) {
           this.isLoading = false;
+          this.resetComponent();
           this.$emit("close");
           this.$router.push({ name: "component-overview" });
         }
@@ -112,6 +114,13 @@ export default defineComponent({
         console.error(error);
         ToastService.showError("Fehler beim Löschen der Komponente");
       }
+    },
+    resetComponent() {
+      this.editComponentData = {
+        name: "",
+        fineness: "",
+      };
+      this.isLoading = false;
     },
   },
 });
