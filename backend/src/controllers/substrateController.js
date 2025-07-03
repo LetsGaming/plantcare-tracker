@@ -123,11 +123,10 @@ const editSubstrate = async (req, res) => {
 
 // Controller for adding substrate components
 const addSubstrateComponents = async (req, res) => {
-  const { components } = req.body;
   const { id } = req.params;
   try {
     // Ensure components is an array
-    components = ensureArray(components);
+    components = ensureArray(req.body.components);
     if (!components || !Array.isArray(components) || components.length === 0) {
       throw new Error("Components array is required.");
     }
