@@ -287,6 +287,8 @@ export default defineComponent({
           );
         }
 
+        this.resetSubstrate();
+
         this.$emit("close");
         this.$router.push({ name: "substrate-overview" });
       } catch (error) {
@@ -305,6 +307,7 @@ export default defineComponent({
         if (response) {
           this.isLoading = false;
           ToastService.showSuccess("Substrat erfolgreich gelöscht");
+          this.resetSubstrate();
           this.$emit("close");
           this.$router.push({ name: "substrate-overview" });
         }
@@ -313,6 +316,16 @@ export default defineComponent({
         console.error("Error deleting substrate:", error);
         ToastService.showError("Fehler beim Löschen des Substrats");
       }
+    },
+    resetSubstrate() {
+      this.editSubstrateData = {
+        name: "",
+        isPublic: false,
+        image: null,
+      };
+      this.selectedComponentIds = [];
+      this.componentParts = {};
+      this.step = 1;
     },
   },
 });
