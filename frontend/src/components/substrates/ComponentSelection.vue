@@ -6,6 +6,10 @@
         placeholder="Komponenten suchen..."
         @search="filterComponents"
       />
+      <div class="selected-only-toggle">
+        <IonCheckbox v-model="showSelectedOnly" />
+        <ion-label>Nur ausgewählte anzeigen</ion-label>
+      </div>
     </ion-card-header>
 
     <ion-card-content style="max-width: 100%">
@@ -91,25 +95,49 @@ export default defineComponent({
       type: Object as PropType<Record<number, number>>,
       required: true,
     },
+    showSelectedOnlyDefault: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
-      filteredComponents: this.components,
+      searchQuery: "",
+      showSelectedOnly: this.showSelectedOnlyDefault,
     };
+  },
+  computed: {
+    filteredComponents(): SubstrateComponent[] {
+      let list = this.components;
+
+      if (this.searchQuery.trim() !== "") {
+        const q = this.searchQuery.toLowerCase();
+        list = list.filter((component) =>
+          component.name.toLowerCase().includes(q)
+        );
+      }
+
+      if (this.showSelectedOnly) {
+        list = list.filter((component) =>
+          this.selectedComponentIds.includes(component.id)
+        );
+      }
+
+      return list.sort((a, b) => {
+        const aSelected = this.selectedComponentIds.includes(a.id);
+        const bSelected = this.selectedComponentIds.includes(b.id);
+        if (aSelected && !bSelected) return -1;
+        if (!aSelected && bSelected) return 1;
+        return a.name.localeCompare(b.name);
+      });
+    },
   },
   methods: {
     toggleSelectedComponent(id: number) {
       this.$emit("toggle-component", id);
     },
-    // New filtering method using the search query
     filterComponents(query: string) {
-      const lowerQuery = query.toLowerCase();
-      const filtered = this.components.filter((component) =>
-        component.name.toLowerCase().includes(lowerQuery)
-      );
-      this.filteredComponents = filtered.sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
+      this.searchQuery = query;
     },
   },
 });
@@ -125,6 +153,12 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.selected-only-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
 }
 ion-label h3 {
   font-size: 18px;
