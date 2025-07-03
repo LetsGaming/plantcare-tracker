@@ -234,13 +234,14 @@ export default defineComponent({
 
       try {
         if (componentsChanged && !metaChanged) {
+          const components = this.selectedComponentIds.map((id) => ({
+            componentId: id,
+            parts: this.componentParts[id] || 1,
+          })) as EditSubstrateComponent[];
           // Only components changed
           await SubstrateService.editSubstrateComponents(
             this.substrate.id,
-            this.selectedComponentIds.map((id) => ({
-              componentId: id,
-              parts: this.componentParts[id] || 1,
-            }))
+            components
           );
           ToastService.showSuccess("Komponenten erfolgreich aktualisiert");
         } else if (!componentsChanged && metaChanged) {

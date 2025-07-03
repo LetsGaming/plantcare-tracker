@@ -1,4 +1,3 @@
-const { add } = require("winston");
 const {
   selectPrivateSubstrates,
   selectPublicSubstrates,
@@ -10,12 +9,12 @@ const {
   deleteSubstrateComponents,
   deleteSubstrate,
 } = require("../models/substrateModel");
-
 const {
   errorResponse,
   successResponse,
   notFoundResponse,
 } = require("../utils/responseUtils");
+const { ensureArray } = require("../utils/generalUtils");
 const { deleteImagesByEntity } = require("./imageController");
 
 // Centralized helper to fetch a single substrate
@@ -127,6 +126,8 @@ const addSubstrateComponents = async (req, res) => {
   const { components } = req.body;
   const { id } = req.params;
   try {
+    // Ensure components is an array
+    components = ensureArray(components);
     if (!components || !Array.isArray(components) || components.length === 0) {
       throw new Error("Components array is required.");
     }
@@ -155,9 +156,7 @@ const editSubstrateComponents = async (req, res) => {
 
   try {
     // Convert numeric-keyed object to array if needed
-    if (components && typeof components === 'object' && !Array.isArray(components)) {
-      components = Object.values(components);
-    }
+    components = ensureArray(components);
 
     if (!Array.isArray(components) || components.length === 0) {
       return errorResponse(res, "Components array is required.", 400);

@@ -15,6 +15,20 @@ const removeEmptyFields = (obj) => {
     }, {});
 };
 
+const ensureArray = (value) => {
+  if (Array.isArray(value)) {
+    return value;
+  } else if (value === null || value === undefined) {
+    return [];
+  } else if (typeof value === "object") {
+    return Object.values(value);
+  } else if (value instanceof Set || value instanceof Map) {
+    return Array.from(value);
+  } else {
+    return [value];
+  }
+};
+
 // Custom timestamp function
 const customTimestamp = (date = new Date()) => {
   const formatNumber = (num) => String(num).padStart(2, "0");
@@ -45,4 +59,9 @@ const formatToDBDate = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-module.exports = { removeEmptyFields, customTimestamp, formatToDBDate };
+module.exports = {
+  removeEmptyFields,
+  ensureArray,
+  customTimestamp,
+  formatToDBDate,
+};
