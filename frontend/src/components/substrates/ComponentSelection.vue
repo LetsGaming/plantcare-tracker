@@ -62,6 +62,7 @@ import {
   IonLabel,
 } from "@ionic/vue";
 import SearchBar from "@/components/SearchBar.vue";
+import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "ComponentSelection",
@@ -110,12 +111,7 @@ export default defineComponent({
     filteredComponents(): SubstrateComponent[] {
       let list = this.components;
 
-      if (this.searchQuery.trim() !== "") {
-        const q = this.searchQuery.toLowerCase();
-        list = list.filter((component) =>
-          component.name.toLowerCase().includes(q)
-        );
-      }
+      list = Utils.baseSearchFilter(this.searchQuery, list);
 
       if (this.showSelectedOnly) {
         list = list.filter((component) =>
@@ -159,6 +155,7 @@ export default defineComponent({
   align-items: center;
   gap: 8px;
   margin-top: 8px;
+  margin-left: 5px;
 }
 ion-label h3 {
   font-size: 18px;
