@@ -175,17 +175,8 @@ const editSubstrateComponents = async (req, res) => {
       return errorResponse(res, "Unauthorized to edit this substrate", 403);
     }
 
-    // Delete old components
-    await pool.query(
-      "DELETE FROM substrate_components WHERE substrate_id = ?",
-      [id]
-    );
-
     // Insert new components
     const updatePromises = components.map(({ componentId, parts }, idx) => {
-      console.log(
-        `Updating component #${idx} with componentId=${componentId}, parts=${parts}`
-      );
       const decimalParts = parseFloat(parts).toFixed(2);
       return updateSubstrateComponent(id, componentId, decimalParts);
     });
