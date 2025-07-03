@@ -158,10 +158,11 @@ const editSubstrateComponents = async (req, res) => {
   }
 
   // Normalize components: if it's an object with numeric keys, convert to array
-  const rawComponents = req.body.components;
-  const components = Array.isArray(rawComponents)
-    ? rawComponents
-    : Object.values(rawComponents);
+  const components = ensureArray(req.body.components);
+
+  if (!components || !Array.isArray(components) || components.length === 0) {
+    return errorResponse(res, "Components array is required.", 400);
+  }
 
   try {
     const substrate = await selectSubstrate(id);
@@ -181,18 +182,15 @@ const editSubstrateComponents = async (req, res) => {
     );
 
     // Insert new components
-    if (components.length > 0) {
-      const values = components.map((comp) => [
-        id,
-        comp.componentId,
-        comp.parts,
-      ]);
-
-      await pool.query(
-        "INSERT INTO substrate_components (substrate_id, component_id, parts) VALUES ?",
-        [values]
+    const updatePromises = components.map(({ componentId, parts }, idx) => {
+      console.log(
+        `Updating component #${idx} with componentId=${componentId}, parts=${parts}`
       );
-    }
+      const decimalParts = parseFloat(parts).toFixed(2);
+      return updateSubstrateComponent(id, componentId, decimalParts);
+    });
+
+    await Promise.all(updatePromises);
 
     successResponse(
       res,
