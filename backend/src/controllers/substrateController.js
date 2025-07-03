@@ -150,36 +150,58 @@ const addSubstrateComponents = async (req, res) => {
 
 // Controller for editing substrate components
 const editSubstrateComponents = async (req, res) => {
-  const { id } = req.params;
-  let { components } = req.body;
-  const userId = req.user ? req.user.id : null;
+  const id = parseInt(req.params.id, 10);
+  const userId = req.user.id;
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: "Invalid substrate ID" });
+  }
+
+  // Normalize components: if it's an object with numeric keys, convert to array
+  const rawComponents = req.body.components;
+  const components = Array.isArray(rawComponents)
+    ? rawComponents
+    : Object.values(rawComponents);
 
   try {
-    // Convert numeric-keyed object to array if needed
-    components = ensureArray(components);
+    const substrate = await selectSubstrate(id);
 
-    if (!Array.isArray(components) || components.length === 0) {
-      return errorResponse(res, "Components array is required.", 400);
+    if (!substrate) {
+      return notFoundResponse(res, "Substrate not found");
     }
 
-    const [substrate] = await selectSubstrate(id);
-    if (substrate.user_id != userId) {
-      return errorResponse(
-        res,
-        "Forbidden: You are not authorized to update components of this substrate.",
-        403
+    if (substrate.user_id !== userId) {
+      return errorResponse(res, "Unauthorized to edit this substrate", 403);
+    }
+
+    // Delete old components
+    await pool.query(
+      "DELETE FROM substrate_components WHERE substrate_id = ?",
+      [id]
+    );
+
+    // Insert new components
+    if (components.length > 0) {
+      const values = components.map((comp) => [
+        id,
+        comp.componentId,
+        comp.parts,
+      ]);
+
+      await pool.query(
+        "INSERT INTO substrate_components (substrate_id, component_id, parts) VALUES ?",
+        [values]
       );
     }
 
-    const updatePromises = components.map(({ componentId, parts }) => {
-      const decimalParts = parseFloat(parts).toFixed(2);
-      return updateSubstrateComponent(id, componentId, decimalParts);
-    });
-
-    await Promise.all(updatePromises);
-    successResponse(res, { updated: true }, "Substrate components updated");
-  } catch (err) {
-    errorResponse(res, "Error updating substrate components", 500, err);
+    successResponse(
+      res,
+      { updated: true },
+      "Substrate components updated successfully"
+    );
+  } catch (error) {
+    console.error("Caught error in editSubstrateComponents:", error);
+    errorResponse(res, "Error updating substrate components", 500, error);
   }
 };
 
