@@ -69,7 +69,7 @@ export default class CalendarService {
 
   static async getFirstDayOfWeek(): Promise<number> {
     const day = await storageService.get("first_day_of_week");
-    return typeof day === "number" ? day : 0;
+    return typeof day === "number" ? day : 1; // Default to Monday (1)
   }
 
   static async saveFirstDayOfWeek(day: number): Promise<void> {
