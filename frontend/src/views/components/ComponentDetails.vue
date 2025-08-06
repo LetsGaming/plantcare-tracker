@@ -13,7 +13,7 @@
           :banner-subtitle="component.fineness"
           :image-url="component.imageUrl"
         />
-        <div class="component-info">
+        <section class="component-info align-middle">
           <ion-card class="component-banner-content align-middle">
             <ion-card-header>
               <h2 class="component-name">{{ component.name }}</h2>
@@ -24,7 +24,7 @@
               </p>
             </ion-card-content>
           </ion-card>
-        </div>
+        </section>
       </div>
       <component-editing-modal
         v-if="component"

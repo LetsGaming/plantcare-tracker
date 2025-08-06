@@ -19,8 +19,8 @@
           <span v-else>Vor {{ daysAgo }} Tagen</span>
         </ion-card-title>
       </ion-card-header>
-      <ion-card-content>
-        <Calendar @update-date="onDateChange" />
+      <ion-card-content class="align-middle">
+        <Calendar @update-date="onDateChange" :dates="mappedRecords" />
         <ion-popover
           :is-open="showPopover"
           :event="popoverEvent"
@@ -28,14 +28,14 @@
         >
           <ion-content class="ion-padding">
             <div v-if="selectedRecord">
-              <ion-title class="record-header">
-                Wässerung am {{ selectedRecord.date }}
+              <ion-toolbar>
+                <ion-title class="record-header">Wässerung</ion-title>
                 <ion-icon
                   slot="end"
-                  name="close"
-                  @click="showEditingModal = true; showPopover = false"
-              />
-              </ion-title>
+                  :icon="create"
+                  @click="handleEditClick(selectedRecord.id)"
+                />
+              </ion-toolbar>
               <p><strong>Datum:</strong> {{ selectedRecord.date }}</p>
               <p>
                 <strong>Dünger genutzt:</strong>
@@ -77,10 +77,11 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
+  IonContent,
   IonIcon,
   IonPopover,
 } from "@ionic/vue";
-import { addCircle } from "ionicons/icons";
+import { addCircle, create } from "ionicons/icons";
 
 import Calendar from "@/components/calendar/Calendar.vue";
 import WateringAddingModal from "./WateringAddingModal.vue";
@@ -101,6 +102,7 @@ export default defineComponent({
     IonCardHeader,
     IonCardTitle,
     IonCardContent,
+    IonContent,
     IonIcon,
     IonPopover,
     WateringAddingModal,
@@ -124,12 +126,13 @@ export default defineComponent({
   setup() {
     return {
       addCircle,
+      create,
     };
   },
   data() {
     return {
       records: null as WateringRecord[] | null,
-      mappedRecords: [] as AccordionItem[],
+      mappedRecords: [] as CalendarDates[],
       editRecord: null as WateringRecord | null,
       daysAgo: 0,
       selectedDate: null as string | null,
@@ -147,14 +150,13 @@ export default defineComponent({
     await this.setRecords();
   },
   methods: {
-    onDateChange({ date, event }: { date: string; event: any }) {
-      this.selectedDate = date;
-
+    onDateChange({ date, event }: { date: string; event: Event }) {
+      const normalizedDate = new Date(date).toISOString().split("T")[0];
       const found = this.records?.find((record) => {
         const recordDate = new Date(record.date_millis)
           .toISOString()
           .split("T")[0];
-        return recordDate === date;
+        return recordDate === normalizedDate;
       });
 
       if (found) {
@@ -165,6 +167,11 @@ export default defineComponent({
         this.selectedRecord = null;
         this.showPopover = false;
       }
+      // If not found and same date selected again, show adding modal
+      if(! found && this.selectedDate === date) {
+        this.showAddingModal = true;
+      }
+      this.selectedDate = date;
     },
     async setRecords() {
       try {
@@ -179,13 +186,14 @@ export default defineComponent({
             new Date(this.records[0].date_millis).getTime()) /
             (1000 * 60 * 60 * 24)
         );
-        this.mappedRecords = this.mapWateringsToAccordion(this.records);
+        this.mappedRecords = this.mapWateringsToCalendar(this.records);
       } catch (error) {}
     },
-    async handleEditClick(item: AccordionItem) {
-      const record = this.records?.find((r) => r.id === item.id);
+    async handleEditClick(id: number) {
+      const record = this.records?.find((r) => r.id === id);
       if (!record) return;
       this.editRecord = record ?? null;
+      this.showPopover = false;
       this.showEditingModal = true;
     },
     async handleEdited() {
@@ -206,17 +214,18 @@ export default defineComponent({
         await this.setRecords();
       }
     },
-    mapWateringsToAccordion(records: WateringRecord[]) {
+    mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {
       return records.map((record) => {
+        const date = new Date(record.date_millis);
         return {
-          id: record.id,
-          name: record.date,
-          details: {
-            "Dünger genutzt": record.usedFertilizer ? "Ja" : "Nein",
-            ...(record.usedFertilizer && {
-              "Dünger Typ": record.fertilizerType ?? "",
-            }),
-          },
+          date: date.toISOString().split("T")[0],
+          title: `Wässerung am ${date.toLocaleDateString()}`,
+          description: record.usedFertilizer
+            ? `Dünger: ${record.fertilizerType}`
+            : "Kein Dünger verwendet",
+          category: "watering",
+          textColor: "#000000",
+          backgroundColor: "#b3e5fc",
         };
       });
     },
