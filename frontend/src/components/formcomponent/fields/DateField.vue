@@ -27,7 +27,7 @@ export default defineComponent({
     },
     modelValue: {
       type: Number,
-      default: "",
+      default: undefined,
     },
   },
   mounted() {
@@ -39,7 +39,7 @@ export default defineComponent({
     localValue: {
       get() {
         let value = this.modelValue;
-        return this.formatDateForInput(value);
+        return this.formatDateForInput(value !== undefined ? value : Date.now());
       },
       set(val: string) {
         // Convert the local input back to the user's local timezone

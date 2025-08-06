@@ -2,8 +2,8 @@
   <div>
     <ion-card>
       <ion-card-header>
-        <ion-toolbar>
-          <ion-title>{{ title }}</ion-title>
+        <ion-toolbar v-if="title || showSettingsButton">
+          <ion-title v-if="title">{{ title }}</ion-title>
           <ion-button
             v-if="showSettingsButton"
             slot="end"
@@ -58,16 +58,19 @@ export default defineComponent({
   props: {
     title: {
       type: String,
-      default: "Erinnerungen",
+      required: false,
     },
     showSettingsButton: {
       type: Boolean,
       default: false,
     },
+    dates: {
+      type: Array as () => CalendarDates[],
+      default: () => [],
+    },
   },
   data() {
     return {
-      dates: [] as CalendarDates[],
       selectedDate: "",
       firstDayOfWeek: 1,
     };
@@ -84,7 +87,7 @@ export default defineComponent({
     onDateChange(event: CustomEvent) {
       const date = event.detail.value;
       this.selectedDate = date;
-      this.$emit("update-date", date);
+      this.$emit("update-date", { date, event });
     },
   },
 });

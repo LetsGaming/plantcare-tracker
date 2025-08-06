@@ -16,7 +16,7 @@
           :image-url="substrate.imageUrl"
         />
 
-        <section class="substrate-info">
+        <section class="substrate-info align-middle">
           <SubstrateContainer :substrate="substrate"></SubstrateContainer>
         </section>
       </div>

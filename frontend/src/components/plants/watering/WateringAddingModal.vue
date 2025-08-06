@@ -39,6 +39,8 @@ import { close } from "ionicons/icons";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import WateringService from "@/services/WateringService";
 
+import Utils from "@/utils/utils";
+
 export default defineComponent({
   name: "WateringRecordsAdding",
   emits: ["close", "add-record"],
@@ -56,6 +58,7 @@ export default defineComponent({
   props: {
     isOpen: { type: Boolean, required: true },
     isLoading: { type: Boolean, required: true },
+    date: { type: String, required: false, default: undefined },
   },
   data() {
     return {
@@ -83,6 +86,9 @@ export default defineComponent({
       label: t.name,
       value: t.id,
     }));
+    if (this.date) {
+      this.record.date = Utils.convertToMillis(this.date);
+    }
   },
   computed: {
     formFields(): FormField[] {
