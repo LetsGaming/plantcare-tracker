@@ -9,7 +9,12 @@ export default class WateringMapper {
       date: Utils.convertDateString(watering.watering_date),
       date_millis: Utils.convertToMillis(watering.watering_date),
       usedFertilizer: watering.used_fertilizer,
-      fertilizerType: watering.fertilizer_type == null ? "Unbekannt" : watering.fertilizer_type === "organic" ? "Organisch" : "Mineralisch",
+      fertilizerType:
+        watering.fertilizer_type == null
+          ? "Unbekannt"
+          : watering.fertilizer_type === "organic"
+          ? "Organisch"
+          : "Mineralisch",
     };
   }
 
@@ -19,6 +24,21 @@ export default class WateringMapper {
       return response.map(this.mapWateringRecord);
     } else {
       return [this.mapWateringRecord(response)];
+    }
+  }
+
+  static mapFertilizerType(fertilizer: APIFertilizerType): FertilizerType {
+    return {
+      id: fertilizer.fertilizer_id,
+      name: fertilizer.fertilizer_name,
+    };
+  }
+
+  static convertToFertilizerTypes(response: any): FertilizerType[] {
+    if (Array.isArray(response)) {
+      return response.map(this.mapFertilizerType);
+    } else {
+      return [this.mapFertilizerType(response)];
     }
   }
 }

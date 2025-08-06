@@ -54,6 +54,7 @@ import {
 import PieChart from "@/components/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import AccordionList from "@/components/accordion/AccordionList.vue";
+import Utils from "@/utils/utils";
 
 export default defineComponent({
   components: {
@@ -106,10 +107,7 @@ export default defineComponent({
   methods: {
     // New filtering method using the search query
     filterComponents(query: string) {
-      const lowerQuery = query.toLowerCase();
-      const filtered = this.components.filter((component) =>
-        component.name.toLowerCase().includes(lowerQuery)
-      );
+      const filtered = Utils.baseSearchFilter(query, this.components);
       const sortedFiltered = filtered.sort((a, b) => {
         if (a.parts !== b.parts) {
           return a.parts - b.parts;

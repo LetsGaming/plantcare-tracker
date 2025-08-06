@@ -31,6 +31,6 @@ interface APIPlant {
   is_public: number;
   plant_created_at: string;
   image_url: string;
-  substrate: any;
+  substrate: APISubstrate;
   images: any[];
 }

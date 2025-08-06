@@ -1,105 +1,89 @@
 const pool = require("../config/db");
 const { selectEntityImages } = require("../utils/imageUtils");
 
-// Base query for selecting substrates with related components
+// Helper function to build the WHERE clause dynamically
+const buildWhereClause = (conditions, params) => {
+  const whereClauses = [];
+  if (conditions.user_id) {
+    whereClauses.push("substrates.user_id = ?");
+    params.push(conditions.user_id);
+  }
+  if (conditions.id) {
+    whereClauses.push("substrates.id = ?");
+    params.push(conditions.id);
+  }
+  if (conditions.is_public !== undefined) {
+    whereClauses.push("substrates.is_public = ?");
+    params.push(conditions.is_public);
+  }
+  return whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+};
+
+// Main query to fetch substrates and their components
 const selectSubstratesQuery = `
   SELECT 
     substrates.id AS substrate_id,
     substrates.name AS substrate_name,
-    substrates.image_url AS substrate_image_url,
     substrates.user_id AS substrate_user_id,
     substrates.is_public AS substrate_is_public,
     substrates.created_at AS substrate_created_at,
 
-    substrate_components.id AS substrate_component_id,
     substrate_components.substrate_id AS substrate_component_substrate_id,
     substrate_components.component_id AS substrate_component_component_id,
     substrate_components.parts AS substrate_component_parts,
 
     components.id AS component_id,
     components.name AS component_name,
-    components.fineness AS component_fineness
+    fineness_levels.name AS component_fineness_name
+
   FROM substrates
   LEFT JOIN substrate_components 
     ON substrates.id = substrate_components.substrate_id
   LEFT JOIN components 
     ON substrate_components.component_id = components.id
+  LEFT JOIN fineness_levels
+    ON components.fineness_id = fineness_levels.id
 `;
 
-// Function to select substrates with dynamic conditions
 const selectSubstrates = async (conditions = {}, params = []) => {
   // Default selectImages to true if it's not provided
-  if (conditions.selectImages === undefined) {
-    conditions.selectImages = true;
-  }
+  conditions.selectImages =
+    conditions.selectImages !== undefined ? conditions.selectImages : true;
 
-  const whereClauses = [];
-
-  if (conditions.user_id) {
-    whereClauses.push("substrates.user_id = ?");
-    params.push(conditions.user_id);
-  }
-  if (conditions.is_public !== undefined) {
-    whereClauses.push("substrates.is_public = ?");
-    params.push(conditions.is_public);
-  }
-  if (conditions.id) {
-    whereClauses.push("substrates.id = ?");
-    params.push(conditions.id);
-  }
-
-  const whereSQL = whereClauses.length
-    ? `WHERE ${whereClauses.join(" AND ")}`
-    : "";
+  const whereSQL = buildWhereClause(conditions, params);
   const query = `${selectSubstratesQuery} ${whereSQL}`;
 
   // Fetch rows from the database
   const [rows] = await pool.query(query, params);
 
   // Group substrates by substrate_id
-  const substratesMap = new Map();
+  const substrateMap = new Map();
   for (const row of rows) {
-    const {
-      substrate_id,
-      substrate_name,
-      substrate_image_url,
-      substrate_user_id,
-      substrate_is_public,
-      substrate_created_at,
-      component_id,
-      component_name,
-      component_fineness,
-      substrate_component_parts,
-    } = row;
+    const substrate = substrateMap.get(row.substrate_id) || {
+      substrate_id: row.substrate_id,
+      substrate_name: row.substrate_name,
+      user_id: row.substrate_user_id,
+      is_public: row.substrate_is_public,
+      created_at: row.substrate_created_at,
+      components: [],
+    };
 
-    if (!substratesMap.has(substrate_id)) {
-      substratesMap.set(substrate_id, {
-        substrate_id,
-        substrate_name,
-        image_url: substrate_image_url,
-        user_id: substrate_user_id,
-        is_public: substrate_is_public,
-        created_at: substrate_created_at,
-        components: [],
-      });
-    }
-    const substrate = substratesMap.get(substrate_id);
-
-    if (component_id) {
+    if (row.component_id) {
       substrate.components.push({
-        component_id,
-        component_name,
-        component_fineness,
-        parts: substrate_component_parts,
+        component_id: row.component_id,
+        component_name: row.component_name,
+        component_fineness: row.component_fineness_name,
+        parts: row.substrate_component_parts,
       });
     }
+
+    substrateMap.set(row.substrate_id, substrate);
   }
 
-  const substrates = Array.from(substratesMap.values());
+  const substrates = Array.from(substrateMap.values());
 
-  // Always fetch images if selectImages is true
+  // Fetch images concurrently if selectImages is true
   if (conditions.selectImages) {
-    // For each substrate, fetch images concurrently
     await Promise.all(
       substrates.map(async (substrate) => {
         const { latestImage, images } = await selectEntityImages(
@@ -115,9 +99,19 @@ const selectSubstrates = async (conditions = {}, params = []) => {
   return substrates;
 };
 
+// Helper function to execute insert queries
+const insertEntity = async (query, params) => {
+  return await pool.query(query, params);
+};
+
 // Wrapper for selecting a single substrate by ID
-const selectSubstrate = (id, selectImages = true) =>
-  selectSubstrates({ id, selectImages });
+const selectSubstrate = async (id, selectImages = true) => {
+  const subs = await selectSubstrates({ id, selectImages });
+  if (subs && subs.length > 0) {
+    return subs[0]; // Return the first (and only) substrate
+  }
+  return null;
+};
 
 // Wrapper for selecting public substrates
 const selectPublicSubstrates = () => selectSubstrates({ is_public: true });
@@ -126,40 +120,60 @@ const selectPublicSubstrates = () => selectSubstrates({ is_public: true });
 const selectPrivateSubstrates = (user_id) => selectSubstrates({ user_id });
 
 // Insert a substrate
-const insertSubstrate = (name, user_id, image_url = null, is_public = false) =>
-  pool.query(
-    "INSERT INTO substrates (name, user_id, image_url, is_public) VALUES (?, ?, ?, ?)",
-    [name, user_id, image_url, is_public]
+const insertSubstrate = (name, user_id, is_public = false) =>
+  insertEntity(
+    "INSERT INTO substrates (name, user_id, is_public) VALUES (?, ?, ?)",
+    [name, user_id, is_public]
   );
 
 // Insert a substrate component
 const insertSubstrateComponent = (substrate_id, component_id, parts) =>
-  pool.query(
+  insertEntity(
     "INSERT INTO substrate_components (substrate_id, component_id, parts) VALUES (?, ?, ?)",
     [substrate_id, component_id, parts]
   );
 
+// Helper function to execute update queries
+const updateEntity = async (query, params) => {
+  return await pool.query(query, params);
+};
+
 // Update a substrate
-const updateSubstrate = (
-  id,
-  name,
-  user_id,
-  image_url = null,
-  is_public = false
-) =>
-  pool.query(
-    "UPDATE substrates SET name = ?, image_url = ?, is_public = ? WHERE id = ? AND user_id = ?",
-    [name, image_url, is_public, id, user_id]
-  );
+const updateSubstrate = (id, user_id, name, is_public) => {
+  const updates = [];
+  const params = [];
+
+  // Dynamically add fields to the update statement
+  if (name !== undefined) {
+    updates.push("name = ?");
+    params.push(name);
+  }
+  if (is_public !== undefined) {
+    updates.push("is_public = ?");
+    params.push(is_public);
+  }
+
+  // Only proceed if there's something to update
+  if (updates.length > 0) {
+    params.push(id, user_id);
+
+    const query = `UPDATE substrates SET ${updates.join(
+      ", "
+    )} WHERE id = ? AND user_id = ?`;
+
+    return updateEntity(query, params);
+  }
+
+  // If no fields to update, return early or handle as needed
+  return Promise.reject("No fields to update");
+};
 
 // Update a substrate component
 const updateSubstrateComponent = (substrate_id, component_id, parts) =>
-  pool.query(
-    `
-      INSERT INTO substrate_components (substrate_id, component_id, parts)
+  insertEntity(
+    ` INSERT INTO substrate_components (substrate_id, component_id, parts)
       VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE parts = ?
-    `,
+      ON DUPLICATE KEY UPDATE parts = ?`,
     [substrate_id, component_id, parts, parts]
   );
 
@@ -172,9 +186,10 @@ const deleteSubstrateComponents = (substrate_id, componentIds) => {
   );
 };
 
+// Delete substrate
 const deleteSubstrate = async (id, user_id) => {
   const query = "DELETE FROM substrates WHERE id = ? AND user_id = ?";
-  return pool.query(query, [id, user_id]);
+  return await pool.query(query, [id, user_id]);
 };
 
 module.exports = {

@@ -27,7 +27,6 @@ interface AddSubstrateComponents {
 interface EditSubstrateComponent extends BaseSubstrateComponent {}
 
 interface EditSubstrate extends AddSubstrate {
-  components?: EditSubstrateComponent[];
 }
 
 interface APISubstrate {

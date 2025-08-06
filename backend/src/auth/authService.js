@@ -3,11 +3,12 @@ const pool = require("../config/db"); // Assuming you're using a database connec
 const logger = require("../utils/logger");
 
 // Find user by username
-const findUserByUsername = async (username) => {
+const selectUserByUsername = async (username) => {
   try {
-    const [users] = await pool.query("SELECT * FROM users WHERE username = ?", [
-      username,
-    ]);
+    const [users] = await pool.query(
+      "SELECT users.id, username, password, roles.name AS role FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE username = ?",
+      [username]
+    );
     if (users.length > 0) {
       return users[0]; // Return the first user found
     }
@@ -17,6 +18,19 @@ const findUserByUsername = async (username) => {
       `Error finding user by username '${username}': ${error.message}`
     );
     throw new Error("Error finding user");
+  }
+};
+
+const selectRoles = async () => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM roles");
+    return rows.map((row) => ({
+      role_id: row.id,
+      role_name: row.name,
+    }));
+  } catch (error) {
+    logger.error(`Error fetching roles: ${error.message}`);
+    throw new Error("Error fetching roles");
   }
 };
 
@@ -84,9 +98,10 @@ const deleteUser = async (userId) => {
 };
 
 module.exports = {
-  findUserByUsername,
+  selectUserByUsername,
+  selectRoles,
   createUser,
   comparePasswords,
   updateUserProfile,
-  deleteUser
+  deleteUser,
 };

@@ -39,7 +39,7 @@ const register = async (req, res) => {
   }
 
   try {
-    const userExists = await authService.findUserByUsername(username);
+    const userExists = await authService.selectUserByUsername(username);
     if (userExists) {
       return errorResponse(res, "Username already exists", 409);
     }
@@ -68,7 +68,7 @@ const login = async (req, res) => {
   }
 
   try {
-    const user = await authService.findUserByUsername(username);
+    const user = await authService.selectUserByUsername(username);
     if (
       !user ||
       !(await authService.comparePasswords(password, user.password))
@@ -99,7 +99,7 @@ const login = async (req, res) => {
 
 const guestLogin = async (req, res) => {
   try {
-    const guestUser = await authService.findUserByUsername("guest");
+    const guestUser = await authService.selectUserByUsername("guest");
 
     if (!guestUser) {
       return errorResponse(res, "Guest user not found", 404);

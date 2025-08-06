@@ -137,6 +137,7 @@ export default defineComponent({
         );
         if (response) {
           this.isLoading = false;
+          this.resetPlant();
           this.$emit("edited");
         }
       } catch (error) {
@@ -150,6 +151,7 @@ export default defineComponent({
         const response = await PlantService.deletePlant(this.plant.id);
         if (response) {
           this.isLoading = false;
+          this.resetPlant();
           this.$emit("close");
           await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
         }
@@ -157,6 +159,15 @@ export default defineComponent({
         console.error("Error:", error);
         ToastService.showError("Error while deleting the plant");
       }
+    },
+    resetPlant() {
+      this.editPlantData = {
+        name: "",
+        species: "",
+        substrateId: 0,
+        isPublic: false,
+      };
+      this.isLoading = false;
     },
   },
 });

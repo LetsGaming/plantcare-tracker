@@ -1,4 +1,5 @@
 const {
+  selectFertilizerTypes,
   selectWateringRecord,
   selectWateringRecordsForPlant,
   insertWateringRecord,
@@ -13,6 +14,18 @@ const {
   notFoundResponse,
 } = require("../utils/responseUtils");
 
+const getFertilizerTypes = async (req, res) => {
+  try {
+    const fertilizerTypes = await selectFertilizerTypes();
+    if (fertilizerTypes.length === 0) {
+      return notFoundResponse(res, "No fertilizer types found");
+    }
+    successResponse(res, fertilizerTypes);
+  } catch (err) {
+    errorResponse(res, "Error fetching fertilizer types", 500, err);
+  }
+};
+
 // Centralized fetch logic for watering records
 const getWateringRecord = async (res, selectFn, id, userId = null) => {
   try {
@@ -22,7 +35,7 @@ const getWateringRecord = async (res, selectFn, id, userId = null) => {
     }
     successResponse(res, records);
   } catch (err) {
-    errorResponse(res, err, 500, "Error fetching watering record(s)");
+    errorResponse(res, "Error fetching watering record(s)", 500, err);
   }
 };
 
@@ -42,7 +55,11 @@ const getSpecificWateringRecord = async (req, res) => {
 // Controller to add a new watering record
 const addWateringRecord = async (req, res) => {
   const { plantId } = req.params;
-  const { date = new Date().getTime(), usedFertilizer, fertilizerType } = req.body;
+  const {
+    date = new Date().getTime(),
+    usedFertilizer,
+    fertilizerTypeId,
+  } = req.body;
   const userId = req.user ? req.user.id : null;
 
   const parsedDate = formatToDBDate(date);
@@ -51,7 +68,7 @@ const addWateringRecord = async (req, res) => {
       plantId,
       parsedDate,
       usedFertilizer,
-      fertilizerType,
+      fertilizerTypeId,
       userId
     );
 
@@ -80,7 +97,7 @@ const addWateringRecord = async (req, res) => {
 // Controller to update an existing watering record
 const editWateringRecord = async (req, res) => {
   const { id } = req.params;
-  const { date, usedFertilizer, fertilizerType } = req.body;
+  const { date, usedFertilizer, fertilizerTypeId } = req.body;
   const userId = req.user ? req.user.id : null;
   let parsedDate;
   try {
@@ -89,7 +106,7 @@ const editWateringRecord = async (req, res) => {
     return errorResponse(res, err, 400);
   }
   try {
-    if (!date && usedFertilizer === undefined && !fertilizerType) {
+    if (!date && usedFertilizer === undefined && !fertilizerTypeId) {
       return errorResponse(
         res,
         "At least one field must be provided for update",
@@ -97,10 +114,14 @@ const editWateringRecord = async (req, res) => {
       );
     }
 
+    if (typeof fertilizerTypeId !== "number" && fertilizerTypeId !== null) {
+      return errorResponse(res, "Fertilizer type ID must be a number", 400);
+    }
+
     const result = await updateWateringRecord(id, userId, {
       date: parsedDate,
       usedFertilizer,
-      fertilizerType,
+      fertilizerTypeId,
     });
 
     if (result.affectedRows === 0) {
@@ -147,6 +168,7 @@ const deleteSpecificWateringRecord = async (req, res) => {
 };
 
 module.exports = {
+  getFertilizerTypes,
   getWateringRecordsForPlant,
   getSpecificWateringRecord,
   addWateringRecord,

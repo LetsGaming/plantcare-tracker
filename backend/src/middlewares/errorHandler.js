@@ -6,7 +6,8 @@ const { errorResponse } = require("../utils/responseUtils");
  * Middleware for handling 404 (Not Found) errors.
  */
 const notFoundHandler = (req, res, next) => {
-  return errorResponse(res, "Not Found", 404);
+  const route = req.originalUrl;
+  return errorResponse(res, `Route ${route} not found`, 404);
 };
 
 /**

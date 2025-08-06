@@ -25,7 +25,7 @@ export default defineComponent({
   emits: ["close", "added"],
   data() {
     return {
-      component: { name: "", fineness: "", image: undefined } as AddComponent,
+      component: { name: "", fineness: -1, image: undefined } as AddComponent,
       isLoading: false,
     };
   },
@@ -34,9 +34,15 @@ export default defineComponent({
       return [
         { type: "input", modelKey: "name", label: "Name", required: true },
         {
-          type: "input",
+          type: "select",
           modelKey: "fineness",
           label: "Feinheit",
+          placeholder: "Feinheit auswählen",
+          options: [
+            { value: "1", label: "Grob" },
+            { value: "2", label: "Mittel" },
+            { value: "3", label: "Fein" },
+          ],
           required: true,
         },
         { type: "file", modelKey: "image", label: "Bild hochladen" },
@@ -46,7 +52,7 @@ export default defineComponent({
   methods: {
     async addComponent(componentData: AddComponent) {
       try {
-        if (!componentData.name || !componentData.fineness) {
+        if (!componentData.name || !componentData.fineness || componentData.fineness < 0) {
           ToastService.showError(
             "Bitte füllen Sie alle erforderlichen Felder aus."
           );
@@ -80,7 +86,7 @@ export default defineComponent({
       }
     },
     clearComponentData() {
-      this.component = { name: "", fineness: "", image: undefined };
+      this.component = { name: "", fineness: -1, image: undefined };
     },
   },
 });
