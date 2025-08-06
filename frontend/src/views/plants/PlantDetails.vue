@@ -49,6 +49,7 @@
         v-if="enlargedImage"
         :is-open="showImageEditModal"
         :image="enlargedImage"
+        entity-type="plant"
         @close="showImageEditModal = false"
         @edited="handleImageEdited"
 

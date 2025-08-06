@@ -131,6 +131,9 @@ export default defineComponent({
       );
     },
   },
+  async mounted() {
+    await this.fetchAvailableComponents();
+  },
   methods: {
     async fetchAvailableComponents() {
       try {
@@ -197,6 +200,7 @@ export default defineComponent({
           } else {
             await this.imageUpload(substrateId, this.substrate.image);
           }
+          this.resetSubstrate();
         }
       } catch (error) {
         this.isLoading = false;
@@ -223,9 +227,16 @@ export default defineComponent({
         ToastService.showError("Fehler beim Hochladen des Bildes");
       }
     },
-  },
-  async mounted() {
-    await this.fetchAvailableComponents();
+    resetSubstrate() {
+      this.substrate = {
+        name: "",
+        image: undefined,
+        isPublic: false,
+      };
+      this.selectedComponentIds = [];
+      this.componentParts = {};
+      this.step = 1;
+    },
   },
 });
 </script>

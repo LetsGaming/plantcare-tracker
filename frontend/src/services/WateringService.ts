@@ -6,6 +6,7 @@ import Utils from "@/utils/utils";
 
 const BASE_ENDPOINT = "/watering";
 const CACHE_KEY_WATERING_RECORDS = "watering_records_data";
+const CACHE_KEY_FERTILIZER_TYPES = "fertilizer_types_data";
 
 // Helper function to get all cached watering records
 async function getCachedWateringRecords() {
@@ -70,6 +71,30 @@ export default class WateringService {
 
   static async invalidateWateringCache() {
     await storageService.remove(CACHE_KEY_WATERING_RECORDS);
+  }
+
+  static async getFertilizerTypes(): Promise<FertilizerType[]> {
+    const cachedData = await storageService.get<{
+      fertilizerTypes: FertilizerType[];
+      timestamp: number;
+    }>(CACHE_KEY_FERTILIZER_TYPES);
+
+    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
+      return cachedData.fertilizerTypes;
+    }
+
+    try {
+      const response = await ApiUtils.get(`${BASE_ENDPOINT}/fertilizer-types`);
+      const fertilizerTypes = WateringMapper.convertToFertilizerTypes(response);
+      await storageService.set(CACHE_KEY_FERTILIZER_TYPES, {
+        fertilizerTypes,
+        timestamp: Date.now(),
+      });
+      return fertilizerTypes;
+    } catch (error) {
+      ToastService.showError(`Error fetching fertilizer types: ${error}`);
+      throw error;
+    }
   }
 
   // Fetch records for a specific plant

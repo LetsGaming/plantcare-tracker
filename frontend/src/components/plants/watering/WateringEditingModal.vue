@@ -4,24 +4,7 @@
     <IonContent>
       <form-component
         :item="editWateringRecord"
-        :formFields="[
-          {
-            label: 'Datum',
-            type: 'date',
-            modelKey: 'date',
-          },
-          {
-            type: 'radio',
-            modelKey: 'fertilizerType',
-            label: 'Düngertyp',
-            options: [
-              { value: 'organic', label: 'Organisch' },
-              { value: 'synthetic', label: 'Mineralisch' },
-              { value: 'none', label: 'Kein Dünger' },
-            ],
-            defaultValue: editWateringRecord.fertilizerType || 'none',
-          },
-        ]"
+        :formFields="formFields"
         cardTitle="Wässerungsinformationen"
         submitLabel="Wässerung editieren"
         :is-loading="isLoading"
@@ -44,50 +27,58 @@ export default defineComponent({
   emits: ["close", "edited"],
   components: { IonModal, IonContent, ModalHeader, FormComponent },
   props: {
-    isOpen: {
-      type: Boolean,
-      required: true,
-    },
-    record: {
-      type: Object as PropType<WateringRecord>,
-      required: true,
-    },
-    plantId: {
-      type: Number,
-      required: true,
-    },
+    isOpen: { type: Boolean, required: true },
+    record: { type: Object as PropType<WateringRecord>, required: true },
+    plantId: { type: Number, required: true },
   },
   data() {
     return {
       editWateringRecord: {
         date: undefined,
         usedFertilizer: false,
-        fertilizerType: null,
+        fertilizerTypeId: undefined,
       } as EditWateringRecord,
       isLoading: false,
+      fertilizerOptions: [] as { label: string; value: number }[],
     };
   },
-  mounted() {
+  async mounted() {
+    const types = await WateringService.getFertilizerTypes();
+    this.fertilizerOptions = types.map((t) => ({
+      label: t.name,
+      value: t.id,
+    }));
+
+    const fertilizerTypeId = types.find(
+      (t) => t.name === this.record.fertilizerType
+    )?.id;
     this.editWateringRecord = {
       date: this.record.date_millis,
       usedFertilizer: this.record.usedFertilizer,
-      fertilizerType: this.mapFertilizerType(this.record.fertilizerType || ""),
+      fertilizerTypeId: fertilizerTypeId || undefined,
     };
   },
-  methods: {
-    mapFertilizerType(type: string): EditWateringRecord["fertilizerType"] {
-      switch (type) {
-        case "Organisch":
-          return "organic";
-        case "Mineralisch":
-          return "synthetic";
-        default:
-          return null;
-      }
+  computed: {
+    formFields(): FormField[] {
+      return [
+        { label: "Datum", type: "date" as const, modelKey: "date" },
+        {
+          type: "radio" as const,
+          modelKey: "fertilizerTypeId",
+          label: "Düngertyp",
+          options: [
+            ...this.fertilizerOptions,
+            { value: "none", label: "Kein Dünger" },
+          ],
+          defaultValue: this.editWateringRecord.fertilizerTypeId || "none",
+        },
+      ];
     },
+  },
+  methods: {
     async editRecord() {
-      if (this.editWateringRecord.fertilizerType === "none") {
-        this.editWateringRecord.fertilizerType = null;
+      if (String(this.editWateringRecord.fertilizerTypeId) === "none") {
+        this.editWateringRecord.fertilizerTypeId = undefined;
         this.editWateringRecord.usedFertilizer = false;
       } else {
         this.editWateringRecord.usedFertilizer = true;
@@ -115,7 +106,7 @@ export default defineComponent({
       if (response) {
         this.isLoading = false;
         this.$emit("close");
-        await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
+        await this.$router.push({ name: "plant-overview" });
       }
     },
   },

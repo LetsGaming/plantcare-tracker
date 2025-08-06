@@ -1,4 +1,3 @@
-const { add } = require("winston");
 const {
   selectPrivateSubstrates,
   selectPublicSubstrates,
@@ -10,12 +9,12 @@ const {
   deleteSubstrateComponents,
   deleteSubstrate,
 } = require("../models/substrateModel");
-
 const {
   errorResponse,
   successResponse,
   notFoundResponse,
 } = require("../utils/responseUtils");
+const { ensureArray } = require("../utils/generalUtils");
 const { deleteImagesByEntity } = require("./imageController");
 
 // Centralized helper to fetch a single substrate
@@ -68,16 +67,11 @@ const getSpecificSubstrate = async (req, res) => {
 
 // Controller for adding a new substrate
 const addSubstrate = async (req, res) => {
-  const { name, image_url, isPublic } = req.body;
+  const { name, isPublic } = req.body;
   const userId = req.user ? req.user.id : null;
   try {
     validateSubstrateData(name);
-    const [result] = await insertSubstrate(
-      name,
-      userId,
-      image_url || null,
-      isPublic || false
-    );
+    const [result] = await insertSubstrate(name, userId, isPublic || false);
     successResponse(
       res,
       { substrateId: result.insertId },
@@ -93,12 +87,11 @@ const addSubstrate = async (req, res) => {
 // Controller for updating a substrate
 const editSubstrate = async (req, res) => {
   const { id } = req.params;
-  const { name, image_url, isPublic, removedComponents } = req.body;
+  const { name, isPublic, removedComponents } = req.body;
   const userId = req.user ? req.user.id : null;
   try {
     if (
       !name &&
-      !image_url &&
       isPublic === undefined &&
       (!removedComponents || removedComponents.length === 0)
     ) {
@@ -110,13 +103,7 @@ const editSubstrate = async (req, res) => {
     }
     // Update primary substrate data if provided
     if (name || image_url || isPublic !== undefined) {
-      const result = await updateSubstrate(
-        id,
-        name,
-        userId,
-        image_url || null,
-        isPublic
-      );
+      const result = await updateSubstrate(id, userId, name, isPublic);
       if (result.affectedRows === 0) {
         return errorResponse(
           res,
@@ -136,9 +123,10 @@ const editSubstrate = async (req, res) => {
 
 // Controller for adding substrate components
 const addSubstrateComponents = async (req, res) => {
-  const { components } = req.body;
   const { id } = req.params;
   try {
+    // Ensure components is an array
+    components = ensureArray(req.body.components);
     if (!components || !Array.isArray(components) || components.length === 0) {
       throw new Error("Components array is required.");
     }
@@ -161,29 +149,47 @@ const addSubstrateComponents = async (req, res) => {
 
 // Controller for editing substrate components
 const editSubstrateComponents = async (req, res) => {
-  const { id } = req.params;
-  const { components } = req.body;
-  const userId = req.user ? req.user.id : null;
+  const id = parseInt(req.params.id, 10);
+  const userId = req.user.id;
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: "Invalid substrate ID" });
+  }
+
+  // Normalize components: if it's an object with numeric keys, convert to array
+  const components = ensureArray(req.body.components);
+
+  if (!components || !Array.isArray(components) || components.length === 0) {
+    return errorResponse(res, "Components array is required.", 400);
+  }
+
   try {
-    if (!components || !Array.isArray(components) || components.length === 0) {
-      throw new Error("Components array is required.");
+    const substrate = await selectSubstrate(id);
+
+    if (!substrate) {
+      return notFoundResponse(res, "Substrate not found");
     }
-    const [substrate] = await selectSubstrate(id);
-    if (substrate.user_id != userId) {
-      return errorResponse(
-        res,
-        "Forbidden: You are not authorized to update components of this substrate.",
-        403
-      );
+
+    if (substrate.user_id !== userId) {
+      return errorResponse(res, "Unauthorized to edit this substrate", 403);
     }
-    const updatePromises = components.map(({ componentId, parts }) => {
+
+    // Insert new components
+    const updatePromises = components.map(({ componentId, parts }, idx) => {
       const decimalParts = parseFloat(parts).toFixed(2);
       return updateSubstrateComponent(id, componentId, decimalParts);
     });
+
     await Promise.all(updatePromises);
-    successResponse(res, { updated: true }, "Substrate components updated");
-  } catch (err) {
-    errorResponse(res, err);
+
+    successResponse(
+      res,
+      { updated: true },
+      "Substrate components updated successfully"
+    );
+  } catch (error) {
+    console.error("Caught error in editSubstrateComponents:", error);
+    errorResponse(res, "Error updating substrate components", 500, error);
   }
 };
 

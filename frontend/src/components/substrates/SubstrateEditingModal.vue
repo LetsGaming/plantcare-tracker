@@ -197,38 +197,105 @@ export default defineComponent({
         return;
       }
 
-      // Determine which components have been removed
-      const removedComponents = this.originalComponentIds.filter(
-        (id) => !this.selectedComponentIds.includes(id)
-      );
+      // Detect changes in substrate metadata
+      const metaChanged =
+        this.editSubstrateData.name !== this.substrate.name ||
+        this.editSubstrateData.isPublic !== this.substrate.isPublic ||
+        !!this.editSubstrateData.image;
 
-      const substrateData = {
-        name: this.editSubstrateData.name,
-        components: this.selectedComponentIds.map((id) => ({
-          componentId: id,
-          parts: this.componentParts[id] || 1,
-        })),
-        isPublic: this.editSubstrateData.isPublic,
-        image: this.editSubstrateData.image || undefined,
-      };
+      // Detect changes in components
+      const componentsChanged =
+        // Check if selected component ids differ from original ones (by length or content)
+        this.selectedComponentIds.length !== this.originalComponentIds.length ||
+        this.selectedComponentIds.some(
+          (id) => !this.originalComponentIds.includes(id)
+        ) ||
+        this.originalComponentIds.some(
+          (id) => !this.selectedComponentIds.includes(id)
+        ) ||
+        // Check if parts changed for any component
+        this.selectedComponentIds.some((id) => {
+          const originalComponent = this.substrate.components.find(
+            (c) => c.id === id
+          );
+          return (
+            !originalComponent ||
+            this.componentParts[id] !== originalComponent.parts
+          );
+        });
+
+      if (!metaChanged && !componentsChanged) {
+        // Nothing changed, just return early
+        ToastService.showWarning("Keine Änderungen vorgenommen.");
+        return;
+      }
+
+      this.isLoading = true;
 
       try {
-        this.isLoading = true;
-        const response = await SubstrateService.editSubstrate(
-          this.substrate.id,
-          substrateData,
-          removedComponents
-        );
-        if (response) {
-          this.isLoading = false;
+        if (componentsChanged && !metaChanged) {
+          const components = this.selectedComponentIds.map((id) => ({
+            componentId: id,
+            parts: this.componentParts[id] || 1,
+          })) as EditSubstrateComponent[];
+          // Only components changed
+          await SubstrateService.editSubstrateComponents(
+            this.substrate.id,
+            components
+          );
+          ToastService.showSuccess("Komponenten erfolgreich aktualisiert");
+        } else if (!componentsChanged && metaChanged) {
+          // Only meta changed
+          const removedComponents = this.originalComponentIds.filter(
+            (id) => !this.selectedComponentIds.includes(id)
+          );
+          const substrateData = {
+            name: this.editSubstrateData.name,
+            isPublic: this.editSubstrateData.isPublic || undefined,
+            image: this.editSubstrateData.image || undefined,
+          };
+          await SubstrateService.editSubstrate(
+            this.substrate.id,
+            substrateData,
+            removedComponents
+          );
           ToastService.showSuccess("Substrat erfolgreich aktualisiert");
-          this.$emit("close");
-          this.$router.push({ name: "substrate-overview" });
+        } else {
+          // Both changed: do components update first (priority), then substrate update
+          await SubstrateService.editSubstrateComponents(
+            this.substrate.id,
+            this.selectedComponentIds.map((id) => ({
+              componentId: id,
+              parts: this.componentParts[id] || 1,
+            }))
+          );
+          const removedComponents = this.originalComponentIds.filter(
+            (id) => !this.selectedComponentIds.includes(id)
+          );
+          const substrateData = {
+            name: this.editSubstrateData.name,
+            isPublic: this.editSubstrateData.isPublic || undefined,
+            image: this.editSubstrateData.image || undefined,
+          };
+          await SubstrateService.editSubstrate(
+            this.substrate.id,
+            substrateData,
+            removedComponents
+          );
+          ToastService.showSuccess(
+            "Substrat und Komponenten erfolgreich aktualisiert"
+          );
         }
+
+        this.resetSubstrate();
+
+        this.$emit("close");
+        this.$router.push({ name: "substrate-overview" });
       } catch (error) {
-        this.isLoading = false;
-        console.error("Error editing substrate:", error);
+        console.error("Error editing substrate or components:", error);
         ToastService.showError("Fehler beim Aktualisieren des Substrats");
+      } finally {
+        this.isLoading = false;
       }
     },
     async deleteSubstrate() {
@@ -240,6 +307,7 @@ export default defineComponent({
         if (response) {
           this.isLoading = false;
           ToastService.showSuccess("Substrat erfolgreich gelöscht");
+          this.resetSubstrate();
           this.$emit("close");
           this.$router.push({ name: "substrate-overview" });
         }
@@ -248,6 +316,16 @@ export default defineComponent({
         console.error("Error deleting substrate:", error);
         ToastService.showError("Fehler beim Löschen des Substrats");
       }
+    },
+    resetSubstrate() {
+      this.editSubstrateData = {
+        name: "",
+        isPublic: false,
+        image: null,
+      };
+      this.selectedComponentIds = [];
+      this.componentParts = {};
+      this.step = 1;
     },
   },
 });

@@ -52,6 +52,37 @@ const Utils = {
     return localDate.toLocal().toMillis();
   },
 
+  /**
+   * Filters an array of objects based on a search query.
+   * The function checks if any string value in the object contains the query string (case-insensitive).
+   * @param {string} query - The search query.
+   * @param {any[]} toFilter - The array of objects to filter.
+   * @returns {any[]} - The filtered array of objects.
+   */
+  baseSearchFilter(query: string, toFilter: any[]): any[] {
+    if (!query || !toFilter || toFilter.length === 0) {
+      return toFilter;
+    }
+
+    if(query.trim() === "") {
+      return toFilter; // Return original array if query is empty
+    }
+
+    const lowerQuery = query.toLowerCase();
+    return toFilter.filter((item) => {
+      return Object.values(item).some(
+        (value) =>
+          typeof value === "string" && value.toLowerCase().includes(lowerQuery)
+      );
+    });
+  },
+
+  /**
+   * Converts a date string to a formatted string in the local time zone.
+   * If the date string is not in ISO format, it returns the original string.
+   * @param {string} dateString - The date string to convert.
+   * @returns {string} - The formatted date string or the original string if not in ISO format.
+   */
   convertDateString(dateString: string) {
     // Check if the dateString is already formatted (basic check)
     if (

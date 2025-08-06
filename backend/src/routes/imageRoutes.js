@@ -49,11 +49,15 @@ async function extractImageDate(fileBuffer) {
     const exifData = parser.parse();
     if (!exifData || !exifData.tags) return defaultDate;
 
-    let extractedDate = exifData.tags.DateTimeOriginal || exifData.tags.CreateDate;
+    let extractedDate =
+      exifData.tags.DateTimeOriginal || exifData.tags.CreateDate;
     if (!extractedDate) return defaultDate;
 
     // Handle Unix timestamp (seconds) case
-    if (typeof extractedDate === "number" && String(extractedDate).length === 10) {
+    if (
+      typeof extractedDate === "number" &&
+      String(extractedDate).length === 10
+    ) {
       extractedDate = new Date(extractedDate * 1000);
       const offset = extractedDate.getTimezoneOffset() * 60000;
       extractedDate = new Date(extractedDate.getTime() + offset);
@@ -70,32 +74,36 @@ async function extractImageDate(fileBuffer) {
   }
 }
 
-router.post(
-  "/:entityType/:entityId",
-  authenticateToken,
-  upload.single("image"),
-  async (req, res, next) => {
+const NAS_PATH =
+  process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
+
+const processAndStoreImage = (options = { requireEntityType: false }) => {
+  return async (req, res, next) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded." });
       }
 
-      const NAS_PATH =
-        process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
-      if (!fs.existsSync(NAS_PATH)) {
-        fs.mkdirSync(NAS_PATH, { recursive: true });
+      const entityType = req.params.entityType || "generic";
+      const uploadPath = options.requireEntityType
+        ? path.join(NAS_PATH, entityType)
+        : NAS_PATH;
+
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
       }
 
-      const uniqueFilename = `${Date.now()}-${
-        path.parse(req.file.originalname).name
-      }.webp`;
-      const outputPath = path.join(NAS_PATH, uniqueFilename);
+      const originalName = path.parse(req.file.originalname).name;
+      const uniqueFilename = `${Date.now()}-${originalName}.webp`;
+      const outputPath = path.join(uploadPath, uniqueFilename);
 
       const imageBuffer = req.file.buffer;
       const extractedDate = await extractImageDate(imageBuffer);
       if (extractedDate) {
         req.body.date = extractedDate.getTime();
       }
+
       await sharp(imageBuffer)
         .resize({ width: 1024 })
         .toFormat("webp")
@@ -104,12 +112,19 @@ router.post(
 
       req.file.path = outputPath;
       req.file.filename = uniqueFilename;
-      req.body.date = extractedDate;
+
       next();
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
-  },
+  };
+};
+
+router.post(
+  "/:entityType/:entityId",
+  authenticateToken,
+  upload.single("image"),
+  processAndStoreImage({ requireEntityType: true }),
   uploadImage
 );
 
@@ -125,58 +140,27 @@ router.get(
 );
 
 router.patch(
-  "/image/:id",
+  "/image/:entityType/:id",
   authenticateToken,
-  cleanRequestBody,
-  upload.single("image"), // Multer processes "image" field from FormData
+  upload.single("image"),
   async (req, res, next) => {
     try {
-      // Ensure at least one valid update field is provided
       if (!req.file && !req.body.date) {
-        return errorResponse(res, "No file or date provided for update.", 400);
+        return res
+          .status(400)
+          .json({ error: "No file or date provided for update." });
       }
 
-      // Only delete the old image if a new one is provided
       if (req.file) {
         await deleteSpecificImage(req, res, false);
-
-        if (req.file.mimetype.includes("image")) {
-          const NAS_PATH =
-            process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
-
-          // Ensure upload directory exists
-          if (!fs.existsSync(NAS_PATH)) {
-            fs.mkdirSync(NAS_PATH, { recursive: true });
-          }
-
-          const uniqueFilename = `${Date.now()}-${
-            path.parse(req.file.originalname).name
-          }.webp`;
-          const outputPath = path.join(NAS_PATH, uniqueFilename);
-
-          const imageBuffer = req.file.buffer;
-          const extractedDate = await extractImageDate(imageBuffer);
-          if (extractedDate) {
-            req.body.date = extractedDate.getTime();
-          }
-          // Convert and save image using Sharp
-          await sharp(imageBuffer)
-            .resize({ width: 1024 })
-            .toFormat("webp")
-            .webp({ quality: 70, nearLossless: true })
-            .toFile(outputPath);
-
-          // Attach processed file path to request
-          req.file.path = outputPath;
-          req.file.filename = uniqueFilename;
-        }
       }
 
-      next(); // Pass control to updateSpecificImage
-    } catch (error) {
-      next(error);
+      next();
+    } catch (err) {
+      next(err);
     }
   },
+  processAndStoreImage({ requireEntityType: true }),
   updateSpecificImage
 );
 
