@@ -68,16 +68,16 @@ export default defineComponent({
           label: "Düngertyp",
           options: [
             ...this.fertilizerOptions,
-            { value: "none", label: "Kein Dünger" },
+            { value: -1, label: "Kein Dünger" },
           ],
-          defaultValue: this.editWateringRecord.fertilizerTypeId || "none",
+          defaultValue: this.editWateringRecord.fertilizerTypeId || -1,
         },
       ];
     },
   },
   methods: {
     async editRecord() {
-      if (String(this.editWateringRecord.fertilizerTypeId) === "none") {
+      if (this.editWateringRecord.fertilizerTypeId === -1) {
         this.editWateringRecord.fertilizerTypeId = undefined;
         this.editWateringRecord.usedFertilizer = false;
       } else {
