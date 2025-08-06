@@ -100,9 +100,9 @@ export default defineComponent({
           label: "Düngertyp",
           options: [
             ...this.fertilizerOptions,
-            { label: "Kein Dünger", value: "none" },
+            { label: "Kein Dünger", value: -1 },
           ],
-          defaultValue: "none",
+          defaultValue: -1,
         },
       ];
     },
