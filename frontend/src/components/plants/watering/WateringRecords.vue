@@ -20,13 +20,33 @@
         </ion-card-title>
       </ion-card-header>
       <ion-card-content>
-        <ion-item v-for="record in mappedRecords">
-          <Accordion
-            :item="record"
-            @edit-click="handleEditClick"
-            :show-edit-button="showEditButton && !isGuest"
-          />
-        </ion-item>
+        <Calendar @update-date="onDateChange" />
+        <ion-popover
+          :is-open="showPopover"
+          :event="popoverEvent"
+          @didDismiss="showPopover = false"
+        >
+          <ion-content class="ion-padding">
+            <div v-if="selectedRecord">
+              <ion-title class="record-header">
+                Wässerung am {{ selectedRecord.date }}
+                <ion-icon
+                  slot="end"
+                  name="close"
+                  @click="showEditingModal = true; showPopover = false"
+              />
+              </ion-title>
+              <p><strong>Datum:</strong> {{ selectedRecord.date }}</p>
+              <p>
+                <strong>Dünger genutzt:</strong>
+                {{ selectedRecord.usedFertilizer ? "Ja" : "Nein" }}
+              </p>
+              <p v-if="selectedRecord.usedFertilizer">
+                <strong>Dünger Typ:</strong> {{ selectedRecord.fertilizerType }}
+              </p>
+            </div>
+          </ion-content>
+        </ion-popover>
       </ion-card-content>
     </section>
     <WateringEditingModal
@@ -49,8 +69,6 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import {
-  IonAccordion,
-  IonAccordionGroup,
   IonItem,
   IonLabel,
   IonToolbar,
@@ -60,12 +78,13 @@ import {
   IonCardTitle,
   IonCardContent,
   IonIcon,
+  IonPopover,
 } from "@ionic/vue";
 import { addCircle } from "ionicons/icons";
 
+import Calendar from "@/components/calendar/Calendar.vue";
 import WateringAddingModal from "./WateringAddingModal.vue";
 import WateringEditingModal from "./WateringEditingModal.vue";
-import Accordion from "@/components/accordion/Accordion.vue";
 
 import WateringService from "@/services/WateringService";
 import UserService from "@/services/UserService";
@@ -74,8 +93,6 @@ export default defineComponent({
   name: "WateringRecords",
   emits: ["add-record"],
   components: {
-    IonAccordion,
-    IonAccordionGroup,
     IonItem,
     IonLabel,
     IonToolbar,
@@ -85,9 +102,10 @@ export default defineComponent({
     IonCardTitle,
     IonCardContent,
     IonIcon,
+    IonPopover,
     WateringAddingModal,
     WateringEditingModal,
-    Accordion,
+    Calendar,
   },
   props: {
     plantId: {
@@ -114,6 +132,10 @@ export default defineComponent({
       mappedRecords: [] as AccordionItem[],
       editRecord: null as WateringRecord | null,
       daysAgo: 0,
+      selectedDate: null as string | null,
+      selectedRecord: null as WateringRecord | null,
+      popoverEvent: null as Event | null,
+      showPopover: false,
       showAddingModal: false,
       showEditingModal: false,
       isGuest: false,
@@ -125,6 +147,25 @@ export default defineComponent({
     await this.setRecords();
   },
   methods: {
+    onDateChange({ date, event }: { date: string; event: any }) {
+      this.selectedDate = date;
+
+      const found = this.records?.find((record) => {
+        const recordDate = new Date(record.date_millis)
+          .toISOString()
+          .split("T")[0];
+        return recordDate === date;
+      });
+
+      if (found) {
+        this.selectedRecord = found;
+        this.popoverEvent = event;
+        this.showPopover = true;
+      } else {
+        this.selectedRecord = null;
+        this.showPopover = false;
+      }
+    },
     async setRecords() {
       try {
         this.records = await WateringService.getWateringRecords(this.plantId);
