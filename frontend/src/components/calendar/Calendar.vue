@@ -43,8 +43,8 @@ import { settings } from "ionicons/icons";
 import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
-  name: "MenuCalendar",
-  emits: ["settings-click", "update:selectedDate"],
+  name: "Calendar",
+  emits: ["settings-click", "update-date"],
   components: {
     IonCard,
     IonCardHeader,
@@ -64,30 +64,28 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    selectedDate: {
-      type: String,
-      required: false,
-    },
   },
   data() {
     return {
-      dates: [],
+      dates: [] as CalendarDates[],
+      selectedDate: "",
       firstDayOfWeek: 1,
     };
   },
-  setup(props, { emit }) {
-    const onDateChange = (event: CustomEvent) => {
-      emit("update:selectedDate", event.detail.value);
-    };
-
+  setup() {
     return {
       settings,
-      onDateChange,
-      selectedDate: props.selectedDate,
     };
   },
   async mounted() {
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
+  },
+  methods: {
+    onDateChange(event: CustomEvent) {
+      const date = event.detail.value;
+      this.selectedDate = date;
+      this.$emit("update-date", date);
+    },
   },
 });
 </script>
