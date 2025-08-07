@@ -39,8 +39,6 @@ import { close } from "ionicons/icons";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import WateringService from "@/services/WateringService";
 
-import Utils from "@/utils/utils";
-
 export default defineComponent({
   name: "WateringRecordsAdding",
   emits: ["close", "add-record"],
@@ -86,14 +84,16 @@ export default defineComponent({
       label: t.name,
       value: t.id,
     }));
-    if (this.date) {
-      this.record.date = Utils.convertToMillis(this.date);
-    }
   },
   computed: {
     formFields(): FormField[] {
       return [
-        { label: "Datum", type: "date" as const, modelKey: "date" },
+        {
+          label: "Datum",
+          type: "date" as const,
+          modelKey: "date",
+          defaultValue: this.date,
+        },
         {
           type: "radio" as const,
           modelKey: "fertilizerTypeId",

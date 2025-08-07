@@ -60,6 +60,7 @@
     <WateringAddingModal
       :is-open="showAddingModal"
       :is-loading="isLoading"
+      :date="selectedDate ?? undefined"
       @close="showAddingModal = false"
       @add-record="addRecord"
     />
@@ -168,7 +169,7 @@ export default defineComponent({
         this.showPopover = false;
       }
       // If not found and same date selected again, show adding modal
-      if(! found && this.selectedDate === date) {
+      if (!found && this.selectedDate === date) {
         this.showAddingModal = true;
       }
       this.selectedDate = date;
@@ -201,18 +202,32 @@ export default defineComponent({
       await this.setRecords();
     },
     async addRecord(addingRecord: AddWateringRecord) {
-      this.isLoading = true;
+      this.loadingTimeout();
+      if (addingRecord.fertilizerTypeId === -1) {
+        addingRecord.fertilizerTypeId = undefined;
+        addingRecord.usedFertilizer = false;
+      } else {
+        addingRecord.usedFertilizer = true;
+      }
+      const plainRecord = JSON.parse(JSON.stringify(addingRecord));
+
       const response = await WateringService.addWateringRecord(
         this.plantId,
-        addingRecord
+        plainRecord
       );
       if (response) {
-        this.isLoading = false;
         this.$nextTick(() => {
           this.showAddingModal = false;
         });
         await this.setRecords();
       }
+    },
+    loadingTimeout() {
+      this.isLoading = true;
+      const timeout_s = 10;
+      setTimeout(() => {
+        this.isLoading = false;
+      }, timeout_s * 1000);
     },
     mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {
       return records.map((record) => {

@@ -30,6 +30,7 @@ interface SwitchField extends FormFieldBase {
 
 interface DateField extends FormFieldBase {
   type: "date";
+  defaultValue?: string;
 }
 
 interface UploadField extends FormFieldBase {

@@ -130,13 +130,12 @@ export default defineComponent({
       }
 
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await PlantService.editPlant(
           this.plant.id,
           this.editPlantData
         );
         if (response) {
-          this.isLoading = false;
           this.resetPlant();
           this.$emit("edited");
         }
@@ -147,10 +146,9 @@ export default defineComponent({
     },
     async deletePlant() {
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await PlantService.deletePlant(this.plant.id);
         if (response) {
-          this.isLoading = false;
           this.resetPlant();
           this.$emit("close");
           await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
@@ -159,6 +157,13 @@ export default defineComponent({
         console.error("Error:", error);
         ToastService.showError("Error while deleting the plant");
       }
+    },
+    loadingTimeout() {
+      this.isLoading = true;
+      const timeout_s = 10;
+      setTimeout(() => {
+        this.isLoading = false;
+      }, timeout_s * 1000);
     },
     resetPlant() {
       this.editPlantData = {
