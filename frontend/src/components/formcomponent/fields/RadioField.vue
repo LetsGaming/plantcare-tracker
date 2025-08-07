@@ -4,10 +4,7 @@
       <IonLabel>{{ field.label }}</IonLabel>
 
       <IonRadioGroup :value="modelValue" @ionChange="onRadioChange">
-        <IonItem
-          v-for="(option, index) in field.options"
-          :key="index"
-        >
+        <IonItem v-for="(option, index) in field.options" :key="index">
           <IonRadio :value="option.value">
             {{ option.label }}
           </IonRadio>
@@ -36,6 +33,12 @@ export default defineComponent({
       type: [String, Number, Boolean],
       default: "",
     },
+  },
+  mounted() {
+    // Sett default value if provided
+    if (this.field.defaultValue !== undefined) {
+      this.$emit("update:modelValue", this.field.defaultValue);
+    }
   },
   methods: {
     onRadioChange(event: CustomEvent) {

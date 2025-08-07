@@ -68,8 +68,7 @@ const addWateringRecord = async (req, res) => {
       plantId,
       parsedDate,
       usedFertilizer,
-      fertilizerTypeId,
-      userId
+      fertilizerTypeId
     );
 
     if (result.affectedRows === 0) {

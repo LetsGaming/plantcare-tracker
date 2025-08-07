@@ -183,7 +183,7 @@ export default defineComponent({
       };
 
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await SubstrateService.addSubstrateWithComponents(
           this.substrate,
           componentsData
@@ -192,7 +192,6 @@ export default defineComponent({
         if (response) {
           const substrateId = response.substrate.substrateId;
           if (!this.substrate.image) {
-            this.isLoading = false;
             ToastService.showSuccess(
               "Substrat und Komponenten erfolgreich hinzugefügt"
             );
@@ -203,17 +202,15 @@ export default defineComponent({
           this.resetSubstrate();
         }
       } catch (error) {
-        this.isLoading = false;
         console.error("Error adding substrate:", error);
         ToastService.showError("Fehler beim Hinzufügen des Substrats");
       }
     },
     async imageUpload(id: number, file: File) {
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await SubstrateService.uploadSubstrateImage(id, file);
         if (response) {
-          this.isLoading = false;
           ToastService.showSuccess(
             "Substrat und Komponenten erfolgreich hinzugefügt"
           );
@@ -222,10 +219,16 @@ export default defineComponent({
           ToastService.showError("Fehler beim Hochladen des Bildes");
         }
       } catch (error) {
-        this.isLoading = false;
         console.error("Error uploading image:", error);
         ToastService.showError("Fehler beim Hochladen des Bildes");
       }
+    },
+    loadingTimeout() {
+      this.isLoading = true;
+      const timeout_s = 10;
+      setTimeout(() => {
+        this.isLoading = false;
+      }, timeout_s * 1000);
     },
     resetSubstrate() {
       this.substrate = {
