@@ -28,7 +28,7 @@ export default defineComponent({
   components: { IonModal, IonContent, ModalHeader, FormComponent },
   props: {
     isOpen: { type: Boolean, required: true },
-    record: { type: Object as PropType<WateringRecord>, required: true },
+    record: { type: Object as () => WateringRecord, required: true },
     plantId: { type: Number, required: true },
   },
   data() {
@@ -42,6 +42,11 @@ export default defineComponent({
       fertilizerOptions: [] as { label: string; value: number }[],
     };
   },
+  watch: {
+    record(newRecord: WateringRecord) {
+      this.setRecord(newRecord);
+    },
+  },
   async mounted() {
     const types = await WateringService.getFertilizerTypes();
     this.fertilizerOptions = types.map((t) => ({
@@ -49,14 +54,7 @@ export default defineComponent({
       value: t.id,
     }));
 
-    const fertilizerTypeId = types.find(
-      (t) => t.name === this.record.fertilizerType
-    )?.id;
-    this.editWateringRecord = {
-      date: this.record.date_millis,
-      usedFertilizer: this.record.usedFertilizer,
-      fertilizerTypeId: fertilizerTypeId || undefined,
-    };
+    this.setRecord(this.record);
   },
   computed: {
     formFields(): FormField[] {
@@ -76,6 +74,13 @@ export default defineComponent({
     },
   },
   methods: {
+    setRecord(newRecord: WateringRecord) {
+      this.editWateringRecord = {
+        date: newRecord.date_millis,
+        usedFertilizer: newRecord.usedFertilizer,
+        fertilizerTypeId: newRecord.fertilizerTypeId || -1,
+      };
+    },
     async editRecord() {
       if (this.editWateringRecord.fertilizerTypeId === -1) {
         this.editWateringRecord.fertilizerTypeId = undefined;

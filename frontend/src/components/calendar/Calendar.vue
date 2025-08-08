@@ -13,7 +13,7 @@
           </ion-button>
         </ion-toolbar>
       </ion-card-header>
-      <ion-card-content>
+      <ion-card-content style="padding: 0;">
         <ion-datetime
           :value="selectedDate"
           @ionChange="onDateChange"
@@ -21,6 +21,24 @@
           :highlighted-dates="dates"
           :first-day-of-week="firstDayOfWeek"
         />
+        <Popover
+          :event="changedEvent"
+          :is-open="isPopoverOpen"
+          :show-edit-button="showEditButton"
+          :title="popoverItem ? popoverItem.title : 'Details'"
+          :fields="
+            popoverItem?.fields
+              ? popoverItem.fields
+              : [
+                  {
+                    label: 'Date',
+                    value: selectedDate,
+                  },
+                ]
+          "
+          @dismiss="$emit('dissmised-popover')"
+          @edit-click="$emit('edit-click', popoverItem)"
+        ></Popover>
       </ion-card-content>
     </ion-card>
   </div>
@@ -39,12 +57,12 @@ import {
   IonDatetime,
 } from "@ionic/vue";
 import { settings } from "ionicons/icons";
-
+import Popover from "@/components/Popover.vue";
 import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
   name: "Calendar",
-  emits: ["settings-click", "update-date"],
+  emits: ["settings-click", "update-date", "dissmised-popover", "edit-click"],
   components: {
     IonCard,
     IonCardHeader,
@@ -54,6 +72,7 @@ export default defineComponent({
     IonTitle,
     IonToolbar,
     IonDatetime,
+    Popover,
   },
   props: {
     title: {
@@ -64,15 +83,28 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    showEditButton: {
+      type: Boolean,
+      default: false,
+    },
     dates: {
       type: Array as () => CalendarDates[],
       default: () => [],
+    },
+    isPopoverOpen: {
+      type: Boolean,
+      default: false,
+    },
+    popoverItem: {
+      type: Object as () => PopoverItem | undefined,
+      required: false,
     },
   },
   data() {
     return {
       selectedDate: "",
       firstDayOfWeek: 1,
+      changedEvent: null as CustomEvent | null,
     };
   },
   setup() {
@@ -85,9 +117,10 @@ export default defineComponent({
   },
   methods: {
     onDateChange(event: CustomEvent) {
+      this.changedEvent = event;
       const date = event.detail.value;
       this.selectedDate = date;
-      this.$emit("update-date", { date, event });
+      this.$emit("update-date", date);
     },
   },
 });

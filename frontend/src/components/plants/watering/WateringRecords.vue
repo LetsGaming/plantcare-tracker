@@ -19,41 +19,23 @@
           <span v-else>Vor {{ daysAgo }} Tagen</span>
         </ion-card-title>
       </ion-card-header>
-      <ion-card-content class="align-middle">
-        <Calendar @update-date="onDateChange" :dates="mappedRecords" />
-        <ion-popover
-          :is-open="showPopover"
-          :event="popoverEvent"
-          @didDismiss="showPopover = false"
-        >
-          <ion-content class="ion-padding">
-            <div v-if="selectedRecord">
-              <ion-toolbar>
-                <ion-title class="record-header">Wässerung</ion-title>
-                <ion-icon
-                  slot="end"
-                  :icon="create"
-                  @click="handleEditClick(selectedRecord.id)"
-                />
-              </ion-toolbar>
-              <p><strong>Datum:</strong> {{ selectedRecord.date }}</p>
-              <p>
-                <strong>Dünger genutzt:</strong>
-                {{ selectedRecord.usedFertilizer ? "Ja" : "Nein" }}
-              </p>
-              <p v-if="selectedRecord.usedFertilizer">
-                <strong>Dünger Typ:</strong> {{ selectedRecord.fertilizerType }}
-              </p>
-            </div>
-          </ion-content>
-        </ion-popover>
+      <ion-card-content class="align-middle record-details">
+        <Calendar
+          @update-date="onDateChange"
+          @edit-click="handleEditClick"
+          @dissmised-popover="showPopover = false"
+          :dates="mappedRecords"
+          :show-edit-button="showEditButton"
+          :is-popover-open="showPopover"
+          :popover-item="popoverInfo"
+        />
       </ion-card-content>
     </section>
     <WateringEditingModal
-      v-if="editRecord"
+      v-if="selectedRecord"
       :is-open="showEditingModal"
       :plantId="plantId"
-      :record="editRecord"
+      :record="selectedRecord"
       @close="showEditingModal = false"
       @edited="handleEdited"
     />
@@ -134,11 +116,9 @@ export default defineComponent({
     return {
       records: null as WateringRecord[] | null,
       mappedRecords: [] as CalendarDates[],
-      editRecord: null as WateringRecord | null,
       daysAgo: 0,
       selectedDate: null as string | null,
       selectedRecord: null as WateringRecord | null,
-      popoverEvent: null as Event | null,
       showPopover: false,
       showAddingModal: false,
       showEditingModal: false,
@@ -150,9 +130,39 @@ export default defineComponent({
     this.isGuest = await UserService.isGuest();
     await this.setRecords();
   },
+  computed: {
+    popoverInfo(): PopoverItem | undefined {
+      if (!this.selectedRecord) return undefined;
+      const title = "Wässerungsdetails";
+      const fields = [
+        {
+          label: "Datum",
+          value: new Date(this.selectedRecord.date_millis).toLocaleDateString(),
+        },
+        {
+          label: "Dünger verwendet",
+          value: this.selectedRecord.usedFertilizer ? "Ja" : "Nein",
+        },
+      ];
+      if (
+        this.selectedRecord.usedFertilizer &&
+        this.selectedRecord.fertilizerType
+      ) {
+        fields.push({
+          label: "Dünger Typ",
+          value: this.selectedRecord.fertilizerType,
+        });
+      }
+      const info = {
+        title,
+        fields,
+      };
+      return info;
+    },
+  },
   methods: {
-    onDateChange({ date, event }: { date: string; event: Event }) {
-      const normalizedDate = new Date(date).toISOString().split("T")[0];
+    onDateChange(date: string) {
+      const normalizedDate = date.split("T")[0];
       const found = this.records?.find((record) => {
         const recordDate = new Date(record.date_millis)
           .toISOString()
@@ -162,12 +172,12 @@ export default defineComponent({
 
       if (found) {
         this.selectedRecord = found;
-        this.popoverEvent = event;
         this.showPopover = true;
       } else {
         this.selectedRecord = null;
         this.showPopover = false;
       }
+
       // If not found and same date selected again, show adding modal
       if (!found && this.selectedDate === date) {
         this.showAddingModal = true;
@@ -177,11 +187,6 @@ export default defineComponent({
     async setRecords() {
       try {
         this.records = await WateringService.getWateringRecords(this.plantId);
-        this.records = this.records.sort(
-          (a, b) =>
-            new Date(b.date_millis).getTime() -
-            new Date(a.date_millis).getTime()
-        );
         this.daysAgo = Math.floor(
           (new Date().getTime() -
             new Date(this.records[0].date_millis).getTime()) /
@@ -190,12 +195,11 @@ export default defineComponent({
         this.mappedRecords = this.mapWateringsToCalendar(this.records);
       } catch (error) {}
     },
-    async handleEditClick(id: number) {
-      const record = this.records?.find((r) => r.id === id);
-      if (!record) return;
-      this.editRecord = record ?? null;
-      this.showPopover = false;
-      this.showEditingModal = true;
+    handleEditClick(item: PopoverItem) {
+      if (this.selectedRecord) {
+        this.showPopover = false;
+        this.showEditingModal = true;
+      }
     },
     async handleEdited() {
       this.showEditingModal = false;
@@ -258,9 +262,7 @@ export default defineComponent({
 }
 
 .record-details {
-  padding: 16px;
-  border-radius: 8px;
-  margin-top: 8px;
+  padding: 0;
 }
 
 .record-title {

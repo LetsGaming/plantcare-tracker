@@ -6,6 +6,7 @@ const selectWateringRecordsQuery = `
     wr.id as record_id,
     wr.date as watering_date,
     wr.used_fertilizer,
+    ft.id as fertilizer_type_id,
     ft.name as fertilizer_type, 
     p.id as plant_id,
     p.name as plant_name,
