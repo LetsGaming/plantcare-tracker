@@ -13,13 +13,17 @@
           </ion-button>
         </ion-toolbar>
       </ion-card-header>
-      <ion-card-content style="padding: 0;">
+      <ion-card-content style="padding: 0">
         <ion-datetime
           :value="selectedDate"
           @ionChange="onDateChange"
           presentation="date"
           :highlighted-dates="dates"
           :first-day-of-week="firstDayOfWeek"
+        />
+        <CalendarLegend
+          v-if="dates.length > 0"
+          :legend-items="legendItems"
         />
         <Popover
           :event="changedEvent"
@@ -59,6 +63,9 @@ import {
 import { settings } from "ionicons/icons";
 import Popover from "@/components/Popover.vue";
 import CalendarService from "@/services/CalendarService";
+import CalendarLegend from "./CalendarLegend.vue";
+
+import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "Calendar",
@@ -73,6 +80,7 @@ export default defineComponent({
     IonToolbar,
     IonDatetime,
     Popover,
+    CalendarLegend,
   },
   props: {
     title: {
@@ -114,6 +122,21 @@ export default defineComponent({
   },
   async mounted() {
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
+  },
+  computed: {
+    legendItems() {
+      return Array.from(
+        new Map(
+          this.dates.map((date) => [
+            date.category,
+            {
+              label: Utils.capitalizeFirstLetter(date.category),
+              color: date.backgroundColor,
+            },
+          ])
+        ).values()
+      );
+    },
   },
   methods: {
     onDateChange(event: CustomEvent) {

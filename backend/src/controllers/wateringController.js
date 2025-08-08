@@ -112,8 +112,7 @@ const editWateringRecord = async (req, res) => {
         400
       );
     }
-
-    if (typeof fertilizerTypeId !== "number" && fertilizerTypeId !== null) {
+    if (typeof fertilizerTypeId !== "number" && fertilizerTypeId !== null && fertilizerTypeId !== undefined) {
       return errorResponse(res, "Fertilizer type ID must be a number", 400);
     }
 

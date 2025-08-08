@@ -16,9 +16,22 @@
 
     <transition name="slide-fade">
       <div v-if="isOpen" class="accordion-content">
-        <p v-for="(value, key) in item.details" :key="key">
-          <strong>{{ key }}:</strong> {{ value }}
-        </p>
+        <template v-if="item.details && Object.keys(item.details).length > 0">
+          <p v-for="(value, key) in item.details" :key="key">
+            <strong>{{ key }}:</strong> {{ value }}
+          </p>
+        </template>
+        <template v-if="item.components && item.components.length > 0">
+          <div style="display: flex; justify-content: space-evenly;">
+            <template
+              v-for="(component, index) in item.components"
+              :key="index"
+            >
+              <component :is="component" />
+            </template>
+          </div>
+        </template>
+        <p v-else>No details available.</p>
       </div>
     </transition>
   </li>
