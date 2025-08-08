@@ -9,6 +9,7 @@ export default class WateringMapper {
       date: Utils.convertDateString(watering.watering_date),
       date_millis: Utils.convertToMillis(watering.watering_date),
       usedFertilizer: watering.used_fertilizer,
+      fertilizerTypeId: watering.fertilizer_type_id,
       fertilizerType:
         watering.fertilizer_type == null
           ? "Unbekannt"
