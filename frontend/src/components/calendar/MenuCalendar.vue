@@ -1,45 +1,14 @@
 <template>
   <div>
-    <ion-card>
-      <ion-card-header>
-        <ion-toolbar>
-          <ion-title>Erinnerungen</ion-title>
-          <ion-icon
-            v-if="showSettingsButton"
-            slot="end"
-            :icon="settings"
-            @click="$emit('settings-click')"
-          />
-        </ion-toolbar>
-      </ion-card-header>
-      <ion-card-content>
-        <ion-datetime
-          v-model="selectedDate"
-          presentation="date"
-          :highlighted-dates="reminderDates"
-          :first-day-of-week="firstDayOfWeek"
-        ></ion-datetime>
-
-        <!-- Dropdown für Kategorien -->
-        <ion-select
-          v-if="categories.length > 0"
-          v-model="selectedCategory"
-          placeholder="Kategorie auswählen"
-        >
-          <ion-select-option
-            v-for="cat in categories"
-            :key="cat.name"
-            :value="cat"
-          >
-            {{ cat.name }}
-          </ion-select-option>
-        </ion-select>
-
-        <ion-button expand="full" @click="addDate"
-          >Erinnerung hinzufügen</ion-button
-        >
-      </ion-card-content>
-    </ion-card>
+    <Calendar 
+      title="Erinnerungen"
+      :show-settings-button="showSettingsButton"
+      :dates="reminderDates"
+      :popover-item="popoverItem"
+      :is-popover-open="isPopoverOpen"
+      @settings-click="$emit('settings-click')"
+      @update-date="onDateSelected"
+    />
   </div>
 </template>
 
@@ -48,9 +17,7 @@ import { defineComponent } from "vue";
 import {
   IonCard,
   IonCardHeader,
-  IonCardTitle,
   IonCardContent,
-  IonDatetime,
   IonButton,
   IonSelect,
   IonSelectOption,
@@ -59,6 +26,9 @@ import {
   IonToolbar,
 } from "@ionic/vue";
 import { settings } from "ionicons/icons";
+import Calendar from "@/components/calendar/Calendar.vue";
+import BaseFormModal from "../modal/BaseFormModal.vue";
+
 import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
@@ -67,15 +37,15 @@ export default defineComponent({
   components: {
     IonCard,
     IonCardHeader,
-    IonCardTitle,
     IonCardContent,
-    IonDatetime,
     IonButton,
     IonSelect,
     IonSelectOption,
     IonTitle,
     IonIcon,
     IonToolbar,
+    Calendar,
+    BaseFormModal
   },
   props: {
     showSettingsButton: {
@@ -98,13 +68,33 @@ export default defineComponent({
       } | null,
       reminderDates: [] as CalendarDates[],
       categories: [] as Category[],
-      firstDayOfWeek: 0,
+      isPopoverOpen: false,
     };
   },
   async mounted() {
     this.setupListeners();
     await this.getSavedDates();
     await this.getSavedCategories();
+  },
+  computed: {
+    popoverItem(): PopoverItem | undefined {
+      const item = this.reminderDates.find(
+        (date) => date.date === this.selectedDate
+      );
+
+      if (item) {
+        return {
+          title: `Erinnerung am ${item.date}`,
+          fields: [
+            { label: "Kategorie", value: item.category },
+            { label: "Farbe", value: item.textColor },
+            { label: "Hintergrundfarbe", value: item.backgroundColor },
+          ],
+        };
+      }
+
+      return undefined;
+    },
   },
   methods: {
     setupListeners() {
@@ -126,23 +116,39 @@ export default defineComponent({
     async getSavedCategories() {
       this.categories = await CalendarService.getCategories();
     },
-    addDate() {
-      if (!this.selectedDate || !this.selectedCategory) {
-        // Optional: Hier könnte eine Fehlermeldung an den Nutzer ausgegeben werden, falls Datum oder Kategorie nicht ausgewählt wurde.
-        return;
+    onDateSelected(date: string) {
+      const normalizedDate = date.split("T")[0];
+
+      const found = this.reminderDates.find(
+        (reminder) => reminder.date === normalizedDate
+      );
+
+      if (found) {
+        this.selectedDate = found.date;
+        this.selectedCategory = {
+          name: found.category,
+          textColor: found.textColor,
+          backgroundColor: found.backgroundColor,
+        };
+      } else {
+        this.selectedDate = normalizedDate;
+        this.selectedCategory = null;
       }
-      // Extrahiere das Datum ohne Zeitanteil
+    },
+    addDate() {
+      if (!this.selectedDate || !this.selectedCategory) return;
+
       const dateWithoutTime = new Date(this.selectedDate)
         .toISOString()
         .split("T")[0];
-      // Verwende die Farben der ausgewählten Kategorie
+
       this.reminderDates.push({
         date: dateWithoutTime,
         category: this.selectedCategory.name,
         textColor: this.selectedCategory.textColor,
         backgroundColor: this.selectedCategory.backgroundColor,
       });
-      // Reset der Eingabefelder
+
       this.selectedDate = "";
       this.saveDates();
     },

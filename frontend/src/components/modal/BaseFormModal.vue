@@ -24,7 +24,7 @@ import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 
 export default defineComponent({
-  name: "BaseModal",
+  name: "BaseFormModal",
   components: {
     IonModal,
     IonContent,

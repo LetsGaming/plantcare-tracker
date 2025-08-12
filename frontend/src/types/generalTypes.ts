@@ -5,6 +5,11 @@ interface AccordionItem {
   components?: Array<string | object>;
 }
 
+interface PopoverItem {
+  title: string;
+  fields: PopoverField[];
+}
+
 interface PopoverField {
   label: string;
   value: string | number | boolean | (() => string);
