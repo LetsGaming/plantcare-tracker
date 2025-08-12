@@ -23,8 +23,3 @@ interface Category {
 interface StoredCategories {
   categories: Category[];
 }
-
-interface PopoverItem {
-  title: string;
-  fields: PopoverField[];
-}
