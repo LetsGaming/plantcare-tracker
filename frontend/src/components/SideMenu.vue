@@ -137,3 +137,15 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+ion-menu {
+  --width: 15%;
+}
+
+@media (max-width: 768px) {
+  ion-menu {
+    --width: 80%;
+  }
+}
+</style>
