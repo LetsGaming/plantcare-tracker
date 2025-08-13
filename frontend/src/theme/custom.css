@@ -1,5 +1,4 @@
 .align-middle {
-  width: 90%;
   max-width: 750px;
   margin: 10px auto;
   box-sizing: border-box;
@@ -7,6 +6,16 @@
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .align-middle {
+    margin: 10px;
+  }
+}
+
+ion-card {
+  width: -webkit-fill-available;
 }
 
 ion-img::part(image) {

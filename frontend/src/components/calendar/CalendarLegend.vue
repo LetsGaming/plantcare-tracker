@@ -3,7 +3,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, h } from "vue";
+import { defineComponent, h, markRaw } from "vue";
 
 import Accordion from "@/components/accordion/Accordion.vue";
 
@@ -29,18 +29,19 @@ export default defineComponent({
   mounted() {
     this.setLegendComponents();
   },
-methods: {
-  setLegendComponents() {
-    this.accordionItem.components = this.legendItems.map((item) =>
-      defineComponent({
-        name: "InlineLegendItem",
-        render() {
-          return h("div", { style: { color: item.color } }, item.label);
-        },
-      })
-    );
+  methods: {
+    setLegendComponents() {
+      this.accordionItem.components = this.legendItems.map((item) =>
+        markRaw(
+          defineComponent({
+            name: "InlineLegendItem",
+            render() {
+              return h("div", { style: { color: item.color } }, item.label);
+            },
+          })
+        )
+      );
+    },
   },
-},
-
 });
 </script>

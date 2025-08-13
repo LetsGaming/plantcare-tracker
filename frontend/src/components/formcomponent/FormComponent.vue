@@ -1,7 +1,7 @@
 <template>
   <div class="form-container">
     <IonCard
-      style="margin-top: auto; margin-inline: 0px !important; display: block"
+      style="margin-top: auto; display: block"
       class="align-middle"
     >
       <IonCardHeader>
@@ -253,9 +253,6 @@ export default defineComponent({
 
 <style scoped>
 .form-container {
-  display: grid;
-  justify-content: center;
-  grid-template-rows: max-content auto;
   align-items: center;
   height: 100%;
   padding: 16px;
@@ -267,7 +264,6 @@ export default defineComponent({
 }
 
 ion-card {
-  width: 100%;
   max-width: 500px;
 }
 </style>
