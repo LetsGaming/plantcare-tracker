@@ -1,7 +1,7 @@
 <template>
   <div>
     <ion-card>
-      <ion-card-header>
+      <ion-card-header v-if="title || showSettingsButton">
         <ion-toolbar v-if="title || showSettingsButton">
           <ion-title v-if="title">{{ title }}</ion-title>
           <ion-button
@@ -18,13 +18,10 @@
           :value="selectedDate"
           @ionChange="onDateChange"
           presentation="date"
-          :highlighted-dates="dates"
+          :highlighted-dates="highlightedDates"
           :first-day-of-week="firstDayOfWeek"
         />
-        <CalendarLegend
-          v-if="dates.length > 0"
-          :legend-items="legendItems"
-        />
+        <CalendarLegend v-if="dates.length > 0" :legend-items="legendItems" />
         <Popover
           :event="changedEvent"
           :is-open="isPopoverOpen"
@@ -64,8 +61,6 @@ import { settings } from "ionicons/icons";
 import Popover from "@/components/Popover.vue";
 import CalendarService from "@/services/CalendarService";
 import CalendarLegend from "./CalendarLegend.vue";
-
-import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "Calendar",
@@ -124,18 +119,29 @@ export default defineComponent({
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
   },
   computed: {
-    legendItems() {
-      return Array.from(
-        new Map(
-          this.dates.map((date) => [
-            date.category,
-            {
-              label: Utils.capitalizeFirstLetter(date.category),
-              color: date.backgroundColor,
-            },
-          ])
-        ).values()
-      );
+    legendItems(): { label: string; color: string }[] {
+      const seen = new Set<string>();
+
+      return this.dates
+        .map((date) => ({
+          label: date.category.name,
+          color: date.category.backgroundColor,
+        }))
+        .filter((item) => {
+          if (seen.has(item.label)) return false;
+          seen.add(item.label);
+          return true;
+        });
+    },
+
+    highlightedDates() {
+      return this.dates.map((date) => {
+        return {
+          date: date.date,
+          textColor: date.category.textColor,
+          backgroundColor: date.category.backgroundColor,
+        };
+      });
     },
   },
   methods: {
@@ -148,3 +154,10 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+ion-datetime {
+  max-width: 500px;
+  margin: 0 auto;
+}
+</style>

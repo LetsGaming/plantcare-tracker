@@ -18,7 +18,7 @@ const getFertilizerTypes = async (req, res) => {
   try {
     const fertilizerTypes = await selectFertilizerTypes();
     if (fertilizerTypes.length === 0) {
-      return notFoundResponse(res, "No fertilizer types found");
+      return notFoundResponse(res, "No fertilizer types available");
     }
     successResponse(res, fertilizerTypes);
   } catch (err) {
