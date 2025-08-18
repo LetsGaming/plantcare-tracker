@@ -1,15 +1,32 @@
 <template>
   <div>
-    <Calendar 
+    <Calendar
       title="Erinnerungen"
       :show-settings-button="showSettingsButton"
+      :show-edit-button="true"
       :dates="reminderDates"
       :popover-item="popoverItem"
       :is-popover-open="isPopoverOpen"
       @settings-click="$emit('settings-click')"
+      @edit-click="onEditClick"
       @update-date="onDateSelected"
+      @dissmised-popover="isPopoverOpen = false"
     />
   </div>
+
+  <!-- BaseFormModal for adding/editing dates -->
+  <BaseFormModal
+    :is-open="isModalOpen"
+    :is-loading="isLoading"
+    modal-title="Neue Erinnerung hinzufügen"
+    form-title="Erinnerung"
+    submit-label="Speichern"
+    :form-data="formData"
+    :form-fields="formFields"
+    :delete-handler="onDeleteDate"
+    @close="isModalOpen = false"
+    @submit="submitHandler"
+  />
 </template>
 
 <script lang="ts">
@@ -45,7 +62,7 @@ export default defineComponent({
     IonIcon,
     IonToolbar,
     Calendar,
-    BaseFormModal
+    BaseFormModal,
   },
   props: {
     showSettingsButton: {
@@ -69,6 +86,22 @@ export default defineComponent({
       reminderDates: [] as CalendarDates[],
       categories: [] as Category[],
       isPopoverOpen: false,
+      isModalOpen: false,
+      isLoading: false,
+      formData: {
+        date: null as number | null,
+        category: null as string | null,
+      },
+      formFields: [
+        { modelKey: "date", label: "Datum", type: "date", required: true },
+        {
+          modelKey: "category",
+          label: "Kategorie",
+          type: "select",
+          required: true,
+          options: [] as { label: string; value: string }[],
+        },
+      ] as FormField[],
     };
   },
   async mounted() {
@@ -86,9 +119,9 @@ export default defineComponent({
         return {
           title: `Erinnerung am ${item.date}`,
           fields: [
-            { label: "Kategorie", value: item.category },
-            { label: "Farbe", value: item.textColor },
-            { label: "Hintergrundfarbe", value: item.backgroundColor },
+            { label: "Kategorie", value: item.category.name },
+            { label: "Farbe", value: item.category.textColor },
+            { label: "Hintergrundfarbe", value: item.category.backgroundColor },
           ],
         };
       }
@@ -119,38 +152,112 @@ export default defineComponent({
     onDateSelected(date: string) {
       const normalizedDate = date.split("T")[0];
 
+      // find existing reminder
       const found = this.reminderDates.find(
         (reminder) => reminder.date === normalizedDate
       );
 
       if (found) {
-        this.selectedDate = found.date;
-        this.selectedCategory = {
-          name: found.category,
-          textColor: found.textColor,
-          backgroundColor: found.backgroundColor,
-        };
-      } else {
+        // existing reminder → show popover
         this.selectedDate = normalizedDate;
+        this.selectedCategory = found.category;
+        this.isPopoverOpen = true;
+      } else {
+        // no reminder
         this.selectedCategory = null;
+        this.isPopoverOpen = false;
+
+        // if same date clicked twice → show adding modal
+        if (this.selectedDate === normalizedDate) {
+          this.formData = {
+            date: new Date(normalizedDate).getTime(),
+            category: null,
+          };
+
+          // safely set select options
+          const categoryField = this.formFields.find(
+            (f) => f.modelKey === "category" && f.type === "select"
+          ) as SelectField | undefined;
+
+          if (categoryField) {
+            categoryField.options = this.categories.map((c) => ({
+              label: c.name,
+              value: c.name,
+            }));
+          }
+
+          this.isModalOpen = true;
+        }
+
+        // update selectedDate
+        this.selectedDate = normalizedDate;
       }
     },
-    addDate() {
-      if (!this.selectedDate || !this.selectedCategory) return;
+    onEditClick() {
+      // open modal to edit selected date
+      const found = this.reminderDates.find(
+        (r) => r.date === this.selectedDate
+      );
+      if (found) {
+        this.formData = {
+          date: new Date(found.date).getTime(),
+          category: found.category.name,
+        };
+        // safely set select options
+        const categoryField = this.formFields.find(
+          (f) => f.modelKey === "category" && f.type === "select"
+        ) as SelectField | undefined;
 
-      const dateWithoutTime = new Date(this.selectedDate)
-        .toISOString()
-        .split("T")[0];
+        if (categoryField) {
+          categoryField.options = this.categories.map((c) => ({
+            label: c.name,
+            value: c.name,
+          }));
+        }
 
-      this.reminderDates.push({
-        date: dateWithoutTime,
-        category: this.selectedCategory.name,
-        textColor: this.selectedCategory.textColor,
-        backgroundColor: this.selectedCategory.backgroundColor,
-      });
+        this.isModalOpen = true;
+      }
+    },
+    async submitHandler() {
+      this.isLoading = true;
+      try {
+        const category = this.categories.find(
+          (c) => c.name === this.formData.category
+        );
+        if (!category) return;
 
-      this.selectedDate = "";
-      this.saveDates();
+        // check if updating existing
+        const idx = this.reminderDates.findIndex(
+          (r) => Number(r.date) === this.formData.date
+        );
+        if (idx >= 0) {
+          this.reminderDates[idx] = {
+            date: this.formData.date
+              ? new Date(this.formData.date).toISOString().split("T")[0]
+              : "",
+            category,
+          };
+        } else {
+          this.reminderDates.push({
+            date: this.formData.date
+              ? new Date(this.formData.date).toISOString().split("T")[0]
+              : "",
+            category,
+          });
+        }
+
+        await this.saveDates();
+        this.isModalOpen = false;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async onDeleteDate() {
+      this.reminderDates = this.reminderDates.filter(
+        (r) => new Date(r.date).getTime() !== this.formData.date
+      );
+      await this.saveDates();
+      this.isModalOpen = false;
     },
     async saveDates() {
       await CalendarService.saveDates(this.reminderDates);

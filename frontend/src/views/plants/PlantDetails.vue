@@ -6,8 +6,8 @@
       :show-upload-button="!isPublic"
       @uploadClick="showUploadModal = true"
       default-href="/tabs/plants/overview"
-    ></details-header>
-    <ion-content >
+    />
+    <ion-content>
       <div v-if="plant">
         <!-- Full-width banner with dynamic plant image -->
         <details-banner
@@ -52,7 +52,6 @@
         entity-type="plant"
         @close="showImageEditModal = false"
         @edited="handleImageEdited"
-
       />
     </ion-content>
   </ion-page>

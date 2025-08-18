@@ -92,8 +92,8 @@ export default defineComponent({
 </script>
 
 <style scoped>
-ion-popover {
-  --width: auto !important;
+ion-popover  {
+  --width: 350px;
 }
 
 .record-header {

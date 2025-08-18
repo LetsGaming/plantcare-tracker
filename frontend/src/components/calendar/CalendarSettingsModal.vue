@@ -95,68 +95,6 @@
           </ion-item>
         </ion-card-content>
       </ion-card>
-
-      <!-- Reminder Dates Section -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>Erinnerungen</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-list>
-            <ion-item v-for="(date, index) in reminderDates" :key="index">
-              <ion-grid>
-                <ion-row>
-                  <ion-col>
-                    <ion-label>{{ date.date }}</ion-label>
-                  </ion-col>
-                  <ion-col>
-                    <ion-label>{{ date.category }}</ion-label>
-                  </ion-col>
-                </ion-row>
-              </ion-grid>
-
-              <ion-button fill="clear" @click="editDate(index)">
-                <ion-icon :icon="create" />
-              </ion-button>
-              <ion-button
-                fill="clear"
-                color="danger"
-                @click="deleteDate(index)"
-              >
-                <ion-icon :icon="trash" />
-              </ion-button>
-            </ion-item>
-          </ion-list>
-
-          <!-- Edit Date Section -->
-          <ion-item v-if="isEditingDate">
-            <ion-item>
-              <ion-input
-                v-model="editedDate.date"
-                type="date"
-                placeholder="Wählen Sie ein Datum"
-              />
-            </ion-item>
-
-            <ion-select
-              v-model="editedDate.category"
-              placeholder="Wählen Sie eine Kategorie"
-            >
-              <ion-select-option
-                v-for="category in categories"
-                :key="category.name"
-                :value="category.name"
-              >
-                {{ category.name }}
-              </ion-select-option>
-            </ion-select>
-            <ion-button @click="updateDate()">Aktualisieren</ion-button>
-            <ion-button @click="cancelEditDate()" color="medium"
-              >Abbrechen</ion-button
-            >
-          </ion-item>
-        </ion-card-content>
-      </ion-card>
     </ion-content>
   </ion-modal>
 </template>
@@ -224,13 +162,6 @@ export default defineComponent({
       isEditingCategory: false,
       isEditingDate: false,
       editCategoryIndex: -1,
-      editDateIndex: -1,
-      editedDate: {
-        date: "",
-        category: "",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-      } as CalendarDates,
       doDeleteAfterThirty: false,
       // New setting for first day of the week (0 = Sonntag, 1 = Montag, etc.)
       firstDayOfWeek: 0,
@@ -292,7 +223,7 @@ export default defineComponent({
 
         // Update reminder dates that use this category
         this.reminderDates = this.reminderDates.map((date) => {
-          if (date.category === oldCategoryName) {
+          if (date.category && date.category.name === oldCategoryName) {
             return {
               ...date,
               textColor: updatedCategory.textColor,
@@ -331,41 +262,6 @@ export default defineComponent({
       this.reminderDates.splice(index, 1);
       await this.saveDates();
     },
-    editDate(index: number) {
-      const dateToEdit = this.reminderDates[index];
-      this.editedDate = { ...dateToEdit };
-      this.isEditingDate = true;
-      this.editDateIndex = index;
-    },
-    async updateDate() {
-      if (this.editDateIndex > -1) {
-        const category = this.categories.find(
-          (category) => category.name === this.editedDate.category
-        );
-        if (!category) {
-          return;
-        }
-        this.reminderDates[this.editDateIndex] = {
-          date: this.editedDate.date,
-          category: this.editedDate.category,
-          textColor: category.textColor,
-          backgroundColor: category.backgroundColor,
-        };
-        await this.saveDates();
-        this.cancelEditDate();
-      }
-    },
-    cancelEditDate() {
-      this.editedDate = {
-        date: "",
-        category: "",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-      };
-      this.isEditingDate = false;
-      this.editDateIndex = -1;
-    },
-
     // Color contrast logic
     setContrastColor(newCategory: Category) {
       function hexToHsl(hex: string): [number, number, number] {
