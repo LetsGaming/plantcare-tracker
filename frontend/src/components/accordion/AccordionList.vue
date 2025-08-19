@@ -22,7 +22,8 @@ export default defineComponent({
 
 <style scoped>
 .accordion-list {
-  padding: 0;
+  padding-left: 15px;
+  padding-right: 15px;
   max-height: 250px;
   overflow-y: auto;
   display: flex;

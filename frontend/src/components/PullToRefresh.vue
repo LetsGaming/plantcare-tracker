@@ -45,7 +45,7 @@ import {
   IonIcon,
   IonSpinner,
 } from "@ionic/vue";
-import { chevronDownCircleOutline, refresh } from "ionicons/icons";
+import { chevronDownCircleOutline, reload } from "ionicons/icons";
 
 export default defineComponent({
   name: "PullToRefresh",
@@ -66,7 +66,7 @@ export default defineComponent({
   data() {
     return {
       chevronDown: chevronDownCircleOutline,
-      refresh: refresh,
+      refresh: reload,
       isRefreshing: false,
     };
   },

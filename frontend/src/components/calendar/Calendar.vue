@@ -59,7 +59,7 @@ import {
 } from "@ionic/vue";
 import { settings } from "ionicons/icons";
 import Popover from "@/components/Popover.vue";
-import CalendarService from "@/services/CalendarService";
+import CalendarService, { CalendarEvents } from "@/services/CalendarService";
 import CalendarLegend from "./CalendarLegend.vue";
 
 export default defineComponent({
@@ -117,6 +117,12 @@ export default defineComponent({
   },
   async mounted() {
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
+
+    // Add listener for firstDayOfWeek changes
+    document.addEventListener(CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED, (event: Event) => {
+      const customEvent = event as CustomEvent;
+      this.firstDayOfWeek = customEvent.detail;
+    });
   },
   computed: {
     legendItems(): { label: string; color: string }[] {

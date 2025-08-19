@@ -46,7 +46,7 @@ import { settings } from "ionicons/icons";
 import Calendar from "@/components/calendar/Calendar.vue";
 import BaseFormModal from "../modal/BaseFormModal.vue";
 
-import CalendarService from "@/services/CalendarService";
+import CalendarService, { CalendarEvents } from "@/services/CalendarService";
 
 export default defineComponent({
   name: "MenuCalendar",
@@ -131,17 +131,24 @@ export default defineComponent({
   },
   methods: {
     setupListeners() {
-      document.addEventListener("categories-changed", (event) => {
+      document.addEventListener(CalendarEvents.CATEGORIES_CHANGED, (event) => {
         const customEvent = event as CustomEvent<Category[]>;
         this.categories = customEvent.detail;
       });
-      document.addEventListener("dates-changed", (event) => {
+      document.addEventListener(CalendarEvents.DATES_CHANGED, (event) => {
         const customEvent = event as CustomEvent<CalendarDates[]>;
         this.reminderDates = [];
         this.$nextTick(() => {
           this.reminderDates = customEvent.detail;
         });
       });
+      document.addEventListener(
+        CalendarEvents.DELETE_AFTER_THIRTY_CHANGED,
+        (event) => {
+          const customEvent = event as CustomEvent<boolean>;
+          CalendarService.saveDeleteAfterThirty(customEvent.detail);
+        }
+      );
     },
     async getSavedDates() {
       this.reminderDates = await CalendarService.getDates();
