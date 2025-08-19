@@ -6,7 +6,7 @@
       :show-upload-button="!isPublic"
       @uploadClick="showUploadModal = true"
       default-href="/tabs/plants/overview"
-    ></details-header>
+    />
     <ion-content>
       <div v-if="plant">
         <!-- Full-width banner with dynamic plant image -->
@@ -16,12 +16,12 @@
           :image-url="plant.imageUrl"
         />
 
-        <section class="plant-info">
-          <horizontal-gallery
-            :images="plant.images"
-            :is-public="isPublic"
-            @edit-click="handleImageEditClick"
-          />
+        <horizontal-gallery
+          :images="plant.images"
+          :is-public="isPublic"
+          @edit-click="handleImageEditClick"
+        />
+        <section class="plant-info align-middle">
           <substrate-container :substrate="plant.substrate" />
           <watering-records
             :plantId="plant.id"
@@ -52,7 +52,6 @@
         entity-type="plant"
         @close="showImageEditModal = false"
         @edited="handleImageEdited"
-
       />
     </ion-content>
   </ion-page>

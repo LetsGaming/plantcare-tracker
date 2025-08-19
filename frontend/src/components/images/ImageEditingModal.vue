@@ -73,14 +73,14 @@ export default defineComponent({
       required: true,
     },
     entityType: {
-      type: String,
+      type: Object as PropType<EntityType>,
       required: true,
     },
   },
   data() {
     return {
       imageEditData: {
-        image: undefined,
+        file: undefined,
         date: undefined,
       } as EditImage,
       isLoading: false,
@@ -97,7 +97,7 @@ export default defineComponent({
   methods: {
     async submitForm() {
       try {
-        if (!this.imageEditData.image && !this.imageEditData.date) {
+        if (!this.imageEditData.file && !this.imageEditData.date) {
           ToastService.showError("Bitte fülle mindestens ein Feld aus.");
           return;
         }
@@ -106,7 +106,7 @@ export default defineComponent({
           this.image.id,
           this.entityType,
           this.imageEditData.date,
-          this.imageEditData.image
+          this.imageEditData.file
         );
         if (response) {
           this.isLoading = false;

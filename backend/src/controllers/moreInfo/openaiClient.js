@@ -18,8 +18,13 @@ const formatToHTML = (text, htmlFormatting) => {
 
   let formattedText = text.trim();
 
-  // 1. Convert the plant name at the start (first line) to a top-level <h1>
-  formattedText = formattedText.replace(/^(.*?)(\n|$)/, "<h1>$1</h1>");
+  //1. Convert headings (h6 to h1) based on the number of '#' characters
+  formattedText = formattedText.replace(/^###### (.*)$/gm, "<h6>$1</h6>");
+  formattedText = formattedText.replace(/^##### (.*)$/gm, "<h5>$1</h5>");
+  formattedText = formattedText.replace(/^#### (.*)$/gm, "<h4>$1</h4>");
+  formattedText = formattedText.replace(/^### (.*)$/gm, "<h3>$1</h3>");
+  formattedText = formattedText.replace(/^## (.*)$/gm, "<h2>$1</h2>");
+  formattedText = formattedText.replace(/^# (.*)$/gm, "<h1>$1</h1>");
 
   // 2. Convert bold text (e.g., **Wasser:**) to <strong> tags
   formattedText = formattedText.replace(
@@ -67,7 +72,7 @@ const formatToHTML = (text, htmlFormatting) => {
 const getPlantCareFromOpenAI = async (
   plantName,
   htmlFormatting = false,
-  model = "gpt-3.5-turbo"
+  model = "gpt-4o-mini"
 ) => {
   if (!openai) {
     console.warn("OpenAI API key not set. Skipping request.");
@@ -78,6 +83,8 @@ const getPlantCareFromOpenAI = async (
     // Check cache before making an API request
     const cachedData = cache.get(plantName);
     if (cachedData) return cachedData;
+
+    // Prepare the prompt for OpenAI
 
     const prompt = `Gib mir detaillierte und wissenschaftlich belegte Pflegehinweise für die Pflanze "${plantName}". 
     Die Hinweise sollen für Anfänger leicht verständlich und für erfahrene Pflanzeneltern hilfreich sein. 
@@ -96,7 +103,10 @@ const getPlantCareFromOpenAI = async (
     const response = await openai.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: "Du bist ein hilfreicher Botaniker." },
+        {
+          role: "system",
+          content: "Du bist ein hilfreicher wissenschaftlicher Botaniker.",
+        },
         { role: "user", content: prompt },
       ],
       temperature: 0.7, // Balance between randomness and coherence

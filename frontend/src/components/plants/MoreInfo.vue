@@ -20,7 +20,7 @@
         class="info-links"
       >
         <ion-accordion-group>
-          <ion-accordion v-if="info.links">
+          <ion-accordion v-if="info.links.length > 0">
             <ion-item slot="header" class="component-header">
               <ion-label>Links</ion-label>
             </ion-item>
@@ -127,33 +127,48 @@ export default defineComponent({
   methods: {
     async getLinks() {
       this.loading = true;
-      this.notFound = false; // Reset notFound at the start
+      this.notFound = false; // reset at the start
 
       let timeoutReached = false;
 
-      // Set a timeout to update UI after 10s if data hasn't arrived yet
+      // Timeout to mark "not found" after 10s if no data
       const timeout = setTimeout(() => {
         timeoutReached = true;
-        if (this.infos.length === 0) {
-          this.notFound = true; // Only mark as "not found" if still empty
+
+        // If infos is empty or null, mark notFound
+        if (!this.infos || this.infos.length === 0) {
+          this.notFound = true;
+          return;
         }
+
+        // Check if any info actually contains links or AI data
+        const hasData = this.infos.some(
+          (info) => (info.links?.length || 0) > 0 || (info.ai?.length || 0) > 0
+        );
+
+        this.notFound = !hasData;
       }, 10000);
 
       try {
-        this.infos = await MoreInfoService.getMoreInfo(this.plantName);
+        const data = await MoreInfoService.getMoreInfo(this.plantName);
+
+        // Ensure data is always an array
+        this.infos = Array.isArray(data) ? data : [];
+
+        // Immediately check if we actually got any data
+        const hasData = this.infos.some(
+          (info) => (info.links?.length || 0) > 0 || (info.ai?.length || 0) > 0
+        );
+
+        this.notFound = !hasData;
       } catch (error) {
         console.error("Error fetching more info:", error);
+        this.infos = [];
+        this.notFound = true; // mark notFound on error
+      } finally {
+        clearTimeout(timeout);
+        this.loading = false;
       }
-
-      clearTimeout(timeout); // Stop the timeout if data arrives
-
-      if (this.infos.length > 0) {
-        this.notFound = false; // If we got data, ensure "not found" isn't shown
-      } else if (timeoutReached) {
-        this.notFound = true; // If timeout was reached and still no data, show "not found"
-      }
-
-      this.loading = false;
     },
     addClassesToHtml(content: string): string {
       const div = document.createElement("div");
@@ -164,9 +179,10 @@ export default defineComponent({
       div
         .querySelectorAll("p")
         .forEach((p) => p.classList.add("info-text-paragraph"));
-      div
-        .querySelectorAll("h1")
-        .forEach((h1) => h1.classList.add("info-header"));
+
+      div.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((h) => {
+        h.classList.add("info-header");
+      });
       div
         .querySelectorAll("strong")
         .forEach((strong) => strong.classList.add("info-strong"));
@@ -182,6 +198,11 @@ export default defineComponent({
 /* Header styling */
 .info-header {
   color: var(--ion-color-primary);
+}
+
+h1.info-header {
+  font-size: 1.5em;
+  font-weight: bold;
 }
 
 .info-header strong {
@@ -203,6 +224,12 @@ export default defineComponent({
 /* Strong element styling */
 .info-strong {
   color: var(--ion-color-dark-tint);
+}
+
+.info-text-paragraph {
+  margin-left: 15px !important;
+  padding: 0;
+  font-size: 0.9em !important;
 }
 </style>
 

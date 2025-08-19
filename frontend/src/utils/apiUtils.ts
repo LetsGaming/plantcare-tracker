@@ -111,12 +111,13 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
         body: data, // data should be an instance of FormData
       });
     } else {
+      // For non-file
       const headers = await getAuthHeaders();
       return fetch(`${API_BASE_URL}${endpoint}`, {
         method,
         headers,
         credentials: "include",
-        ...(data ? { body: JSON.stringify(data) } : {}),
+        ...(data ? { body: JSON.stringify(data, null, 2) } : {}),
       });
     }
   };

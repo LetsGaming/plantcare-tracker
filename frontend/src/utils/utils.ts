@@ -64,7 +64,7 @@ const Utils = {
       return toFilter;
     }
 
-    if(query.trim() === "") {
+    if (query.trim() === "") {
       return toFilter; // Return original array if query is empty
     }
 
@@ -83,7 +83,7 @@ const Utils = {
    * @param {string} dateString - The date string to convert.
    * @returns {string} - The formatted date string or the original string if not in ISO format.
    */
-  convertDateString(dateString: string) {
+  convertDateString(dateString: string): string {
     // Check if the dateString is already formatted (basic check)
     if (
       isNaN(Date.parse(dateString)) &&
@@ -96,6 +96,17 @@ const Utils = {
 
     // Format the date in the desired format
     return localDate.toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY);
+  },
+
+  /**
+   * Converts a date string to a formatted date string in the local time zone.
+   * If the date string is not in ISO format, it returns the original string.
+   * @param {string} dateString - The date string to convert.
+   * @returns {string} - The formatted date string or the original string if not in ISO format.
+   */
+  capitalizeFirstLetter(str: string): string {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1);
   },
 
   async closeOpenModal() {

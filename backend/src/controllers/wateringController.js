@@ -18,7 +18,7 @@ const getFertilizerTypes = async (req, res) => {
   try {
     const fertilizerTypes = await selectFertilizerTypes();
     if (fertilizerTypes.length === 0) {
-      return notFoundResponse(res, "No fertilizer types found");
+      return notFoundResponse(res, "No fertilizer types available");
     }
     successResponse(res, fertilizerTypes);
   } catch (err) {
@@ -68,8 +68,7 @@ const addWateringRecord = async (req, res) => {
       plantId,
       parsedDate,
       usedFertilizer,
-      fertilizerTypeId,
-      userId
+      fertilizerTypeId
     );
 
     if (result.affectedRows === 0) {
@@ -113,8 +112,7 @@ const editWateringRecord = async (req, res) => {
         400
       );
     }
-
-    if (typeof fertilizerTypeId !== "number" && fertilizerTypeId !== null) {
+    if (typeof fertilizerTypeId !== "number" && fertilizerTypeId !== null && fertilizerTypeId !== undefined) {
       return errorResponse(res, "Fertilizer type ID must be a number", 400);
     }
 

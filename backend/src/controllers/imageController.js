@@ -15,10 +15,6 @@ const {
 const { formatToDBDate } = require("../utils/generalUtils.js");
 const { getPublicImagePath } = require("../utils/imageUtils.js");
 
-const dotenv = require("dotenv"); // Import dotenv to load environment variables
-// Load environment variables from .env file
-dotenv.config();
-
 const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg"];
 const NAS_PATH = process.env.NAS_PATH || null;
 const uploadDir = NAS_PATH || "/uploads";

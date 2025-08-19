@@ -1,55 +1,23 @@
 <template>
-  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader headerTitle="Pflanze bearbeiten" @close="$emit('close')" />
-    <IonContent>
-      <form-component
-        :item="editPlantData"
-        :formFields="[
-          { type: 'input', modelKey: 'name', label: 'Name', required: false },
-          {
-            type: 'input',
-            modelKey: 'species',
-            label: 'Spezies',
-            required: false,
-          },
-          {
-            type: 'select',
-            modelKey: 'substrateId',
-            label: 'Substrat',
-            placeholder: 'Substrat auswählen',
-            options: substrates.map((substrate) => ({
-              value: substrate.id,
-              label: substrate.name,
-            })),
-          },
-          {
-            type: 'radio',
-            modelKey: 'isPublic',
-            label: 'Sichtbarkeit',
-            options: [
-              { value: true, label: 'Öffentlich' },
-              { value: false, label: 'Privat' },
-            ],
-            defaultValue: Boolean(plant.isPublic),
-          },
-        ]"
-        cardTitle="Planzen Informationen"
-        submitLabel="Pflanze editieren"
-        :extraContentComponent="SubstrateContainer"
-        :extraContentData="{ substrate: selectedSubstrate }"
-        :isLoading="isLoading"
-        @submitClick="editPlant"
-        @delete-click="deletePlant"
-      ></form-component>
-    </IonContent>
-  </IonModal>
+  <BaseFormModal
+    :isOpen="isOpen"
+    :isLoading="isLoading"
+    modalTitle="Pflanze bearbeiten"
+    formTitle="Pflanzen Informationen"
+    submitLabel="Pflanze editieren"
+    :formData="editPlantData"
+    :formFields="formFields"
+    :extraContentComponent="SubstrateContainer"
+    :extraContentData="{ substrate: selectedSubstrate }"
+    :deleteHandler="deletePlant"
+    @close="$emit('close')"
+    @submit="editPlant"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { IonModal, IonContent } from "@ionic/vue";
-import ModalHeader from "@/components/modal/ModalHeader.vue";
-import FormComponent from "@/components/formcomponent/FormComponent.vue";
+import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 import PlantService from "@/services/PlantService";
@@ -60,11 +28,7 @@ export default defineComponent({
   name: "PlantEditingModal",
   emits: ["close", "edited"],
   components: {
-    IonModal,
-    IonContent,
-
-    ModalHeader,
-    FormComponent,
+    BaseFormModal,
     SubstrateContainer,
   },
   props: {
@@ -90,7 +54,9 @@ export default defineComponent({
     };
   },
   setup() {
-    return { SubstrateContainer };
+    return {
+      SubstrateContainer,
+    };
   },
   async mounted() {
     this.editPlantData = {
@@ -99,20 +65,51 @@ export default defineComponent({
       substrateId: this.plant.substrate.id,
       isPublic: this.plant.isPublic,
     };
-    await this.fetchSubstrates(); // Fetch substrates when component mounts
+    await this.fetchSubstrates();
   },
   computed: {
+    formFields(): FormField[] {
+      return [
+        { type: "input", modelKey: "name", label: "Name", required: false },
+        {
+          type: "input",
+          modelKey: "species",
+          label: "Spezies",
+          required: false,
+        },
+        {
+          type: "select",
+          modelKey: "substrateId",
+          label: "Substrat",
+          placeholder: "Substrat auswählen",
+          options: this.substrates.map((substrate) => ({
+            value: substrate.id,
+            label: substrate.name,
+          })),
+        },
+        {
+          type: "radio",
+          modelKey: "isPublic",
+          label: "Sichtbarkeit",
+          options: [
+            { value: true, label: "Öffentlich" },
+            { value: false, label: "Privat" },
+          ],
+          defaultValue: Boolean(this.plant.isPublic),
+        },
+      ];
+    },
     selectedSubstrate() {
       return this.substrates.find(
         (substrate) => substrate.id === this.editPlantData.substrateId
       );
     },
   },
+
   methods: {
     async fetchSubstrates() {
       try {
         const response = await SubstrateService.getAllSubstrates();
-
         this.substrates = response;
       } catch (error) {
         console.error("Error fetching substrates:", error);
@@ -130,35 +127,40 @@ export default defineComponent({
       }
 
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await PlantService.editPlant(
           this.plant.id,
           this.editPlantData
         );
         if (response) {
-          this.isLoading = false;
           this.resetPlant();
           this.$emit("edited");
         }
       } catch (error) {
         console.error("Error:", error);
-        ToastService.showError("Error while adding the plant");
+        ToastService.showError("Error while editing the plant");
       }
     },
     async deletePlant() {
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await PlantService.deletePlant(this.plant.id);
         if (response) {
-          this.isLoading = false;
           this.resetPlant();
           this.$emit("close");
-          await this.$router.push({ name: "plant-overview" }); // Redirect to plant list after success
+          await this.$router.push({ name: "plant-overview" });
         }
       } catch (error) {
         console.error("Error:", error);
         ToastService.showError("Error while deleting the plant");
       }
+    },
+    loadingTimeout() {
+      this.isLoading = true;
+      const timeout_s = 10;
+      setTimeout(() => {
+        this.isLoading = false;
+      }, timeout_s * 1000);
     },
     resetPlant() {
       this.editPlantData = {
