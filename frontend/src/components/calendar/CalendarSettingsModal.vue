@@ -19,13 +19,13 @@
               placeholder="Wählen Sie einen Tag"
               @ionChange="updateFirstDay"
             >
-              <ion-select-option :value="0">Sonntag</ion-select-option>
-              <ion-select-option :value="1">Montag</ion-select-option>
-              <ion-select-option :value="2">Dienstag</ion-select-option>
-              <ion-select-option :value="3">Mittwoch</ion-select-option>
-              <ion-select-option :value="4">Donnerstag</ion-select-option>
-              <ion-select-option :value="5">Freitag</ion-select-option>
-              <ion-select-option :value="6">Samstag</ion-select-option>
+              <ion-select-option
+                v-for="day in localizedWeekdays"
+                :key="day.value"
+                :value="day.value"
+              >
+                {{ day.label }}
+              </ion-select-option>
             </ion-select>
           </ion-item>
           <IonItem>
@@ -163,7 +163,6 @@ export default defineComponent({
       isEditingDate: false,
       editCategoryIndex: -1,
       doDeleteAfterThirty: false,
-      // New setting for first day of the week (0 = Sonntag, 1 = Montag, etc.)
       firstDayOfWeek: 0,
     };
   },
@@ -183,6 +182,20 @@ export default defineComponent({
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(
       () => 0
     );
+  },
+  computed: {
+    localizedWeekdays(): { value: number; label: string }[] {
+      const baseDate = new Date(2021, 7, 1); // Sunday
+      const formatter = new Intl.DateTimeFormat(navigator.language, {
+        weekday: "long",
+      });
+
+      return Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(baseDate);
+        date.setDate(baseDate.getDate() + i);
+        return { value: i, label: formatter.format(date) };
+      });
+    },
   },
   methods: {
     // First Day of Week Methods

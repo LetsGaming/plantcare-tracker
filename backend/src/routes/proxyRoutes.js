@@ -1,24 +1,26 @@
 const fs = require("fs");
+const path = require("path");
 const express = require("express");
 const imageProxy = express.Router();
 const { errorResponse } = require("../utils/responseUtils");
 
-const dotenv = require("dotenv"); // Import dotenv to load environment variables
-// Load environment variables from .env file
-dotenv.config();
+const NAS_PATH = process.env.NAS_PATH;
 
-const NAS_PATH = process.env.NAS_PATH || null;
-imageProxy.get("/uploads/:imageName", (req, res) => {
+if (!NAS_PATH) {
+  console.warn("NAS_PATH not set, proxy routes will not serve images.");
+}
+
+imageProxy.get("/:imageName", (req, res) => {
   const imageName = req.params.imageName;
-  const nasImagePath = path.join(NAS_PATH, imageName); // Path to the image on NAS
+  if (!NAS_PATH) return errorResponse(res, "NAS_PATH not configured", 500);
 
-  // Check if the image exists on the NAS
+  const nasImagePath = path.join(NAS_PATH, imageName);
+
   fs.access(nasImagePath, fs.constants.F_OK, (err) => {
     if (err) {
       return errorResponse(res, "Image not found", 404);
     }
 
-    // If exists, serve the image
     res.sendFile(nasImagePath);
   });
 });
