@@ -12,12 +12,29 @@
       </ion-toolbar>
     </ion-card-header>
 
-    <section v-if="mappedRecords.length" class="watering-records">
+    <!-- Letzte Wässerungen -->
+    <section v-if="mappedRecords.length > 0" class="watering-records">
       <ion-card-header>
         <ion-card-title class="record-title">
           Letzte Wässerung:
-          <span>{{ daysAgo < 1 ? "Heute" : `Vor ${daysAgo} Tagen` }}</span>
+          <span v-if="daysAgo === 0">Heute</span>
+          <span v-else>{{ daysAgo }} Tage her</span>
         </ion-card-title>
+        <!-- Durchschnitts-Statistiken -->
+        <section
+          v-if="records.length > 0"
+          class="watering-stats"
+          style="padding: 0 16px"
+        >
+          <ion-card-subtitle>
+            Wässerung:
+            <strong>{{ averageWateringFrequency }}</strong>
+          </ion-card-subtitle>
+          <ion-card-subtitle>
+            Düngergabe:
+            <strong>{{ averageFertilizerUsage }}</strong>
+          </ion-card-subtitle>
+        </section>
       </ion-card-header>
       <ion-card-content class="align-middle record-details">
         <Calendar
@@ -71,6 +88,7 @@ import {
   IonCard,
   IonCardHeader,
   IonCardTitle,
+  IonCardSubtitle,
   IonCardContent,
   IonIcon,
 } from "@ionic/vue";
@@ -81,6 +99,7 @@ import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 
 import WateringService from "@/services/WateringService";
 import UserService from "@/services/UserService";
+import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
   name: "WateringRecords",
@@ -91,6 +110,7 @@ export default defineComponent({
     IonCard,
     IonCardHeader,
     IonCardTitle,
+    IonCardSubtitle,
     IonCardContent,
     IonIcon,
     BaseFormModal,
@@ -108,6 +128,7 @@ export default defineComponent({
     return {
       records: [] as WateringRecord[],
       mappedRecords: [] as CalendarDates[],
+      wateringCategories: [] as Category[],
       daysAgo: 0,
       selectedDate: null as string | null,
       selectedRecord: null as WateringRecord | null,
@@ -133,6 +154,8 @@ export default defineComponent({
       ...types.map((t) => ({ label: t.name, value: t.id })),
       { label: "Kein Dünger", value: -1 },
     ];
+
+    this.wateringCategories = await CalendarService.getWateringCategories();
   },
   computed: {
     popoverInfo(): PopoverItem | undefined {
@@ -147,6 +170,56 @@ export default defineComponent({
         fields.push({ label: "Dünger Typ", value: fertilizerType });
       }
       return { title: "Wässerungsdetails", fields };
+    },
+    averageWateringFrequency(): string {
+      if (this.records.length < 2) return "zu wenig Daten";
+
+      const sorted = [...this.records].sort(
+        (a, b) => a.date_millis - b.date_millis
+      );
+
+      // Calculate all differences in days
+      const dayDiffs = [];
+      for (let i = 1; i < sorted.length; i++) {
+        const diffDays =
+          (sorted[i].date_millis - sorted[i - 1].date_millis) / 86400000;
+        dayDiffs.push(diffDays);
+      }
+
+      // Compute the average difference
+      const avgDays = dayDiffs.reduce((a, b) => a + b, 0) / dayDiffs.length;
+
+      // Determine frequency unit
+      if (avgDays < 7) {
+        return `ca. alle ${Math.round(avgDays)} Tage`;
+      }
+      if (avgDays < 30) {
+        const weeks = Math.round(avgDays / 7);
+        return `ca. alle ${weeks} Wochen`;
+      }
+      if (avgDays < 90) {
+        const months = Math.round(avgDays / 30);
+        return `ca. alle ${months} Monate`;
+      }
+
+      const years = Math.round(avgDays / 365);
+      return `ca. alle ${years} Jahre`;
+    },
+    averageFertilizerUsage(): string {
+      if (this.records.length === 0) return "keine Daten";
+
+      const usedCount = this.records.filter((r) => r.usedFertilizer).length;
+      const total = this.records.length;
+      const ratio = usedCount / total;
+
+      // Define thresholds and corresponding translation keys
+      if (ratio === 1) return "jede Wässerung";
+      if (ratio >= 0.75) return "meistens";
+      if (ratio >= 0.5) return "ungefähr jede zweite";
+      if (ratio >= 0.25) return "gelegentlich";
+      if (ratio > 0) return "selten";
+
+      return "nie";
     },
   },
   watch: {
@@ -263,7 +336,7 @@ export default defineComponent({
     ) {
       this.startLoading();
       this.syncFertilizerUsage(record, record.fertilizerTypeId);
-      const payload = { ...record }; // shallow copy
+      const payload = { ...record };
       let response;
 
       if (mode === "add") {
@@ -287,14 +360,24 @@ export default defineComponent({
       setTimeout(() => (this.isLoading = false), 10000);
     },
     mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {
-      return records.map((r) => ({
-        date: new Date(r.date_millis).toISOString().split("T")[0],
-        category: {
-          name: "Wässerung",
-          textColor: "#fff",
-          backgroundColor: "#4CAF50",
-        },
-      }));
+      return records.map((r) => {
+        // Pick category based on fertilizerTypeId
+        let category = this.wateringCategories.find(
+          (c) => c.name === (r.fertilizerType || "Kein Dünger")
+        );
+
+        // fallback if not found
+        if (!category) {
+          category = this.wateringCategories.find(
+            (c) => c.name === "Kein Dünger"
+          )!;
+        }
+
+        return {
+          date: new Date(r.date_millis).toISOString().split("T")[0],
+          category,
+        };
+      });
     },
   },
 });
