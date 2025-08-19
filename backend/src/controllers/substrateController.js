@@ -35,6 +35,9 @@ const getSubstrateById = async (res, selectSubstrateFn, id, userId = null) => {
 const getSubstratesList = async (res, selectSubstratesFn, userId = null) => {
   try {
     const substrates = await selectSubstratesFn(userId);
+    if (substrates.length === 0) {
+      return notFoundResponse(res, "No substrates found");
+    }
     successResponse(res, substrates);
   } catch (err) {
     errorResponse(res, err);

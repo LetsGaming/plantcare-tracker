@@ -1,8 +1,5 @@
 const mysql = require('mysql2');
 const logger = require('../utils/logger.js');
-const dotenv = require('dotenv');
-
-dotenv.config();
 
 // Validate required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];

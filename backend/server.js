@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -66,7 +65,7 @@ function setupMiddleware(app) {
   // Enable CORS for all routes
   app.use(cors(corsOptions));
   // Preflight requests for all routes
-  app.options("*", cors(corsOptions));
+  app.options("/", cors(corsOptions));
 
   // Parse JSON bodies and cookies
   app.use(express.json());
