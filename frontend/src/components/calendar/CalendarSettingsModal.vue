@@ -143,6 +143,8 @@ import {
   IonCardTitle,
   IonCardContent,
   IonToolbar,
+  IonButtons,
+  IonTitle,
 } from "@ionic/vue";
 import { create, trash, refreshCircle } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
@@ -169,6 +171,8 @@ export default defineComponent({
     IonCardTitle,
     IonCardContent,
     IonToolbar,
+    IonButtons,
+    IonTitle,
     ModalHeader,
   },
   setup() {
