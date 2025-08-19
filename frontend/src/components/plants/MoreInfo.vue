@@ -179,9 +179,10 @@ export default defineComponent({
       div
         .querySelectorAll("p")
         .forEach((p) => p.classList.add("info-text-paragraph"));
-      div
-        .querySelectorAll("h1")
-        .forEach((h1) => h1.classList.add("info-header"));
+
+      div.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((h) => {
+        h.classList.add("info-header");
+      });
       div
         .querySelectorAll("strong")
         .forEach((strong) => strong.classList.add("info-strong"));
@@ -197,6 +198,11 @@ export default defineComponent({
 /* Header styling */
 .info-header {
   color: var(--ion-color-primary);
+}
+
+h1.info-header {
+  font-size: 1.5em;
+  font-weight: bold;
 }
 
 .info-header strong {
@@ -218,6 +224,12 @@ export default defineComponent({
 /* Strong element styling */
 .info-strong {
   color: var(--ion-color-dark-tint);
+}
+
+.info-text-paragraph {
+  margin-left: 15px !important;
+  padding: 0;
+  font-size: 0.9em !important;
 }
 </style>
 
