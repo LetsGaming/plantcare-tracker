@@ -1,5 +1,5 @@
 <template>
-  <base-modal
+  <BaseFormModal
     :is-open="isOpen"
     modal-title="Komponente bearbeiten"
     :form-data="editComponentData"
@@ -29,7 +29,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import BaseModal from "../modal/BaseModal.vue";
+import BaseFormModal from "../modal/BaseFormModal.vue";
 
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
@@ -38,7 +38,7 @@ export default defineComponent({
   name: "ComponentEditingModal",
   emits: ["close", "edited"],
   components: {
-    BaseModal,
+    BaseFormModal,
   },
   props: {
     isOpen: {

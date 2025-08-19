@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -21,7 +20,10 @@ const logger = require("./src/utils/logger");
 
 // Import middlewares
 const { limiter } = require("./src/middlewares/rateLimiter");
-const { notFoundHandler, globalErrorHandler } = require("./src/middlewares/errorHandler");
+const {
+  notFoundHandler,
+  globalErrorHandler,
+} = require("./src/middlewares/errorHandler");
 const { checkGuestPermission } = require("./src/middlewares/authMiddleware");
 
 // Get API version from package.json
@@ -31,25 +33,23 @@ const { versionPath } = require("./package.json");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-/**
- * Configure allowed origins.
- * Includes localhost and any additional origins from the ALLOWED_ORIGINS env variable.
- */
 const allowedOrigins = [
-  "http://localhost:8100",
   ...(process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
     : []),
 ];
 
-/**
- * CORS configuration options.
- * It allows requests if the origin is in allowedOrigins or if no origin is provided.
- */
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (e.g., mobile apps or curl requests)
-    if (allowedOrigins.includes(origin) || !origin) {
+    // Allow localhost in development
+    let isLocalhost = false;
+    if (process.env.NODE_ENV === "development") {
+      isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(
+        origin || ""
+      );
+    }
+
+    if (isLocalhost || allowedOrigins.includes(origin) || !origin) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"));
@@ -65,7 +65,7 @@ function setupMiddleware(app) {
   // Enable CORS for all routes
   app.use(cors(corsOptions));
   // Preflight requests for all routes
-  app.options("*", cors(corsOptions));
+  app.options("/", cors(corsOptions));
 
   // Parse JSON bodies and cookies
   app.use(express.json());
@@ -81,7 +81,9 @@ function setupMiddleware(app) {
  */
 function setupUploads(app) {
   const NAS_PATH = process.env.NAS_PATH || null;
-  const uploadDir = NAS_PATH ? path.resolve(NAS_PATH) : path.resolve(__dirname, "./uploads");
+  const uploadDir = NAS_PATH
+    ? path.resolve(NAS_PATH)
+    : path.resolve(__dirname, "./uploads");
 
   if (NAS_PATH) {
     // Use proxy route for uploads if NAS path is defined

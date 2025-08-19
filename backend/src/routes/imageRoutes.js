@@ -16,12 +16,8 @@ const {
 } = require("../controllers/imageController");
 const { imageGetLimiter } = require("../middlewares/rateLimiter");
 
-const dotenv = require("dotenv"); // Import dotenv to load environment variables
 const { errorResponse } = require("../utils/responseUtils");
 const logger = require("../utils/logger");
-
-// Load environment variables from .env file
-dotenv.config();
 
 const router = express.Router();
 

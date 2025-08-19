@@ -1,5 +1,5 @@
 <template>
-  <BaseAddingModal
+  <BaseFormModal
     :isOpen="isOpen"
     modalTitle="Komponente hinzufügen"
     formTitle="Komponenten Informationen"
@@ -14,13 +14,13 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import BaseAddingModal from "@/components/modal/BaseModal.vue";
+import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "ComponentAddingModal",
-  components: { BaseAddingModal },
+  components: { BaseFormModal },
   props: { isOpen: { type: Boolean, required: true } },
   emits: ["close", "added"],
   data() {
@@ -52,7 +52,11 @@ export default defineComponent({
   methods: {
     async addComponent(componentData: AddComponent) {
       try {
-        if (!componentData.name || !componentData.fineness || componentData.fineness < 0) {
+        if (
+          !componentData.name ||
+          !componentData.fineness ||
+          componentData.fineness < 0
+        ) {
           ToastService.showError(
             "Bitte füllen Sie alle erforderlichen Felder aus."
           );

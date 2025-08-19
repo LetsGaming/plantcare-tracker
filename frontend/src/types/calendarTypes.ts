@@ -1,8 +1,6 @@
 interface CalendarDates {
   date: string;
-  category: string;
-  textColor: string;
-  backgroundColor: string;
+  category: Category;
 }
 
 interface StoredCalendarDates {

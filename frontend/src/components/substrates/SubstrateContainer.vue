@@ -19,14 +19,15 @@
               <ion-label>Komponenten</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper align-middle">
-              <!-- Pie Chart Integration -->
               <PieChart :data="chartData" v-if="chartData.length > 0" />
               <div class="component-list">
-                <!-- Updated Search Bar Integration -->
-                <SearchBar
-                  placeholder="Search components..."
-                  @search="filterComponents"
-                />
+                <div class="ion-padding">
+                  <SearchBar
+                    placeholder="Search components..."
+                    @search="filterComponents"
+                  />
+                </div>
+
                 <AccordionList :items="filteredComponents" />
               </div>
             </div>
@@ -164,8 +165,8 @@ export default defineComponent({
   padding-inline-end: 20px;
 }
 .component-header {
-  border-radius: 8px;
-  font-weight: bold;
+  border-radius: 2px;
+  font-weight: 400;
   font-size: 1.2rem;
 }
 .component-list {

@@ -6,6 +6,7 @@ const selectWateringRecordsQuery = `
     wr.id as record_id,
     wr.date as watering_date,
     wr.used_fertilizer,
+    ft.id as fertilizer_type_id,
     ft.name as fertilizer_type, 
     p.id as plant_id,
     p.name as plant_name,
@@ -73,7 +74,7 @@ const insertWateringRecord = async (
   plantId,
   date,
   usedFertilizer,
-  fertilizerTypeId, // Now we expect a fertilizer_type_id
+  fertilizerTypeId,
 ) => {
   const query = `
     INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)
@@ -104,7 +105,7 @@ const updateWateringRecord = async (recordId, userId, fields) => {
     updates.push("used_fertilizer = ?");
     params.push(fields.usedFertilizer);
   }
-  if (fields.fertilizerTypeId) {
+  if (fields.fertilizerTypeId && fields.fertilizerTypeId !== -1) {
     updates.push("fertilizer_type_id = ?");
     params.push(fields.fertilizerTypeId);
   }

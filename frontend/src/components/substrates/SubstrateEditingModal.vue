@@ -230,7 +230,7 @@ export default defineComponent({
         return;
       }
 
-      this.isLoading = true;
+      this.loadingTimeout();
 
       try {
         if (componentsChanged && !metaChanged) {
@@ -294,28 +294,31 @@ export default defineComponent({
       } catch (error) {
         console.error("Error editing substrate or components:", error);
         ToastService.showError("Fehler beim Aktualisieren des Substrats");
-      } finally {
-        this.isLoading = false;
       }
     },
     async deleteSubstrate() {
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await SubstrateService.deleteSubstrate(
           this.substrate.id
         );
         if (response) {
-          this.isLoading = false;
           ToastService.showSuccess("Substrat erfolgreich gelöscht");
           this.resetSubstrate();
           this.$emit("close");
           this.$router.push({ name: "substrate-overview" });
         }
       } catch (error) {
-        this.isLoading = false;
         console.error("Error deleting substrate:", error);
         ToastService.showError("Fehler beim Löschen des Substrats");
       }
+    },
+    loadingTimeout() {
+      this.isLoading = true;
+      const timeout_s = 10;
+      setTimeout(() => {
+        this.isLoading = false;
+      }, timeout_s * 1000);
     },
     resetSubstrate() {
       this.editSubstrateData = {

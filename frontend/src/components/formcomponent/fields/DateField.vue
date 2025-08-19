@@ -27,19 +27,22 @@ export default defineComponent({
     },
     modelValue: {
       type: Number,
-      default: "",
+      default: undefined,
     },
   },
   mounted() {
-    if (!this.modelValue) {
-      this.$emit("update:modelValue", new Date().getTime());
+    // Set default value if provided
+    if (this.field.defaultValue !== undefined) {
+      this.localValue = this.field.defaultValue;
     }
   },
   computed: {
     localValue: {
       get() {
         let value = this.modelValue;
-        return this.formatDateForInput(value);
+        return this.formatDateForInput(
+          value !== undefined ? value : Date.now()
+        );
       },
       set(val: string) {
         // Convert the local input back to the user's local timezone

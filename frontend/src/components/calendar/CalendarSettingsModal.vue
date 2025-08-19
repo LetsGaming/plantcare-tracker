@@ -6,40 +6,76 @@
     />
 
     <ion-content>
-      <!-- First Day of the Week Setting -->
       <ion-card>
         <ion-card-header>
-          <ion-card-title>Generelle Einstellungen</ion-card-title>
+          <ion-card-title>Allgemeine Einstellungen</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-item>
             <ion-select
-              v-model="firstDayOfWeek"
-              label="Wochentag auswählen"
-              placeholder="Wählen Sie einen Tag"
-              @ionChange="updateFirstDay"
+              label="Erster Wochentag"
+              :value="firstDayOfWeek"
+              placeholder="Wähle den ersten Wochentag"
+              @ionChange="saveFirstDayOfWeek"
             >
-              <ion-select-option :value="0">Sonntag</ion-select-option>
-              <ion-select-option :value="1">Montag</ion-select-option>
-              <ion-select-option :value="2">Dienstag</ion-select-option>
-              <ion-select-option :value="3">Mittwoch</ion-select-option>
-              <ion-select-option :value="4">Donnerstag</ion-select-option>
-              <ion-select-option :value="5">Freitag</ion-select-option>
-              <ion-select-option :value="6">Samstag</ion-select-option>
+              <ion-select-option
+                v-for="weekday in localizedWeekdays"
+                :key="weekday.value"
+                :value="weekday.value"
+              >
+                {{ weekday.label }}
+              </ion-select-option>
             </ion-select>
           </ion-item>
-          <IonItem>
-            <IonToggle
+
+          <ion-item>
+            <ion-toggle
               :checked="doDeleteAfterThirty"
-              label-placement="start"
-              @ion-change="setDelete"
-              >Erinnerungen nach 30 Tagen löschen?</IonToggle
+              v-model="doDeleteAfterThirty"
+              @ionChange="toggleAutoDelete"
             >
-          </IonItem>
+              Automatisches Löschen nach 30 Tagen
+            </ion-toggle>
+          </ion-item>
+        </ion-card-content>
+      </ion-card>
+      <ion-card>
+        <ion-card-header>
+          <ion-toolbar>
+            <ion-title class="ion-text-start">Wässerungskategorien</ion-title>
+            <ion-buttons slot="end">
+              <ion-button
+                fill="clear"
+                color="warning"
+                @click="resetWateringCategories"
+              >
+                <ion-icon :icon="refreshCircle" />
+              </ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-card-header>
+
+        <ion-card-content>
+          <ion-list>
+            <ion-item
+              v-for="(category, index) in wateringCategories"
+              :key="index"
+            >
+              <ion-label>{{ category.name }}</ion-label>
+              <input
+                type="color"
+                v-model="category.backgroundColor"
+                @input="() => handleWateringCategoryColorChange(index)"
+              />
+            </ion-item>
+          </ion-list>
+          <small class="text-muted">
+            Namen und Anzahl dieser Kategorien sind festgelegt – nur die Farbe
+            kann angepasst werden.
+          </small>
         </ion-card-content>
       </ion-card>
 
-      <!-- Categories List Section -->
       <ion-card>
         <ion-card-header>
           <ion-card-title>Kategorien</ion-card-title>
@@ -47,113 +83,40 @@
         <ion-card-content>
           <ion-list>
             <ion-item v-for="(category, index) in categories" :key="index">
-              <ion-grid>
-                <ion-row>
-                  <ion-col>
-                    <ion-label>{{ category.name }}</ion-label>
-                  </ion-col>
-                  <ion-col>
-                    <input
-                      v-model="category.backgroundColor"
-                      type="color"
-                      :disabled="true"
-                    />
-                  </ion-col>
-                </ion-row>
-              </ion-grid>
-              <ion-button fill="clear" @click="editCategory(index)">
-                <ion-icon :icon="create" />
-              </ion-button>
-              <ion-button
-                fill="clear"
-                color="danger"
-                @click="deleteCategory(index)"
-              >
-                <ion-icon :icon="trash" />
-              </ion-button>
+              <ion-input
+                v-model="category.name"
+                placeholder="Kategorie Name"
+                @input="saveCategories"
+                style="width: 90%; margin-right: 10px"
+              />
+              <input
+                type="color"
+                v-model="category.backgroundColor"
+                @input="() => handleCategoryColorChange(index)"
+              />
+              <ion-item lines="none">
+                <ion-button
+                  fill="clear"
+                  color="danger"
+                  @click="deleteCategory(index)"
+                >
+                  <ion-icon :icon="trash" />
+                </ion-button>
+              </ion-item>
             </ion-item>
           </ion-list>
 
-          <!-- Add or Edit Category Section -->
           <ion-item>
             <ion-input
               v-model="newCategory.name"
-              :placeholder="
-                isEditingCategory ? 'Kategorie bearbeiten' : 'Neue Kategorie'
-              "
+              placeholder="Neue Kategorie"
             />
             <input
               type="color"
               v-model="newCategory.backgroundColor"
               @input="setContrastColor(newCategory)"
             />
-            <ion-button
-              @click="isEditingCategory ? updateCategory() : addCategory()"
-            >
-              {{ isEditingCategory ? "Aktualisieren" : "Hinzufügen" }}
-            </ion-button>
-          </ion-item>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Reminder Dates Section -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>Erinnerungen</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-list>
-            <ion-item v-for="(date, index) in reminderDates" :key="index">
-              <ion-grid>
-                <ion-row>
-                  <ion-col>
-                    <ion-label>{{ date.date }}</ion-label>
-                  </ion-col>
-                  <ion-col>
-                    <ion-label>{{ date.category }}</ion-label>
-                  </ion-col>
-                </ion-row>
-              </ion-grid>
-
-              <ion-button fill="clear" @click="editDate(index)">
-                <ion-icon :icon="create" />
-              </ion-button>
-              <ion-button
-                fill="clear"
-                color="danger"
-                @click="deleteDate(index)"
-              >
-                <ion-icon :icon="trash" />
-              </ion-button>
-            </ion-item>
-          </ion-list>
-
-          <!-- Edit Date Section -->
-          <ion-item v-if="isEditingDate">
-            <ion-item>
-              <ion-input
-                v-model="editedDate.date"
-                type="date"
-                placeholder="Wählen Sie ein Datum"
-              />
-            </ion-item>
-
-            <ion-select
-              v-model="editedDate.category"
-              placeholder="Wählen Sie eine Kategorie"
-            >
-              <ion-select-option
-                v-for="category in categories"
-                :key="category.name"
-                :value="category.name"
-              >
-                {{ category.name }}
-              </ion-select-option>
-            </ion-select>
-            <ion-button @click="updateDate()">Aktualisieren</ion-button>
-            <ion-button @click="cancelEditDate()" color="medium"
-              >Abbrechen</ion-button
-            >
+            <ion-button @click="saveCategory"> Hinzufügen </ion-button>
           </ion-item>
         </ion-card-content>
       </ion-card>
@@ -162,7 +125,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, h } from "vue";
+import { defineComponent } from "vue";
 import {
   IonModal,
   IonButton,
@@ -171,25 +134,26 @@ import {
   IonItem,
   IonLabel,
   IonInput,
+  IonSelect,
+  IonSelectOption,
+  IonToggle,
   IonIcon,
   IonCard,
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
-  IonGrid,
-  IonRow,
-  IonCol,
-  IonSelect,
-  IonSelectOption,
-  IonToggle,
+  IonToolbar,
+  IonButtons,
+  IonTitle,
 } from "@ionic/vue";
-import { create, trash } from "ionicons/icons";
+import { create, trash, refreshCircle } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
 import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
   name: "CalendarSettingsModal",
   emits: ["close", "update:categories", "update:dates"],
+  props: { isOpen: Boolean },
   components: {
     IonModal,
     IonButton,
@@ -198,187 +162,119 @@ export default defineComponent({
     IonItem,
     IonLabel,
     IonInput,
+    IonSelect,
+    IonSelectOption,
+    IonToggle,
     IonIcon,
     IonCard,
     IonCardHeader,
     IonCardTitle,
     IonCardContent,
-    IonGrid,
-    IonRow,
-    IonCol,
+    IonToolbar,
+    IonButtons,
+    IonTitle,
     ModalHeader,
-    IonSelect,
-    IonSelectOption,
-    IonToggle,
   },
-  props: { isOpen: Boolean },
+  setup() {
+    return { create, trash, refreshCircle };
+  },
   data() {
     return {
       categories: [] as Category[],
-      reminderDates: [] as CalendarDates[],
+      wateringCategories: [] as Category[],
       newCategory: {
         name: "",
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       } as Category,
-      isEditingCategory: false,
-      isEditingDate: false,
-      editCategoryIndex: -1,
-      editDateIndex: -1,
-      editedDate: {
-        date: "",
-        category: "",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-      } as CalendarDates,
       doDeleteAfterThirty: false,
-      // New setting for first day of the week (0 = Sonntag, 1 = Montag, etc.)
       firstDayOfWeek: 0,
     };
   },
-  setup() {
-    return { create, trash };
-  },
   async mounted() {
-    document.addEventListener(
-      "dates-changed",
-      this.handleDatesChanged as EventListener
-    );
     this.doDeleteAfterThirty = await CalendarService.getDeleteAfterThirty();
     await CalendarService.deleteOldDates();
     await this.loadCategories();
-    await this.loadDates();
-    // Load saved first day of the week, defaulting to 0 (Sonntag) if not set
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(
       () => 0
     );
   },
+  computed: {
+    localizedWeekdays(): { value: number; label: string }[] {
+      const baseDate = new Date(2021, 7, 1); // Sunday
+      const formatter = new Intl.DateTimeFormat(navigator.language, {
+        weekday: "long",
+      });
+      return Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(baseDate);
+        date.setDate(baseDate.getDate() + i);
+        return { value: i, label: formatter.format(date) };
+      });
+    },
+  },
   methods: {
-    // First Day of Week Methods
-    async updateFirstDay() {
+    /** GENERAL SETTINGS **/
+    async saveFirstDayOfWeek(event: CustomEvent) {
+      this.firstDayOfWeek = event.detail.value;
       await CalendarService.saveFirstDayOfWeek(this.firstDayOfWeek);
     },
+    async toggleAutoDelete(event: CustomEvent) {
+      this.doDeleteAfterThirty = event.detail.checked;
+      await CalendarService.saveDeleteAfterThirty(this.doDeleteAfterThirty);
+    },
 
-    // Categories Methods
+    /** CATEGORIES **/
     async loadCategories() {
       this.categories = await CalendarService.getCategories();
+      this.wateringCategories = await CalendarService.getWateringCategories();
     },
     async saveCategories() {
       await CalendarService.saveCategories(this.categories);
     },
-    async addCategory() {
-      if (this.newCategory.name.trim()) {
-        this.categories.push({ ...this.newCategory });
-        this.resetCategoryForm();
-        await this.saveCategories();
-      }
-    },
-    async deleteCategory(index: number) {
-      this.categories.splice(index, 1);
+    async saveCategory() {
+      if (!this.newCategory.name.trim()) return;
+      this.setContrastColor(this.newCategory);
+      this.categories.push({ ...this.newCategory });
       await this.saveCategories();
-    },
-    editCategory(index: number) {
-      this.newCategory = { ...this.categories[index] };
-      this.isEditingCategory = true;
-      this.editCategoryIndex = index;
-    },
-    async updateCategory() {
-      if (this.editCategoryIndex > -1) {
-        const updatedCategory = { ...this.newCategory };
-        const oldCategoryName = this.categories[this.editCategoryIndex].name;
-
-        // Update category in the list
-        this.categories[this.editCategoryIndex] = updatedCategory;
-
-        // Update reminder dates that use this category
-        this.reminderDates = this.reminderDates.map((date) => {
-          if (date.category === oldCategoryName) {
-            return {
-              ...date,
-              textColor: updatedCategory.textColor,
-              backgroundColor: updatedCategory.backgroundColor,
-            };
-          }
-          return date;
-        });
-
-        await this.saveCategories();
-        await this.saveDates(); // Save updated dates
-        this.resetCategoryForm();
-      }
-    },
-    resetCategoryForm() {
       this.newCategory = {
         name: "",
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       };
-      this.isEditingCategory = false;
-      this.editCategoryIndex = -1;
+    },
+    async deleteCategory(index: number) {
+      this.categories.splice(index, 1);
+      await this.saveCategories();
+    },
+    handleCategoryColorChange(index: number) {
+      this.setContrastColor(this.categories[index]);
+      this.saveCategories();
     },
 
-    // Dates Methods
-    async loadDates() {
-      this.reminderDates = await CalendarService.getDates();
+    /** WATERING CATEGORIES **/
+    async saveWateringCategories() {
+      await CalendarService.saveWateringCategories(this.wateringCategories);
     },
-    async saveDates() {
-      await CalendarService.saveDates(this.reminderDates);
+    async resetWateringCategories() {
+      await CalendarService.resetWateringCategories();
+      this.wateringCategories = await CalendarService.getWateringCategories();
     },
-    handleDatesChanged(event: CustomEvent<CalendarDates[]>) {
-      this.reminderDates = event.detail;
-    },
-    async deleteDate(index: number) {
-      this.reminderDates.splice(index, 1);
-      await this.saveDates();
-    },
-    editDate(index: number) {
-      const dateToEdit = this.reminderDates[index];
-      this.editedDate = { ...dateToEdit };
-      this.isEditingDate = true;
-      this.editDateIndex = index;
-    },
-    async updateDate() {
-      if (this.editDateIndex > -1) {
-        const category = this.categories.find(
-          (category) => category.name === this.editedDate.category
-        );
-        if (!category) {
-          return;
-        }
-        this.reminderDates[this.editDateIndex] = {
-          date: this.editedDate.date,
-          category: this.editedDate.category,
-          textColor: category.textColor,
-          backgroundColor: category.backgroundColor,
-        };
-        await this.saveDates();
-        this.cancelEditDate();
-      }
-    },
-    cancelEditDate() {
-      this.editedDate = {
-        date: "",
-        category: "",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-      };
-      this.isEditingDate = false;
-      this.editDateIndex = -1;
+    handleWateringCategoryColorChange(index: number) {
+      this.setContrastColor(this.wateringCategories[index]);
+      this.saveWateringCategories();
     },
 
-    // Color contrast logic
-    setContrastColor(newCategory: Category) {
+    /** COLOR HELPERS **/
+    setContrastColor(category: Category) {
       function hexToHsl(hex: string): [number, number, number] {
         let r = parseInt(hex.substring(1, 3), 16) / 255;
         let g = parseInt(hex.substring(3, 5), 16) / 255;
         let b = parseInt(hex.substring(5, 7), 16) / 255;
-
         let max = Math.max(r, g, b),
           min = Math.min(r, g, b);
         let h = 0,
           s = 0,
           l = (max + min) / 2;
-
         if (max !== min) {
           let d = max - min;
           s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -395,13 +291,10 @@ export default defineComponent({
           }
           h /= 6;
         }
-
-        return [h * 360, s, l]; // Convert h to degrees
+        return [h * 360, s, l];
       }
-
       function hslToHex(h: number, s: number, l: number): string {
         let r, g, b;
-
         function hueToRgb(p: number, q: number, t: number) {
           if (t < 0) t += 1;
           if (t > 1) t -= 1;
@@ -410,7 +303,6 @@ export default defineComponent({
           if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
           return p;
         }
-
         if (s === 0) {
           r = g = b = l;
         } else {
@@ -420,7 +312,6 @@ export default defineComponent({
           g = hueToRgb(p, q, h / 360);
           b = hueToRgb(p, q, h / 360 - 1 / 3);
         }
-
         return (
           "#" +
           (
@@ -433,23 +324,11 @@ export default defineComponent({
             .slice(1)
         );
       }
-
-      let [h, s, l] = hexToHsl(newCategory.backgroundColor);
-
-      // Adjust hue to a contrasting color (shift by 180° for best contrast)
+      let [h, s, l] = hexToHsl(category.backgroundColor);
       h = (h + 180) % 360;
-
-      // Ensure saturation is high enough for vibrant color
       s = Math.max(0.6, s);
-
-      // Ensure brightness is in contrast with the background
       l = l > 0.5 ? 0.2 : 0.8;
-
-      newCategory.textColor = hslToHex(h, s, l);
-    },
-    async setDelete(event: CustomEvent) {
-      this.doDeleteAfterThirty = event.detail.checked;
-      await CalendarService.saveDeleteAfterThirty(this.doDeleteAfterThirty);
+      category.textColor = hslToHex(h, s, l);
     },
   },
 });

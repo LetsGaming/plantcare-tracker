@@ -1,5 +1,5 @@
 <template>
-  <BaseAddingModal
+  <BaseFormModal
     :isOpen="isOpen"
     modalTitle="Pflanze hinzufügen"
     formTitle="Pflanzen Informationen"
@@ -16,7 +16,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import BaseAddingModal from "@/components/modal/BaseModal.vue";
+import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import PlantService from "@/services/PlantService";
 import ToastService from "@/services/general/ToastService";
@@ -24,7 +24,7 @@ import SubstrateService from "@/services/SubstrateService";
 
 export default defineComponent({
   name: "PlantAddingModal",
-  components: { BaseAddingModal },
+  components: { BaseFormModal },
   props: { isOpen: { type: Boolean, required: true } },
   emits: ["close", "added"],
   data() {
@@ -112,7 +112,7 @@ export default defineComponent({
       }
 
       try {
-        this.isLoading = true;
+        this.loadingTimeout();
         const response = await PlantService.addPlant(plantData);
         if (!response) return;
         if (plantData.image) {
@@ -127,7 +127,6 @@ export default defineComponent({
     },
     async upladImage(id: number, image: File) {
       try {
-        this.isLoading = true;
         const response = await PlantService.uploadPlantImage(id, image);
         if (response) {
           ToastService.showSuccess("Bild erfolgreich hochgeladen");
@@ -135,6 +134,13 @@ export default defineComponent({
       } catch (error) {
         ToastService.showError("Fehler beim Hochladen des Bildes");
       }
+    },
+    loadingTimeout() {
+      this.isLoading = true;
+      const timeout_s = 10;
+      setTimeout(() => {
+        this.isLoading = false;
+      }, timeout_s * 1000);
     },
     clearPlantData() {
       this.plant = {

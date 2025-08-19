@@ -20,7 +20,7 @@
           <ion-label>Profil</ion-label>
         </ion-item>
         <ion-item lines="none">
-          <calendar
+          <menu-calendar
             :show-settings-button="true"
             @settings-click="showDateSettings = true"
           />
@@ -68,7 +68,7 @@ import {
   menuController,
 } from "@ionic/vue";
 import { close, person } from "ionicons/icons";
-import Calendar from "./calendar/Calendar.vue";
+import MenuCalendar from "./calendar/MenuCalendar.vue";
 import CalendarSettingsModal from "./calendar/CalendarSettingsModal.vue";
 
 import storageService from "@/services/general/StorageService";
@@ -90,7 +90,7 @@ export default defineComponent({
     IonLabel,
     IonToggle,
     IonFooter,
-    Calendar,
+    MenuCalendar,
     CalendarSettingsModal,
   },
   data() {
@@ -137,3 +137,15 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+ion-menu {
+  --width: 15%;
+}
+
+@media (max-width: 768px) {
+  ion-menu {
+    --width: 80%;
+  }
+}
+</style>

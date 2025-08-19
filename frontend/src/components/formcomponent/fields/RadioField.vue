@@ -3,13 +3,14 @@
     <IonItem>
       <IonLabel>{{ field.label }}</IonLabel>
 
-      <IonRadioGroup :value="field.defaultValue" v-model="localValue">
+      <IonRadioGroup :value="modelValue" @ionChange="onRadioChange">
         <IonItem v-for="(option, index) in field.options" :key="index">
           <IonRadio :value="option.value">
             {{ option.label }}
           </IonRadio>
         </IonItem>
       </IonRadioGroup>
+
       <RequiredNote v-if="field.required" />
     </IonItem>
   </div>
@@ -29,18 +30,20 @@ export default defineComponent({
       required: true,
     },
     modelValue: {
-      type: [String, Number, Boolean], // Accept multiple types
+      type: [String, Number, Boolean],
       default: "",
     },
   },
-  computed: {
-    localValue: {
-      get() {
-        return String(this.modelValue); // Convert to string
-      },
-      set(val: string) {
-        this.$emit("update:modelValue", val);
-      },
+  mounted() {
+    // Sett default value if provided
+    if (this.field.defaultValue !== undefined) {
+      this.$emit("update:modelValue", this.field.defaultValue);
+    }
+  },
+  methods: {
+    onRadioChange(event: CustomEvent) {
+      const newVal = event.detail.value;
+      this.$emit("update:modelValue", newVal);
     },
   },
 });

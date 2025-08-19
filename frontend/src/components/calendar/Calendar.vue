@@ -1,42 +1,45 @@
 <template>
   <div>
     <ion-card>
-      <ion-card-header>
-        <ion-toolbar>
-          <ion-title>Erinnerungen</ion-title>
-          <ion-icon
+      <ion-card-header v-if="title || showSettingsButton">
+        <ion-toolbar v-if="title || showSettingsButton">
+          <ion-title v-if="title">{{ title }}</ion-title>
+          <ion-button
             v-if="showSettingsButton"
             slot="end"
-            :icon="settings"
             @click="$emit('settings-click')"
-          />
+          >
+            <ion-icon :icon="settings" />
+          </ion-button>
         </ion-toolbar>
       </ion-card-header>
-      <ion-card-content>
+      <ion-card-content style="padding: 0">
         <ion-datetime
-          v-model="selectedDate"
+          :value="selectedDate"
+          @ionChange="onDateChange"
           presentation="date"
-          :highlighted-dates="reminderDates"
+          :highlighted-dates="highlightedDates"
           :first-day-of-week="firstDayOfWeek"
-        ></ion-datetime>
-
-        <!-- Dropdown für Kategorien -->
-        <ion-select
-          v-model="selectedCategory"
-          placeholder="Kategorie auswählen"
-        >
-          <ion-select-option
-            v-for="cat in categories"
-            :key="cat.name"
-            :value="cat"
-          >
-            {{ cat.name }}
-          </ion-select-option>
-        </ion-select>
-
-        <ion-button expand="full" @click="addDate"
-          >Erinnerung hinzufügen</ion-button
-        >
+        />
+        <CalendarLegend v-if="dates.length > 0" :legend-items="legendItems" />
+        <Popover
+          :event="changedEvent"
+          :is-open="isPopoverOpen"
+          :show-edit-button="showEditButton"
+          :title="popoverItem ? popoverItem.title : 'Details'"
+          :fields="
+            popoverItem?.fields
+              ? popoverItem.fields
+              : [
+                  {
+                    label: 'Date',
+                    value: selectedDate,
+                  },
+                ]
+          "
+          @dismiss="$emit('dissmised-popover')"
+          @edit-click="$emit('edit-click', popoverItem)"
+        ></Popover>
       </ion-card-content>
     </ion-card>
   </div>
@@ -47,117 +50,120 @@ import { defineComponent } from "vue";
 import {
   IonCard,
   IonCardHeader,
-  IonCardTitle,
   IonCardContent,
-  IonDatetime,
   IonButton,
-  IonSelect,
-  IonSelectOption,
-  IonTitle,
   IonIcon,
+  IonTitle,
   IonToolbar,
+  IonDatetime,
 } from "@ionic/vue";
 import { settings } from "ionicons/icons";
-import CalendarService from "@/services/CalendarService";
+import Popover from "@/components/Popover.vue";
+import CalendarService, { CalendarEvents } from "@/services/CalendarService";
+import CalendarLegend from "./CalendarLegend.vue";
 
 export default defineComponent({
   name: "Calendar",
-  emits: ["settings-click"],
+  emits: ["settings-click", "update-date", "dissmised-popover", "edit-click"],
   components: {
     IonCard,
     IonCardHeader,
-    IonCardTitle,
     IonCardContent,
-    IonDatetime,
     IonButton,
-    IonSelect,
-    IonSelectOption,
-    IonTitle,
     IonIcon,
+    IonTitle,
     IonToolbar,
+    IonDatetime,
+    Popover,
+    CalendarLegend,
   },
   props: {
+    title: {
+      type: String,
+      required: false,
+    },
     showSettingsButton: {
       type: Boolean,
       default: false,
     },
+    showEditButton: {
+      type: Boolean,
+      default: false,
+    },
+    dates: {
+      type: Array as () => CalendarDates[],
+      default: () => [],
+    },
+    isPopoverOpen: {
+      type: Boolean,
+      default: false,
+    },
+    popoverItem: {
+      type: Object as () => PopoverItem | undefined,
+      required: false,
+    },
+  },
+  data() {
+    return {
+      selectedDate: "",
+      firstDayOfWeek: 1,
+      changedEvent: null as CustomEvent | null,
+    };
   },
   setup() {
     return {
       settings,
     };
   },
-  data() {
-    return {
-      selectedDate: "",
-      selectedCategory: null as {
-        name: string;
-        textColor: string;
-        backgroundColor: string;
-      } | null,
-      // Gespeicherte Reminder-Daten
-      reminderDates: [] as CalendarDates[],
-      // Vordefinierte Kategorien mit eigenen Farben
-      categories: [] as Category[],
-      firstDayOfWeek: 0,
-    };
-  },
   async mounted() {
-    this.setupListeners();
-    await this.getFirstDay();
-    await this.getSavedDates();
-    await this.getSavedCategories();
+    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
+
+    // Add listener for firstDayOfWeek changes
+    document.addEventListener(CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED, (event: Event) => {
+      const customEvent = event as CustomEvent;
+      this.firstDayOfWeek = customEvent.detail;
+    });
+  },
+  computed: {
+    legendItems(): { label: string; color: string }[] {
+      const seen = new Set<string>();
+
+      return this.dates
+        .map((date) => ({
+          label: date.category.name,
+          color: date.category.backgroundColor,
+        }))
+        .filter((item) => {
+          if (seen.has(item.label)) return false;
+          seen.add(item.label);
+          return true;
+        });
+    },
+
+    highlightedDates() {
+      return this.dates.map((date) => {
+        return {
+          date: date.date,
+          textColor: date.category.textColor,
+          backgroundColor: date.category.backgroundColor,
+        };
+      });
+    },
   },
   methods: {
-    setupListeners() {
-      document.addEventListener("categories-changed", (event) => {
-        const customEvent = event as CustomEvent<Category[]>;
-        this.categories = customEvent.detail;
-      });
-      document.addEventListener("dates-changed", (event) => {
-        const customEvent = event as CustomEvent<CalendarDates[]>;
-        this.reminderDates = [];
-        this.$nextTick(() => {
-          this.reminderDates = customEvent.detail;
-        });
-      });
-      document.addEventListener("first-day-of-week-changed", (event) => {
-        const customEvent = event as CustomEvent<number>;
-        this.firstDayOfWeek = customEvent.detail;
-      });
-    },
-    async getFirstDay() {
-      this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
-    },
-    async getSavedDates() {
-      this.reminderDates = await CalendarService.getDates();
-    },
-    async getSavedCategories() {
-      this.categories = await CalendarService.getCategories();
-    },
-    addDate() {
-      if (!this.selectedDate || !this.selectedCategory) {
-        // Optional: Hier könnte eine Fehlermeldung an den Nutzer ausgegeben werden, falls Datum oder Kategorie nicht ausgewählt wurde.
-        return;
-      }
-      // Extrahiere das Datum ohne Zeitanteil
-      const dateWithoutTime = new Date(this.selectedDate)
-        .toISOString()
-        .split("T")[0];
-      // Verwende die Farben der ausgewählten Kategorie
-      this.reminderDates.push({
-        date: dateWithoutTime,
-        category: this.selectedCategory.name,
-        textColor: this.selectedCategory.textColor,
-        backgroundColor: this.selectedCategory.backgroundColor,
-      });
-      // Reset der Eingabefelder
-      this.selectedDate = "";
-      this.saveDates();
-    },
-    async saveDates() {
-      await CalendarService.saveDates(this.reminderDates);
+    onDateChange(event: CustomEvent) {
+      this.changedEvent = event;
+      const date = event.detail.value;
+      this.selectedDate = date;
+      this.$emit("update-date", date);
     },
   },
 });
 </script>
+
+<style scoped>
+ion-datetime {
+  max-width: 500px;
+  margin: 0 auto;
+}
+</style>

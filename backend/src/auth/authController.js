@@ -102,7 +102,7 @@ const guestLogin = async (req, res) => {
     const guestUser = await authService.selectUserByUsername("guest");
 
     if (!guestUser) {
-      return errorResponse(res, "Guest user not found", 404);
+      return notFoundResponse(res, "Guest user not found");
     }
 
     // Generate new tokens
