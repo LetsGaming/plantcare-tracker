@@ -1,15 +1,13 @@
 {
   "name": "plantcare-frontend",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview",
-    "test:e2e": "cypress run",
-    "test:unit": "vitest",
-    "lint": "eslint ."
+    "bump-version:patch": "node scripts/bump-version.js patch",
+    "bump-version:minor": "node scripts/bump-version.js minor",
+    "bump-version:major": "node scripts/bump-version.js major"
   },
   "dependencies": {
     "@capacitor/app": "7.0.2",

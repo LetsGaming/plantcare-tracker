@@ -147,7 +147,7 @@ export default defineComponent({
   },
   async mounted() {
     this.isGuest = await UserService.isGuest();
-    await this.setRecords();
+    this.wateringCategories = await CalendarService.getWateringCategories();
 
     const types = await WateringService.getFertilizerTypes();
     this.fertilizerOptions = [
@@ -155,7 +155,7 @@ export default defineComponent({
       { label: "Kein Dünger", value: -1 },
     ];
 
-    this.wateringCategories = await CalendarService.getWateringCategories();
+    await this.setRecords();
   },
   computed: {
     popoverInfo(): PopoverItem | undefined {
@@ -360,21 +360,35 @@ export default defineComponent({
       setTimeout(() => (this.isLoading = false), 10000);
     },
     mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {
-      return records.map((r) => {
-        // Pick category based on fertilizerTypeId
-        let category = this.wateringCategories.find(
-          (c) => c.name === (r.fertilizerType || "Kein Dünger")
-        );
+      return records.map((r, index) => {
+        let category: Category | undefined;
 
-        // fallback if not found
-        if (!category) {
+        if (!r.usedFertilizer) {
           category = this.wateringCategories.find(
-            (c) => c.name === "Kein Dünger"
-          )!;
+            (c) => String(c.name) === "Kein Dünger"
+          );
+        } else if (r.fertilizerType) {
+          category = this.wateringCategories.find(
+            (c) => String(c.name) === String(r.fertilizerType)
+          );
         }
 
+        // Ensure category is always defined
+        if (!category) {
+          category = this.wateringCategories.find(
+            (c) => String(c.name) === "Kein Dünger"
+          );
+        }
+
+        // If still not found, throw error or use a default Category object
+        if (!category) {
+          throw new Error("No valid watering category found for record.");
+        }
+
+        const isoDate = new Date(r.date_millis).toISOString().split("T")[0];
+
         return {
-          date: new Date(r.date_millis).toISOString().split("T")[0],
+          date: isoDate,
           category,
         };
       });
