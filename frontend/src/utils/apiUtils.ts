@@ -13,6 +13,24 @@ interface ApiResponse<T = any> {
   data?: T;
 }
 
+class ApiError extends Error {
+  constructor(public status: number, public data: any, message?: string) {
+    super(message || data?.error || "API error");
+    this.name = "ApiError";
+  }
+  toString() {
+    return `${this.name} (status: ${this.status}): ${this.message}`;
+  }
+  toJSON() {
+    return {
+      name: this.name,
+      status: this.status,
+      message: this.message,
+      data: this.data,
+    };
+  }
+}
+
 /**
  * Handles the response by checking if the success flag is true or false.
  * If the success flag is false, it throws an error with the message from the error field.
@@ -21,34 +39,40 @@ interface ApiResponse<T = any> {
  * @throws {Error} - Throws an error with the error message if success: false.
  */
 const handleResponse = async (response: Response): Promise<any> => {
+  // Handle non-200 HTTP responses first
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(response.status, text, `HTTP ${response.status}`);
+  }
+
   let responseData: ApiResponse;
   try {
     responseData = await response.json();
-  } catch (error) {
-    throw new Error("Failed to parse response JSON.");
+  } catch {
+    throw new ApiError(response.status, null, "Failed to parse response JSON.");
   }
-  if (
-    typeof responseData !== "object" ||
-    responseData === null ||
-    typeof responseData.success !== "boolean"
-  ) {
-    throw new Error("Unexpected response format.");
-  }
-  if (responseData.success) {
-    if (
-      responseData.message &&
-      responseData.message !== "Operation successful"
-    ) {
-      ToastService.showSuccess(responseData.message);
-    }
-    return responseData.data;
-  } else {
-    const errorMessage =
-      responseData.error || responseData.message || "An unknown error occurred";
-    throw new Error(errorMessage);
-  }
-};
 
+  // Validate response structure
+  if (typeof responseData?.success !== "boolean") {
+    throw new ApiError(
+      response.status,
+      responseData,
+      "Unexpected response format."
+    );
+  }
+
+  if (responseData.success) {
+    // Optionally, handle the message here or let the caller handle it
+    return responseData.data;
+  }
+
+  // API indicated failure
+  throw new ApiError(
+    response.status,
+    responseData,
+    responseData.error || responseData.message || "An unknown error occurred"
+  );
+};
 /**
  * Retrieves authorization headers for requests (non-file uploads).
  * @returns {Promise<HeadersInit>} - The headers to be sent with the request.

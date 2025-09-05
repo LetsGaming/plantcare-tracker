@@ -157,6 +157,7 @@ import RadioField from "@/components/formcomponent/fields/RadioField.vue";
 import SwitchField from "@/components/formcomponent/fields/SwitchField.vue";
 import DateField from "@/components/formcomponent/fields/DateField.vue";
 import UploadField from "@/components/formcomponent/fields/UploadField.vue";
+import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "FormComponent",
@@ -241,7 +242,21 @@ export default defineComponent({
       }
     },
     submitForm() {
+      if (!this.checkRequiredFields()) {
+        ToastService.showError(
+          "Bitte füllen Sie alle erforderlichen Felder aus."
+        );
+        return;
+      }
       this.onSubmitClick();
+    },
+    checkRequiredFields() {
+      return this.formFields.every((field) => {
+        if (field.required && !this.item[field.modelKey]) {
+          return false;
+        }
+        return true;
+      });
     },
     submitDelete() {
       this.showDeleteModal = false;
