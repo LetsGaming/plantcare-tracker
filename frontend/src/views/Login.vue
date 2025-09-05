@@ -156,11 +156,11 @@ export default defineComponent({
     return {
       username: "",
       password: "",
-      confirmPassword: "", // New field for registration
+      confirmPassword: "",
       showPassword: false,
       loading: false,
       isCheckingLogin: true,
-      isRegisterMode: false, // Toggle for login and register mode
+      isRegisterMode: false,
     };
   },
   setup() {
@@ -181,6 +181,12 @@ export default defineComponent({
     } finally {
       this.isCheckingLogin = false;
     }
+
+    window.addEventListener("keydown", this.handleEnterKey);
+  },
+  beforeUnmount() {
+    // Clean up listener to avoid memory leaks
+    window.removeEventListener("keydown", this.handleEnterKey);
   },
   methods: {
     togglePasswordVisibility() {
@@ -188,6 +194,15 @@ export default defineComponent({
     },
     toggleAuthMode() {
       this.isRegisterMode = !this.isRegisterMode;
+    },
+    handleEnterKey(event: KeyboardEvent) {
+      if (event.key === "Enter") {
+        if (this.isRegisterMode) {
+          this.handleRegister();
+        } else {
+          this.handleLogin();
+        }
+      }
     },
     async guestLogin() {
       this.loading = true;

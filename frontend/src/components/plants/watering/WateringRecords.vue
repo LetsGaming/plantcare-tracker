@@ -17,6 +17,7 @@
       <ion-card-header>
         <ion-card-title class="record-title">
           Letzte Wässerung:
+          <span v-if="daysAgo < 0">Unbekannt</span>
           <span v-if="daysAgo === 0">Heute</span>
           <span v-else>{{ daysAgo }} Tage her</span>
         </ion-card-title>
@@ -280,10 +281,16 @@ export default defineComponent({
           this.daysAgo = 0;
           return;
         }
-        const latest = this.records[0];
-        this.daysAgo = Math.floor(
-          (Date.now() - new Date(latest.date_millis).getTime()) / 86400000
+        const latestMillis = Math.max(
+          ...this.records.map((r) => r.date_millis)
         );
+        const latest = this.records.find((r) => r.date_millis === latestMillis);
+
+        this.daysAgo = latest
+          ? Math.floor(
+              (Date.now() - new Date(latest.date_millis).getTime()) / 86400000
+            )
+          : -1;
         this.mappedRecords = this.mapWateringsToCalendar(this.records);
       } catch (error) {
         console.error("Failed to fetch records", error);
