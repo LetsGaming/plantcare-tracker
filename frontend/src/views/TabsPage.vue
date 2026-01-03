@@ -19,10 +19,26 @@
         </ion-tab-button>
       </ion-tab-bar>
     </ion-tabs>
+
+    <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+      <ion-fab-button router-link="/sales">
+        <ion-icon :icon="pricetag" />
+      </ion-fab-button>
+    </ion-fab>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { IonTabBar, IonTabButton, IonTabs, IonLabel, IonIcon, IonPage, IonRouterOutlet } from '@ionic/vue';
-import { cube, grid, leaf } from 'ionicons/icons';
+import {
+  IonTabBar,
+  IonTabButton,
+  IonTabs,
+  IonLabel,
+  IonIcon,
+  IonPage,
+  IonRouterOutlet,
+  IonFab,
+  IonFabButton,
+} from "@ionic/vue";
+import { cube, grid, leaf, pricetag } from "ionicons/icons";
 </script>

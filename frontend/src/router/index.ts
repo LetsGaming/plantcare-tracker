@@ -3,6 +3,7 @@ import { RouteRecordRaw } from "vue-router";
 
 import Utils from "@/utils/utils";
 import UserService from "@/services/UserService";
+import SalesOverview from "@/views/sales/SalesOverview.vue";
 
 // Dynamic imports for lazy loading
 const Login = () => import("@/views/Login.vue");
@@ -39,6 +40,12 @@ const routes: Array<RouteRecordRaw> = [
     path: "/profile",
     name: "profile",
     component: Profile,
+    meta: authMeta,
+  },
+  {
+    path: "/sales",
+    name: "sales",
+    component: SalesOverview,
     meta: authMeta,
   },
   {
