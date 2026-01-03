@@ -32,6 +32,10 @@ export default defineComponent({
       searchQuery: "",
     };
   },
+  mounted() {
+    // Emit current value on mount so parent can initialize filters
+    this.emitSearch();
+  },
   methods: {
     emitSearch() {
       // Emit the current search query to the parent component
