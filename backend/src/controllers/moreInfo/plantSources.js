@@ -1,9 +1,6 @@
-const axios = require("axios");
 const { parse } = require("node-html-parser");
 const { escape: encodeURIComponent } = require("querystring");
-const NodeCache = require("node-cache");
-
-const cache = new NodeCache({ stdTTL: 24 * 60 * 60, checkperiod: 3600 });
+const { fetchData, getCache } = require("../../utils/scrapeUtils");
 
 const normalize = (str) =>
   str
@@ -24,35 +21,6 @@ const calculateRelevanceScore = (query, url) => {
     (urlWords.indexOf(queryWords[0]) === 0 ? 10 : 0) +
     Math.max(0, 10 - urlWords.length)
   );
-};
-
-// Optimized fetchData: caches only relevant result, not full HTML/JSON
-const fetchData = async (
-  url,
-  extractFn,
-  method = "GET",
-  payload = null,
-  cacheKey = null
-) => {
-  if (cacheKey) {
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
-  }
-
-  try {
-    const options = { method, url };
-    if (payload) options.data = payload;
-    if (method === "POST")
-      options.headers = { "Content-Type": "application/json" };
-
-    const response = await axios(options);
-    const relevantData = extractFn(response.data);
-    if (cacheKey && relevantData) cache.set(cacheKey, relevantData);
-    return relevantData;
-  } catch (err) {
-    console.error(`Error fetching ${url}:`, err.message);
-    return null;
-  }
 };
 
 const findBestMatch = (query, links) =>
@@ -80,9 +48,10 @@ const PLANT_SOURCES = {
               .filter((href) => href && !href.includes("author"))
           ),
         ]),
-      "GET",
-      null,
-      `jungleLeaves_${plantName}`
+      {
+        useChromium: true,
+        cacheKey: `jungleLeaves_${plantName}`,
+      }
     );
   },
 
@@ -104,14 +73,12 @@ const PLANT_SOURCES = {
         const best = findBestMatch(plantName, links);
         return best ? `https://www.harmony-plants.com${best}` : null;
       },
-      "GET",
-      null,
-      `harmonyPlants_${plantName}`
+      { cacheKey: `harmonyPlants_${plantName}` }
     );
   },
 
   foliageDreams: async (plantName) => {
-    const url = `https://www.foliagedreams.de/search?q=${encodeURIComponent(
+    const url = `https://www.foliagedreams.com/search?q=${encodeURIComponent(
       plantName
     )}`;
     return fetchData(
@@ -128,9 +95,9 @@ const PLANT_SOURCES = {
         const best = findBestMatch(plantName, links);
         return best ? `https://www.foliagedreams.de${best}` : null;
       },
-      "GET",
-      null,
-      `foliageDreams_${plantName}`
+      {
+        cacheKey: `foliageDreams_${plantName}`,
+      }
     );
   },
 
@@ -152,9 +119,9 @@ const PLANT_SOURCES = {
         const best = findBestMatch(plantName, links);
         return best ? `https://www.whiteleafplants.com${best}` : null;
       },
-      "GET",
-      null,
-      `whiteLeafPlants_${plantName}`
+      {
+        cacheKey: `whiteLeafPlants_${plantName}`,
+      }
     );
   },
 
@@ -186,9 +153,11 @@ const PLANT_SOURCES = {
               .toLowerCase()}/details`
           : null;
       },
-      "POST",
-      payload,
-      `rhs_${plantName}`
+      {
+        method: "POST",
+        payload,
+        cacheKey: `rhs_${plantName}`,
+      }
     );
   },
 
@@ -207,9 +176,7 @@ const PLANT_SOURCES = {
           )
         );
       },
-      "GET",
-      null,
-      `wikipedia_${plantName}`
+      { cacheKey: `wikipedia_${plantName}` }
     );
   },
 
@@ -230,9 +197,7 @@ const PLANT_SOURCES = {
         )?.nubKey;
         return speciesKey ? `https://www.gbif.org/species/${speciesKey}` : null;
       },
-      "GET",
-      null,
-      `gbif_${plantName}`
+      { cacheKey: `gbif_${plantName}` }
     );
   },
 };
@@ -244,8 +209,9 @@ const generateLinks = async (plantName) => {
     .trim()
     .replace(/\s+/g, "_");
 
+  const cache = getCache();
+
   const cacheKey = `links_${cache_name}`;
-  console.time(cacheKey);
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
