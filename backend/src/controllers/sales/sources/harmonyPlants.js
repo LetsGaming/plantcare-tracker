@@ -9,7 +9,7 @@ module.exports = {
   seller: "Harmony Plants",
   baseUrl: "https://www.harmony-plants.com/collections/sale",
   pagePattern: "?page={{page}}",
-  maxPages: 3,
+  maxPages: 2,
   options: { useChromium: true },
   parseFn: (root) => {
     return root.querySelectorAll(".grid__item").map((item) => {
