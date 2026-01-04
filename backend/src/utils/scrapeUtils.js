@@ -6,13 +6,20 @@ const cache = new NodeCache({ stdTTL: 24 * 60 * 60, checkperiod: 3600 });
 
 async function fetchWithChromium(url) {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
 
-  await page.goto(url, { waitUntil: "networkidle" });
-  const html = await page.content();
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 720 },
+  });
 
-  await browser.close();
-  return html;
+  const page = await context.newPage();
+
+  try {
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    const html = await page.content();
+    return html;
+  } finally {
+    await browser.close();
+  }
 }
 
 async function fetchWithAxios(url, method, payload) {
@@ -39,12 +46,7 @@ async function fetchWithAxios(url, method, payload) {
 const fetchData = async (
   url,
   extractFn,
-  {
-    method = "GET",
-    payload = null,
-    cacheKey = null,
-    useChromium = false,
-  } = {}
+  { method = "GET", payload = null, cacheKey = null, useChromium = false } = {}
 ) => {
   if (cacheKey) {
     const cached = cache.get(cacheKey);
@@ -74,4 +76,27 @@ const fetchData = async (
 
 const getCache = () => cache;
 
-module.exports = { fetchData };
+const parsePrice = (input) => {
+  if (!input) return null;
+  // Handle node-html-parser objects
+  const str = typeof input === "object" ? input.text : String(input);
+  const cleanStr = str.replace(/[^\d.,]/g, "").replace(",", ".");
+  const number = parseFloat(cleanStr);
+  return isNaN(number) ? null : number;
+};
+
+const getText = (el, selector = null) => {
+  const target = selector ? el?.querySelector(selector) : el;
+  return target?.text?.trim() ?? null;
+};
+
+const resolveLink = (href, baseUrl) => {
+  if (!href) return null;
+  if (href.startsWith("http")) return href;
+  const url = new URL(baseUrl);
+  return `${url.protocol}//${url.host}${
+    href.startsWith("/") ? "" : "/"
+  }${href}`;
+};
+
+module.exports = { fetchData, getCache, parsePrice, getText, resolveLink };

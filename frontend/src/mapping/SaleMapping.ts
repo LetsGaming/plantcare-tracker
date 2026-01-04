@@ -4,6 +4,7 @@ export default class SaleMapper {
     return {
       id: sale.sale_id,
       name: sale.sale_name,
+      nameFull: sale.sale_name_full,
       seller: sale.sale_seller,
       price: sale.sale_new_price,
       oldPrice: sale.sale_old_price,

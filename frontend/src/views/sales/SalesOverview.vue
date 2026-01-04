@@ -65,11 +65,11 @@ export default defineComponent({
   },
   methods: {
     async fetchSales() {
-      this.allSales = await SalesService.getSalesData();
+      this.allSales = await SalesService.getSales();
       this.sales = this.allSales;
     },
     async refreshSales() {
-      this.allSales = await SalesService.getSalesData(true);
+      this.allSales = await SalesService.getSales(true);
       this.sales = this.allSales;
     },
     handleSearch(query: string) {
@@ -82,12 +82,7 @@ export default defineComponent({
       // handle segment changes if needed (no-op for now)
     },
     onItemClick(id: string) {
-      console.log("Navigating to sale with ID:", id);
-      // Open in new tab
-      const entry = this.sales.find((sale: any) => sale.id === id);
-      if (entry && entry.link) {
-        window.open(entry.link, "_blank");
-      }
+      this.$router.push({ name: "sales-details", params: { id } });
     },
   },
 });
