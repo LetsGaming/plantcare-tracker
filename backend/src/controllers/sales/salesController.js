@@ -27,60 +27,114 @@ function formatItem(item, scraper) {
   };
 }
 
-// --- Main Controller ---
-const getSalesData = async (req, res) => {
-  const allFetchPromises = [];
-
-  SCRAPERS.forEach((scraper) => {
-    for (let p = 1; p <= scraper.maxPages; p++) {
-      // Build the URL based on the page number
-      let targetUrl = scraper.baseUrl;
-      if (p > 1) {
-        // Handle path-based (Jungle Leaves) vs query-based (others)
-        const suffix = scraper.pagePattern.replace("{{page}}", p);
-        targetUrl = scraper.baseUrl.endsWith("/")
-          ? `${scraper.baseUrl}${suffix}`
-          : `${scraper.baseUrl}/${suffix}`;
-
-        // Clean up any double slashes caused by the join
-        targetUrl = targetUrl.replace(/([^:]\/)\/+/g, "$1");
-      }
-
-      const pagePromise = fetchData(
-        targetUrl,
-        (html) => {
-          const root = parse(html);
-          const rawItems = scraper.parseFn(root);
-
-          return rawItems
-            .filter((item) => item && item.link && item.newPrice)
-            .map((item) => formatItem(item, scraper))
-            .filter((item) => item !== null);
-        },
-        { ...scraper.options, cacheKey: `${scraper.key}_page_${p}` }
-      );
-
-      allFetchPromises.push(pagePromise);
-    }
-  });
-
-  const results = await Promise.allSettled(allFetchPromises);
-
-  // Flatten all results into a single array
-  const allSales = results
-    .filter((r) => r.status === "fulfilled" && Array.isArray(r.value))
-    .flatMap((r) => r.value);
-
-  if (allSales.length === 0) {
-    return notFoundResponse(res, "No sales data found");
+/**
+ * Build page URL for a scraper
+ *
+ * Supported scraper configs:
+ * - baseUrl + pagePattern
+ * - urlTemplate (with {page})
+ * - staticUrl (no paging)
+ */
+function buildUrl(scraper, page) {
+  if (typeof scraper.urlTemplate === "string") {
+    return scraper.urlTemplate.replace("{page}", page);
   }
 
-  // Final deduplication by sale_id (in case products shift pages during crawl)
-  const uniqueSales = Array.from(
-    new Map(allSales.map((s) => [s.sale_id, s])).values()
-  );
+  if (scraper.baseUrl && scraper.pagePattern) {
+    const url = new URL(scraper.baseUrl);
+    url.searchParams.set(scraper.pagePattern, page);
+    return url.toString();
+  }
 
-  return successResponse(res, uniqueSales);
+  if (scraper.staticUrl) {
+    return scraper.staticUrl;
+  }
+
+  throw new Error(`Invalid scraper config for ${scraper.key}`);
+}
+
+// --- Main Controller ---
+const getSalesData = async (req, res) => {
+  const log = (...args) => console.log(new Date().toISOString(), "[SSE]", ...args);
+
+  log("Client connected, starting sales stream");
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const sentIds = new Set();
+  let totalItemsSent = 0;
+
+  const sendChunk = (items) => {
+    const unique = items.filter((i) => !sentIds.has(i.sale_id));
+    unique.forEach((i) => sentIds.add(i.sale_id));
+
+    if (unique.length) {
+      totalItemsSent += unique.length;
+      log(`Sending chunk with ${unique.length} items (total sent: ${totalItemsSent})`);
+      res.write(`data: ${JSON.stringify(unique)}\n\n`);
+      res.flush?.();
+    } else {
+      log("No new items to send in this chunk");
+    }
+  };
+
+  const jobs = [];
+
+  const doStuff = async (scraper, url, options) => {
+    log(`Starting fetch for ${url}`);
+
+    const htmlResponseHandler = (html) => {
+      try {
+        const root = parse(html);
+        const items = scraper
+          .parseFn(root)
+          .map((i) => formatItem(i, scraper))
+          .filter(Boolean);
+
+        log(`Parsed ${items.length} items from ${url}`);
+        sendChunk(items);
+      } catch (err) {
+        log(`Error parsing HTML for ${url}: ${err.message}`);
+      }
+    };
+
+    try {
+      await fetchData(url, htmlResponseHandler, options);
+      log(`Finished fetch for ${url}`);
+    } catch (err) {
+      log(`Error fetching ${url}: ${err.message}`);
+    }
+  };
+
+  for (const scraper of SCRAPERS) {
+    log(`Starting scraper: ${scraper.key}`);
+    for (let p = 1; p <= scraper.maxPages; p++) {
+      let url;
+      try {
+        url = buildUrl(scraper, p);
+        log(`Built URL for page ${p}: ${url}`);
+      } catch (err) {
+        log(`Skipping page ${p} for ${scraper.key}: failed to build URL`);
+        console.log(err);
+        continue;
+      }
+
+      jobs.push(doStuff(scraper, url, { ...scraper.options, cacheKey: `${scraper.key}_${p}` }));
+    }
+  }
+
+  log("Waiting for all fetches to complete...");
+  await Promise.allSettled(jobs);
+  log(`All fetches completed, sending done event (total items sent: ${totalItemsSent})`);
+
+  res.write(`event: done\ndata: {}\n\n`);
+  res.end();
+
+  log("Response ended, client stream closed");
 };
 
 module.exports = { getSalesData };

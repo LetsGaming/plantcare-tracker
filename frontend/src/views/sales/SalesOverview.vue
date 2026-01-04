@@ -43,44 +43,95 @@ export default defineComponent({
     return {
       sales: [] as Sale[],
       allSales: [] as Sale[],
+      stopStream: null as null | (() => void),
+      loading: true,
     };
   },
   setup() {
-    return {
-      pricetag,
-    };
+    return { pricetag };
   },
   computed: {
-    mappedSales(): Array<{ id: number; name: string; imageUrl?: string; description?: string }> {
-      return this.sales.map((sale: any, index: number) => ({
+    mappedSales(): Array<{
+      id: number;
+      name: string;
+      imageUrl?: string;
+      description?: string;
+    }> {
+      return this.sales.map((sale: any) => ({
         id: sale.id,
         name: sale.name,
         imageUrl: sale.imageUrl,
-        description: `${sale.seller ?? ""}${sale.price ? " - " + sale.price + "€" : ""}`,
+        description: `${sale.seller ?? ""}${
+          sale.price ? " - " + sale.price + "€" : ""
+        }`,
       }));
     },
   },
-  async  mounted() {
-    await this.fetchSales();
+  mounted() {
+    this.initSales();
+  },
+  beforeUnmount() {
+    // stop the SSE stream when leaving the page
+    this.stopStream?.();
   },
   methods: {
+    async initSales() {
+      this.loading = true;
+      try {
+        // Stream new sales as they arrive
+        this.stopStream = SalesService.streamSales((chunk) => {
+          chunk.forEach((sale) => {
+            if (!this.sales.find((s) => s.id === sale.id)) {
+              this.sales.push(sale);
+            }
+          });
+          this.allSales = this.sales;
+        });
+
+        // Also wait for the final cached result
+        const all = await SalesService.getSales(true);
+        this.allSales = all;
+        this.sales = all;
+      } catch (err) {
+        console.error("Error fetching sales:", err);
+      } finally {
+        this.loading = false;
+      }
+    },
+
     async fetchSales() {
-      this.allSales = await SalesService.getSales();
-      this.sales = this.allSales;
+      // for explicit fetch without streaming
+      this.loading = true;
+      try {
+        const all = await SalesService.getSales();
+        this.allSales = all;
+        this.sales = all;
+      } catch (err) {
+        console.error("Error fetching sales:", err);
+      } finally {
+        this.loading = false;
+      }
     },
+
     async refreshSales() {
-      this.allSales = await SalesService.getSales(true);
-      this.sales = this.allSales;
+      // stop current stream if active
+      this.stopStream?.();
+      this.sales = [];
+      this.allSales = [];
+      await this.initSales();
     },
+
     handleSearch(query: string) {
       const lowerQuery = query.toLowerCase();
       this.sales = this.allSales.filter((sale: any) =>
         sale.name.toLowerCase().includes(lowerQuery)
       );
     },
+
     onSegmentChange(value: string) {
       // handle segment changes if needed (no-op for now)
     },
+
     onItemClick(id: string) {
       this.$router.push({ name: "sales-details", params: { id } });
     },
