@@ -1,6 +1,7 @@
 interface Sale {
     id: string;
     name: string;
+    nameFull: string;
     seller: string;
     price: number;
     oldPrice?: number;
@@ -11,6 +12,7 @@ interface Sale {
 interface APISale {
     sale_id: string;
     sale_name: string;
+    sale_name_full: string;
     sale_seller: string;
     sale_new_price: number;
     sale_old_price?: number;

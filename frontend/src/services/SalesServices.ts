@@ -35,7 +35,7 @@ async function fetchAndCacheSalesData(): Promise<Sale[]> {
 }
 
 export default class SalesService {
-  static async getSalesData(forceUpdate = false): Promise<Sale[]> {
+  static async getSales(forceUpdate = false): Promise<Sale[]> {
     if (forceUpdate) {
       return await fetchAndCacheSalesData();
     }
@@ -47,5 +47,10 @@ export default class SalesService {
     }
 
     return await fetchAndCacheSalesData();
+  }
+
+  static async getSaleById(saleId: string): Promise<Sale | null> {
+    const sales = await this.getSales();
+    return sales.find((sale) => sale.id === saleId) || null;
   }
 }

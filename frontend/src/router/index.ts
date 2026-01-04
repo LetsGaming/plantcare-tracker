@@ -3,7 +3,6 @@ import { RouteRecordRaw } from "vue-router";
 
 import Utils from "@/utils/utils";
 import UserService from "@/services/UserService";
-import SalesOverview from "@/views/sales/SalesOverview.vue";
 
 // Dynamic imports for lazy loading
 const Login = () => import("@/views/Login.vue");
@@ -22,6 +21,9 @@ const ComponentOverview = () =>
   import("@/views/components/ComponentOverview.vue");
 const ComponentDetails = () =>
   import("@/views/components/ComponentDetails.vue");
+
+const SalesOverview = () => import("@/views/sales/SalesOverview.vue");
+const SalesDetails = () => import("@/views/sales/SalesDetails.vue");
 
 const authMeta = { requiresAuth: true };
 
@@ -42,12 +44,7 @@ const routes: Array<RouteRecordRaw> = [
     component: Profile,
     meta: authMeta,
   },
-  {
-    path: "/sales",
-    name: "sales",
-    component: SalesOverview,
-    meta: authMeta,
-  },
+
   {
     path: "/tabs",
     component: TabsPage,
@@ -90,6 +87,19 @@ const routes: Array<RouteRecordRaw> = [
         meta: authMeta,
         props: true,
         component: ComponentDetails,
+      },
+      {
+        path: "/sales",
+        name: "sales",
+        component: SalesOverview,
+        meta: authMeta,
+      },
+      {
+        name: "sales-details",
+        path: "sales/details/:id",
+        meta: authMeta,
+        props: true,
+        component: SalesDetails,
       },
     ],
   },
