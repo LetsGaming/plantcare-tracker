@@ -9,7 +9,7 @@ module.exports = {
   seller: "PLNTS",
   baseUrl: "https://plnts.com/de/shop/sale",
   pagePattern: "?page={{page}}",
-  maxPages: 3,
+  maxPages: 2,
   options: { useChromium: true },
   parseFn: (root) => {
     return root.querySelectorAll(".group\\/product-card").map((item) => {

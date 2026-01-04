@@ -36,14 +36,24 @@ function formatItem(item, scraper) {
  * - staticUrl (no paging)
  */
 function buildUrl(scraper, page) {
+  // Use urlTemplate if defined
   if (typeof scraper.urlTemplate === "string") {
-    return scraper.urlTemplate.replace("{page}", page);
+    return scraper.urlTemplate.replace(/\{\{page\}\}/g, page);
   }
 
+  // If pagePattern exists, replace placeholder
   if (scraper.baseUrl && scraper.pagePattern) {
-    const url = new URL(scraper.baseUrl);
-    url.searchParams.set(scraper.pagePattern, page);
-    return url.toString();
+    const pattern = scraper.pagePattern.replace(/\{\{page\}\}/g, page);
+
+    // Check if pattern starts with "?" → query param
+    if (pattern.startsWith("?")) {
+      return `${scraper.baseUrl}${pattern}`;
+    } else if (pattern.endsWith("/")) {
+      // Otherwise treat as path
+      return `${scraper.baseUrl.replace(/\/$/, "")}/${pattern}`;
+    } else {
+      return `${scraper.baseUrl}${pattern}`;
+    }
   }
 
   if (scraper.staticUrl) {
@@ -55,9 +65,8 @@ function buildUrl(scraper, page) {
 
 // --- Main Controller ---
 const getSalesData = async (req, res) => {
-  const log = (...args) => console.log(new Date().toISOString(), "[SSE]", ...args);
-
-  log("Client connected, starting sales stream");
+  const log = (...args) =>
+    console.log(new Date().toISOString(), "[SSE]", ...args);
 
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -74,19 +83,14 @@ const getSalesData = async (req, res) => {
 
     if (unique.length) {
       totalItemsSent += unique.length;
-      log(`Sending chunk with ${unique.length} items (total sent: ${totalItemsSent})`);
       res.write(`data: ${JSON.stringify(unique)}\n\n`);
       res.flush?.();
-    } else {
-      log("No new items to send in this chunk");
     }
   };
 
   const jobs = [];
 
   const doStuff = async (scraper, url, options) => {
-    log(`Starting fetch for ${url}`);
-
     const htmlResponseHandler = (html) => {
       try {
         const root = parse(html);
@@ -95,46 +99,40 @@ const getSalesData = async (req, res) => {
           .map((i) => formatItem(i, scraper))
           .filter(Boolean);
 
-        log(`Parsed ${items.length} items from ${url}`);
         sendChunk(items);
-      } catch (err) {
-        log(`Error parsing HTML for ${url}: ${err.message}`);
-      }
+      } catch (err) {}
     };
 
     try {
       await fetchData(url, htmlResponseHandler, options);
-      log(`Finished fetch for ${url}`);
     } catch (err) {
       log(`Error fetching ${url}: ${err.message}`);
     }
   };
 
   for (const scraper of SCRAPERS) {
-    log(`Starting scraper: ${scraper.key}`);
     for (let p = 1; p <= scraper.maxPages; p++) {
       let url;
       try {
         url = buildUrl(scraper, p);
-        log(`Built URL for page ${p}: ${url}`);
       } catch (err) {
-        log(`Skipping page ${p} for ${scraper.key}: failed to build URL`);
         console.log(err);
         continue;
       }
 
-      jobs.push(doStuff(scraper, url, { ...scraper.options, cacheKey: `${scraper.key}_${p}` }));
+      jobs.push(
+        doStuff(scraper, url, {
+          ...scraper.options,
+          cacheKey: `${scraper.key}_${p}`,
+        })
+      );
     }
   }
 
-  log("Waiting for all fetches to complete...");
   await Promise.allSettled(jobs);
-  log(`All fetches completed, sending done event (total items sent: ${totalItemsSent})`);
 
   res.write(`event: done\ndata: {}\n\n`);
   res.end();
-
-  log("Response ended, client stream closed");
 };
 
 module.exports = { getSalesData };
