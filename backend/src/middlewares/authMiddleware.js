@@ -1,43 +1,74 @@
 const jwt = require("jsonwebtoken");
-const { JWT_SECRET } = require("../config/jwtConfig");
+const { JWT_SECRET, JWT_REFRESH_SECRET } = require("../config/jwtConfig");
 const logger = require("../utils/logger");
 const authStore = require("../auth/authStore");
+const {
+  errorResponse,
+  validationErrorResponse,
+} = require("../utils/responseUtils");
 
 // Middleware to authenticate JWT tokens and ensure session is valid
 const authenticateToken = (req, res, next) => {
+  let token = null;
+
+  // 1. Authorization header (fetch)
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  if (authHeader?.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  }
+
+  // 2. Cookie (EventSource)
+  if (!token && req.cookies?.accessToken) {
+    token = req.cookies.accessToken;
+  }
 
   if (!token) {
-    return res.sendStatus(401); // Unauthorized: No token provided
+    return validationErrorResponse(res, "Missing authentication token");
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      logger.error("Authentication error", err);
-      return res.sendStatus(403); // Forbidden: Invalid token
+      return errorResponse(res, "Invalid or expired token", 403, err);
     }
 
-    // Check if the user still has an active session (valid refresh token)
     const currentRefreshTokens = authStore.getRefreshTokens(user.id);
-
     if (!currentRefreshTokens) {
-      logger.error(`No active session found for user ID: ${user.id}`);
-      return res
-        .status(403)
-        .json({ error: "Invalid session. Please log in again." });
+      return errorResponse(res, "Invalid session. Please log in again.", 403);
     }
 
-    req.user = user; // Attach user info to request object
-    next(); // Proceed to the next middleware or route handler
+    req.user = user;
+    next();
   });
 };
+
+const authenticateSSE = (req, res, next) => {
+  const refreshToken = req.cookies?.refreshToken;
+
+  if (!refreshToken) {
+    return validationErrorResponse(res, "Missing refresh token");
+  }
+
+  jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err, payload) => {
+    if (err) {
+      return errorResponse(res, "Invalid or expired session", 403, err);
+    }
+
+    const validRefreshTokens = authStore.getRefreshTokens(payload.id);
+    if (!validRefreshTokens?.includes(refreshToken)) {
+      return errorResponse(res, "Invalid session. Please log in again.", 403);
+    }
+
+    req.user = { id: payload.id };
+    next();
+  });
+};
+
 // Middleware to check if the user is an admin
 const isAdmin = (req, res, next) => {
   const { role } = req.user || {};
 
   if (role?.toLowerCase() !== "admin") {
-    return res.status(403).json({ error: "Access denied: Admins only" });
+    return errorResponse(res, "Admin access required", 403);
   }
 
   next(); // Proceed to the next middleware or route handler
@@ -59,14 +90,14 @@ const checkGuestPermission = (req, res, next) => {
 
   // If the user is a guest and tries to access a non-GET route, deny access
   if (isGuest(req) && method !== "GET") {
-    return res
-      .status(403)
-      .json({ message: "Guests can only access GET routes" });
+    return errorResponse(
+      res,
+      "Guests are not allowed to perform this action",
+      403
+    );
   }
 
   next();
 };
 
-
-
-module.exports = { authenticateToken, isAdmin, checkGuestPermission };
+module.exports = { authenticateToken, authenticateSSE, isAdmin, checkGuestPermission };
