@@ -16,12 +16,21 @@ module.exports = {
     return root
       .querySelectorAll(".ed-card-product")
       .map((item) => {
+        // The HTML uses .price--on-sale for the container
         const priceElem = item.querySelector(".price--on-sale");
         if (!priceElem) return null;
 
-        const linkElem = item.querySelector(
-          'a.full-unstyled-link[href^="/products/"]'
-        );
+        // TARGET SPECIFICITY: Use the H3 to get the actual visible title
+        const linkElem = item.querySelector("h3.card__heading a");
+
+        // IMAGE PROTOCOL FIX: Handle //greenmeup.de URLs
+        const imgElem = item.querySelector(".card__media img");
+        let imgSrc =
+          imgElem?.getAttribute("src") || imgElem?.getAttribute("data-src");
+
+        if (imgSrc && imgSrc.startsWith("//")) {
+          imgSrc = `https:${imgSrc}`;
+        }
 
         return {
           link: resolveLink(
@@ -29,9 +38,7 @@ module.exports = {
             "https://greenmeup.de"
           ),
           name: getText(linkElem),
-          img:
-            item.querySelector(".card__media img")?.getAttribute("src") ||
-            item.querySelector(".card__media img")?.getAttribute("data-src"),
+          img: imgSrc,
           oldPrice: parsePrice(
             priceElem.querySelector("s.price-item--regular")
           ),
