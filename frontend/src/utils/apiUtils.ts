@@ -279,7 +279,8 @@ const ApiUtils = {
   stream<T = any>(
     endpoint: string,
     onMessage: StreamCallback<T>,
-    onError?: (err: any) => void
+    onError?: (err: any) => void,
+    onDone?: () => void
   ): () => void {
     const url = `${API_BASE_URL}${endpoint}`;
     const eventSource = new EventSource(url, { withCredentials: true });
@@ -294,13 +295,18 @@ const ApiUtils = {
       }
     };
 
+    eventSource.addEventListener("done", () => {
+      onDone?.();
+      eventSource.close();
+    });
+
     eventSource.onerror = (err) => {
       console.error("SSE stream error:", err);
       onError?.(err);
-      eventSource.close(); // optionally auto-close on error
+      eventSource.close();
     };
 
-    return () => eventSource.close(); // returns a stop function
+    return () => eventSource.close();
   },
 };
 
