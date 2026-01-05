@@ -14,7 +14,7 @@
         item-type="sale"
         :empty-message="'Keine Verkäufe gefunden.'"
         :onItemClick="onItemClick"
-        :onRefreshItems="refreshSales"
+        :onRefreshItems="fetchSales"
       >
       </ItemsOverview>
     </ion-content>
@@ -78,20 +78,20 @@ export default defineComponent({
     async initSales() {
       this.loading = true;
       try {
-        // Stream new sales as they arrive
-        this.stopStream = SalesService.streamSales((chunk) => {
-          chunk.forEach((sale) => {
-            if (!this.sales.find((s) => s.id === sale.id)) {
-              this.sales.push(sale);
-            }
-          });
-          this.allSales = this.sales;
+        const all = await SalesService.getSales({
+          onUpdate: (chunk: Sale[]) => {
+            chunk.forEach((sale) => {
+              if (!this.sales.find((s) => s.id === sale.id)) {
+                this.sales.push(sale);
+              }
+            });
+            this.allSales = this.sales;
+          },
         });
 
-        // Also wait for the final cached result
-        const all = await SalesService.getSales(true);
-        this.allSales = all;
+        // initial / final resolved result
         this.sales = all;
+        this.allSales = all;
       } catch (err) {
         console.error("Error fetching sales:", err);
       } finally {
@@ -100,12 +100,12 @@ export default defineComponent({
     },
 
     async fetchSales() {
-      // for explicit fetch without streaming
+      // explicit fetch without streaming
       this.loading = true;
       try {
-        const all = await SalesService.getSales();
-        this.allSales = all;
+        const all = await SalesService.getSales({ forceUpdate: true });
         this.sales = all;
+        this.allSales = all;
       } catch (err) {
         console.error("Error fetching sales:", err);
       } finally {
@@ -113,23 +113,15 @@ export default defineComponent({
       }
     },
 
-    async refreshSales() {
-      // stop current stream if active
-      this.stopStream?.();
-      this.sales = [];
-      this.allSales = [];
-      await this.initSales();
-    },
-
     handleSearch(query: string) {
       const lowerQuery = query.toLowerCase();
-      this.sales = this.allSales.filter((sale: any) =>
+      this.sales = this.allSales.filter((sale: Sale) =>
         sale.name.toLowerCase().includes(lowerQuery)
       );
     },
 
     onSegmentChange(value: string) {
-      // handle segment changes if needed (no-op for now)
+      // no-op
     },
 
     onItemClick(id: string) {

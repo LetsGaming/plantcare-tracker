@@ -26,6 +26,8 @@ function formatItem(item, scraper) {
 }
 
 function buildUrl(scraper, page) {
+  if (page == 1) return scraper.baseUrl;
+
   if (typeof scraper.urlTemplate === "string") {
     return scraper.urlTemplate.replace(/\{\{page\}\}/g, page);
   }

@@ -10,6 +10,14 @@
         />
         <section class="sale-info align-middle">
           <ion-card class="sale-card">
+            <ion-badge
+              v-if="discountPercentage"
+              color="danger"
+              class="sale-badge"
+            >
+              -{{ discountPercentage }}
+            </ion-badge>
+
             <ion-card-header>
               <ion-card-title class="sale-title">
                 {{ sale.nameFull }}
@@ -29,6 +37,7 @@
                 <span class="current-price">
                   {{ sale.price.toFixed(2) }} €
                 </span>
+
                 <div>
                   <span v-if="savings" class="savings">
                     You save: {{ savings }} €
@@ -62,6 +71,7 @@ import {
   IonCard,
   IonCardHeader,
   IonCardContent,
+  IonBadge,
 } from "@ionic/vue";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
@@ -77,6 +87,7 @@ export default defineComponent({
     IonCard,
     IonCardHeader,
     IonCardContent,
+    IonBadge,
     DetailsHeader,
     DetailsBanner,
   },
@@ -120,6 +131,18 @@ export default defineComponent({
       }
       return null;
     },
+    discountPercentage(): string | null {
+      if (
+        this.sale &&
+        this.sale.oldPrice &&
+        this.sale.oldPrice > this.sale.price
+      ) {
+        const discount =
+          ((this.sale.oldPrice - this.sale.price) / this.sale.oldPrice) * 100;
+        return Math.round(discount) + "%";
+      }
+      return null;
+    },
   },
   methods: {
     async fetchSaleDetails() {
@@ -136,6 +159,18 @@ export default defineComponent({
 <style scoped>
 .sale-card {
   margin: 16px;
+  position: relative;
+}
+
+.sale-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-weight: bold;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 12px;
+  z-index: 10;
 }
 
 .sale-title {

@@ -5,6 +5,9 @@ const path = require("path");
 const sourcesDir = __dirname;
 
 const seenKeys = new Set();
+
+const isDev = process.env.NODE_ENV !== "production";
+
 module.exports = fs
   .readdirSync(sourcesDir)
   .filter((file) => file.endsWith(".js") && file !== "index.js")
@@ -15,7 +18,7 @@ module.exports = fs
       throw new Error(`Scraper in ${file} is missing 'key'`);
     }
 
-    if (source.disabled) {
+    if (source.devOnly && !isDev) {
       return null;
     }
 
