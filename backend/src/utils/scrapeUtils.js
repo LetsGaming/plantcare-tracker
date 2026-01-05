@@ -2,27 +2,35 @@ const axios = require("axios");
 const NodeCache = require("node-cache");
 const { chromium } = require("playwright");
 
-const cache = new NodeCache({ stdTTL: 24 * 60 * 60, checkperiod: 3600 });
+const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 }); // 24h TTL
+
+// --- Chromium Browser Singleton ---
+let browserPromise = null;
+async function getBrowser() {
+  if (!browserPromise) {
+    browserPromise = chromium.launch({ headless: true });
+  }
+  return browserPromise;
+}
 
 async function fetchWithChromium(url) {
-  const browser = await chromium.launch({ headless: true });
-
+  const browser = await getBrowser();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 720 },
   });
-
   const page = await context.newPage();
 
   try {
     await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-    const html = await page.content();
-    return html;
+    return await page.content();
   } finally {
-    await browser.close();
+    await page.close();
+    await context.close();
   }
 }
 
-async function fetchWithAxios(url, method, payload) {
+// --- Axios Fetch ---
+async function fetchWithAxios(url, method = "GET", payload = null) {
   const options = {
     method,
     url,
@@ -35,14 +43,13 @@ async function fetchWithAxios(url, method, payload) {
   };
 
   if (payload) options.data = payload;
-  if (method === "POST") {
-    options.headers["Content-Type"] = "application/json";
-  }
+  if (method === "POST") options.headers["Content-Type"] = "application/json";
 
   const response = await axios(options);
   return response.data;
 }
 
+// --- Main Fetch Wrapper ---
 const fetchData = async (
   url,
   extractFn,
@@ -74,11 +81,11 @@ const fetchData = async (
   }
 };
 
+// --- Utility Functions ---
 const getCache = () => cache;
 
 const parsePrice = (input) => {
   if (!input) return null;
-  // Handle node-html-parser objects
   const str = typeof input === "object" ? input.text : String(input);
   const cleanStr = str.replace(/[^\d.,]/g, "").replace(",", ".");
   const number = parseFloat(cleanStr);

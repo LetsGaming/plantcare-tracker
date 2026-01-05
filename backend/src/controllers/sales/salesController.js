@@ -1,13 +1,16 @@
 const crypto = require("crypto");
 const { parse } = require("node-html-parser");
+const pLimit = require("p-limit");
+
+const { fetchData } = require("../../utils/scrapeUtils.js");
 const {
   successResponse,
   notFoundResponse,
 } = require("../../utils/responseUtils.js");
-const { fetchData } = require("../../utils/scrapeUtils.js");
 
 const SCRAPERS = require("./sources");
 
+// --- Helpers ---
 const generateSaleId = (seller, link) => {
   if (!link) return null;
   return crypto.createHash("sha1").update(`${seller}|${link}`).digest("hex");
@@ -27,38 +30,18 @@ function formatItem(item, scraper) {
   };
 }
 
-/**
- * Build page URL for a scraper
- *
- * Supported scraper configs:
- * - baseUrl + pagePattern
- * - urlTemplate (with {page})
- * - staticUrl (no paging)
- */
 function buildUrl(scraper, page) {
-  // Use urlTemplate if defined
   if (typeof scraper.urlTemplate === "string") {
     return scraper.urlTemplate.replace(/\{\{page\}\}/g, page);
   }
-
-  // If pagePattern exists, replace placeholder
   if (scraper.baseUrl && scraper.pagePattern) {
     const pattern = scraper.pagePattern.replace(/\{\{page\}\}/g, page);
-
-    // Check if pattern starts with "?" → query param
-    if (pattern.startsWith("?")) {
-      return `${scraper.baseUrl}${pattern}`;
-    } else if (pattern.endsWith("/")) {
-      // Otherwise treat as path
+    if (pattern.startsWith("?")) return `${scraper.baseUrl}${pattern}`;
+    if (pattern.endsWith("/"))
       return `${scraper.baseUrl.replace(/\/$/, "")}/${pattern}`;
-    } else {
-      return `${scraper.baseUrl}${pattern}`;
-    }
+    return `${scraper.baseUrl}${pattern}`;
   }
-
-  if (scraper.staticUrl) {
-    return scraper.staticUrl;
-  }
+  if (scraper.staticUrl) return scraper.staticUrl;
 
   throw new Error(`Invalid scraper config for ${scraper.key}`);
 }
@@ -88,6 +71,10 @@ const getSalesData = async (req, res) => {
     }
   };
 
+  // --- Concurrency Limits ---
+  const chromiumLimit = pLimit(2); // expensive
+  const axiosLimit = pLimit(8); // cheap
+
   const jobs = [];
 
   const doStuff = async (scraper, url, options) => {
@@ -100,7 +87,9 @@ const getSalesData = async (req, res) => {
           .filter(Boolean);
 
         sendChunk(items);
-      } catch (err) {}
+      } catch (err) {
+        log("Parse error:", err.message);
+      }
     };
 
     try {
@@ -116,15 +105,18 @@ const getSalesData = async (req, res) => {
       try {
         url = buildUrl(scraper, p);
       } catch (err) {
-        console.log(err);
+        log(err.message);
         continue;
       }
 
+      const runner = scraper.options?.useChromium ? chromiumLimit : axiosLimit;
       jobs.push(
-        doStuff(scraper, url, {
-          ...scraper.options,
-          cacheKey: `${scraper.key}_${p}`,
-        })
+        runner(() =>
+          doStuff(scraper, url, {
+            ...scraper.options,
+            cacheKey: `${scraper.key}_${p}`,
+          })
+        )
       );
     }
   }
