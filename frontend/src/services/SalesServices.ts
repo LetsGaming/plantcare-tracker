@@ -33,48 +33,51 @@ export default class SalesService {
   ): Promise<Sale[]> | (() => void) {
     const accumulated: Sale[] = [];
 
+    // Shared handler to avoid duplication
+    const handleEvent = (event: { data: any }) => {
+      const chunk = SaleMapper.convertToSales(event.data);
+
+      chunk.forEach((s) => {
+        if (!accumulated.find((x) => x.id === s.id)) {
+          accumulated.push(s);
+        }
+      });
+
+      onUpdate(chunk);
+      cacheSalesData(accumulated);
+    };
+
     if (waitForDone) {
       return new Promise<Sale[]>((resolve, reject) => {
         const stop = ApiUtils.stream(
           BASE_ENDPOINT,
           (event) => {
             try {
-              const chunk = SaleMapper.convertToSales(event.data);
-              chunk.forEach((s) => {
-                if (!accumulated.find((x) => x.id === s.id))
-                  accumulated.push(s);
-              });
-
-              onUpdate(chunk);
-              cacheSalesData(accumulated);
-
-              if ((event.event || "").toLowerCase() === "done") {
-                stop();
-                resolve(accumulated);
-              }
+              handleEvent(event);
             } catch (err) {
               stop();
               reject(err);
             }
           },
-          (err) => reject(err)
+          (err) => {
+            stop();
+            reject(err);
+          },
+          () => {
+            stop();
+            resolve(accumulated);
+          }
         );
       });
-    } else {
-      return ApiUtils.stream(BASE_ENDPOINT, (event) => {
-        try {
-          const chunk = SaleMapper.convertToSales(event.data);
-          chunk.forEach((s) => {
-            if (!accumulated.find((x) => x.id === s.id)) accumulated.push(s);
-          });
-
-          onUpdate(chunk);
-          cacheSalesData(accumulated);
-        } catch (err) {
-          console.error("Error processing streamed sales data:", err);
-        }
-      });
     }
+
+    return ApiUtils.stream(BASE_ENDPOINT, (event) => {
+      try {
+        handleEvent(event);
+      } catch (err) {
+        console.error("Error processing streamed sales data:", err);
+      }
+    });
   }
 
   /** Get sales, using cache or streaming if no valid cache */
