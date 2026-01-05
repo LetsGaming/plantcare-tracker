@@ -1,5 +1,10 @@
-const seenKeys = new Set();
+const fs = require("fs");
+const path = require("path");
 
+// Ensure sourcesDir is also defined. If it's the current directory, use:
+const sourcesDir = __dirname;
+
+const seenKeys = new Set();
 module.exports = fs
   .readdirSync(sourcesDir)
   .filter((file) => file.endsWith(".js") && file !== "index.js")
