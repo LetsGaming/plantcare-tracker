@@ -1,12 +1,7 @@
 const crypto = require("crypto");
 const { parse } = require("node-html-parser");
-const pLimit = require("p-limit");
 
 const { fetchData } = require("../../utils/scrapeUtils.js");
-const {
-  successResponse,
-  notFoundResponse,
-} = require("../../utils/responseUtils.js");
 
 const SCRAPERS = require("./sources");
 
@@ -71,9 +66,33 @@ const getSalesData = async (req, res) => {
     }
   };
 
-  // --- Concurrency Limits ---
-  const chromiumLimit = pLimit(2); // expensive
-  const axiosLimit = pLimit(8); // cheap
+  function createLimit(max) {
+    let active = 0;
+    const queue = [];
+
+    const next = () => {
+      if (queue.length === 0 || active >= max) return;
+      active++;
+      const { fn, resolve, reject } = queue.shift();
+      fn()
+        .then(resolve)
+        .catch(reject)
+        .finally(() => {
+          active--;
+          next();
+        });
+    };
+
+    return (fn) =>
+      new Promise((resolve, reject) => {
+        queue.push({ fn, resolve, reject });
+        next();
+      });
+  }
+
+  // Usage
+  const chromiumLimit = createLimit(2);
+  const axiosLimit = createLimit(8);
 
   const jobs = [];
 
