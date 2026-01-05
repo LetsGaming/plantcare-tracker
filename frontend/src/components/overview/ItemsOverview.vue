@@ -109,7 +109,7 @@ export default defineComponent({
     items: {
       type: Array as PropType<
         Array<{
-          id: number;
+          id: number | string;
           name: string;
           imageUrl?: string;
           description?: string;
@@ -118,7 +118,7 @@ export default defineComponent({
       required: true,
     },
     onItemClick: {
-      type: Function as PropType<(id: number) => void>,
+      type: Function as PropType<(id: any) => void>,
       required: true,
     },
     onRefreshItems: {
@@ -141,7 +141,7 @@ export default defineComponent({
     sortItems(items: any[]) {
       return items.sort((a, b) => a.name.localeCompare(b.name));
     },
-    navigateToItem(id: number) {
+    navigateToItem(id: number | string) {
       this.onItemClick(id);
     },
   },

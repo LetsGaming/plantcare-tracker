@@ -13,6 +13,13 @@ interface ApiResponse<T = any> {
   data?: T;
 }
 
+interface StreamEvent<T = any> {
+  data: T;
+  event?: string;
+}
+
+type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
+
 class ApiError extends Error {
   constructor(public status: number, public data: any, message?: string) {
     super(message || data?.error || "API error");
@@ -260,6 +267,40 @@ const ApiUtils = {
    */
   delete<R>(endpoint: string): Promise<R> {
     return performRequest<R>({ method: "DELETE", endpoint });
+  },
+
+  /**
+   * Streams events from an SSE endpoint.
+   * @param endpoint - API endpoint that returns SSE.
+   * @param onMessage - Callback for each streamed event.
+   * @param onError - Optional callback for errors.
+   * @returns A function to stop the stream.
+   */
+  stream<T = any>(
+    endpoint: string,
+    onMessage: StreamCallback<T>,
+    onError?: (err: any) => void
+  ): () => void {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const eventSource = new EventSource(url, { withCredentials: true });
+
+    eventSource.onmessage = (e) => {
+      try {
+        const parsed: T = JSON.parse(e.data);
+        onMessage({ data: parsed });
+      } catch (err) {
+        console.error("Failed to parse SSE data:", e.data, err);
+        onError?.(err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("SSE stream error:", err);
+      onError?.(err);
+      eventSource.close(); // optionally auto-close on error
+    };
+
+    return () => eventSource.close(); // returns a stop function
   },
 };
 

@@ -22,6 +22,9 @@ const ComponentOverview = () =>
 const ComponentDetails = () =>
   import("@/views/components/ComponentDetails.vue");
 
+const SalesOverview = () => import("@/views/sales/SalesOverview.vue");
+const SalesDetails = () => import("@/views/sales/SalesDetails.vue");
+
 const authMeta = { requiresAuth: true };
 
 const routes: Array<RouteRecordRaw> = [
@@ -41,6 +44,7 @@ const routes: Array<RouteRecordRaw> = [
     component: Profile,
     meta: authMeta,
   },
+
   {
     path: "/tabs",
     component: TabsPage,
@@ -83,6 +87,19 @@ const routes: Array<RouteRecordRaw> = [
         meta: authMeta,
         props: true,
         component: ComponentDetails,
+      },
+      {
+        path: "/sales",
+        name: "sales",
+        component: SalesOverview,
+        meta: authMeta,
+      },
+      {
+        name: "sales-details",
+        path: "sales/details/:id",
+        meta: authMeta,
+        props: true,
+        component: SalesDetails,
       },
     ],
   },
