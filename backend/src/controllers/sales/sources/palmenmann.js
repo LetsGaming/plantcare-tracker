@@ -3,7 +3,7 @@ const { parsePrice, getText } = require("../../../utils/scrapeUtils");
 module.exports = {
   key: "palmenmann",
   seller: "Palmenmann",
-  baseUrl: "https://www.palmenmann.de/angebote",
+  baseUrl: "https://www.palmenmann.de/angebote/",
   pagePattern: "?p={{page}}",
   maxPages: 1,
   options: { useChromium: true },
@@ -20,14 +20,19 @@ module.exports = {
         );
         const oldPriceElem = priceBox.querySelector(".price--discount");
 
+        // We only want products that are actually on sale (have both prices)
         if (!newPriceElem || !oldPriceElem) return null;
 
         const linkElem = item.querySelector("a.product--title");
+        const imgElem = item.querySelector(".product--image img");
 
         return {
           link: linkElem?.getAttribute("href"),
           name: getText(linkElem),
-          img: item.querySelector(".product--image img")?.getAttribute("src"),
+          // Fallback to srcset if src is not present (common in their shop system)
+          img:
+            imgElem?.getAttribute("src") ||
+            imgElem?.getAttribute("srcset")?.split(" ")[0],
           oldPrice: parsePrice(oldPriceElem),
           newPrice: parsePrice(newPriceElem),
         };
