@@ -116,4 +116,22 @@ ion-content {
   --padding-top: 0;
   --padding-bottom: 0;
 }
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  .refresh-button-container {
+    left: 90%;
+  }
+}
+
+@media (max-width: 768px) {
+  .refresh-button-container {
+    left: 88%;
+  }
+}
+
+@media (max-width: 480px) {
+  .refresh-button-container {
+    display: none;
+  }
+}
 </style>

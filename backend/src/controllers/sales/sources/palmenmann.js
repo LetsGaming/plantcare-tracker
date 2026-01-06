@@ -6,7 +6,7 @@ module.exports = {
   baseUrl: "https://www.palmenmann.de/angebote/",
   pagePattern: "?p={{page}}",
   maxPages: 1,
-  options: { useChromium: true },
+  options: { useChromium: false },
 
   parseFn: (root) => {
     return root

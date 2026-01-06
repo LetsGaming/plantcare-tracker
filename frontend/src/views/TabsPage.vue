@@ -42,3 +42,11 @@ import {
 } from "@ionic/vue";
 import { cube, grid, leaf, pricetag } from "ionicons/icons";
 </script>
+
+<style scoped>
+ @media (max-width: 768px) {
+  ion-fab {
+    margin-bottom: 70px;
+  }
+}
+</style>

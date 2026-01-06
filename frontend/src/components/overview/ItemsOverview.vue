@@ -1,71 +1,59 @@
 <template>
   <pull-to-refresh @refresh="onRefreshItems">
-    <template v-if="items.length">
-      <div>
-        <search-bar
-          @search="filterItems"
-          placeholder="Suche..."
-          class="align-middle"
-        />
-        <ion-grid class="item-grid">
-          <ion-row>
-            <ion-col
-              size-xs="12"
-              size-sm="8"
-              size-md="4"
-              size-lg="3"
-              v-for="item in filteredItems"
-              :key="item.id"
-            >
-              <ion-card class="item-card" @click="navigateToItem(item.id)">
-                <ion-card-content>
-                  <ion-grid>
-                    <ion-row class="item-row">
-                      <!-- Image Column -->
-                      <ion-col size-xs="12" size-sm="5" size-md="6">
-                        <div class="item-image-wrapper">
-                          <ion-img
-                            :src="item.imageUrl || '/no-image.png'"
-                            :alt="`${item.name} Image`"
-                            @ion-error="
-                              ($event) => ($event.target.src = '/no-image.png')
-                            "
-                            class="item-image"
-                          />
-                        </div>
-                      </ion-col>
+    <template v-if="filteredItems.length">
+      <search-bar
+        @search="filterItems"
+        placeholder="Suche..."
+        class="align-middle"
+      />
 
-                      <!-- Text Column -->
-                      <ion-col
-                        size-xs="12"
-                        size-sm="7"
-                        size-md="6"
-                        class="text-col"
-                      >
-                        <ion-card-title class="item-title">{{
-                          item.name
-                        }}</ion-card-title>
-                        <div class="card-details-container">
-                          <ion-card-subtitle
-                            v-show="item.description"
-                            class="item-description"
-                          >
-                            {{ item.description }}
-                          </ion-card-subtitle>
-                          <ion-text color="medium">Mehr Details</ion-text>
-                        </div>
-                      </ion-col>
-                    </ion-row>
-                  </ion-grid>
-                </ion-card-content>
-              </ion-card>
-            </ion-col>
-          </ion-row>
-        </ion-grid>
-      </div>
+      <ion-grid class="item-grid">
+        <ion-row>
+          <ion-col
+            v-for="item in filteredItems"
+            :key="item.id"
+            size-xs="12"
+            size-sm="6"
+            size-md="4"
+            size-lg="3"
+            size-xl="3"
+            class="responsive-col"
+          >
+            <ion-card class="item-card" @click="navigateToItem(item.id)">
+              <!-- Image -->
+              <div :class="['item-image-wrapper', { 'image-only': imageOnly }]">
+                <ion-img
+                  :src="item.imageUrl || '/no-image.png'"
+                  :alt="`${item.name} Image`"
+                  @ion-error="($event) => ($event.target.src = '/no-image.png')"
+                />
+              </div>
+
+              <!-- Content -->
+              <ion-card-content v-if="!imageOnly" class="item-content">
+                <ion-card-title class="item-title">
+                  {{ item.name }}
+                </ion-card-title>
+
+                <ion-card-subtitle
+                  v-if="item.description"
+                  class="item-description"
+                >
+                  {{ item.description }}
+                </ion-card-subtitle>
+
+                <ion-text color="medium" class="more-details">
+                  Mehr Details
+                </ion-text>
+              </ion-card-content>
+            </ion-card>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
     </template>
+
     <template v-else>
-      <ion-text color="secondary" class="align-middle">
+      <ion-text color="secondary" class="align-middle" style="margin-top: 35vh">
         Keine Einträge gefunden.
       </ion-text>
     </template>
@@ -81,9 +69,9 @@ import {
   IonCard,
   IonCardTitle,
   IonCardContent,
+  IonCardSubtitle,
   IonText,
   IonImg,
-  IonCardSubtitle,
 } from "@ionic/vue";
 
 import SearchBar from "@/components/SearchBar.vue";
@@ -91,7 +79,7 @@ import PullToRefresh from "@/components/PullToRefresh.vue";
 import Utils from "@/utils/utils";
 
 export default defineComponent({
-  name: "ItemGrid",
+  name: "ItemsOverview",
   components: {
     IonGrid,
     IonRow,
@@ -117,6 +105,10 @@ export default defineComponent({
       >,
       required: true,
     },
+    imageOnly: {
+      type: Boolean,
+      default: false,
+    },
     onItemClick: {
       type: Function as PropType<(id: any) => void>,
       required: true,
@@ -128,29 +120,31 @@ export default defineComponent({
   },
   data() {
     return {
-      // Holds the current search query for filtering purposes
       currentSearch: "",
       filteredItems: [] as any[],
     };
   },
   methods: {
     filterItems(query: string) {
+      this.currentSearch = query;
       const filtered = Utils.baseSearchFilter(query, this.items);
       this.filteredItems = this.sortItems(filtered);
     },
     sortItems(items: any[]) {
-      return items.sort((a, b) => a.name.localeCompare(b.name));
+      return [...items].sort((a, b) => a.name.localeCompare(b.name));
     },
     navigateToItem(id: number | string) {
+      if(typeof id !== 'number' && typeof id !== 'string') {
+        console.warn('Invalid item id type:', id);
+        return;
+      }
       this.onItemClick(id);
     },
   },
   mounted() {
-    // Initialize filteredItems with all items (sorted) when the component mounts
     this.filteredItems = this.sortItems(this.items);
   },
   watch: {
-    // Reapply filtering when the items prop changes
     items: {
       immediate: true,
       handler(newItems) {
@@ -170,60 +164,85 @@ export default defineComponent({
   padding: 20px;
 }
 
+/* CARD BASE */
 .item-card {
+  height: 90%;
+  display: flex;
+  flex-direction: column;
   cursor: pointer;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
   border-radius: 15px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .item-card:hover {
-  transform: scale(1.05);
+  transform: scale(1.03);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
-.item-title {
-  text-align: center;
-}
-
+/* IMAGE */
 .item-image-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
 }
 
-.item-image {
+.image-only {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.item-image-wrapper ion-img {
+  width: 100%;
+  height: 100%;
+}
+
+.item-image-wrapper ion-img::part(image) {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 15px 15px 0 0;
 }
 
-.item-image::part(image) {
-  width: 200px;
-  height: 200px;
-}
-
-.card-details-container {
-  height: 90%;
-  margin-left: 2%;
+/* CONTENT */
+.item-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.item-description {
-  padding: 5%;
+  gap: 8px;
   text-align: center;
 }
 
-@media (max-width: 768px) {
-  .item-grid {
-    display: flex;
-    flex-direction: column;
+.more-details {
+  margin-top: auto;
+  font-weight: 500;
+  text-align: center;
+}
+
+@media (min-width: 1081px) {
+  .item-card {
+    flex-direction: row;
+    height: 250px;
   }
 
-  .card-details-container {
-    text-align: center;
+  .item-image-wrapper {
+    width: 250px;
+    height: 100%;
+    aspect-ratio: unset;
+    flex-shrink: 0;
+  }
+
+  .item-content {
+    text-align: left;
+    padding-left: 12px;
+  }
+}
+
+/* Custom XXL Breakpoint (e.g., 1440px or 1600px) */
+@media (min-width: 1440px) {
+  .responsive-col {
+    /* Force 6 items per row (equivalent to a 'size-xxl="2"') */
+    flex: 0 0 calc(calc(2 / 12) * 100%);
+    width: calc(calc(2 / 12) * 100%);
+    max-width: calc(calc(2 / 12) * 100%);
   }
 }
 </style>

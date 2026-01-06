@@ -10,7 +10,7 @@ module.exports = {
   baseUrl: "https://www.harmony-plants.com/collections/sale",
   pagePattern: "?page={{page}}",
   maxPages: 2,
-  options: { useChromium: true },
+  options: { useChromium: false },
   parseFn: (root) => {
     return root.querySelectorAll(".grid__item").map((item) => {
       const priceElem = item.querySelector(".price--on-sale");

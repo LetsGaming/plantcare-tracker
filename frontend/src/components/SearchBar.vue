@@ -51,6 +51,7 @@ export default defineComponent({
 
 <style scoped>
 .search-bar {
+  width: 100%;
   margin-top: 20px;
   padding: 12px 16px; /* Added padding for better look */
   border-radius: 20px; /* Increased border-radius for more rounded edges */
@@ -67,5 +68,15 @@ export default defineComponent({
   cursor: pointer;
   font-size: 1.5rem;
   margin-left: 8px;
+}
+
+@media (max-width: 768px) {
+  .search-bar {
+    width: 80%;
+  }
+
+  .align-middle {
+    margin: 10px auto !important;
+  }
 }
 </style>

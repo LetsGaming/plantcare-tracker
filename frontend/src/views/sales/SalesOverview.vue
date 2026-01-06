@@ -6,6 +6,7 @@
       starting-segment="all"
       :on-segment-change="onSegmentChange"
       @search="handleSearch"
+      :show-add-button="false"
     />
 
     <ion-content>
@@ -124,7 +125,7 @@ export default defineComponent({
       // no-op
     },
 
-    onItemClick(id: string) {
+    onItemClick(id: string ) {
       this.$router.push({ name: "sales-details", params: { id } });
     },
   },

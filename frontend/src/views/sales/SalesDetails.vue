@@ -1,6 +1,6 @@
 <template>
   <ion-page>
-    <details-header title="Sales Details" back-button />
+    <details-header title="Sales Details" :show-edit-button="false" />
     <ion-content>
       <div v-if="sale">
         <details-banner
@@ -71,6 +71,9 @@ import {
   IonCard,
   IonCardHeader,
   IonCardContent,
+  IonCardTitle,
+  IonCardSubtitle,
+  IonButton,
   IonBadge,
 } from "@ionic/vue";
 
@@ -87,6 +90,9 @@ export default defineComponent({
     IonCard,
     IonCardHeader,
     IonCardContent,
+    IonCardTitle,
+    IonCardSubtitle,
+    IonButton,
     IonBadge,
     DetailsHeader,
     DetailsBanner,

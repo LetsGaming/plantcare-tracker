@@ -65,7 +65,13 @@ export default defineComponent({
       substrateId: this.plant.substrate.id,
       isPublic: this.plant.isPublic,
     };
-    await this.fetchSubstrates();
+  },
+  watch: {
+    isOpen(newVal: boolean) {
+      if (newVal && this.substrates.length === 0) {
+        this.fetchSubstrates();
+      }
+    },
   },
   computed: {
     formFields(): FormField[] {

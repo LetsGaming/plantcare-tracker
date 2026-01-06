@@ -45,8 +45,12 @@ export default defineComponent({
       SubstrateContainer,
     };
   },
-  async mounted() {
-    await this.fetchSubstrates();
+  watch: {
+    isOpen(newVal: boolean) {
+      if (newVal && this.substrates.length === 0) {
+        this.fetchSubstrates();
+      }
+    },
   },
   computed: {
     plantFormFields() {

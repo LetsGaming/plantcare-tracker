@@ -21,7 +21,7 @@ async function fetchWithChromium(url) {
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     return await page.content();
   } finally {
     await page.close();
