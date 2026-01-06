@@ -12,6 +12,7 @@ module.exports = {
   baseUrl: "https://greenmeup.de/collections/sale",
   pagePattern: "?page={{page}}",
   maxPages: 2,
+  priority: 1,
   options: { useChromium: true },
 
   parseFn: (root) => {

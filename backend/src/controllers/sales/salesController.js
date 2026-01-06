@@ -1,8 +1,6 @@
 const crypto = require("crypto");
 const { parse } = require("node-html-parser");
-
 const { fetchData } = require("../../utils/scrapeUtils.js");
-
 const SCRAPERS = require("./sources");
 
 // --- Helpers ---
@@ -92,7 +90,6 @@ const getSalesData = async (req, res) => {
       });
   }
 
-  // Usage
   const chromiumLimit = createLimit(2);
   const axiosLimit = createLimit(8);
 
@@ -109,7 +106,7 @@ const getSalesData = async (req, res) => {
 
         sendChunk(items);
       } catch (err) {
-        log("Parse error:", err.message);
+        log(`Parse error in ${scraper.key}:`, err.message);
       }
     };
 
@@ -120,7 +117,16 @@ const getSalesData = async (req, res) => {
     }
   };
 
-  for (const scraper of SCRAPERS) {
+  // 1. Sort scrapers by priority. 
+  // Use Nullish Coalescing (??) to treat undefined priority as 0 (highest).
+  const sortedScrapers = [...SCRAPERS].sort((a, b) => {
+    const prioA = a.priority ?? 0;
+    const prioB = b.priority ?? 0;
+    return prioA - prioB;
+  });
+
+  // 2. Queue jobs based on priority
+  for (const scraper of sortedScrapers) {
     for (let p = 1; p <= scraper.maxPages; p++) {
       let url;
       try {
@@ -131,6 +137,8 @@ const getSalesData = async (req, res) => {
       }
 
       const runner = scraper.options?.useChromium ? chromiumLimit : axiosLimit;
+      
+      // The limiters process jobs in the order they are pushed (FIFO)
       jobs.push(
         runner(() =>
           doStuff(scraper, url, {

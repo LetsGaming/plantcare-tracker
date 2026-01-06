@@ -9,7 +9,7 @@ PlantCare Tracker is a web application designed to help users manage and track t
 
 ## Planned Features
 - Custom notifications for plant care.
-- Localization for german AND englisch | 0%
+- Localization for german AND english | 0%
 
 ## Tech Stack
 - **Frontend**: Ionic, Vue, CSS, TypeScript
