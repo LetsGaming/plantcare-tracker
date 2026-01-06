@@ -4,15 +4,12 @@ const {
   getText,
 } = require("../../../utils/scrapeUtils");
 
-// TODO : Fix scraper timeout and enable again
 module.exports = {
   key: "greenMeUp",
-  devOnly: true,
   seller: "Green Me Up",
   baseUrl: "https://greenmeup.de/collections/sale",
   pagePattern: "?page={{page}}",
   maxPages: 2,
-  priority: 1,
   options: { useChromium: true },
 
   parseFn: (root) => {

@@ -1,83 +1,114 @@
 <template>
   <ion-page>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title class="ion-text-center">{{
+          isRegisterMode ? "Register" : "Login"
+        }}</ion-title>
+      </ion-toolbar>
+    </ion-header>
     <ion-content class="ion-padding" :scroll-y="false">
       <div v-if="isCheckingLogin" class="login-loading-container align-middle">
         <ion-spinner></ion-spinner>
       </div>
+      <div v-else class="login-container align-middle">
+        <ion-item class="ion-margin-bottom" style="width: 100%">
+          <ion-icon :icon="personOutline" slot="start"></ion-icon>
+          <ion-input
+            v-model="username"
+            aria-label="Username"
+            label="Username"
+            label-placement="floating"
+            placeholder="Enter your username"
+            type="text"
+            required
+            clear-input
+          ></ion-input>
+        </ion-item>
 
-      <form
-        v-else
-        name="loginForm"
-        action="#"
-        @submit.prevent="isRegisterMode ? handleRegister() : handleLogin()"
-        class="login-container align-middle"
-      >
-        <fieldset style="border: none; padding: 0; margin: 0; width: 100%">
-          <ion-item class="ion-margin-bottom">
-            <ion-icon :icon="personOutline" slot="start"></ion-icon>
-            <ion-input
-              v-model="username"
-              name="username"
-              type="text"
-              autocomplete="username"
-              inputmode="text"
-              label="Username"
-              label-placement="floating"
-              required
-            ></ion-input>
-          </ion-item>
+        <ion-item class="ion-margin-bottom" style="width: 100%">
+          <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
+          <ion-input
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            label="Password"
+            label-placement="floating"
+            aria-label="Password"
+            placeholder="Enter your password"
+            clear-input
+            required
+          ></ion-input>
+          <ion-button
+            fill="clear"
+            size="small"
+            slot="end"
+            @click="togglePasswordVisibility"
+          >
+            <ion-icon
+              :icon="showPassword ? eyeOffOutline : eyeOutline"
+            ></ion-icon>
+          </ion-button>
+        </ion-item>
 
-          <ion-item class="ion-margin-bottom">
-            <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
-            <ion-input
-              v-model="password"
-              name="password"
-              :type="showPassword ? 'text' : 'password'"
-              :autocomplete="
-                isRegisterMode ? 'new-password' : 'current-password'
-              "
-              inputmode="text"
-              label="Password"
-              label-placement="floating"
-              required
-            ></ion-input>
-            <ion-button
-              type="button"
-              fill="clear"
-              slot="end"
-              @click="togglePasswordVisibility"
-            >
-              <ion-icon
-                :icon="showPassword ? eyeOffOutline : eyeOutline"
-              ></ion-icon>
-            </ion-button>
-          </ion-item>
-
-          <ion-item v-if="isRegisterMode" class="ion-margin-bottom">
-            <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
-            <ion-input
-              v-model="confirmPassword"
-              name="confirmPassword"
-              :type="showPassword ? 'text' : 'password'"
-              autocomplete="new-password"
-              label="Confirm Password"
-              label-placement="floating"
-              required
-            ></ion-input>
-          </ion-item>
-        </fieldset>
+        <!-- Confirm password field for registration -->
+        <ion-item
+          v-if="isRegisterMode"
+          class="ion-margin-bottom"
+          style="width: 100%"
+        >
+          <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
+          <ion-input
+            v-model="confirmPassword"
+            :type="showPassword ? 'text' : 'password'"
+            label="Confirm Password"
+            label-placement="floating"
+            aria-label="Confirm Password"
+            placeholder="Confirm your password"
+            clear-input
+            required
+          ></ion-input>
+          <ion-button
+            fill="clear"
+            size="small"
+            slot="end"
+            @click="togglePasswordVisibility"
+          >
+            <ion-icon
+              :icon="showPassword ? eyeOffOutline : eyeOutline"
+            ></ion-icon>
+          </ion-button>
+        </ion-item>
 
         <ion-button
-          type="submit"
           expand="block"
+          @click="isRegisterMode ? handleRegister() : handleLogin()"
           :disabled="loading"
+          id="auth-button"
           class="ion-margin-top"
           style="width: 100%"
         >
           <ion-spinner v-if="loading"></ion-spinner>
           <span v-else>{{ isRegisterMode ? "Register" : "Login" }}</span>
         </ion-button>
-      </form>
+
+        <!-- Toggle between login and register mode -->
+        <ion-text
+          @click="toggleAuthMode"
+          class="ion-margin-top"
+          color="primary"
+        >
+          <p>
+            {{
+              isRegisterMode
+                ? "Already have an account? Login"
+                : "Don't have an account? Register"
+            }}
+          </p>
+        </ion-text>
+        <ion-text @click="guestLogin" class="ion-margin-top" color="primary">
+          <p>Continue as guest</p>
+        </ion-text>
+      </div>
     </ion-content>
   </ion-page>
 </template>

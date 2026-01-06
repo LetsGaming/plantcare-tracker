@@ -53,12 +53,12 @@ export default defineComponent({
   },
   computed: {
     mappedSales(): Array<{
-      id: number;
+      id: string;
       name: string;
       imageUrl?: string;
       description?: string;
     }> {
-      return this.sales.map((sale: any) => ({
+      return this.sales.map((sale: Sale) => ({
         id: sale.id,
         name: sale.name,
         imageUrl: sale.imageUrl,
