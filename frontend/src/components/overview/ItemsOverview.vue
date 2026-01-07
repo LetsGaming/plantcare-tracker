@@ -1,12 +1,13 @@
 <template>
   <pull-to-refresh @refresh="onRefreshItems">
-    <template v-if="filteredItems.length">
+    <template v-if="items.length">
       <search-bar
         @search="filterItems"
         placeholder="Suche..."
         class="align-middle"
       />
-
+    </template>
+    <template v-if="filteredItems.length">
       <ion-grid class="item-grid">
         <ion-row>
           <ion-col
@@ -134,8 +135,8 @@ export default defineComponent({
       return [...items].sort((a, b) => a.name.localeCompare(b.name));
     },
     navigateToItem(id: number | string) {
-      if(typeof id !== 'number' && typeof id !== 'string') {
-        console.warn('Invalid item id type:', id);
+      if (typeof id !== "number" && typeof id !== "string") {
+        console.warn("Invalid item id type:", id);
         return;
       }
       this.onItemClick(id);
