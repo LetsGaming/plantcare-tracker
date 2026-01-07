@@ -114,7 +114,7 @@ const guestLogin = async (req, res) => {
     // Set the new refresh token in the cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: req.secure || req.headers["x-forwarded-proto"] === "https", // Only set secure if using HTTPS
       sameSite: "Strict",
       maxAge: 60 * 60 * 1000, // 1 hour
     });
