@@ -1,4 +1,4 @@
-const createScraper = require("../utils/scrape/scraperFactory");
+const createScraper = require("../../../utils/scrape/scraperFactory");
 
 module.exports = createScraper({
   key: "jungleLeaves",

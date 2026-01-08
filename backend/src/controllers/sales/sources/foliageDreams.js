@@ -1,5 +1,5 @@
-const createScraper = require("../utils/scrape/scraperFactory");
-const { parsePrice, resolveLink, getText } = require("../utils/scrape/scrapeUtils");
+const createScraper = require("../../../utils/scrape/scraperFactory");
+const { parsePrice, resolveLink, getText } = require("../../../utils/scrape/scrapeUtils");
 
 module.exports = createScraper({
   key: "foliageDreams",
