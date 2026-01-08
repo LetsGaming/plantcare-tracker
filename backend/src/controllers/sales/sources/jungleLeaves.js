@@ -1,22 +1,18 @@
-const { parsePrice, getText } = require("../../../utils/scrapeUtils");
+const createScraper = require("../utils/scrape/scraperFactory");
 
-module.exports = {
+module.exports = createScraper({
   key: "jungleLeaves",
   seller: "Jungle Leaves",
   baseUrl: "https://www.jungle-leaves.de/produkt-kategorie/sale",
-  pagePattern: "page/{{page}}/", // Jungle leaves specific path
+  pagePattern: "page/{{page}}/",
   maxPages: 2,
   options: { useChromium: true },
-  parseFn: (root) => {
-    return root.querySelectorAll(".product").map((item) => {
-      const linkElem = item.querySelector(".product-loop-title");
-      return {
-        link: linkElem?.getAttribute("href"),
-        name: getText(linkElem, ".woocommerce-loop-product__title"),
-        img: item.querySelector("img")?.getAttribute("src"),
-        oldPrice: parsePrice(item.querySelector("span.price del bdi")),
-        newPrice: parsePrice(item.querySelector("span.price ins bdi")),
-      };
-    });
-  },
-};
+  selectors: {
+    container: ".product",
+    oldPrice: "span.price del bdi",
+    newPrice: "span.price ins bdi",
+    link: ".product-loop-title",
+    name: ".woocommerce-loop-product__title",
+    img: "img"
+  }
+});

@@ -1,6 +1,6 @@
 const { parse } = require("node-html-parser");
 const { escape: encodeURIComponent } = require("querystring");
-const { fetchData, getCache } = require("../../utils/scrapeUtils");
+const { fetchData, getCache } = require("../../utils/scrape/scrapeUtils");
 
 const normalize = (str) =>
   str

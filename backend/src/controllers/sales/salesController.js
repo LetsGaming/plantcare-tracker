@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const { parse } = require("node-html-parser");
-const { fetchData } = require("../../utils/scrapeUtils.js");
+const { fetchData } = require("../../utils/scrape/scrapeUtils.js");
 const SCRAPERS = require("./sources");
 
 // --- Helpers ---

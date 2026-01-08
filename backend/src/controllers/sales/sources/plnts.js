@@ -1,30 +1,19 @@
-const {
-  parsePrice,
-  getText,
-  resolveLink,
-} = require("../../../utils/scrapeUtils");
+const createScraper = require("../utils/scrape/scraperFactory");
 
-module.exports = {
+module.exports = createScraper({
   key: "plnts",
   seller: "PLNTS",
   baseUrl: "https://plnts.com/de/shop/sale",
   pagePattern: "?page={{page}}",
   maxPages: 2,
   options: { useChromium: true },
-  parseFn: (root) => {
-    return root.querySelectorAll(".group\\/product-card").map((item) => {
-      const linkElem = item.querySelector('a[href^="/de/product"]');
-      return {
-        link: resolveLink(linkElem?.getAttribute("href"), "https://plnts.com"),
-        name:
-          item.querySelector("a[title]")?.getAttribute("title") ||
-          getText(item, "a[title]"),
-        img:
-          item.querySelector("img")?.getAttribute("src") ||
-          item.querySelector("img")?.getAttribute("data-src"),
-        oldPrice: parsePrice(item.querySelector("span.line-through")),
-        newPrice: parsePrice(item.querySelector("span.text-accent")),
-      };
-    });
-  },
-};
+  selectors: {
+    container: ".group\\/product-card",
+    oldPrice: "span.line-through",
+    newPrice: "span.text-accent",
+    link: 'a[href^="/de/product"]',
+    name: "a[title]",
+    nameAttr: "title", // Special case: name is in title attribute
+    img: "img"
+  }
+});
