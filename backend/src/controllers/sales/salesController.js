@@ -2,7 +2,7 @@ const { parse } = require("node-html-parser");
 const crypto = require("crypto");
 const { setupSSE } = require("../../utils/responseUtils");
 const { createLimiter } = require("../../utils/concurrency");
-const { fetchData } = require("../../utils/scrape/scrapeUtils.js");
+const { fetchData } = require("../../utils/scrape/scrapeUtils");
 const SCRAPERS = require("./sources");
 
 // --- Concurrency Limiters ---
