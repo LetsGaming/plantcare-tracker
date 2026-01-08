@@ -1,16 +1,22 @@
-const crypto = require("crypto");
 const { parse } = require("node-html-parser");
-const { fetchData } = require("../../utils/scrapeUtils.js");
+const crypto = require("crypto");
+const { setupSSE } = require("../../utils/responseUtils");
+const { createLimiter } = require("../../utils/concurrency");
+const { fetchData } = require("../../utils/scrape/scrapeUtils");
 const SCRAPERS = require("./sources");
 
-// --- Helpers ---
+// --- Concurrency Limiters ---
+const chromiumLimit = createLimiter(2);
+const axiosLimit = createLimiter(8);
+
+// --- Domain Helpers ---
 const generateSaleId = (seller, link) => {
   if (!link) return null;
   return crypto.createHash("sha1").update(`${seller}|${link}`).digest("hex");
 };
 
-function formatItem(item, scraper) {
-  if (!item || !item.link || !item.newPrice) return null;
+const formatItem = (item, scraper) => {
+  if (!item?.link || !item?.newPrice) return null;
   return {
     sale_id: generateSaleId(scraper.seller, item.link),
     sale_name: (item.name ?? "Unnamed").slice(0, 45),
@@ -21,139 +27,68 @@ function formatItem(item, scraper) {
     sale_old_price: item.oldPrice,
     sale_new_price: item.newPrice,
   };
-}
+};
 
-function buildUrl(scraper, page) {
-  if (page == 1) return scraper.baseUrl;
+const buildUrl = (scraper, page) => {
+  if (page === 1) return scraper.baseUrl;
+  if (scraper.urlTemplate) return scraper.urlTemplate.replace(/\{\{page\}\}/g, page);
+  
+  const pattern = scraper.pagePattern?.replace(/\{\{page\}\}/g, page);
+  if (pattern?.startsWith("?")) return `${scraper.baseUrl}${pattern}`;
+  if (pattern?.endsWith("/")) return `${scraper.baseUrl.replace(/\/$/, "")}/${pattern}`;
+  
+  return `${scraper.baseUrl}${pattern}`;
+};
 
-  if (typeof scraper.urlTemplate === "string") {
-    return scraper.urlTemplate.replace(/\{\{page\}\}/g, page);
-  }
-  if (scraper.baseUrl && scraper.pagePattern) {
-    const pattern = scraper.pagePattern.replace(/\{\{page\}\}/g, page);
-    if (pattern.startsWith("?")) return `${scraper.baseUrl}${pattern}`;
-    if (pattern.endsWith("/"))
-      return `${scraper.baseUrl.replace(/\/$/, "")}/${pattern}`;
-    return `${scraper.baseUrl}${pattern}`;
-  }
-  if (scraper.staticUrl) return scraper.staticUrl;
-
-  throw new Error(`Invalid scraper config for ${scraper.key}`);
-}
-
-// --- Main Controller ---
+// --- Main Handler ---
 const getSalesData = async (req, res) => {
-  const log = (...args) =>
-    console.log(new Date().toISOString(), "[SSE]", ...args);
+  const sse = setupSSE(res);
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  });
-
-  const sentIds = new Set();
-  let totalItemsSent = 0;
-
-  const sendChunk = (items) => {
-    const unique = items.filter((i) => !sentIds.has(i.sale_id));
-    unique.forEach((i) => sentIds.add(i.sale_id));
-
-    if (unique.length) {
-      totalItemsSent += unique.length;
-      res.write(`data: ${JSON.stringify(unique)}\n\n`);
-      res.flush?.();
-    }
-  };
-
-  function createLimit(max) {
-    let active = 0;
-    const queue = [];
-
-    const next = () => {
-      if (queue.length === 0 || active >= max) return;
-      active++;
-      const { fn, resolve, reject } = queue.shift();
-      fn()
-        .then(resolve)
-        .catch(reject)
-        .finally(() => {
-          active--;
-          next();
-        });
-    };
-
-    return (fn) =>
-      new Promise((resolve, reject) => {
-        queue.push({ fn, resolve, reject });
-        next();
-      });
-  }
-
-  const chromiumLimit = createLimit(2);
-  const axiosLimit = createLimit(8);
-
-  const jobs = [];
-
-  const doStuff = async (scraper, url, options) => {
-    const htmlResponseHandler = (html) => {
-      try {
-        const root = parse(html);
-        const items = scraper
-          .parseFn(root)
-          .map((i) => formatItem(i, scraper))
-          .filter(Boolean);
-
-        sendChunk(items);
-      } catch (err) {
-        log(`Parse error in ${scraper.key}:`, err.message);
-      }
-    };
-
+  /**
+   * Internal worker function for a single page
+   */
+  const scrapeWorker = async (scraper, page) => {
     try {
-      await fetchData(url, htmlResponseHandler, options);
+      const url = buildUrl(scraper, page);
+      
+      await fetchData(
+        url,
+        (html) => {
+          const root = parse(html);
+          const rawItems = scraper.parseFn(root);
+          
+          const formattedItems = rawItems
+            .map((item) => formatItem(item, scraper))
+            .filter(Boolean);
+
+          // SSEManager handles deduplication internally via sendUnique
+          sse.sendUnique(formattedItems, "sale_id");
+        },
+        { ...scraper.options, cacheKey: `${scraper.key}_${page}` }
+      );
     } catch (err) {
-      log(`Error fetching ${url}: ${err.message}`);
+      console.error(`[Scraper: ${scraper.key}] Page ${page} failed:`, err.message);
     }
   };
 
-  // 1. Sort scrapers by priority. 
-  // Use Nullish Coalescing (??) to treat undefined priority as 0 (highest).
-  const sortedScrapers = [...SCRAPERS].sort((a, b) => {
-    const prioA = a.priority ?? 0;
-    const prioB = b.priority ?? 0;
-    return prioA - prioB;
-  });
+  // 1. Create a flattened list of all scraping tasks
+  const jobs = SCRAPERS
+    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+    .flatMap((scraper) =>
+      Array.from({ length: scraper.maxPages }, (_, i) => {
+        const page = i + 1;
+        const runner = scraper.options?.useChromium ? chromiumLimit : axiosLimit;
+        
+        // Return a promise that the limiter will resolve
+        return runner(() => scrapeWorker(scraper, page));
+      })
+    );
 
-  // 2. Queue jobs based on priority
-  for (const scraper of sortedScrapers) {
-    for (let p = 1; p <= scraper.maxPages; p++) {
-      let url;
-      try {
-        url = buildUrl(scraper, p);
-      } catch (err) {
-        log(err.message);
-        continue;
-      }
-
-      const runner = scraper.options?.useChromium ? chromiumLimit : axiosLimit;
-      
-      // The limiters process jobs in the order they are pushed (FIFO)
-      jobs.push(
-        runner(() =>
-          doStuff(scraper, url, {
-            ...scraper.options,
-            cacheKey: `${scraper.key}_${p}`,
-          })
-        )
-      );
-    }
-  }
-
+  // 2. Execute all tasks in parallel (limited by the runners)
   await Promise.allSettled(jobs);
 
-  res.write(`event: done\ndata: {}\n\n`);
-  res.end();
+  // 3. Close the stream
+  sse.end();
 };
 
 module.exports = { getSalesData };

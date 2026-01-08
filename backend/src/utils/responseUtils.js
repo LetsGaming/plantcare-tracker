@@ -68,9 +68,63 @@ const notFoundResponse = (res, message = "Resource not found") => {
   errorResponse(res, message, 404, );
 }
 
+/**
+ * A Class to manage an SSE stream lifecycle.
+ */
+class SSEManager {
+  constructor(res) {
+    this.res = res;
+    this.sentIds = new Set();
+    this.totalSent = 0;
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+
+    // Send a heartbeat every 20 seconds to keep connection alive
+    this.heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, 20000);
+  }
+
+  /**
+   * Sends unique items to the client.
+   * @param {Array} items - Items to send.
+   * @param {string} idKey - The unique key to check for duplicates (e.g., 'sale_id').
+   */
+  sendUnique(items, idKey = "id") {
+    const unique = items.filter((item) => {
+      const id = item[idKey];
+      if (id && !this.sentIds.has(id)) {
+        this.sentIds.add(id);
+        return true;
+      }
+      return false;
+    });
+
+    if (unique.length > 0) {
+      this.totalSent += unique.length;
+      this.res.write(`data: ${JSON.stringify(unique)}\n\n`);
+      this.res.flush?.();
+    }
+  }
+
+  end(finalMessage = { total: this.totalSent }) {
+    clearInterval(this.heartbeat);
+    this.res.write(`event: done\ndata: ${JSON.stringify(finalMessage)}\n\n`);
+    this.res.end();
+  }
+}
+
+const setupSSE = (res) => new SSEManager(res);
+
 module.exports = {
   successResponse,
   errorResponse,
   validationErrorResponse,
   notFoundResponse,
+  setupSSE,
 };

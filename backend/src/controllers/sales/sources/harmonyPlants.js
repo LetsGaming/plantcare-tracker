@@ -1,10 +1,7 @@
-const {
-  parsePrice,
-  resolveLink,
-  getText,
-} = require("../../../utils/scrapeUtils");
+const createScraper = require("../../../utils/scrape/scraperFactory");
+const { parsePrice, resolveLink, getText } = require("../../../utils/scrape/scrapeUtils");
 
-module.exports = {
+module.exports = createScraper({
   key: "harmonyPlants",
   seller: "Harmony Plants",
   baseUrl: "https://www.harmony-plants.com/collections/sale",
@@ -15,28 +12,22 @@ module.exports = {
     return root.querySelectorAll(".grid__item").map((item) => {
       const priceElem = item.querySelector(".price--on-sale");
       if (!priceElem) return null;
-      const linkElem = item.querySelector("a");
-      const link = resolveLink(
-        linkElem?.getAttribute("href"),
-        "https://www.harmony-plants.com"
-      );
-
-      const extractComplexPrice = (selector) => {
-        const bdi = priceElem.querySelector(selector);
-        if (!bdi) return null;
-        const main =
-          bdi.childNodes.find((n) => n.nodeType === 3)?.text.trim() ?? "";
-        const suffix = bdi.querySelector("sup")?.text.trim() ?? "";
-        return parsePrice(`${main}${suffix}`);
+      
+      const extract = (sel) => {
+        const bdi = priceElem.querySelector(sel);
+        const text = bdi?.childNodes.find(n => n.nodeType === 3)?.text.trim() || "";
+        const sup = bdi?.querySelector("sup")?.text.trim() || "";
+        return parsePrice(`${text}${sup}`);
       };
 
+      const linkElem = item.querySelector("a");
       return {
-        link,
+        link: resolveLink(linkElem?.getAttribute("href"), "https://www.harmony-plants.com"),
         name: getText(linkElem, "span") ?? "Unnamed Plant",
         img: item.querySelector("img")?.getAttribute("src"),
-        oldPrice: extractComplexPrice(".price__sale s.price-item--regular bdi"),
-        newPrice: extractComplexPrice(".price-item--sale bdi"),
+        oldPrice: extract(".price__sale s.price-item--regular bdi"),
+        newPrice: extract(".price-item--sale bdi"),
       };
     });
-  },
-};
+  }
+});

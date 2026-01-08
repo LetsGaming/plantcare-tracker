@@ -45,6 +45,10 @@ async function fetchAndCacheMoreInfo(plantName: string): Promise<MoreInfo[]> {
 
     return newRecords;
   } catch (error) {
+    if (ApiUtils.isApiError(error) && error.status === 404) {
+      // No more info found for this plant; return empty array
+      return [];
+    }
     ToastService.showError(`Error fetching more info: ${error}`);
     throw error;
   }

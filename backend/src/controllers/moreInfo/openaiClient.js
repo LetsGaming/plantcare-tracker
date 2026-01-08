@@ -66,7 +66,7 @@ const formatToHTML = (text, htmlFormatting) => {
  * Fetch plant care information using OpenAI API.
  * @param {string} plantName - Name of the plant.
  * @param {boolean} [htmlFormatting=false] - Whether to return HTML-formatted response.
- * @param {string} [model="gpt-3.5-turbo"] - OpenAI model to use.
+ * @param {string} [model="gpt-4.0-mini"] - OpenAI model to use.
  * @returns {Promise<string|null>} - Formatted plant care instructions or null on failure.
  */
 const getPlantCareFromOpenAI = async (

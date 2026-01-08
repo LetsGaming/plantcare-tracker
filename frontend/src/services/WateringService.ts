@@ -47,9 +47,11 @@ async function fetchAndCacheWateringRecords(
     await cacheWateringRecords(plantId, newRecords);
     return newRecords;
   } catch (error: any) {
-    if (error.message != "Watering record not found") {
-      ToastService.showError(`Error fetching watering records: ${error}`);
+    if(ApiUtils.isApiError(error) && error.status === 404) {
+      // No watering records found for this plant; return empty array
+      return [];
     }
+    ToastService.showError(`Error fetching watering records: ${error}`);
     throw error;
   }
 }

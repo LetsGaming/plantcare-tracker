@@ -42,6 +42,10 @@ async function fetchAndCacheSubstrates(isPublic: boolean): Promise<any[]> {
     await cacheSubstrates(getCacheKey(isPublic), substrates);
     return substrates;
   } catch (error) {
+    if (ApiUtils.isApiError(error) && error.status === 404) {
+      // No substrates found; return empty array
+      return [];
+    }
     ToastService.showError(`Error fetching substrates: ${error}`);
     throw error;
   }
@@ -50,22 +54,27 @@ async function fetchAndCacheSubstrates(isPublic: boolean): Promise<any[]> {
 export default class SubstrateService {
   /**
    * Fetches all substrates from both public and private endpoints.
+   * Resilient to individual endpoint failures.
    */
   static async getAllSubstrates(): Promise<any[]> {
-    const privateSubstrates = await this.getSubstrates(false);
-    const publicSubstrates = await this.getSubstrates(true);
+    // Execute both requests in parallel
+    const results = await Promise.allSettled([
+      this.getSubstrates(false), // Private
+      this.getSubstrates(true), // Public
+    ]);
 
     const uniqueSubstrates = new Map();
 
-    for (const substrate of privateSubstrates) {
-      uniqueSubstrates.set(substrate.id, substrate);
-    }
-
-    for (const substrate of publicSubstrates) {
-      if (!uniqueSubstrates.has(substrate.id)) {
-        uniqueSubstrates.set(substrate.id, substrate);
+    results.forEach((result) => {
+      if (result.status === "fulfilled" && Array.isArray(result.value)) {
+        for (const substrate of result.value) {
+          // Map ensures uniqueness by ID automatically
+          uniqueSubstrates.set(substrate.id, substrate);
+        }
+      } else if (result.status === "rejected") {
+        console.error("Failed to fetch substrates:", result.reason);
       }
-    }
+    });
 
     return Array.from(uniqueSubstrates.values());
   }
@@ -167,7 +176,7 @@ export default class SubstrateService {
       ) {
         throw new Error("No fields to update");
       }
-      
+
       let response = await ApiUtils.patch(`${BASE_ENDPOINT}/${id}`, {
         name: substrateData.name,
         isPublic: substrateData.isPublic,

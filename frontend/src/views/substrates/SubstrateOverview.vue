@@ -76,59 +76,54 @@ export default defineComponent({
       return this.showPublic === "public";
     },
   },
-  methods: {
-    async fetchSubstrates() {
+methods: {
+    /**
+     * Unified logic for fetching and refreshing substrates
+     */
+    async loadSubstrates(isRefresh = false) {
+      const labels = {
+        type: this.isPublic ? "öffentliche" : "persönliche",
+        typeGen: this.isPublic ? "öffentlicher" : "persönlicher",
+        notFound: this.isPublic ? "Keine öffentlichen Substrate verfügbar." : "Keine persönlichen Substrate gefunden."
+      };
+
       try {
-        this.substrates = await SubstrateService.getSubstrates(this.isPublic);
-      } catch (error) {
-        this.showError();
-        console.error("Error fetching substrates:", error);
-      }
-    },
-    async refreshSubstrates() {
-      try {
-        this.substrates = await SubstrateService.getSubstrates(
-          this.isPublic,
-          true
-        );
+        this.substrates = await SubstrateService.getSubstrates(this.isPublic, isRefresh);
+
         if (this.substrates.length === 0) {
-          ToastService.showError(
-            this.isPublic
-              ? "Öffentliche Substrate sind nicht verfügbar."
-              : "Keine persönlichen Substrate gefunden."
-          );
-        } else {
-          ToastService.showSuccess(
-            this.isPublic
-              ? "Öffentliche Substrate aktualisiert."
-              : "Persönliche Substrate aktualisiert."
-          );
+          ToastService.showWarning(labels.notFound);
+        } else if (isRefresh) {
+          // Capitalize first letter for the success message
+          const typeCap = labels.type.charAt(0).toUpperCase() + labels.type.slice(1);
+          ToastService.showSuccess(`${typeCap} Substrate aktualisiert.`);
         }
       } catch (error) {
-        this.showError();
-        console.error("Error refreshing substrates:", error);
+        ToastService.showError(`Fehler beim Abrufen ${labels.typeGen} Substrate.`);
+        console.error(`Error ${isRefresh ? 'refreshing' : 'fetching'} substrates:`, error);
       }
     },
-    showError() {
-      ToastService.showError(
-        this.isPublic
-          ? "Fehler beim Abrufen öffentlicher Substrate."
-          : "Fehler beim Abrufen persönlicher Substrate."
-      );
-    },
+
+    // Shorthands for template use
+    async fetchSubstrates() { await this.loadSubstrates(false); },
+    async refreshSubstrates() { await this.loadSubstrates(true); },
+
     handleSegmentChange(value: string) {
       this.showPublic = value;
-      this.fetchSubstrates(); // Refetch substrates based on segment change
+      this.fetchSubstrates();
     },
+
     async handleSubstrateAdded() {
       this.showAddingModal = false;
       await this.fetchSubstrates();
     },
+
     navigateToSubstrate(id: number) {
-      const isPublic_Int = this.isPublic ? 1 : 0;
       this.$router.push({
         name: "substrate-details",
-        params: { id: id, public: isPublic_Int },
+        params: {
+          id,
+          public: this.isPublic ? 1 : 0
+        },
       });
     },
   },
