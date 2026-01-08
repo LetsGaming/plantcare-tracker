@@ -20,7 +20,11 @@
 
     <!-- Content Area -->
 
-    <items-overview :items="plants" @item-click="navigateToPlant" @refresh-items="refreshPlants"/>
+    <items-overview
+      :items="plants"
+      @item-click="navigateToPlant"
+      @refresh-items="refreshPlants"
+    />
     <plant-adding-modal
       :is-open="showAddingModal"
       @close="showAddingModal = false"
@@ -74,62 +78,64 @@ export default defineComponent({
     },
   },
   methods: {
-    async fetchPlants() {
+    /**
+     * Core logic for fetching/refreshing plants
+     * @param isRefresh - Whether to force a background refresh and show success toast
+     */
+    async loadPlants(isRefresh = false) {
+      const typeLabel = this.isPublic ? "öffentlicher" : "persönlicher";
+      const successLabel = this.isPublic ? "Öffentliche" : "Persönliche";
+
       try {
-        this.plants = await PlantService.getPlants(this.isPublic);
+        this.plants = await PlantService.getPlants(this.isPublic, isRefresh);
+
         if (this.plants.length === 0) {
-          this.showError();
+          this.showWarning();
+        } else if (isRefresh) {
+          ToastService.showSuccess(`${successLabel} Pflanzen aktualisiert.`);
         }
       } catch (error) {
-        ToastService.showError(
-          this.isPublic
-            ? "Fehler beim Abrufen öffentlicher Pflanzen."
-            : "Fehler beim Abrufen persönlicher Pflanzen."
+        const action = isRefresh ? "Aktualisieren" : "Abrufen";
+        ToastService.showError(`Fehler beim ${action} ${typeLabel} Pflanzen.`);
+        console.error(
+          `Error ${isRefresh ? "refreshing" : "fetching"} plants:`,
+          error
         );
-        console.error("Error fetching plants:", error);
       }
+    },
+
+    // Specific wrappers for clarity in templates
+    async fetchPlants() {
+      await this.loadPlants(false);
     },
     async refreshPlants() {
-      try {
-        this.plants = await PlantService.getPlants(this.isPublic, true);
-        if (this.plants.length === 0) {
-          this.showError();
-        } else {
-          ToastService.showSuccess(
-            this.isPublic
-              ? "Öffentliche Pflanzen aktualisiert."
-              : "Persönliche Pflanzen aktualisiert."
-          );
-        }
-      } catch (error) {
-        ToastService.showError(
-          this.isPublic
-            ? "Fehler beim Aktualisieren öffentlicher Pflanzen."
-            : "Fehler beim Aktualisieren persönlicher Pflanzen."
-        );
-        console.error("Error refreshing plants:", error);
-      }
+      await this.loadPlants(true);
     },
-    showError() {
-      ToastService.showError(
-        this.isPublic
-          ? "Öffentliche Pflanzen sind nicht verfügbar."
-          : "Keine persönlichen Pflanzen gefunden."
-      );
+
+    showWarning() {
+      const message = this.isPublic
+        ? "Öffentliche Pflanzen sind nicht verfügbar."
+        : "Keine persönlichen Pflanzen gefunden.";
+      ToastService.showWarning(message);
     },
+
     handleSegmentChange(value: string) {
       this.showPublic = value;
-      this.fetchPlants(); // Refetch plants based on segment change
+      this.fetchPlants();
     },
+
     async handlePlantAdded() {
       this.showAddingModal = false;
       await this.fetchPlants();
     },
+
     navigateToPlant(id: number) {
-      const isPublic_Int = this.isPublic ? 1 : 0;
       this.$router.push({
         name: "plant-details",
-        params: { id: id, public: isPublic_Int },
+        params: {
+          id,
+          public: this.isPublic ? 1 : 0,
+        },
       });
     },
   },

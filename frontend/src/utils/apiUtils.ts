@@ -22,18 +22,41 @@ type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
 
 class ApiError extends Error {
   constructor(public status: number, public data: any, message?: string) {
-    super(message || data?.error || "API error");
+    const finalMessage = message || data?.error || data?.message || "API error";
+    super(finalMessage);
+
     this.name = "ApiError";
+
+    /**
+     * Fix the prototype chain.
+     * Required when extending built-in classes like Error in TypeScript/ES5
+     * so that 'instanceof ApiError' returns true.
+     */
+    Object.setPrototypeOf(this, ApiError.prototype);
+
+    // Capture stack trace (Available in V8 environments like Node/Chrome)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ApiError);
+    }
   }
-  toString() {
+
+  /**
+   * Helper to format the error for logging
+   */
+  toString(): string {
     return `${this.name} (status: ${this.status}): ${this.message}`;
   }
+
+  /**
+   * Helper to format the error for JSON serialization (e.g., sending to another service)
+   */
   toJSON() {
     return {
       name: this.name,
       status: this.status,
       message: this.message,
       data: this.data,
+      stack: this.stack, // Optional: useful for debugging
     };
   }
 }
@@ -170,6 +193,14 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
  * Utility functions for making API requests.
  */
 const ApiUtils = {
+  /**
+   * TypeScript Type Guard
+   * Use this in catch blocks to safely narrow the type to ApiError.
+   */
+  isApiError(error: unknown): error is ApiError {
+    return error instanceof ApiError;
+  },
+
   /**
    * Makes a GET request to the specified endpoint.
    * @param {string} endpoint - The API endpoint to call.

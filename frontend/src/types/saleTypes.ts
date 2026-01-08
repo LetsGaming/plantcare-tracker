@@ -4,7 +4,7 @@ interface Sale {
     nameFull: string;
     seller: string;
     price: number;
-    oldPrice?: number;
+    oldPrice: number;
     link: string;
     imageUrl?: string;
 }
@@ -15,7 +15,7 @@ interface APISale {
     sale_name_full: string;
     sale_seller: string;
     sale_new_price: number;
-    sale_old_price?: number;
+    sale_old_price: number;
     sale_link: string;
     sale_image_url?: string;
 }

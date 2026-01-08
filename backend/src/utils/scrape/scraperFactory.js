@@ -14,7 +14,7 @@ module.exports = (config) => {
       const oldPrice = parsePrice(item.querySelector(selectors.oldPrice));
       const newPrice = parsePrice(item.querySelector(selectors.newPrice));
 
-      if (!newPrice || (oldPrice && newPrice >= oldPrice)) return null;
+      if (!newPrice || !oldPrice || newPrice >= oldPrice) return null;
 
       // 2. Metadata Extraction
       const linkElem = item.querySelector(selectors.link);
@@ -24,7 +24,7 @@ module.exports = (config) => {
 
       // 3. Image Logic (Handles src, srcset, data-src, and // protocol)
       const imgElem = item.querySelector(selectors.img);
-      let imgRaw = imgElem?.getAttribute("src") || imgElem?.getAttribute("data-src") || imgElem?.getAttribute("srcset");
+      let imgRaw = imgElem?.getAttribute("src") || imgElem?.getAttribute("srcset") || imgElem?.getAttribute("data-src") || imgElem?.getAttribute("data-srcset");
       let img = imgRaw?.split(" ")[0].split(",")[0];
       if (img?.startsWith("//")) img = `https:${img}`;
 

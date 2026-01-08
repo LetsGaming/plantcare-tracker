@@ -13,11 +13,10 @@
           <ion-col
             v-for="item in filteredItems"
             :key="item.id"
-            size-xs="12"
             size-sm="6"
             size-md="4"
             size-lg="3"
-            size-xl="3"
+            size-xl="4"
             class="responsive-col"
           >
             <ion-card class="item-card" @click="navigateToItem(item.id)">
@@ -162,6 +161,7 @@ export default defineComponent({
 
 <style scoped>
 .item-grid {
+  width: 100%;
   padding: 20px;
 }
 
@@ -238,12 +238,12 @@ export default defineComponent({
 }
 
 /* Custom XXL Breakpoint (e.g., 1440px or 1600px) */
-@media (min-width: 1440px) {
+@media (min-width: 2560px) {
   .responsive-col {
-    /* Force 6 items per row (equivalent to a 'size-xxl="2"') */
-    flex: 0 0 calc(calc(2 / 12) * 100%);
-    width: calc(calc(2 / 12) * 100%);
-    max-width: calc(calc(2 / 12) * 100%);
+    /* Force 4 items per row (equivalent to a 'size-xxl="3"') */
+    flex: 0 0 calc(calc(3 / 12) * 100%) !important;
+    width: calc(calc(3 / 12) * 100%) !important;
+    max-width: calc(calc(3 / 12) * 100%) !important;
   }
 }
 </style>

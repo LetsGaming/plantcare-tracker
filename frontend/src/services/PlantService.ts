@@ -49,12 +49,19 @@ async function fetchAndCachePlants(isPublic: boolean): Promise<Plant[]> {
     await cachePlants(getCacheKey(isPublic), plants);
     return plants;
   } catch (error) {
+    if (ApiUtils.isApiError(error) && error.status === 404) {
+      // No plants found; return empty array
+      return [];
+    }
     ToastService.showError(`Error fetching plants: ${error}`);
     throw error;
   }
 }
 
-async function fetchAndCachePlant(plantId: number, isPublic: boolean): Promise<Plant> {
+async function fetchAndCachePlant(
+  plantId: number,
+  isPublic: boolean
+): Promise<Plant> {
   try {
     const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
     const plant = PlantMapper.convertToPlants(response)[0];
