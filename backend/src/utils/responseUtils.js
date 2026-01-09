@@ -51,7 +51,7 @@ const errorResponse = (res, error, statusCode = 500, errObj = null) => {
     logger.error(error); // Log the error message if no object is provided
   }
 
-  const response = createResponseObject(false, error, );
+  const response = createResponseObject(false, error);
   res.status(statusCode).json(response);
 };
 
@@ -65,35 +65,34 @@ const validationErrorResponse = (res, message) => {
 };
 
 const notFoundResponse = (res, message = "Resource not found") => {
-  errorResponse(res, message, 404, );
-}
+  errorResponse(res, message, 404);
+};
 
 /**
  * A Class to manage an SSE stream lifecycle.
  */
 class SSEManager {
-  constructor(res) {
+  constructor(res, maxChunkSize = 16384) {
+    // Default 16KB
     this.res = res;
     this.sentIds = new Set();
     this.totalSent = 0;
+    this.maxChunkSize = maxChunkSize;
 
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     });
 
-    // Send a heartbeat every 20 seconds to keep connection alive
     this.heartbeat = setInterval(() => {
-      res.write(': heartbeat\n\n');
+      res.write(": heartbeat\n\n");
     }, 20000);
   }
 
   /**
-   * Sends unique items to the client.
-   * @param {Array} items - Items to send.
-   * @param {string} idKey - The unique key to check for duplicates (e.g., 'sale_id').
+   * Sends unique items in chunks to respect size limits.
    */
   sendUnique(items, idKey = "id") {
     const unique = items.filter((item) => {
@@ -107,14 +106,50 @@ class SSEManager {
 
     if (unique.length > 0) {
       this.totalSent += unique.length;
-      this.res.write(`data: ${JSON.stringify(unique)}\n\n`);
-      this.res.flush?.();
+      this._chunkAndSend(unique);
     }
   }
 
-  end(finalMessage = { total: this.totalSent }) {
+  /**
+   * Internal helper to split large arrays into smaller SSE messages.
+   */
+  _chunkAndSend(dataArray) {
+    let currentBatch = [];
+    let currentBatchSize = 0;
+
+    for (const item of dataArray) {
+      const itemString = JSON.stringify(item);
+      const itemSize = Buffer.byteLength(itemString, "utf8");
+
+      // If adding this item exceeds the limit, send the current batch first
+      if (
+        currentBatchSize + itemSize > this.maxChunkSize &&
+        currentBatch.length > 0
+      ) {
+        this._emit(currentBatch);
+        currentBatch = [];
+        currentBatchSize = 0;
+      }
+
+      currentBatch.push(item);
+      currentBatchSize += itemSize;
+    }
+
+    // Send the remaining items
+    if (currentBatch.length > 0) {
+      this._emit(currentBatch);
+    }
+  }
+
+  _emit(data) {
+    this.res.write(`data: ${JSON.stringify(data)}\n\n`);
+    this.res.flush?.();
+  }
+
+  end(finalMessage) {
+    const stats = finalMessage || { total: this.totalSent };
     clearInterval(this.heartbeat);
-    this.res.write(`event: done\ndata: ${JSON.stringify(finalMessage)}\n\n`);
+    this.res.write(`event: done\ndata: ${JSON.stringify(stats)}\n\n`);
     this.res.end();
   }
 }
