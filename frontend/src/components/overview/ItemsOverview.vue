@@ -160,6 +160,10 @@ export default defineComponent({
 </script>
 
 <style scoped>
+ion-col {
+  flex-basis: auto !important;
+}
+
 .item-grid {
   width: 100%;
   padding: 20px;
