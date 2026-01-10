@@ -3,6 +3,7 @@ import storageService from "@/services/general/StorageService";
 import ToastService from "@/services/general/ToastService";
 import ComponentMapper from "@/mapping/ComponentMapping";
 import Utils from "@/utils/utils";
+import localizationService from "@/services/general/LocalizationService";
 
 const COMPONENTS_ENDPOINT = "/components";
 const CACHE_KEY_COMPONENTS = "components_data";
@@ -35,7 +36,7 @@ async function fetchAndCacheComponents(): Promise<any[]> {
     return components;
   } catch (error) {
     console.error("Error fetching components:", error);
-    ToastService.showError(`Error fetching components: ${error}`);
+    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error fetching components: ${error}` });
     throw error;
   }
 }
@@ -93,7 +94,7 @@ const ComponentService = {
       return component;
     } catch (error) {
       console.error(`Error fetching component with ID ${id}:`, error);
-      ToastService.showError(`Error fetching component details: ${error}`);
+      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error fetching component details: ${error}` });
       throw error;
     }
   },
@@ -117,7 +118,7 @@ const ComponentService = {
       return response; // Assuming response contains the inserted component
     } catch (error) {
       console.error("Error adding component:", error);
-      ToastService.showError(`Error adding component: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('components.add.title') || localizationService.t('components.title'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error adding component: ${error}` });
       throw error;
     }
   },
@@ -142,7 +143,7 @@ const ComponentService = {
       return response;
     } catch (error) {
       console.error(`Error updating component with ID ${id}:`, error);
-      ToastService.showError(`Error updating component: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('components.edit.title') || localizationService.t('components.title'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error updating component: ${error}` });
       throw error;
     }
   },
@@ -160,7 +161,7 @@ const ComponentService = {
       await invalidateComponentCache(); // Invalidate the cache after uploading an image
       return response;
     } catch (error) {
-      ToastService.showError(`Error uploading plant image: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('image.upload'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error uploading plant image: ${error}` });
       throw error;
     }
   },
@@ -180,7 +181,7 @@ const ComponentService = {
       return response;
     } catch (error) {
       console.error(`Error deleting component with ID ${id}:`, error);
-      ToastService.showError(`Error deleting component: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('components.delete_confirm') || localizationService.t('components.title'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error deleting component: ${error}` });
       throw error;
     }
   },

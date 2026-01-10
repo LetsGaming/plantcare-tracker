@@ -6,6 +6,7 @@
 import { defineComponent, h, markRaw } from "vue";
 
 import Accordion from "@/components/accordion/Accordion.vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "CalendarLegend",
@@ -22,7 +23,7 @@ export default defineComponent({
     return {
       accordionItem: {
         id: "legend",
-        name: "Legende",
+        name: localizationService.t("calendar.legend.title", undefined, "Legend"),
       } as AccordionItem,
     };
   },
@@ -36,7 +37,11 @@ export default defineComponent({
           defineComponent({
             name: "InlineLegendItem",
             render() {
-              return h("div", { style: { color: item.color } }, item.label);
+              return h(
+                "div",
+                { style: { color: item.color } },
+                localizationService.t(item.label, undefined, item.label)
+              );
             },
           })
         )

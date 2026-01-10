@@ -1,5 +1,5 @@
 <template>
-  <InfoNote note="This field is required" />
+  <InfoNote note="form.required_field" />
 </template>
 
 <script lang="ts">

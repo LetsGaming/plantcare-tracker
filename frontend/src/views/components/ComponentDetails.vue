@@ -20,7 +20,7 @@
             </ion-card-header>
             <ion-card-content>
               <p class="component-fineness">
-                Fineness: {{ component.fineness }}
+                {{ t('component.fineness_prefix') }} {{ component.fineness }}
               </p>
             </ion-card-content>
           </ion-card>
@@ -54,6 +54,7 @@ import ComponentEditingModal from "@/components/components/ComponentEditingModal
 
 import ComponentService from "@/services/ComponentService";
 import UserService from "@/services/UserService";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "ComponentDetails",
@@ -108,6 +109,9 @@ export default defineComponent({
     navigateToComponentEditing() {
       const id = this.componentId;
       this.$router.push({ name: "component-editing", params: { id: id } });
+    },
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
     },
   },
 });

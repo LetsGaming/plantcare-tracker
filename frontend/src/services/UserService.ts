@@ -3,6 +3,7 @@ import TokenUtils from "@/utils/tokenUtils";
 import ToastService from "@/services/general/ToastService";
 import router from "@/router";
 import Utils from "@/utils/utils";
+import localizationService from "@/services/general/LocalizationService";
 
 const BASE_ENDPOINT = "/auth";
 
@@ -32,7 +33,7 @@ export default class UserService {
       await TokenUtils.setToken(response.accessToken);
       return response;
     } catch (error) {
-      ToastService.showError("Login failed. Please try again.");
+      ToastService.showError({ key: 'auth.login_failed', fallback: 'Login failed. Please try again.' });
       throw error;
     }
   }
@@ -46,7 +47,7 @@ export default class UserService {
       await TokenUtils.setToken(response.accessToken);
       return response;
     } catch (error) {
-      ToastService.showError("Guest login failed. Please try again.");
+      ToastService.showError({ key: 'auth.failed_guest', fallback: 'Guest login failed. Please try again.' });
       throw error;
     }
   }
@@ -90,7 +91,7 @@ export default class UserService {
       } catch (error) {
         console.error(`Attempt ${attempt} to refresh token failed: ${error}`);
         if (attempt === retryCount) {
-          ToastService.showError("Failed to refresh token. Logging out...");
+          ToastService.showError({ key: 'auth.refresh_failed', fallback: 'Failed to refresh token. Logging out...' });
           await this.logout();
           throw new Error("Token refresh failed");
         }
@@ -103,7 +104,7 @@ export default class UserService {
     try {
       return ApiUtils.put(`${BASE_ENDPOINT}/update`, data);
     } catch (error) {
-      ToastService.showError("Profile update failed. Please try again.");
+      ToastService.showError({ key: 'profile.update_failed', fallback: 'Profile update failed. Please try again.' });
     }
   }
 
@@ -111,7 +112,7 @@ export default class UserService {
     try {
       return ApiUtils.delete(`${BASE_ENDPOINT}/delete`);
     } catch (error) {
-      ToastService.showError("Profile deletion failed. Please try again.");
+      ToastService.showError({ key: 'profile.delete_failed', fallback: 'Profile deletion failed. Please try again.' });
     }
   }
 

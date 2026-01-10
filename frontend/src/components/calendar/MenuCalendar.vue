@@ -1,7 +1,7 @@
 <template>
   <div>
     <Calendar
-      title="Erinnerungen"
+      title="calendar.menu.title"
       :show-settings-button="showSettingsButton"
       :show-edit-button="true"
       :dates="reminderDates"
@@ -14,13 +14,12 @@
     />
   </div>
 
-  <!-- BaseFormModal for adding/editing dates -->
   <BaseFormModal
     :is-open="isModalOpen"
     :is-loading="isLoading"
-    modal-title="Neue Erinnerung hinzufügen"
-    form-title="Erinnerung"
-    submit-label="Speichern"
+    modal-title="calendar.reminder.add.title"
+    form-title="calendar.reminder.form.title"
+    submit-label="action.save"
     :form-data="formData"
     :form-fields="formFields"
     :delete-handler="onDeleteDate"
@@ -93,10 +92,10 @@ export default defineComponent({
         category: null as string | null,
       },
       formFields: [
-        { modelKey: "date", label: "Datum", type: "date", required: true },
+        { modelKey: "date", label: "calendar.reminder.form.date", type: "date", required: true },
         {
           modelKey: "category",
-          label: "Kategorie",
+          label: "calendar.reminder.form.category",
           type: "select",
           required: true,
           options: [] as { label: string; value: string }[],

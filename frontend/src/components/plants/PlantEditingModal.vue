@@ -2,9 +2,9 @@
   <BaseFormModal
     :isOpen="isOpen"
     :isLoading="isLoading"
-    modalTitle="Pflanze bearbeiten"
-    formTitle="Pflanzen Informationen"
-    submitLabel="Pflanze editieren"
+    :modalTitle="t('plant.edit.title')"
+    :formTitle="t('plant.edit.form_title')"
+    :submitLabel="t('plant.edit.submit')"
     :formData="editPlantData"
     :formFields="formFields"
     :extraContentComponent="SubstrateContainer"
@@ -23,6 +23,7 @@ import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "PlantEditingModal",
@@ -76,18 +77,18 @@ export default defineComponent({
   computed: {
     formFields(): FormField[] {
       return [
-        { type: "input", modelKey: "name", label: "Name", required: false },
+        { type: "input", modelKey: "name", label: "plant.field.name", required: false },
         {
           type: "input",
           modelKey: "species",
-          label: "Spezies",
+          label: "plant.field.species",
           required: false,
         },
         {
           type: "select",
           modelKey: "substrateId",
-          label: "Substrat",
-          placeholder: "Substrat auswählen",
+          label: "plant.field.substrate",
+          placeholder: "plant.field.substrate_placeholder",
           options: this.substrates.map((substrate) => ({
             value: substrate.id,
             label: substrate.name,
@@ -96,10 +97,10 @@ export default defineComponent({
         {
           type: "radio",
           modelKey: "isPublic",
-          label: "Sichtbarkeit",
+          label: "plant.field.visibility",
           options: [
-            { value: true, label: "Öffentlich" },
-            { value: false, label: "Privat" },
+            { value: true, label: 'plant.visibility.public' },
+            { value: false, label: 'plant.visibility.private' },
           ],
           defaultValue: Boolean(this.plant.isPublic),
         },
@@ -113,6 +114,9 @@ export default defineComponent({
   },
 
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async fetchSubstrates() {
       try {
         const response = await SubstrateService.getAllSubstrates();
@@ -128,7 +132,7 @@ export default defineComponent({
         !this.editPlantData.substrateId &&
         this.plant.isPublic == this.editPlantData.isPublic
       ) {
-        ToastService.showWarning("At least one field is required!");
+        ToastService.showWarning({ key: 'form.required_fields', fallback: 'Please fill in all required fields.' });
         return;
       }
 
@@ -144,7 +148,7 @@ export default defineComponent({
         }
       } catch (error) {
         console.error("Error:", error);
-        ToastService.showError("Error while editing the plant");
+        ToastService.showError({ key: 'plant.edit.error', fallback: 'Error while editing the plant' });
       }
     },
     async deletePlant() {
@@ -158,7 +162,7 @@ export default defineComponent({
         }
       } catch (error) {
         console.error("Error:", error);
-        ToastService.showError("Error while deleting the plant");
+        ToastService.showError({ key: 'plant.delete.error', fallback: 'Error while deleting the plant' });
       }
     },
     loadingTimeout() {

@@ -40,7 +40,7 @@
       />
       <ImageUploadModal
         :is-open="showUploadModal"
-        :card-title="`Bild für ${plant?.name} hochladen`"
+        :card-title="t('image.upload.for_name', { name: plant?.name })"
         @close="showUploadModal = false"
         @submit="onImageUpload"
         :is-loading="isLoading"
@@ -74,6 +74,7 @@ import {
 } from "@ionic/vue";
 import { defineComponent } from "vue";
 import PlantService from "@/services/PlantService";
+import localizationService from "@/services/general/LocalizationService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
@@ -148,6 +149,9 @@ export default defineComponent({
     },
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async handlePlantEdited() {
       this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
       this.showEditModal = false;

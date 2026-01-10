@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "check-keys": "node scripts/locals_key_diff.js",
     "bump-version:patch": "node scripts/bump-version.js patch",
     "bump-version:minor": "node scripts/bump-version.js minor",
     "bump-version:major": "node scripts/bump-version.js major"

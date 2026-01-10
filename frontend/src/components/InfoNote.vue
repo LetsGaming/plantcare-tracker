@@ -1,8 +1,9 @@
 <template>
-  <small class="info-note">{{ note }}</small>
+  <small class="info-note">{{ t(note) }}</small>
 </template>
 
 <script lang="ts">
+import localizationService from "@/services/general/LocalizationService";
 import { defineComponent } from "vue";
 
 export default defineComponent({
@@ -12,6 +13,11 @@ export default defineComponent({
       type: String,
       required: true,
     },
+  },
+  methods: {
+    t(key: string | undefined, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key || '', vars, fallback || key || '');
+    }
   },
 });
 </script>

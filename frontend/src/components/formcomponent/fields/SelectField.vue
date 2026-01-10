@@ -3,15 +3,15 @@
     <IonItem>
       <IonSelect
         v-model="localValue"
-        :label="field.label"
-        :placeholder="field.placeholder"
+        :label="translatedLabel"
+        :placeholder="translatedPlaceholder"
       >
         <IonSelectOption
           v-for="option in field.options"
           :key="option.value"
           :value="option.value"
         >
-          {{ option.label }}
+          {{ t(option.label, undefined, option.label) }}
         </IonSelectOption>
       </IonSelect>
     </IonItem>
@@ -23,6 +23,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonSelect, IonSelectOption } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "SelectFieldComponent",
@@ -38,6 +39,12 @@ export default defineComponent({
     },
   },
   computed: {
+    translatedLabel(): string {
+      return localizationService.t(this.field.label, undefined, this.field.label)
+    },
+    translatedPlaceholder(): string {
+      return localizationService.t(this.field.placeholder || '', undefined, this.field.placeholder || '')
+    },
     localValue: {
       get() {
         return this.modelValue;
@@ -46,6 +53,11 @@ export default defineComponent({
         this.$emit("update:modelValue", val);
       },
     },
+  },
+  methods: {
+    t(key: string | undefined, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key || '', vars, fallback || key || '');
+    }
   },
 });
 </script>

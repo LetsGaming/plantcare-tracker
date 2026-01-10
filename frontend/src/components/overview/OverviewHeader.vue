@@ -4,7 +4,7 @@
       <ion-buttons slot="start" class="menu-button">
         <ion-menu-button></ion-menu-button>
       </ion-buttons>
-      <ion-title>{{ title }}</ion-title>
+      <ion-title>{{ translateTitle(title) }}</ion-title>
       <ion-icon
         :icon="logOutOutline"
         slot="end"
@@ -22,7 +22,7 @@
             :value="segment.value"
           >
             <ion-icon :icon="segment.icon" />
-            <ion-label>{{ segment.label }}</ion-label>
+            <ion-label>{{ translateSegmentLabel(segment.label) }}</ion-label>
           </ion-segment-button>
         </template>
       </ion-segment>
@@ -63,6 +63,7 @@ import {
 } from "@ionic/vue";
 import { logOutOutline } from "ionicons/icons";
 import UserService from "@/services/UserService";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "OverviewHeader",
@@ -151,6 +152,12 @@ export default defineComponent({
     handleSegmentChange(event: any) {
       const value = event.detail.value;
       this.onSegmentChange(value); // Emit the segment change
+    },
+    translateTitle(value: string) {
+      return localizationService.t(value, undefined, value)
+    },
+    translateSegmentLabel(value: string) {
+      return localizationService.t(value, undefined, value)
     },
   },
 });

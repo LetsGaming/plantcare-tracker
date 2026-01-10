@@ -2,6 +2,7 @@ import ApiUtils from "@/utils/apiUtils";
 import ToastService from "@/services/general/ToastService";
 import storageService from "@/services/general/StorageService";
 import SubstrateMapper from "@/mapping/SubstrateMapping";
+import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
 
 const BASE_ENDPOINT = "/substrates";
@@ -46,7 +47,7 @@ async function fetchAndCacheSubstrates(isPublic: boolean): Promise<any[]> {
       // No substrates found; return empty array
       return [];
     }
-    ToastService.showError(`Error fetching substrates: ${error}`);
+    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('substrate.title'), details: String(error) }, fallback: `Error fetching substrates: ${error}` });
     throw error;
   }
 }
@@ -134,7 +135,7 @@ export default class SubstrateService {
 
       return substrate;
     } catch (error) {
-      ToastService.showError(`Error fetching substrate details: ${error}`);
+      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('substrate.info.title'), details: String(error) }, fallback: `Error fetching substrate details: ${error}` });
       throw error;
     }
   }
@@ -149,7 +150,7 @@ export default class SubstrateService {
       await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      ToastService.showError(`Error adding substrate: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('substrate.add.title'), resource: localizationService.t('substrate.title'), details: String(error) }, fallback: `Error adding substrate: ${error}` });
       throw error;
     }
   }
@@ -192,7 +193,7 @@ export default class SubstrateService {
       await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      ToastService.showError(`Error updating substrate: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('substrate.save'), resource: localizationService.t('substrate.title'), details: String(error) }, fallback: `Error updating substrate: ${error}` });
       throw error;
     }
   }
@@ -209,7 +210,7 @@ export default class SubstrateService {
       await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      ToastService.showError(`Error updating substrate components: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('substrate.components.edit.title'), resource: localizationService.t('substrate.title'), details: String(error) }, fallback: `Error updating substrate components: ${error}` });
       throw error;
     }
   }
@@ -245,7 +246,7 @@ export default class SubstrateService {
       await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      ToastService.showError(`Error adding substrate: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('substrate.add.title'), resource: localizationService.t('substrate.title'), details: String(error) }, fallback: `Error adding substrate: ${error}` });
       throw error;
     }
   }
@@ -271,7 +272,7 @@ export default class SubstrateService {
       await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      ToastService.showError(`Error uploading substrate image: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('image.upload'), resource: localizationService.t('substrate.title'), details: String(error) }, fallback: `Error uploading substrate image: ${error}` });
       throw error;
     }
   }
@@ -286,7 +287,7 @@ export default class SubstrateService {
       await invalidateSubstrateCache();
       return response;
     } catch (error) {
-      ToastService.showError(`Error deleting substrate: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('substrate.delete_confirm') || localizationService.t('substrate.deleted'), resource: localizationService.t('substrate.title'), details: String(error) }, fallback: `Error deleting substrate: ${error}` });
       throw error;
     }
   }

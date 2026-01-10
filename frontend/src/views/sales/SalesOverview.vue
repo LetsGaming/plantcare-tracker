@@ -1,8 +1,8 @@
 <template>
   <ion-page>
     <OverviewHeader
-      title="Sales"
-      :segments="[{ value: 'all', label: 'Alle', icon: pricetag }]"
+      :title="t('sales.title')"
+      :segments="[{ value: 'all', label: t('segment.all'), icon: pricetag }]"
       starting-segment="all"
       :on-segment-change="onSegmentChange"
       @search="handleSearch"
@@ -13,7 +13,7 @@
       <ItemsOverview
         :items="mappedSales"
         item-type="sale"
-        :empty-message="'Keine Verkäufe gefunden.'"
+        :empty-message="t('sales.empty')"
         :onItemClick="onItemClick"
         :onRefreshItems="fetchSales"
       >
@@ -29,6 +29,7 @@ import { pricetag } from "ionicons/icons";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
+import localizationService from '@/services/general/LocalizationService'
 
 import SalesService from "@/services/SalesServices";
 
@@ -78,6 +79,9 @@ export default defineComponent({
     this.stopStream?.();
   },
   methods: {
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async initSales() {
       this.loading = true;
       try {

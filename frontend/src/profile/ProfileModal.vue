@@ -12,7 +12,7 @@
           <ion-grid>
             <ion-row>
               <ion-col>
-                <ion-label class="profile-label">Username:</ion-label>
+                <ion-label class="profile-label">{{ t('profile.username.label') }}</ion-label>
               </ion-col>
               <ion-col>
                 <ion-label>{{ username }}</ion-label>
@@ -24,7 +24,7 @@
           <ion-grid>
             <ion-row>
               <ion-col>
-                <ion-label class="profile-label">Rolle:</ion-label>
+                <ion-label class="profile-label">{{ t('profile.role.label') }}</ion-label>
               </ion-col>
               <ion-col>
                 <ion-label>{{ role }}</ion-label>
@@ -60,6 +60,7 @@ import {
 import { close } from "ionicons/icons";
 
 import EditingHeader from "@/components/modal/EditingHeader.vue";
+import localizationService from '@/services/general/LocalizationService'
 
 import UserService from "@/services/UserService";
 
@@ -97,7 +98,7 @@ export default defineComponent({
   },
   data() {
     return {
-      label: "Profil",
+      label: 'profile.title',
       showEditButton: false,
       username: "",
       role: "",
@@ -118,6 +119,9 @@ export default defineComponent({
     },
     onEditClick() {
       console.log("Edit clicked");
+    },
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
     },
   },
 });

@@ -1,4 +1,5 @@
 import { toastController } from "@ionic/vue";
+import localizationService from '@/services/general/LocalizationService'
 
 type ToastPosition = "top" | "middle" | "bottom";
 type ToastColor =
@@ -12,8 +13,14 @@ type ToastColor =
   | "medium"
   | "dark";
 
+interface LocalizedMessage {
+  key: string;
+  vars?: Record<string, string | number>;
+  fallback?: string;
+}
+
 interface ToastOptions {
-  message: string;
+  message: string | LocalizedMessage;
   duration?: number;
   position?: ToastPosition;
   positionAnchor?: string;
@@ -35,7 +42,7 @@ class ToastService {
 
     this.isDisplayingToast = true;
     const {
-      message,
+      message: messageOrLocalized,
       duration = 2000,
       position = "bottom",
       positionAnchor = "nav-tab-bar",
@@ -45,6 +52,16 @@ class ToastService {
       actionText,
       actionHandler,
     } = this.toastQueue.shift()!;
+
+    // resolve localized message if needed
+    let message: string
+    if (typeof messageOrLocalized === 'string') {
+      message = messageOrLocalized
+    } else if (messageOrLocalized && typeof messageOrLocalized === 'object') {
+      message = localizationService.t(messageOrLocalized.key, messageOrLocalized.vars, messageOrLocalized.fallback)
+    } else {
+      message = ''
+    }
 
     const toast = await toastController.create({
       message,
@@ -78,7 +95,7 @@ class ToastService {
    * Show a success toast
    */
   static showSuccess(
-    message: string,
+    message: string | LocalizedMessage,
     duration?: number,
     position?: ToastPosition,
     positionAnchor?: string
@@ -90,7 +107,7 @@ class ToastService {
    * Show an error toast
    */
   static showError(
-    message: string,
+    message: string | LocalizedMessage,
     duration?: number,
     position?: ToastPosition,
     positionAnchor?: string
@@ -102,7 +119,7 @@ class ToastService {
    * Show a warning toast
    */
   static showWarning(
-    message: string,
+    message: string | LocalizedMessage,
     duration?: number,
     position?: ToastPosition,
     positionAnchor?: string
@@ -114,8 +131,8 @@ class ToastService {
    * Show a toast with a button for custom actions (e.g. Undo, Retry)
    */
   static showToastWithAction(
-    message: string,
-    actionText: string = "Retry",
+    message: string | LocalizedMessage,
+    actionText: string = localizationService.t('toast.retry', undefined, 'Retry'),
     actionHandler: () => void,
     duration: number = 4000,
     position: ToastPosition = "bottom",
@@ -137,7 +154,7 @@ class ToastService {
    * Show a toast that can be manually dismissed
    */
   static showDismissableToast(
-    message: string,
+    message: string | LocalizedMessage,
     position: ToastPosition = "bottom",
     positionAnchor?: string,
     color: ToastColor = "medium",
@@ -149,7 +166,7 @@ class ToastService {
       positionAnchor,
       color,
       showCloseButton: true,
-      closeButtonText: dismissButtonText,
+      closeButtonText: dismissButtonText || localizationService.t('toast.dismiss', undefined, 'Dismiss'),
     });
   }
 

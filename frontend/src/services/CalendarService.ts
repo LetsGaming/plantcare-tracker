@@ -4,9 +4,9 @@ const getDeepCopy = <T>(data: T): T => JSON.parse(JSON.stringify(data));
 
 // Default watering categories
 const DEFAULT_WATERING_CATEGORIES: Category[] = [
-  { name: "Organisch", textColor: "#ffffff", backgroundColor: "#8B4513" },
-  { name: "Mineralisch", textColor: "#ffffff", backgroundColor: "#228B22" },
-  { name: "Kein Dünger", textColor: "#ffffff", backgroundColor: "#1E90FF" },
+  { name: "watering.category.organic", textColor: "#ffffff", backgroundColor: "#8B4513" },
+  { name: "watering.category.mineral", textColor: "#ffffff", backgroundColor: "#228B22" },
+  { name: "watering.category.no_fertilizer", textColor: "#ffffff", backgroundColor: "#1E90FF" },
 ];
 
 // --- ENUMS ---

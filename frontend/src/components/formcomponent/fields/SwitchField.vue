@@ -1,7 +1,7 @@
 <template>
   <div class="field-wrapper">
     <IonItem>
-      <IonLabel>{{ field.label }}</IonLabel>
+      <IonLabel>{{ translateLabel() }}</IonLabel>
       <IonToggle v-model="localValue" />
     </IonItem>
     <RequiredNote v-if="field.required" />
@@ -12,6 +12,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonLabel, IonToggle } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SwitchFieldComponent",
@@ -34,6 +35,15 @@ export default defineComponent({
       set(val: boolean) {
         this.$emit("update:modelValue", val);
       },
+    },
+  },
+  methods: {
+    translateLabel(): string {
+      return localizationService.t(
+        this.field.label,
+        undefined,
+        this.field.label
+      );
     },
   },
 });

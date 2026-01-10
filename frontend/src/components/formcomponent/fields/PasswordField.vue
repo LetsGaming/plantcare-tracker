@@ -4,7 +4,7 @@
       <IonInput
         v-model="localValue"
         :type="showPassword ? 'text' : 'password'"
-        :label="field.label"
+        :label="translatedLabel"
         label-placement="floating"
         :required="field.required"
         clear-input
@@ -27,6 +27,7 @@ import { defineComponent, ref } from "vue";
 import { IonItem, IonInput, IonButton, IonIcon } from "@ionic/vue";
 import { eyeOutline, eyeOffOutline } from "ionicons/icons";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "PasswordField",
@@ -62,6 +63,9 @@ export default defineComponent({
         this.$emit("update:modelValue", val);
       },
     },
+    translatedLabel(): string {
+      return localizationService.t(this.field.label, undefined, this.field.label)
+    }
   },
 });
 </script>

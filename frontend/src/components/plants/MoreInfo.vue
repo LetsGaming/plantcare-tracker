@@ -1,17 +1,17 @@
 <template>
   <ion-card class="info-card sidenote">
     <ion-card-header>
-      <ion-toolbar>
-        <ion-title>Mehr Infos zur Pflanze</ion-title>
+        <ion-toolbar>
+        <ion-title>{{ t('moreinfo.title') }}</ion-title>
       </ion-toolbar>
     </ion-card-header>
     <ion-card-content>
       <div v-if="loading" class="info-loading">
-        <ion-label>Lade Informationen...</ion-label>
+        <ion-label>{{ t('moreinfo.loading') }}</ion-label>
         <ion-spinner style="padding-left: 15px" />
       </div>
       <div v-else-if="notFound" class="info-not-found">
-        <ion-label>Keine weiteren Informationen gefunden.</ion-label>
+        <ion-label>{{ t('moreinfo.not_found') }}</ion-label>
       </div>
       <div
         v-else
@@ -21,14 +21,14 @@
       >
         <ion-accordion-group>
           <ion-accordion v-if="info.links.length > 0">
-            <ion-item slot="header" class="component-header">
-              <ion-label>Links</ion-label>
+              <ion-item slot="header" class="component-header">
+              <ion-label>{{ t('moreinfo.links') }}</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper">
               <template v-if="info.links.length > 0">
                 <InfoNote
                   class="disclaimer"
-                  note="Disclaimer: Links können fehlerhaft oder veraltet sein. Keine Gewähr für deren Richtigkeit."
+                  :note="t('moreinfo.disclaimer_links')"
                 />
                 <a
                   v-for="(link, index) in info.links"
@@ -48,13 +48,13 @@
           </ion-accordion>
           <ion-accordion v-if="info.ai">
             <ion-item slot="header" class="component-header">
-              <ion-label>KI-Pflanzenpflege</ion-label>
+              <ion-label>{{ t('moreinfo.ai_title') }}</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper">
               <template v-if="info.ai.length > 0">
                 <InfoNote
                   class="disclaimer"
-                  note="Disclaimer: AI-Modelle können fehlerhaft sein. Keine Gewähr für deren Richtigkeit."
+                  :note="t('moreinfo.disclaimer_ai')"
                 />
                 <ion-item class="info-content">
                   <div v-html="addClassesToHtml(info.ai)" class="info-text" />
@@ -86,6 +86,7 @@ import {
 import InfoNote from "@/components/InfoNote.vue";
 import MoreInfoService from "@/services/MoreInfoService";
 import { openOutline } from "ionicons/icons";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "MoreInfo",
@@ -125,6 +126,9 @@ export default defineComponent({
     await this.getLinks();
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
+    },
     async getLinks() {
       this.loading = true;
       this.notFound = false; // reset at the start

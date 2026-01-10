@@ -2,7 +2,7 @@
   <ion-card v-if="substrate">
     <ion-card-header>
       <ion-toolbar>
-        <ion-title>Substrat</ion-title>
+        <ion-title>{{ t('substrate.title') }}</ion-title>
       </ion-toolbar>
     </ion-card-header>
 
@@ -16,7 +16,7 @@
         <ion-accordion-group>
           <ion-accordion>
             <ion-item slot="header" class="component-header">
-              <ion-label>Komponenten</ion-label>
+              <ion-label>{{ t('component.details.title', undefined, 'Components') }}</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper align-middle">
               <PieChart :data="chartData" v-if="chartData.length > 0" />
@@ -55,6 +55,7 @@ import {
 import PieChart from "@/components/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import AccordionList from "@/components/accordion/AccordionList.vue";
+import localizationService from '@/services/general/LocalizationService'
 import Utils from "@/utils/utils";
 
 export default defineComponent({
@@ -118,14 +119,19 @@ export default defineComponent({
       this.filteredComponents = this.mapComponentsToAccordion(sortedFiltered);
     },
     mapComponentsToAccordion(components: SubstrateComponent[]) {
+      const partsLabel = localizationService.t('component.details.parts', undefined, 'Parts')
+      const finenessLabel = localizationService.t('component.details.fineness', undefined, 'Fineness')
       return components.map((component) => ({
         id: component.id,
         name: component.name,
         details: {
-          Teile: component.parts,
-          Feinheit: component.fineness,
+          [partsLabel]: component.parts,
+          [finenessLabel]: component.fineness,
         },
       }));
+    },
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
     },
     toggleDetails(id: number) {
       this.detailsVisibility = {

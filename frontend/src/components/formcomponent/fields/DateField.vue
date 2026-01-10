@@ -1,7 +1,7 @@
 <template>
   <div class="field-wrapper">
     <IonItem>
-      <IonLabel class="date-label">{{ field.label }}</IonLabel>
+      <IonLabel class="date-label">{{ translateFieldLabel() }}</IonLabel>
       <IonInput
         v-model="localValue"
         type="datetime-local"
@@ -16,6 +16,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonLabel, IonInput } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "DateFieldComponent",
@@ -69,6 +70,14 @@ export default defineComponent({
     convertToMillis(date: string): number {
       const parsedDate = new Date(date);
       return parsedDate.getTime();
+    },
+    translateFieldLabel(): string {
+      // Placeholder for localization logic if needed
+      return localizationService.t(
+        this.field.label,
+        undefined,
+        this.field.label
+      );
     },
   },
 });

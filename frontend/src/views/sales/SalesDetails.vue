@@ -1,6 +1,6 @@
 <template>
   <ion-page>
-    <details-header title="Sales Details" :show-edit-button="false" />
+    <details-header title="sales.details.title" :show-edit-button="false" />
     <ion-content>
       <div v-if="sale">
         <details-banner
@@ -24,7 +24,7 @@
               </ion-card-title>
 
               <ion-card-subtitle class="sale-seller">
-                Sold by <span class="seller-name">{{ sale.seller }}</span>
+                {{ t('sales.sold_by') }} <span class="seller-name">{{ sale.seller }}</span>
               </ion-card-subtitle>
             </ion-card-header>
 
@@ -40,7 +40,7 @@
 
                 <div>
                   <span v-if="savings" class="savings">
-                    You save: {{ savings }} €
+                    {{ t('sales.you_save') }} {{ savings }} €
                   </span>
                 </div>
               </div>
@@ -53,7 +53,7 @@
                 target="_blank"
                 rel="noopener"
               >
-                View Sale
+                {{ t('sales.view_sale') }}
               </ion-button>
             </ion-card-content>
           </ion-card>
@@ -81,6 +81,7 @@ import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 
 import SalesService from "@/services/SalesServices";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SalesDetails",
@@ -151,6 +152,9 @@ export default defineComponent({
     },
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async fetchSaleDetails() {
       try {
         this.sale = await SalesService.getSaleById(this.id);

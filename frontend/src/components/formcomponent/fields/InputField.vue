@@ -3,7 +3,7 @@
     <IonItem>
       <IonInput
         v-model="localValue"
-        :label="field.label"
+        :label="translatedLabel"
         label-placement="floating"
         :required="field.required"
       />
@@ -16,6 +16,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonInput } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "InputFieldComponent",
@@ -39,6 +40,9 @@ export default defineComponent({
         this.$emit("update:modelValue", val);
       },
     },
+    translatedLabel(): string {
+      return localizationService.t(this.field.label, undefined, this.field.label)
+    }
   },
 });
 </script>

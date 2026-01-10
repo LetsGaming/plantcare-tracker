@@ -2,12 +2,12 @@
   <ion-page>
     <!-- Sticky Header with Filters -->
     <overview-header
-      title="Pflanzen"
+      :title="t('plants.title')"
       :segments="[
-        { value: 'public', label: 'Öffentlich', icon: peopleCircle },
+        { value: 'public', label: t('segment.public'), icon: peopleCircle },
         {
           value: 'private',
-          label: 'Persönlich',
+          label: t('segment.private'),
           icon: personCircle,
           hideFromGuests: true,
         },
@@ -45,6 +45,7 @@ import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 import ToastService from "@/services/general/ToastService";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "PlantOverview",
@@ -78,13 +79,16 @@ export default defineComponent({
     },
   },
   methods: {
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     /**
      * Core logic for fetching/refreshing plants
      * @param isRefresh - Whether to force a background refresh and show success toast
      */
     async loadPlants(isRefresh = false) {
-      const typeLabel = this.isPublic ? "öffentlicher" : "persönlicher";
-      const successLabel = this.isPublic ? "Öffentliche" : "Persönliche";
+      const typeLabel = this.isPublic ? this.t('plants.type_public') : this.t('plants.type_private');
+      const successLabel = this.isPublic ? this.t('plants.success_public') : this.t('plants.success_private');
 
       try {
         this.plants = await PlantService.getPlants(this.isPublic, isRefresh);
@@ -92,11 +96,11 @@ export default defineComponent({
         if (this.plants.length === 0) {
           this.showWarning();
         } else if (isRefresh) {
-          ToastService.showSuccess(`${successLabel} Pflanzen aktualisiert.`);
+          ToastService.showSuccess({ key: 'plants.updated', vars: { type: successLabel }, fallback: `${successLabel} plants updated.` });
         }
       } catch (error) {
-        const action = isRefresh ? "Aktualisieren" : "Abrufen";
-        ToastService.showError(`Fehler beim ${action} ${typeLabel} Pflanzen.`);
+        const action = isRefresh ? "refresh" : "fetch";
+        ToastService.showError({ key: 'plants.update_failed', vars: { action, type: typeLabel }, fallback: `Failed to ${action} ${typeLabel} plants.` });
         console.error(
           `Error ${isRefresh ? "refreshing" : "fetching"} plants:`,
           error
@@ -113,10 +117,8 @@ export default defineComponent({
     },
 
     showWarning() {
-      const message = this.isPublic
-        ? "Öffentliche Pflanzen sind nicht verfügbar."
-        : "Keine persönlichen Pflanzen gefunden.";
-      ToastService.showWarning(message);
+      const messageKey = this.isPublic ? 'plants.no_public_available' : 'plants.no_personal_found'
+      ToastService.showWarning(localizationService.t(messageKey))
     },
 
     handleSegmentChange(value: string) {

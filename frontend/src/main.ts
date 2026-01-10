@@ -27,7 +27,11 @@ import "./theme/variables.css";
 import "./theme/custom.css";
 import "./theme/scrollbar.css";
 import Utils from "./utils/utils";
+import localizationService from '@/services/general/LocalizationService'
 
+// register locale loaders (lazy-loaded bundles)
+localizationService.registerLoader('en', () => import('./locales/en').then(m => m.default))
+localizationService.registerLoader('de', () => import('./locales/de').then(m => m.default))
 async function initializeApp() {
   document.title = Utils.getAppTitle();
 
@@ -36,6 +40,10 @@ async function initializeApp() {
 
   // Wait until the router is ready before mounting the app
   await router.isReady();
+  // Ensure current locale bundle is loaded before mount (best-effort)
+  try {
+    await localizationService.resolveInitialLocale();
+  } catch (_) {}
   app.mount("#app");
 }
 

@@ -3,7 +3,7 @@
     <template v-if="items.length">
       <search-bar
         @search="filterItems"
-        placeholder="Suche..."
+        :placeholder="t('search.placeholder')"
         class="align-middle"
       />
     </template>
@@ -25,12 +25,12 @@
                 class="new-badge-round"
                 color="danger"
               >
-                NEW
+                {{ t('label.new') }}
               </ion-badge>
               <div :class="['item-image-wrapper', { 'image-only': imageOnly }]">
                 <ion-img
                   :src="item.imageUrl || '/no-image.png'"
-                  :alt="`${item.name} Image`"
+                  :alt="t('image.alt', { name: item.name })"
                   @ion-error="($event) => ($event.target.src = '/no-image.png')"
                 />
               </div>
@@ -48,7 +48,7 @@
                 </ion-card-subtitle>
 
                 <ion-text color="medium" class="more-details">
-                  Mehr Details
+                  {{ t('overview.more_details') }}
                 </ion-text>
               </ion-card-content>
             </ion-card>
@@ -59,7 +59,7 @@
 
     <template v-else>
       <ion-text color="secondary" class="align-middle" style="margin-top: 35vh">
-        Keine Einträge gefunden.
+        {{ t('overview.no_entries') }}
       </ion-text>
     </template>
   </pull-to-refresh>
@@ -83,6 +83,7 @@ import {
 import SearchBar from "@/components/SearchBar.vue";
 import PullToRefresh from "@/components/PullToRefresh.vue";
 import Utils from "@/utils/utils";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "ItemsOverview",
@@ -133,6 +134,9 @@ export default defineComponent({
     };
   },
   methods: {
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
+    },
     filterItems(query: string) {
       this.currentSearch = query;
       const filtered = Utils.baseSearchFilter(query, this.items);

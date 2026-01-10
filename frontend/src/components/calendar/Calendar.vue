@@ -3,7 +3,7 @@
     <ion-card>
       <ion-card-header v-if="title || showSettingsButton">
         <ion-toolbar v-if="title || showSettingsButton">
-          <ion-title v-if="title">{{ title }}</ion-title>
+          <ion-title v-if="title">{{ t(title) }}</ion-title>
           <ion-button
             v-if="showSettingsButton"
             slot="end"
@@ -61,6 +61,7 @@ import { settings } from "ionicons/icons";
 import Popover from "@/components/Popover.vue";
 import CalendarService, { CalendarEvents } from "@/services/CalendarService";
 import CalendarLegend from "./CalendarLegend.vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "Calendar",
@@ -151,6 +152,9 @@ export default defineComponent({
     },
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     onDateChange(event: CustomEvent) {
       this.changedEvent = event;
       const date = event.detail.value;

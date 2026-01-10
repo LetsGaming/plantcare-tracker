@@ -7,7 +7,7 @@
             <ion-icon :icon="close"></ion-icon>
           </ion-button>
         </ion-buttons>
-        <ion-title>{{ label }}</ion-title>
+        <ion-title>{{ t('profile.title') }}</ion-title>
       </ion-toolbar>
     </ion-header>
 
@@ -18,7 +18,7 @@
             <ion-grid>
               <ion-row>
                 <ion-col>
-                  <ion-label class="profile-label">Username:</ion-label>
+                  <ion-label class="profile-label">{{ t('profile.username.label') }}</ion-label>
                 </ion-col>
                 <ion-col>
                   <ion-label>{{ username }}</ion-label>
@@ -30,7 +30,7 @@
             <ion-grid>
               <ion-row>
                 <ion-col>
-                  <ion-label class="profile-label">Rolle:</ion-label>
+                  <ion-label class="profile-label">{{ t('profile.role.label') }}</ion-label>
                 </ion-col>
                 <ion-col>
                   <ion-label>{{ role }}</ion-label>
@@ -44,7 +44,7 @@
           v-if="showEditButton"
           expand="full"
           @click="openEditingModal"
-          >Edit</ion-button
+          >{{ t('profile.edit') }}</ion-button
         >
       </ion-card>
 
@@ -78,6 +78,7 @@ import {
 import { close } from "ionicons/icons";
 import ProfileEditingModal from "@/components/profile/ProfileEditingModal.vue";
 import UserService from "@/services/UserService";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "ProfilePage",
@@ -104,7 +105,6 @@ export default defineComponent({
   },
   data() {
     return {
-      label: "Profil",
       showEditButton: false,
       showEditingModal: false,
       username: "",
@@ -122,6 +122,9 @@ export default defineComponent({
     },
     openEditingModal() {
       this.showEditingModal = true;
+    },
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
     },
   },
 });

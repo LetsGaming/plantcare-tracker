@@ -1,9 +1,9 @@
 <template>
   <BaseFormModal
     :isOpen="isOpen"
-    modalTitle="Komponente hinzufügen"
-    formTitle="Komponenten Informationen"
-    submitLabel="Komponente hinzufügen"
+    modalTitle="components.add.title"
+    formTitle="components.add.form_title"
+    submitLabel="components.add.submit"
     :formData="component"
     :formFields="componentFormFields"
     :isLoading="isLoading"
@@ -32,20 +32,20 @@ export default defineComponent({
   computed: {
     componentFormFields() {
       return [
-        { type: "input", modelKey: "name", label: "Name", required: true },
+        { type: "input", modelKey: "name", label: "component.field.name", required: true },
         {
           type: "select",
           modelKey: "fineness",
-          label: "Feinheit",
-          placeholder: "Feinheit auswählen",
+          label: "component.field.fineness",
+          placeholder: "component.field.fineness_placeholder",
           options: [
-            { value: "1", label: "Grob" },
-            { value: "2", label: "Mittel" },
-            { value: "3", label: "Fein" },
+            { value: "1", label: "component.fineness.coarse" },
+            { value: "2", label: "component.fineness.medium" },
+            { value: "3", label: "component.fineness.fine" },
           ],
           required: true,
         },
-        { type: "file", modelKey: "image", label: "Bild hochladen" },
+        { type: "file", modelKey: "image", label: "component.image.upload" },
       ] as FormField[];
     },
   },
@@ -57,9 +57,7 @@ export default defineComponent({
           !componentData.fineness ||
           componentData.fineness < 0
         ) {
-          ToastService.showError(
-            "Bitte füllen Sie alle erforderlichen Felder aus."
-          );
+          ToastService.showError({ key: 'components.add.error_required', fallback: 'Bitte füllen Sie alle erforderlichen Felder aus.' });
           return;
         }
         this.isLoading = true;
@@ -73,7 +71,7 @@ export default defineComponent({
         this.$emit("added");
       } catch (error) {
         this.isLoading = false;
-        ToastService.showError("Fehler beim Hinzufügen der Komponente");
+        ToastService.showError({ key: 'components.add.error_failed', fallback: 'Fehler beim Hinzufügen der Komponente' });
       }
     },
     async uploadImage(id: number, image: File) {
@@ -82,11 +80,11 @@ export default defineComponent({
         const resposne = await ComponentService.uploadComponentImage(id, image);
         if (resposne) {
           this.isLoading = false;
-          ToastService.showSuccess("Bild erfolgreich hochgeladen");
+          ToastService.showSuccess({ key: 'components.add.upload_success', fallback: 'Bild erfolgreich hochgeladen' });
         }
       } catch (error) {
         this.isLoading = false;
-        ToastService.showError("Fehler beim Hochladen des Bildes");
+        ToastService.showError({ key: 'components.add.upload_failed', fallback: 'Fehler beim Hochladen des Bildes' });
       }
     },
     clearComponentData() {

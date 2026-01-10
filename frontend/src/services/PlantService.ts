@@ -5,6 +5,7 @@ import PlantMapper from "@/mapping/PlantMapping";
 import Utils from "@/utils/utils";
 import WateringService from "./WateringService";
 import ImageService from "@/services/ImageService";
+import localizationService from "@/services/general/LocalizationService";
 
 const BASE_ENDPOINT = "/plants";
 const CACHE_KEY_PUBLIC_PLANTS = "public_plants_data";
@@ -53,7 +54,7 @@ async function fetchAndCachePlants(isPublic: boolean): Promise<Plant[]> {
       // No plants found; return empty array
       return [];
     }
-    ToastService.showError(`Error fetching plants: ${error}`);
+    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('plants.title'), details: String(error) }, fallback: `Error fetching plants: ${error}` });
     throw error;
   }
 }
@@ -68,7 +69,7 @@ async function fetchAndCachePlant(
     await cachePlant(plant, isPublic);
     return plant;
   } catch (error) {
-    ToastService.showError(`Error fetching plant: ${error}`);
+    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('plants.title'), details: String(error) }, fallback: `Error fetching plant: ${error}` });
     throw error;
   }
 }
@@ -140,7 +141,7 @@ export default class PlantService {
       await this.invalidatePlantCache(plantId, isPublic);
       return await fetchAndCachePlant(plantId, isPublic);
     } catch (error) {
-      ToastService.showError(`Error fetching plant details: ${error}`);
+      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('plants.title'), details: String(error) }, fallback: `Error fetching plant details: ${error}` });
       throw error;
     }
   }
@@ -151,7 +152,7 @@ export default class PlantService {
       await this.invalidatePlantsCache(); // Invalidate the cache after adding a plant
       return response;
     } catch (error) {
-      ToastService.showError(`Error adding plant: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('plant.add.title') || localizationService.t('plant.added'), resource: localizationService.t('plants.title'), details: String(error) }, fallback: `Error adding plant: ${error}` });
       throw error;
     }
   }
@@ -171,7 +172,7 @@ export default class PlantService {
       ); // Invalidate the cache after editing a plant
       return response;
     } catch (error) {
-      ToastService.showError(`Error updating plant: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('plant.edit.title') || localizationService.t('plant.save'), resource: localizationService.t('plants.title'), details: String(error) }, fallback: `Error updating plant: ${error}` });
       throw error;
     }
   }
@@ -191,7 +192,7 @@ export default class PlantService {
       await this.invalidatePlantCache(plantId, false); // Invalidate the cache after uploading an image
       return response;
     } catch (error) {
-      ToastService.showError(`Error uploading plant image: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('image.upload'), resource: localizationService.t('plants.title'), details: String(error) }, fallback: `Error uploading plant image: ${error}` });
       throw error;
     }
   }
@@ -203,7 +204,7 @@ export default class PlantService {
       await WateringService.invalidateWateringCacheForPlant(plantId);
       return response;
     } catch (error) {
-      ToastService.showError(`Error deleting plant: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('plant.delete.confirm') || localizationService.t('plant.deleted'), resource: localizationService.t('plants.title'), details: String(error) }, fallback: `Error deleting plant: ${error}` });
       throw error;
     }
   }

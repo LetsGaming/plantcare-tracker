@@ -3,6 +3,7 @@ import ToastService from "@/services/general/ToastService";
 import storageService from "@/services/general/StorageService";
 import Utils from "@/utils/utils";
 import MoreInfoMapper from "@/mapping/MoreInforMaping";
+import localizationService from "@/services/general/LocalizationService";
 
 const BASE_ENDPOINT = "/more-info";
 const CACHE_KEY_MORE_INFO = "more_info_data";
@@ -49,7 +50,7 @@ async function fetchAndCacheMoreInfo(plantName: string): Promise<MoreInfo[]> {
       // No more info found for this plant; return empty array
       return [];
     }
-    ToastService.showError(`Error fetching more info: ${error}`);
+    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('moreinfo.title') || 'more info', details: String(error) }, fallback: `Error fetching more info: ${error}` });
     throw error;
   }
 }

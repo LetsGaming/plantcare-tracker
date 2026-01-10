@@ -1,6 +1,6 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader headerTitle="Substrat hinzufügen" @close="$emit('close')" />
+    <ModalHeader :headerTitle="t('substrate.add.title')" @close="$emit('close')" />
     <IonContent>
       <!-- Step 1: Substrate Information Form -->
       <form-component
@@ -10,27 +10,27 @@
           {
             type: 'input',
             modelKey: 'name',
-            label: 'Substratname',
+            label: t('substrate.field.name'),
             required: true,
           },
           {
             type: 'radio',
             modelKey: 'isPublic',
-            label: 'Sichtbarkeit',
+            label: t('substrate.field.visibility'),
             options: [
-              { value: true, label: 'Öffentlich' },
-              { value: false, label: 'Privat' },
+              { value: true, label: t('substrate.visibility.public') },
+              { value: false, label: t('substrate.visibility.private') },
             ],
             defaultValue: Boolean(substrate.isPublic),
           },
           {
             type: 'file',
-            label: 'Bild hochladen',
+            label: t('plant.image.upload'),
             modelKey: 'image',
           },
         ]"
-        cardTitle="Substrat Informationen"
-        submitLabel="Weiter"
+        :cardTitle="t('substrate.info.title')"
+        submitLabel="form.next"
         @submit-click="goToStepTwo"
         :is-loading="isLoading"
       />
@@ -40,7 +40,7 @@
       <!-- Filtered and Sorted SubstrateComponent List -->
       <div class="component-list" v-if="step === 2">
         <component-selection
-          title="Wähle Komponenten für das Substrat"
+          :title="t('substrate.select_components_title')"
           :components="availableComponents"
           :selected-component-ids="selectedComponentIds"
           :component-parts="componentParts"
@@ -50,7 +50,7 @@
 
       <div class="action-buttons" v-if="step === 2">
         <IonButton expand="full" color="medium" @click="goToStepOne">
-          Zurück
+          {{ t('action.back') }}
         </IonButton>
         <IonButton
           expand="full"
@@ -58,7 +58,7 @@
           @click="addSubstrate"
           :disabled="isLoading"
         >
-          Substrat speichern
+          {{ t('substrate.save') }}
         </IonButton>
       </div>
     </IonContent>
@@ -84,6 +84,7 @@ import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
+import localizationService from '@/services/general/LocalizationService'
 import ComponentService from "@/services/ComponentService";
 
 export default defineComponent({
@@ -135,6 +136,9 @@ export default defineComponent({
     await this.fetchAvailableComponents();
   },
   methods: {
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async fetchAvailableComponents() {
       try {
         const response = await ComponentService.getComponents();
@@ -145,7 +149,7 @@ export default defineComponent({
         );
       } catch (error) {
         console.error("Error fetching components:", error);
-        ToastService.showError("Fehler beim Laden der Komponenten");
+        ToastService.showError({ key: 'substrate.load_components_failed' });
       }
     },
     goToStepOne() {
@@ -153,7 +157,7 @@ export default defineComponent({
     },
     goToStepTwo() {
       if (!this.substrate.name) {
-        ToastService.showWarning("Substratname ist erforderlich!");
+        ToastService.showWarning({ key: 'substrate.name_required' });
         return;
       }
       this.step = 2;
@@ -168,9 +172,7 @@ export default defineComponent({
     },
     async addSubstrate() {
       if (this.selectedComponentIds.length === 0) {
-        ToastService.showWarning(
-          "Bitte wählen Sie mindestens eine Komponente aus!"
-        );
+        ToastService.showWarning({ key: 'substrate.select_component_required' });
         return;
       }
 
@@ -192,9 +194,7 @@ export default defineComponent({
         if (response) {
           const substrateId = response.substrate.substrateId;
           if (!this.substrate.image) {
-            ToastService.showSuccess(
-              "Substrat und Komponenten erfolgreich hinzugefügt"
-            );
+            ToastService.showSuccess({ key: 'substrate.added' });
             this.$emit("added");
           } else {
             await this.imageUpload(substrateId, this.substrate.image);
@@ -203,7 +203,7 @@ export default defineComponent({
         }
       } catch (error) {
         console.error("Error adding substrate:", error);
-        ToastService.showError("Fehler beim Hinzufügen des Substrats");
+        ToastService.showError({ key: 'substrate.add_error' });
       }
     },
     async imageUpload(id: number, file: File) {
@@ -211,16 +211,14 @@ export default defineComponent({
         this.loadingTimeout();
         const response = await SubstrateService.uploadSubstrateImage(id, file);
         if (response) {
-          ToastService.showSuccess(
-            "Substrat und Komponenten erfolgreich hinzugefügt"
-          );
+          ToastService.showSuccess({ key: 'substrate.added' });
           this.$emit("added");
         } else {
-          ToastService.showError("Fehler beim Hochladen des Bildes");
+          ToastService.showError({ key: 'substrate.upload_image_error' });
         }
       } catch (error) {
         console.error("Error uploading image:", error);
-        ToastService.showError("Fehler beim Hochladen des Bildes");
+        ToastService.showError({ key: 'substrate.upload_image_error' });
       }
     },
     loadingTimeout() {

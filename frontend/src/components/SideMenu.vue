@@ -2,7 +2,7 @@
   <ion-menu side="start" content-id="main">
     <ion-header>
       <ion-toolbar>
-        <ion-title>Menu</ion-title>
+        <ion-title>{{ t('menu.title') }}</ion-title>
         <ion-buttons slot="end">
           <ion-menu-toggle>
             <ion-button>
@@ -17,7 +17,7 @@
       <ion-list>
         <ion-item button @click="navigateToProfile">
           <ion-icon slot="start" :icon="personIcon" />
-          <ion-label>Profil</ion-label>
+          <ion-label>{{ t('menu.profile') }}</ion-label>
         </ion-item>
         <ion-item lines="none">
           <menu-calendar
@@ -31,12 +31,24 @@
     <ion-footer>
       <ion-toolbar>
         <ion-item lines="none">
+          <ion-label>{{ localizationLabel }}</ion-label>
+          <ion-select :value="selectedLocale" @ionChange="changeLocale">
+            <ion-select-option
+              v-for="loc in availableLocales"
+              :key="loc"
+              :value="loc"
+            >
+              {{ localeLabel(loc) }}
+            </ion-select-option>
+          </ion-select>
+        </ion-item>
+        <ion-item lines="none">
           <ion-toggle
             label-placement="start"
             :checked="darkMode"
             @ionChange="toggleDarkModeEvent"
           >
-            Dark Mode
+            {{ t('menu.dark_mode') }}
           </ion-toggle>
         </ion-item>
       </ion-toolbar>
@@ -58,6 +70,8 @@ import {
   IonContent,
   IonList,
   IonItem,
+  IonSelect,
+  IonSelectOption,
   IonButtons,
   IonMenuToggle,
   IonButton,
@@ -72,6 +86,12 @@ import MenuCalendar from "./calendar/MenuCalendar.vue";
 import CalendarSettingsModal from "./calendar/CalendarSettingsModal.vue";
 
 import storageService from "@/services/general/StorageService";
+import localizationService from "@/services/general/LocalizationService";
+
+const LOCALE_LABELS: Record<string, string> = {
+  en: "English",
+  de: "Deutsch",
+};
 
 export default defineComponent({
   name: "SideMenu",
@@ -83,6 +103,8 @@ export default defineComponent({
     IonContent,
     IonList,
     IonItem,
+    IonSelect,
+    IonSelectOption,
     IonButtons,
     IonMenuToggle,
     IonButton,
@@ -99,6 +121,7 @@ export default defineComponent({
       closeIcon: close,
       personIcon: person,
       showDateSettings: false,
+      selectedLocale: localizationService.getLocale(),
     };
   },
   async mounted() {
@@ -119,6 +142,22 @@ export default defineComponent({
       const enableDark = e.detail.checked;
       await this.toggleDarkMode(enableDark);
     },
+    async changeLocale(e: CustomEvent) {
+      const locale = (e.detail && e.detail.value) || e;
+      if (!locale || locale === this.selectedLocale) return;
+      try {
+        await localizationService.setLocale(locale);
+        this.selectedLocale = locale;
+      } catch (err) {
+        console.error("Failed to change locale", err);
+      }
+    },
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
+    localeLabel(loc: string) {
+      return LOCALE_LABELS[loc] || loc;
+    },
     async toggleDarkMode(value: boolean) {
       this.darkMode = value;
       try {
@@ -135,12 +174,26 @@ export default defineComponent({
       await menuController.close();
     },
   },
+  computed: {
+    availableLocales() {
+      return localizationService.availableLocales();
+    },
+    localizationLabel() {
+      return localizationService.t("label.language", undefined, "Language");
+    },
+  },
 });
 </script>
 
 <style scoped>
 ion-menu {
   --width: 15%;
+}
+
+@media (max-width: 1920px) {
+  ion-menu {
+    --width: 20%;
+  }
 }
 
 @media (max-width: 768px) {

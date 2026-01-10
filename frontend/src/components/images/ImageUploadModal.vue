@@ -17,18 +17,18 @@
           :formFields="[
             {
               type: 'file',
-              label: 'Bild',
+              label: 'image.label',
               modelKey: 'file',
               required: true,
             },
             {
               type: 'date',
-              label: 'Datum',
+              label: 'image.date_label',
               modelKey: 'date',
             },
           ]"
-          cardTitle="Bild hochladen"
-          submitLabel="Hochladen"
+          cardTitle="image.upload.title"
+          submitLabel="image.upload.submit"
           :isLoading="isLoading"
           :onSubmitClick="submitForm"
         />
@@ -113,7 +113,7 @@ export default defineComponent({
   methods: {
     submitForm() {
       if (!this.fileItem.file) {
-        ToastService.showError("Bitte wählen Sie ein Bild aus.");
+        ToastService.showError({ key: 'image.select_error', fallback: 'Please select an image.' });
       } else {
         this.$emit("submit", this.fileItem);
       }

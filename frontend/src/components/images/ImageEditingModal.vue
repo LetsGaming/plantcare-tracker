@@ -1,6 +1,6 @@
 <template>
   <IonModal v-model:isOpen="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader headerTitle="Bild bearbeiten" @close="$emit('close')" />
+  <ModalHeader :headerTitle="t('image.edit.title')" @close="$emit('close')" />
     <IonContent>
       <div class="modal-card-container">
         <form-component
@@ -8,18 +8,18 @@
           :formFields="[
             {
               type: 'file',
-              label: 'Bild',
+              label: t('image.field.file'),
               modelKey: 'image',
             },
             {
               type: 'date',
-              label: 'Datum',
+              label: t('image.field.date'),
               modelKey: 'date',
               required: true,
             },
           ]"
-          cardTitle="Bild Informationen"
-          submitLabel="Bearbeiten"
+          :cardTitle="t('image.info.title')"
+          submitLabel="image.edit.submit"
           :onSubmitClick="submitForm"
           :onDeleteClick="deleteImage"
           :isLoading="isLoading"
@@ -47,6 +47,7 @@ import FormComponent from "../formcomponent/FormComponent.vue";
 import ModalHeader from "../modal/ModalHeader.vue";
 import ImageService from "../../services/ImageService";
 import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ImageEditingModal",
@@ -95,10 +96,13 @@ export default defineComponent({
     this.imageEditData.date = this.image.date_millis;
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async submitForm() {
       try {
         if (!this.imageEditData.file && !this.imageEditData.date) {
-          ToastService.showError("Bitte fülle mindestens ein Feld aus.");
+          ToastService.showError({ key: 'image.edit.min_field', fallback: 'Please fill at least one field' });
           return;
         }
         this.isLoading = true;

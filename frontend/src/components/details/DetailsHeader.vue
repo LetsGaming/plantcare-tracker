@@ -4,10 +4,10 @@
       <ion-buttons slot="start">
         <ion-back-button
           v-if="defaultBackHref"
-          text="Zurück"
+          :text="t('common.back')"
           :defaultHref="defaultBackHref"
         ></ion-back-button>
-        <ion-back-button v-else text="Zurück"></ion-back-button>
+        <ion-back-button v-else :text="t('common.back')"></ion-back-button>
       </ion-buttons>
       <template v-if="!isGuest">
         <ion-icon
@@ -42,6 +42,7 @@ import {
 } from "@ionic/vue";
 import { create, cloudUpload } from "ionicons/icons";
 import UserService from "@/services/UserService";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "DetailsHeader",
@@ -87,6 +88,11 @@ export default defineComponent({
   },
   async mounted() {
     this.isGuest = await UserService.isGuest();
+  },
+  methods: {
+    t(value: string) {
+      return localizationService.t(value, undefined, value);
+    },
   },
 });
 </script>

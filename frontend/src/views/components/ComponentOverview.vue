@@ -2,8 +2,8 @@
   <ion-page>
     <!-- Sticky Header with Filters -->
     <overview-header
-      title="Komponenten"
-      :segments="[{ value: 'all', label: 'Alle', icon: personCircle }]"
+      :title="t('components.title')"
+      :segments="[{ value: 'all', label: t('segment.all'), icon: personCircle }]"
       :showAddButton="isAdmin"
       :addIcon="addCircle"
       starting-segment="all"
@@ -36,6 +36,7 @@ import ComponentAddingModal from "@/components/components/ComponentAddingModal.v
 
 import ComponentService from "@/services/ComponentService";
 import UserService from "@/services/UserService";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "ComponentOverview",
@@ -65,6 +66,9 @@ export default defineComponent({
     await this.fetchComponents();
   },
   methods: {
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async fetchComponents() {
       try {
         this.components = await ComponentService.getComponents();

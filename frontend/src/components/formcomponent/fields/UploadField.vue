@@ -1,7 +1,7 @@
 <template>
   <div class="field-wrapper">
     <IonItem>
-      <IonLabel>{{ field.label }}</IonLabel>
+      <IonLabel>{{ translateLabel() }}</IonLabel>
       <input type="file" accept="image/*" @change="onFileChange" />
     </IonItem>
     <RequiredNote v-if="field.required" />
@@ -12,6 +12,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonLabel } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "UploadFieldComponent",
@@ -32,6 +33,13 @@ export default defineComponent({
       if (target.files && target.files[0]) {
         this.$emit("update:modelValue", target.files[0]);
       }
+    },
+    translateLabel(): string {
+      return localizationService.t(
+        this.field.label,
+        undefined,
+        this.field.label
+      );
     },
   },
 });

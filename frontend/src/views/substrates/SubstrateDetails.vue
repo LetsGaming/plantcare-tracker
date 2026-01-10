@@ -22,7 +22,7 @@
       </div>
       <ImageUploadModal
         :is-open="showUploadModal"
-        :card-title="`Bild für ${substrate?.name} hochladen`"
+        :card-title="t('image.upload.for_name', { name: substrate?.name })"
         @close="showUploadModal = false"
         @submit="onImageUpload"
         :is-loading="isLoading"
@@ -56,6 +56,7 @@ import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import SubstrateEditingModal from "@/components/substrates/SubstrateEditingModal.vue";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "SubstrateDetails",
@@ -112,6 +113,9 @@ export default defineComponent({
     },
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
+    },
     showUpload() {
       this.showUploadModal = true;
     },

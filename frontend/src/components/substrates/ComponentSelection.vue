@@ -3,12 +3,12 @@
     <ion-card-header style="max-width: 100%">
       <ion-title>{{ title }}</ion-title>
       <SearchBar
-        placeholder="Komponenten suchen..."
+        :placeholder="t('component.search.placeholder')"
         @search="filterComponents"
       />
-      <div class="selected-only-toggle">
+        <div class="selected-only-toggle">
         <IonCheckbox v-model="showSelectedOnly" />
-        <ion-label>Nur ausgewählte anzeigen</ion-label>
+        <ion-label>{{ t('component.selection.only_selected') }}</ion-label>
       </div>
     </ion-card-header>
 
@@ -25,7 +25,7 @@
             <div class="component-content">
               <ion-label>
                 <h3>{{ component.name }}</h3>
-                <p>Feinheit: {{ component.fineness }}</p>
+                <p>{{ t('component.fineness_prefix') }} {{ component.fineness }}</p>
               </ion-label>
               <div class="component-selection">
                 <IonCheckbox
@@ -36,7 +36,7 @@
                   :disabled="!selectedComponentIds.includes(component.id)"
                   v-model="componentParts[component.id]"
                   type="number"
-                  placeholder="Teile"
+                  :placeholder="t('component.selection.placeholder')"
                   min="0.1"
                 />
               </div>
@@ -63,6 +63,7 @@ import {
 } from "@ionic/vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "ComponentSelection",
@@ -135,6 +136,9 @@ export default defineComponent({
     filterComponents(query: string) {
       this.searchQuery = query;
     },
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
+    }
   },
 });
 </script>

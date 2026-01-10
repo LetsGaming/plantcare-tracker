@@ -2,12 +2,12 @@
   <ion-page>
     <!-- Custom Header with Filters -->
     <overview-header
-      title="Substrate"
+      :title="t('substrate.title')"
       :segments="[
-        { value: 'public', label: 'Öffentlich', icon: peopleCircle },
+        { value: 'public', label: t('substrate.public_label'), icon: peopleCircle },
         {
           value: 'private',
-          label: 'Persönlich',
+          label: t('substrate.private_label'),
           icon: personCircle,
           hideFromGuests: true,
         },
@@ -38,6 +38,7 @@ import { defineComponent } from "vue";
 import { IonPage, IonContent } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 import SubstrateService from "@/services/SubstrateService";
+import localizationService from "@/services/general/LocalizationService";
 
 // Importing the custom components
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
@@ -77,28 +78,26 @@ export default defineComponent({
     },
   },
 methods: {
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     /**
      * Unified logic for fetching and refreshing substrates
      */
     async loadSubstrates(isRefresh = false) {
-      const labels = {
-        type: this.isPublic ? "öffentliche" : "persönliche",
-        typeGen: this.isPublic ? "öffentlicher" : "persönlicher",
-        notFound: this.isPublic ? "Keine öffentlichen Substrate verfügbar." : "Keine persönlichen Substrate gefunden."
-      };
-
       try {
         this.substrates = await SubstrateService.getSubstrates(this.isPublic, isRefresh);
 
         if (this.substrates.length === 0) {
-          ToastService.showWarning(labels.notFound);
+          const key = this.isPublic ? 'substrate.empty_public' : 'substrate.empty_private';
+          ToastService.showWarning({ key });
         } else if (isRefresh) {
-          // Capitalize first letter for the success message
-          const typeCap = labels.type.charAt(0).toUpperCase() + labels.type.slice(1);
-          ToastService.showSuccess(`${typeCap} Substrate aktualisiert.`);
+          const typeLabel = this.isPublic ? this.t('substrate.public_label') : this.t('substrate.private_label');
+          ToastService.showSuccess({ key: 'substrate.refreshed', vars: { type: typeLabel } });
         }
       } catch (error) {
-        ToastService.showError(`Fehler beim Abrufen ${labels.typeGen} Substrate.`);
+        const typeLabel = this.isPublic ? this.t('substrate.public_label') : this.t('substrate.private_label');
+        ToastService.showError({ key: 'substrate.fetch_error', vars: { type: typeLabel } });
         console.error(`Error ${isRefresh ? 'refreshing' : 'fetching'} substrates:`, error);
       }
     },

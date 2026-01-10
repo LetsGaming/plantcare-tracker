@@ -1,21 +1,21 @@
 <template>
   <ion-modal :is-open="isOpen" @didDismiss="$emit('close')">
     <modal-header
-      header-title="Kalender Einstellungen"
+      :header-title="t('calendar.settings.title')"
       @close="$emit('close')"
     />
 
     <ion-content>
       <ion-card>
         <ion-card-header>
-          <ion-card-title>Allgemeine Einstellungen</ion-card-title>
+          <ion-card-title>{{ t('calendar.settings.general_settings') }}</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-item>
             <ion-select
-              label="Erster Wochentag"
+              :label="t('calendar.settings.first_weekday_label')"
               :value="firstDayOfWeek"
-              placeholder="Wähle den ersten Wochentag"
+              :placeholder="t('calendar.settings.first_weekday_placeholder')"
               @ionChange="saveFirstDayOfWeek"
             >
               <ion-select-option
@@ -34,7 +34,7 @@
               v-model="doDeleteAfterThirty"
               @ionChange="toggleAutoDelete"
             >
-              Automatisches Löschen nach 30 Tagen
+              {{ t('calendar.settings.auto_delete_label') }}
             </ion-toggle>
           </ion-item>
         </ion-card-content>
@@ -42,7 +42,7 @@
       <ion-card>
         <ion-card-header>
           <ion-toolbar>
-            <ion-title class="ion-text-start">Wässerungskategorien</ion-title>
+            <ion-title class="ion-text-start">{{ t('calendar.settings.watering_categories') }}</ion-title>
             <ion-buttons slot="end">
               <ion-button
                 fill="clear"
@@ -61,7 +61,7 @@
               v-for="(category, index) in wateringCategories"
               :key="index"
             >
-              <ion-label>{{ category.name }}</ion-label>
+              <ion-label>{{ t(category.name) }}</ion-label>
               <input
                 type="color"
                 v-model="category.backgroundColor"
@@ -70,22 +70,21 @@
             </ion-item>
           </ion-list>
           <small class="text-muted">
-            Namen und Anzahl dieser Kategorien sind festgelegt – nur die Farbe
-            kann angepasst werden.
+            {{ t('calendar.settings.watering_categories_info') }}
           </small>
         </ion-card-content>
       </ion-card>
 
       <ion-card>
         <ion-card-header>
-          <ion-card-title>Kategorien</ion-card-title>
+          <ion-card-title>{{ t('calendar.settings.categories') }}</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-list>
             <ion-item v-for="(category, index) in categories" :key="index">
               <ion-input
                 v-model="category.name"
-                placeholder="Kategorie Name"
+                :placeholder="t('calendar.category.name_placeholder')"
                 @input="saveCategories"
                 style="width: 90%; margin-right: 10px"
               />
@@ -109,14 +108,14 @@
           <ion-item>
             <ion-input
               v-model="newCategory.name"
-              placeholder="Neue Kategorie"
+              :placeholder="t('calendar.category.new_placeholder')"
             />
             <input
               type="color"
               v-model="newCategory.backgroundColor"
               @input="setContrastColor(newCategory)"
             />
-            <ion-button @click="saveCategory"> Hinzufügen </ion-button>
+            <ion-button @click="saveCategory"> {{ t('calendar.category.add_button') }} </ion-button>
           </ion-item>
         </ion-card-content>
       </ion-card>
@@ -148,6 +147,7 @@ import {
 } from "@ionic/vue";
 import { create, trash, refreshCircle } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
+import localizationService from '@/services/general/LocalizationService'
 import CalendarService from "@/services/CalendarService";
 
 export default defineComponent({
@@ -213,6 +213,9 @@ export default defineComponent({
     },
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
+    },
     /** GENERAL SETTINGS **/
     async saveFirstDayOfWeek(event: CustomEvent) {
       this.firstDayOfWeek = event.detail.value;

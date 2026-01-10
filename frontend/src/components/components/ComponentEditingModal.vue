@@ -1,29 +1,29 @@
 <template>
   <BaseFormModal
     :is-open="isOpen"
-    modal-title="Komponente bearbeiten"
+    modal-title="component.edit.title"
     :form-data="editComponentData"
     :form-fields="[
-      { type: 'input', modelKey: 'name', label: 'Name', required: false },
+      { type: 'input', modelKey: 'name', label: t('component.field.name'), required: false },
       {
         type: 'select',
         modelKey: 'fineness',
-        label: 'Feinheit',
-        placeholder: 'Feinheit auswählen',
+        label: t('component.field.fineness'),
+        placeholder: t('component.field.fineness_placeholder'),
         options: [
-          { value: '1', label: 'Grob' },
-          { value: '2', label: 'Mittel' },
-          { value: '3', label: 'Fein' },
+          { value: '1', label: t('component.fineness.coarse') },
+          { value: '2', label: t('component.fineness.medium') },
+          { value: '3', label: t('component.fineness.fine') },
         ],
         required: false,
       },
     ]"
-    form-title="Komponenten Informationen"
-    submit-label="Komponente editieren"
+    :form-title="t('components.add.form_title')"
+    submit-label="component.edit.submit"
     :is-loading="isLoading"
     :delete-handler="deleteComponent"
     @close="$emit('close')"
-    @submit-click="editComponent"
+    @submit="editComponent"
   />
 </template>
 
@@ -33,6 +33,7 @@ import BaseFormModal from "../modal/BaseFormModal.vue";
 
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ComponentEditingModal",
@@ -73,8 +74,12 @@ export default defineComponent({
     };
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
     async editComponent() {
       try {
+        console.log(this.editComponentData);
         if (this.editComponentData.name === "") {
           this.editComponentData.name = this.component.name;
         }
@@ -94,7 +99,7 @@ export default defineComponent({
       } catch (error) {
         this.isLoading = false;
         console.error(error);
-        ToastService.showError("Fehler beim Bearbeiten der Komponente");
+        ToastService.showError({ key: 'components.edit.error', fallback: 'Error editing component' });
       }
     },
     async deleteComponent() {
@@ -112,7 +117,7 @@ export default defineComponent({
       } catch (error) {
         this.isLoading = false;
         console.error(error);
-        ToastService.showError("Fehler beim Löschen der Komponente");
+        ToastService.showError({ key: 'components.delete.error', fallback: 'Error deleting component' });
       }
     },
     resetComponent() {

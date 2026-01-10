@@ -6,7 +6,7 @@
     >
       <IonCardHeader>
         <IonToolbar>
-          <IonCardTitle>{{ cardTitle }}</IonCardTitle>
+          <IonCardTitle>{{ translateProp(cardTitle) }}</IonCardTitle>
           <ion-icon
             v-if="onDeleteClick"
             :Icon="trashBin"
@@ -62,12 +62,12 @@
           :disabled="isLoading"
           @click="submitForm"
         >
-          <span v-if="isLoading">Bitte warten...</span>
+          <span v-if="isLoading">{{ t('form.waiting', undefined, 'Please wait...') }}</span>
           <ion-spinner
             v-if="isLoading"
             name="crescent"
           />
-          <span v-else>{{ submitLabel }}</span>
+          <span v-else>{{ translateProp(submitLabel) }}</span>
         </IonButton>
       </IonCardContent>
     </IonCard>
@@ -83,7 +83,7 @@
   <IonModal v-model:isOpen="showDeleteModal">
     <IonHeader>
       <IonToolbar>
-        <IonTitle>Löschen</IonTitle>
+            <IonTitle>{{ t('modal.delete.title', undefined, 'Delete') }}</IonTitle>
         <IonButtons slot="end">
           <IonButton @click="showDeleteModal = false">
             <IonIcon :icon="closeOutline" />
@@ -96,7 +96,7 @@
         <IonCard>
           <IonCardHeader>
             <IonCardTitle>
-              Sind Sie sicher, dass Sie
+              {{ t('modal.delete.confirm_prefix', undefined, 'Are you sure you want to delete') }}
               <span
                 style="
                   color: var(--ion-color-primary-tint);
@@ -105,8 +105,8 @@
               >
                 {{ item.name }}
               </span>
-              löschen wollen?
-            </IonCardTitle>
+              {{ t('modal.delete.confirm_suffix', undefined, ' ?') }}
+              </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
             <IonRow>
@@ -115,11 +115,11 @@
                 color="danger"
                 @click="showDeleteModal = false"
               >
-                Abbrechen
+                {{ t('modal.cancel', undefined, 'Cancel') }}
               </IonButton>
               <!-- Submit Button -->
               <IonButton expand="full" color="primary" @click="submitDelete">
-                Löschen
+                {{ t('modal.delete', undefined, 'Delete') }}
               </IonButton>
             </IonRow>
           </IonCardContent>
@@ -158,6 +158,7 @@ import SwitchField from "@/components/formcomponent/fields/SwitchField.vue";
 import DateField from "@/components/formcomponent/fields/DateField.vue";
 import UploadField from "@/components/formcomponent/fields/UploadField.vue";
 import ToastService from "@/services/general/ToastService";
+import localizationService from '@/services/general/LocalizationService'
 
 export default defineComponent({
   name: "FormComponent",
@@ -234,6 +235,12 @@ export default defineComponent({
     };
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
+    translateProp(value: string) {
+      return this.t(value, undefined, value)
+    },
     onFileChange(event: Event) {
       const target = event.target as HTMLInputElement;
       const files = target.files;
@@ -243,9 +250,7 @@ export default defineComponent({
     },
     submitForm() {
       if (!this.checkRequiredFields()) {
-        ToastService.showError(
-          "Bitte füllen Sie alle erforderlichen Felder aus."
-        );
+        ToastService.showError({ key: 'form.required_fields', fallback: 'Please fill in all required fields.' });
         return;
       }
       this.onSubmitClick();

@@ -1,6 +1,6 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader headerTitle="Substrat bearbeiten" @close="$emit('close')" />
+  <ModalHeader headerTitle="substrate.edit.title" @close="$emit('close')" />
     <IonContent>
       <!-- Step 1: Substrate Information Form -->
       <form-component
@@ -10,27 +10,27 @@
           {
             type: 'input',
             modelKey: 'name',
-            label: 'Substratname',
+            label: t('substrate.field.name'),
             required: true,
           },
           {
             type: 'radio',
             modelKey: 'isPublic',
-            label: 'Sichtbarkeit',
+            label: t('substrate.field.visibility'),
             options: [
-              { value: true, label: 'Öffentlich' },
-              { value: false, label: 'Privat' },
+              { value: true, label: t('substrate.visibility.public') },
+              { value: false, label: t('substrate.visibility.private') },
             ],
             defaultValue: Boolean(substrate.isPublic),
           },
           {
             type: 'file',
-            label: 'Bild hochladen',
+            label: t('plant.image.upload'),
             modelKey: 'image',
           },
         ]"
-        cardTitle="Substrat Informationen"
-        submitLabel="Weiter"
+        :cardTitle="t('substrate.info.title')"
+        submitLabel="form.next"
         @submit-click="goToStepTwo"
         @delete-click="deleteSubstrate"
         :is-loading="isLoading"
@@ -39,7 +39,7 @@
       <!-- Step 2: Edit Components -->
       <div class="component-container-wrapper" v-if="step === 2">
         <ComponentSelection
-          title="Komponenten für das Substrat bearbeiten"
+          title="substrate.components.edit.title"
           :components="availableComponents"
           :selectedComponentIds="selectedComponentIds"
           :componentParts="componentParts"
@@ -49,7 +49,7 @@
       <!-- Action Buttons -->
       <div class="action-buttons" v-if="step === 2">
         <IonButton expand="full" color="medium" @click="goToStepOne">
-          Zurück
+          {{ t('action.back') }}
         </IonButton>
         <IonButton
           expand="full"
@@ -57,7 +57,7 @@
           @click="editSubstrate"
           :disabled="isLoading"
         >
-          Substrat speichern
+          {{ t('substrate.save') }}
         </IonButton>
       </div>
     </IonContent>
@@ -87,6 +87,7 @@ import {
 import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
+import localizationService from '@/services/general/LocalizationService'
 import SubstrateService from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
@@ -161,6 +162,9 @@ export default defineComponent({
     await this.fetchAvailableComponents();
   },
   methods: {
+    t(key: string, vars?: Record<string, any>, fallback?: string) {
+      return localizationService.t(key, vars, fallback)
+    },
     async fetchAvailableComponents() {
       try {
         const response = await ComponentService.getComponents();
@@ -171,7 +175,7 @@ export default defineComponent({
         );
       } catch (error) {
         console.error("Error fetching components:", error);
-        ToastService.showError("Fehler beim Laden der Komponenten");
+        ToastService.showError({ key: 'substrate.load_components_failed', fallback: 'Failed to load components' });
       }
     },
     goToStepOne() {
@@ -191,9 +195,7 @@ export default defineComponent({
     },
     async editSubstrate() {
       if (this.selectedComponentIds.length === 0) {
-        ToastService.showWarning(
-          "Bitte wählen Sie mindestens eine Komponente aus!"
-        );
+        ToastService.showWarning({ key: 'substrate.select_component_required' });
         return;
       }
 
@@ -226,7 +228,7 @@ export default defineComponent({
 
       if (!metaChanged && !componentsChanged) {
         // Nothing changed, just return early
-        ToastService.showWarning("Keine Änderungen vorgenommen.");
+        ToastService.showWarning({ key: 'substrate.no_changes' });
         return;
       }
 
@@ -243,7 +245,7 @@ export default defineComponent({
             this.substrate.id,
             components
           );
-          ToastService.showSuccess("Komponenten erfolgreich aktualisiert");
+          ToastService.showSuccess({ key: 'substrate.components_updated' });
         } else if (!componentsChanged && metaChanged) {
           // Only meta changed
           const removedComponents = this.originalComponentIds.filter(
@@ -259,7 +261,7 @@ export default defineComponent({
             substrateData,
             removedComponents
           );
-          ToastService.showSuccess("Substrat erfolgreich aktualisiert");
+          ToastService.showSuccess({ key: 'substrate.updated' });
         } else {
           // Both changed: do components update first (priority), then substrate update
           await SubstrateService.editSubstrateComponents(
@@ -282,9 +284,7 @@ export default defineComponent({
             substrateData,
             removedComponents
           );
-          ToastService.showSuccess(
-            "Substrat und Komponenten erfolgreich aktualisiert"
-          );
+          ToastService.showSuccess({ key: 'substrate.updated_both' });
         }
 
         this.resetSubstrate();
@@ -293,7 +293,7 @@ export default defineComponent({
         this.$router.push({ name: "substrate-overview" });
       } catch (error) {
         console.error("Error editing substrate or components:", error);
-        ToastService.showError("Fehler beim Aktualisieren des Substrats");
+        ToastService.showError({ key: 'substrate.update_error' });
       }
     },
     async deleteSubstrate() {
@@ -303,14 +303,14 @@ export default defineComponent({
           this.substrate.id
         );
         if (response) {
-          ToastService.showSuccess("Substrat erfolgreich gelöscht");
+          ToastService.showSuccess({ key: 'substrate.deleted' });
           this.resetSubstrate();
           this.$emit("close");
           this.$router.push({ name: "substrate-overview" });
         }
       } catch (error) {
         console.error("Error deleting substrate:", error);
-        ToastService.showError("Fehler beim Löschen des Substrats");
+        ToastService.showError({ key: 'substrate.delete_error' });
       }
     },
     loadingTimeout() {

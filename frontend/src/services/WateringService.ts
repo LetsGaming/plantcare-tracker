@@ -3,6 +3,7 @@ import ToastService from "@/services/general/ToastService";
 import storageService from "@/services/general/StorageService";
 import WateringMapper from "@/mapping/WateringMapping";
 import Utils from "@/utils/utils";
+import localizationService from "@/services/general/LocalizationService";
 
 const BASE_ENDPOINT = "/watering";
 const CACHE_KEY_WATERING_RECORDS = "watering_records_data";
@@ -51,7 +52,7 @@ async function fetchAndCacheWateringRecords(
       // No watering records found for this plant; return empty array
       return [];
     }
-    ToastService.showError(`Error fetching watering records: ${error}`);
+    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('watering.title') || 'watering', details: String(error) }, fallback: `Error fetching watering records: ${error}` });
     throw error;
   }
 }
@@ -94,7 +95,7 @@ export default class WateringService {
       });
       return fertilizerTypes;
     } catch (error) {
-      ToastService.showError(`Error fetching fertilizer types: ${error}`);
+      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('watering.fertilizer_types') || 'fertilizer types', details: String(error) }, fallback: `Error fetching fertilizer types: ${error}` });
       throw error;
     }
   }
@@ -143,9 +144,7 @@ export default class WateringService {
       const record = WateringMapper.convertToWateringRecords(response)[0];
       return record;
     } catch (error) {
-      ToastService.showError(
-        `Error fetching watering record details: ${error}`
-      );
+      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error fetching watering record details: ${error}` });
       throw error;
     }
   }
@@ -170,7 +169,7 @@ export default class WateringService {
 
       return response;
     } catch (error) {
-      ToastService.showError(`Error adding watering record: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('watering.add') || 'add', resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error adding watering record: ${error}` });
       throw error;
     }
   }
@@ -191,7 +190,7 @@ export default class WateringService {
       }
       return response;
     } catch (error) {
-      ToastService.showError(`Error updating watering record: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('watering.update') || 'update', resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error updating watering record: ${error}` });
       throw error;
     }
   }
@@ -212,7 +211,7 @@ export default class WateringService {
       await cacheWateringRecords(plantId, updatedRecords);
       return response;
     } catch (error) {
-      ToastService.showError(`Error deleting watering record: ${error}`);
+      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('watering.delete') || 'delete', resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error deleting watering record: ${error}` });
       throw error;
     }
   }

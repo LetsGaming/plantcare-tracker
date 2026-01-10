@@ -1,9 +1,9 @@
 <template>
   <BaseFormModal
     :isOpen="isOpen"
-    modalTitle="Pflanze hinzufügen"
-    formTitle="Pflanzen Informationen"
-    submitLabel="Pflanze hinzufügen"
+    modalTitle="plant.add.title"
+    formTitle="plant.add.form_title"
+    submitLabel="plant.add.submit"
     :formData="plant"
     :formFields="plantFormFields"
     :extra-content-component="SubstrateContainer"
@@ -55,18 +55,18 @@ export default defineComponent({
   computed: {
     plantFormFields() {
       return [
-        { type: "input", modelKey: "name", label: "Name", required: true },
+          { type: "input", modelKey: "name", label: "plant.field.name", required: true },
         {
-          type: "input",
-          modelKey: "species",
-          label: "Spezies",
-          required: true,
+            type: "input",
+            modelKey: "species",
+            label: "plant.field.species",
+            required: true,
         },
         {
           type: "select",
           modelKey: "substrateId",
-          label: "Substrat",
-          placeholder: "Substrat auswählen",
+            label: "plant.field.substrate",
+            placeholder: "plant.field.substrate_placeholder",
           options: this.substrates.map((substrate: any) => ({
             value: substrate.id,
             label: substrate.name,
@@ -76,14 +76,14 @@ export default defineComponent({
         {
           type: "radio",
           modelKey: "isPublic",
-          label: "Sichtbarkeit",
-          options: [
-            { value: true, label: "Öffentlich" },
-            { value: false, label: "Privat" },
-          ],
+            label: "plant.field.visibility",
+            options: [
+              { value: true, label: 'plant.visibility.public' },
+              { value: false, label: 'plant.visibility.private' },
+            ],
           defaultValue: Boolean(this.plant.isPublic),
         },
-        { type: "file", modelKey: "image", label: "Bild hochladen" },
+          { type: "file", modelKey: "image", label: "plant.image.upload" },
       ] as FormField[];
     },
     selectedSubstrate() {
@@ -109,9 +109,7 @@ export default defineComponent({
         !plantData.species.trim() ||
         plantData.substrateId === 0
       ) {
-        ToastService.showError(
-          "Bitte füllen Sie alle erforderlichen Felder aus."
-        );
+        ToastService.showError({ key: 'plant.add.error_required', fallback: 'Please fill in all required fields.' });
         return;
       }
 
@@ -126,17 +124,17 @@ export default defineComponent({
         this.clearPlantData();
         this.$emit("added");
       } catch (error) {
-        ToastService.showError("Fehler beim Hinzufügen der Pflanze");
+        ToastService.showError({ key: 'plant.add.error_failed', fallback: 'Failed to add plant.' });
       }
     },
     async upladImage(id: number, image: File) {
       try {
         const response = await PlantService.uploadPlantImage(id, image);
         if (response) {
-          ToastService.showSuccess("Bild erfolgreich hochgeladen");
+          ToastService.showSuccess({ key: 'plant.add.upload_success', fallback: 'Image uploaded successfully.' });
         }
       } catch (error) {
-        ToastService.showError("Fehler beim Hochladen des Bildes");
+        ToastService.showError({ key: 'plant.add.upload_failed', fallback: 'Failed to upload image.' });
       }
     },
     loadingTimeout() {

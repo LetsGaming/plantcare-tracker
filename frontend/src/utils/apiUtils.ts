@@ -1,4 +1,5 @@
 import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
 import TokenUtils from "./tokenUtils";
 import Utils from "./utils";
 
@@ -129,8 +130,8 @@ const handleNoAuth = async (
     return await requestFn();
   } catch (error) {
     await UserService.logout();
-    ToastService.showError("Session expired. You have been logged out.");
-    throw new Error("Session expired. You have been logged out.");
+    ToastService.showError({ key: 'auth.session_expired', fallback: 'Session expired. You have been logged out.' });
+    throw new Error(localizationService.t('auth.session_expired') || "Session expired. You have been logged out.");
   }
 };
 
