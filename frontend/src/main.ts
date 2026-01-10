@@ -30,8 +30,17 @@ import Utils from "./utils/utils";
 import localizationService from '@/services/general/LocalizationService'
 
 // register locale loaders (lazy-loaded bundles)
-localizationService.registerLoader('en', () => import('./locales/en').then(m => m.default))
-localizationService.registerLoader('de', () => import('./locales/de').then(m => m.default))
+// Auto-register locale loaders from the `src/locales` directory.
+// Uses Vite's `import.meta.glob` to keep bundles lazy and maintainable.
+const localeLoaders = import.meta.glob('./locales/*.{ts,js}');
+for (const p in localeLoaders) {
+  const m = localeLoaders[p] as () => Promise<any>;
+  const match = p.match(/\.\/locales\/([^\.\/]+)\./);
+  if (!match) continue;
+  const localeKey = match[1];
+  localizationService.registerLoader(localeKey, () => m().then((mod) => mod.default));
+}
+
 async function initializeApp() {
   document.title = Utils.getAppTitle();
 
