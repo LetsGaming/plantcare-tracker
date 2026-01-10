@@ -8,6 +8,7 @@ import UserService from "@/services/UserService";
 const Login = () => import("@/views/Login.vue");
 const TabsPage = () => import("@/views/TabsPage.vue");
 const Profile = () => import("@/views/Profile.vue");
+const NotFound = () => import("@/views/NotFound.vue");
 
 const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
 const PlantDetails = () => import("@/views/plants/PlantDetails.vue");
@@ -44,10 +45,18 @@ const routes: Array<RouteRecordRaw> = [
     component: Profile,
     meta: authMeta,
   },
+  {
+    path: "/:catchAll(.*)",
+    name: "not-found",
+    component: NotFound,
+    meta: { requiresAuth: false },
+  },
 
   {
     path: "/tabs",
     component: TabsPage,
+    name: "tabs",
+    redirect: "/tabs/plants/overview",
     children: [
       {
         name: "plant-overview",

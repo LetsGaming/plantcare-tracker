@@ -28,6 +28,14 @@ export default {
   "toast.dismiss": "Schließen",
 
   /* =====================================================
+   * Not Found Page
+   * ===================================================== */
+  "pageNotFound.title": "Seite nicht gefunden",
+  "pageNotFound.message":
+    "Entschuldigung, die von Ihnen gesuchte Seite existiert nicht.",
+  "pageNotFound.goHome": "Zur Startseite",
+
+  /* =====================================================
    * Authentication
    * ===================================================== */
   "auth.login": "Anmelden",
