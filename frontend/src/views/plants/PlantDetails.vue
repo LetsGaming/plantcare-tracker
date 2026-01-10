@@ -5,7 +5,7 @@
       @edit-click="showEditModal = true"
       :show-upload-button="!isPublic"
       @uploadClick="showUploadModal = true"
-      default-href="/tabs/plants/overview"
+      default-href="/tabs/plants"
     />
     <ion-content>
       <div v-if="plant">

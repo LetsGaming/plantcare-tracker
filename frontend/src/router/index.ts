@@ -56,11 +56,11 @@ const routes: Array<RouteRecordRaw> = [
     path: "/tabs",
     component: TabsPage,
     name: "tabs",
-    redirect: "/tabs/plants/overview",
+    redirect: "/tabs/plants",
     children: [
       {
         name: "plant-overview",
-        path: "plants/overview",
+        path: "plants",
         meta: authMeta,
         component: PlantOverview,
       },
