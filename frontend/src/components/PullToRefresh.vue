@@ -4,9 +4,9 @@
     <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
       <ion-refresher-content
         :pulling-icon="chevronDown"
-        pulling-text="Ziehen um zu aktualisieren"
+        :pulling-text="t('pullToRefresh.pull')"
         refreshing-spinner="circles"
-        refreshing-text="Aktualisiere..."
+        :refreshing-text="t('pullToRefresh.refreshing')"
       />
     </ion-refresher>
 
@@ -20,7 +20,7 @@
       >
         <template v-if="isRefreshing">
           <ion-spinner name="dots" />
-          Lädt...
+          {{ t('pullToRefresh.loading') }}
         </template>
         <template v-else>
           <ion-icon :icon="refresh" />
@@ -46,6 +46,7 @@ import {
   IonSpinner,
 } from "@ionic/vue";
 import { chevronDownCircleOutline, reload } from "ionicons/icons";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "PullToRefresh",
@@ -71,6 +72,9 @@ export default defineComponent({
     };
   },
   methods: {
+    t(key: string): string {
+      return localizationService.t(key, undefined, key);
+    },
     handleRefresh(event: any) {
       this.isRefreshing = true;
       this.onRefresh().then(() => {

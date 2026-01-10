@@ -75,6 +75,10 @@ export default {
   "segment.public": "Public",
   "segment.private": "Personal",
 
+  "pullToRefresh.pull": "Pull to refresh",
+  "pullToRefresh.refreshing": "Refreshing...",
+  "pullToRefresh.loading": "Loading...",
+
   /* =====================================================
    * Profile
    * ===================================================== */
