@@ -57,6 +57,7 @@ export default defineComponent({
       name: string;
       imageUrl?: string;
       description?: string;
+      isNew?: boolean;
     }> {
       return this.sales.map((sale: Sale) => ({
         id: sale.id,
@@ -65,6 +66,7 @@ export default defineComponent({
         description: `${sale.seller ?? ""}${
           sale.price ? " - " + sale.price + "€" : ""
         }`,
+        isNew: sale.isNew,
       }));
     },
   },

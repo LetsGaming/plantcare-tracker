@@ -20,7 +20,13 @@
             class="responsive-col"
           >
             <ion-card class="item-card" @click="navigateToItem(item.id)">
-              <!-- Image -->
+              <ion-badge
+                v-if="item.isNew"
+                class="new-badge-round"
+                color="danger"
+              >
+                NEW
+              </ion-badge>
               <div :class="['item-image-wrapper', { 'image-only': imageOnly }]">
                 <ion-img
                   :src="item.imageUrl || '/no-image.png'"
@@ -29,7 +35,6 @@
                 />
               </div>
 
-              <!-- Content -->
               <ion-card-content v-if="!imageOnly" class="item-content">
                 <ion-card-title class="item-title">
                   {{ item.name }}
@@ -72,6 +77,7 @@ import {
   IonCardSubtitle,
   IonText,
   IonImg,
+  IonBadge,
 } from "@ionic/vue";
 
 import SearchBar from "@/components/SearchBar.vue";
@@ -90,6 +96,7 @@ export default defineComponent({
     IonCardContent,
     IonText,
     IonImg,
+    IonBadge,
     SearchBar,
     PullToRefresh,
   },
@@ -101,6 +108,7 @@ export default defineComponent({
           name: string;
           imageUrl?: string;
           description?: string;
+          isNew?: boolean;
         }>
       >,
       required: true,
@@ -131,7 +139,14 @@ export default defineComponent({
       this.filteredItems = this.sortItems(filtered);
     },
     sortItems(items: any[]) {
-      return [...items].sort((a, b) => a.name.localeCompare(b.name));
+      return [...items].sort((a, b) => {
+        // 1. Sort by isNew status (true before false)
+        if (a.isNew && !b.isNew) return -1;
+        if (!a.isNew && b.isNew) return 1;
+
+        // 2. If both have the same isNew status, sort by name
+        return a.name.localeCompare(b.name);
+      });
     },
     navigateToItem(id: number | string) {
       if (typeof id !== "number" && typeof id !== "string") {
@@ -171,6 +186,9 @@ ion-col {
 
 /* CARD BASE */
 .item-card {
+  position: relative;
+  /* Important: Ensure overflow is visible so the badge can hang outside */
+  overflow: visible;
   height: 90%;
   display: flex;
   flex-direction: column;
@@ -184,16 +202,41 @@ ion-col {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
+/* ROUND OVERLAPPING BADGE */
+.new-badge-round {
+  position: absolute;
+  /* Adjust these negative values to move the badge further outside or inside */
+  top: 8px;
+  right: 8px;
+
+  z-index: 20; /* Higher than images */
+
+  /* Making it round */
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+
+  font-size: 0.7rem;
+  font-weight: bold;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  border: 2px solid white; /* Adds a clean separation from the card */
+}
+
 /* IMAGE */
 .item-image-wrapper {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
+  border-radius: 15px 15px 0 0; /* Match card top radius */
 }
 
 .image-only {
   height: 100% !important;
   width: 100% !important;
+  border-radius: 15px !important;
 }
 
 .item-image-wrapper ion-img {
@@ -208,6 +251,13 @@ ion-col {
 }
 
 /* CONTENT */
+.item-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  max-width: 90%;
+}
+
 .item-content {
   flex: 1;
   display: flex;
@@ -233,6 +283,7 @@ ion-col {
     height: 100%;
     aspect-ratio: unset;
     flex-shrink: 0;
+    border-radius: 15px 0 0 15px; /* Adjust radius for horizontal layout */
   }
 
   .item-content {
@@ -241,10 +292,8 @@ ion-col {
   }
 }
 
-/* Custom XXL Breakpoint (e.g., 1440px or 1600px) */
 @media (min-width: 2560px) {
   .responsive-col {
-    /* Force 4 items per row (equivalent to a 'size-xxl="3"') */
     flex: 0 0 calc(calc(3 / 12) * 100%) !important;
     width: calc(calc(3 / 12) * 100%) !important;
     max-width: calc(calc(3 / 12) * 100%) !important;

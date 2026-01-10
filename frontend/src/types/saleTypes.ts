@@ -7,6 +7,7 @@ interface Sale {
     oldPrice: number;
     link: string;
     imageUrl?: string;
+    isNew?: boolean;
 }
 
 interface APISale {

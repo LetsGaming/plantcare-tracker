@@ -117,7 +117,7 @@ ion-content {
   --padding-bottom: 0;
 }
 
-@media (max-width: 1024px) and (min-width: 769px) {
+@media (max-width: 1440px) and (min-width: 769px) {
   .refresh-button-container {
     left: 90%;
   }
