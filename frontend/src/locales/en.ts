@@ -312,6 +312,7 @@ export default {
   "overview.more_details": "More details",
   "overview.no_entries": "No entries found.",
   "moreinfo.title": "More Information",
+  "moreinfo.loading": "Loading additional information...",
   "moreinfo.no_info": "No additional information available.",
   "moreinfo.links": "Useful Links",
   "moreinfo.ai_title": "AI-generated Information",

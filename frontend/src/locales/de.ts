@@ -319,6 +319,7 @@ export default {
   "overview.more_details": "Mehr Details",
   "overview.no_entries": "Keine Einträge gefunden.",
   "moreinfo.title": "Mehr Informationen",
+  "moreinfo.loading": "Lade zusätzliche Informationen...",
   "moreinfo.no_info": "Keine zusätzlichen Informationen verfügbar.",
   "moreinfo.links": "Nützliche Links",
   "moreinfo.ai_title": "KI-generierte Informationen",
