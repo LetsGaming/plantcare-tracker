@@ -10,9 +10,25 @@ const chromiumLimit = createLimiter(2);
 const axiosLimit = createLimiter(8);
 
 // --- Domain Helpers ---
+const normalizeUrl = (url) => {
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    u.search = "";
+    u.pathname = u.pathname.replace(/\/$/, "");
+    return u.toString();
+  } catch {
+    return url;
+  }
+};
+
 const generateSaleId = (seller, link) => {
   if (!link) return null;
-  return crypto.createHash("sha1").update(`${seller}|${link}`).digest("hex");
+  const normalized = normalizeUrl(link);
+  return crypto
+    .createHash("sha1")
+    .update(`${seller}|${normalized}`)
+    .digest("hex");
 };
 
 const formatItem = (item, scraper) => {
@@ -31,12 +47,14 @@ const formatItem = (item, scraper) => {
 
 const buildUrl = (scraper, page) => {
   if (page === 1) return scraper.baseUrl;
-  if (scraper.urlTemplate) return scraper.urlTemplate.replace(/\{\{page\}\}/g, page);
-  
+  if (scraper.urlTemplate)
+    return scraper.urlTemplate.replace(/\{\{page\}\}/g, page);
+
   const pattern = scraper.pagePattern?.replace(/\{\{page\}\}/g, page);
   if (pattern?.startsWith("?")) return `${scraper.baseUrl}${pattern}`;
-  if (pattern?.endsWith("/")) return `${scraper.baseUrl.replace(/\/$/, "")}/${pattern}`;
-  
+  if (pattern?.endsWith("/"))
+    return `${scraper.baseUrl.replace(/\/$/, "")}/${pattern}`;
+
   return `${scraper.baseUrl}${pattern}`;
 };
 
@@ -50,13 +68,13 @@ const getSalesData = async (req, res) => {
   const scrapeWorker = async (scraper, page) => {
     try {
       const url = buildUrl(scraper, page);
-      
+
       await fetchData(
         url,
         (html) => {
           const root = parse(html);
           const rawItems = scraper.parseFn(root);
-          
+
           const formattedItems = rawItems
             .map((item) => formatItem(item, scraper))
             .filter(Boolean);
@@ -67,22 +85,25 @@ const getSalesData = async (req, res) => {
         { ...scraper.options, cacheKey: `${scraper.key}_${page}` }
       );
     } catch (err) {
-      console.error(`[Scraper: ${scraper.key}] Page ${page} failed:`, err.message);
+      console.error(
+        `[Scraper: ${scraper.key}] Page ${page} failed:`,
+        err.message
+      );
     }
   };
 
   // 1. Create a flattened list of all scraping tasks
-  const jobs = SCRAPERS
-    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
-    .flatMap((scraper) =>
-      Array.from({ length: scraper.maxPages }, (_, i) => {
-        const page = i + 1;
-        const runner = scraper.options?.useChromium ? chromiumLimit : axiosLimit;
-        
-        // Return a promise that the limiter will resolve
-        return runner(() => scrapeWorker(scraper, page));
-      })
-    );
+  const jobs = SCRAPERS.sort(
+    (a, b) => (a.priority ?? 0) - (b.priority ?? 0)
+  ).flatMap((scraper) =>
+    Array.from({ length: scraper.maxPages }, (_, i) => {
+      const page = i + 1;
+      const runner = scraper.options?.useChromium ? chromiumLimit : axiosLimit;
+
+      // Return a promise that the limiter will resolve
+      return runner(() => scrapeWorker(scraper, page));
+    })
+  );
 
   // 2. Execute all tasks in parallel (limited by the runners)
   await Promise.allSettled(jobs);

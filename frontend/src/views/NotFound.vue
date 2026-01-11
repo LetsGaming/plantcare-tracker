@@ -6,7 +6,7 @@
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <ion-card class="align-middle not-found-card">
+      <ion-card class="align-middle align-horizontal not-found-card">
         <ion-card-header>
           <ion-card-title>{{ t("pageNotFound.title") }}</ion-card-title>
         </ion-card-header>
@@ -69,7 +69,6 @@ export default defineComponent({
 
 <style scoped>
 .not-found-card {
-  margin-top: 35vh;
   display: block;
 }
 </style>

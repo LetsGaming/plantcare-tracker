@@ -8,6 +8,10 @@
   flex-wrap: wrap;
 }
 
+.align-horizontal {
+  margin-top: 35vh;
+}
+
 @media (max-width: 768px) {
   .align-middle {
     margin: 10px;

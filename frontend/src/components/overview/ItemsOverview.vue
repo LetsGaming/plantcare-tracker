@@ -58,7 +58,7 @@
     </template>
 
     <template v-else>
-      <ion-text color="secondary" class="align-middle" style="margin-top: 35vh">
+      <ion-text color="secondary" class="align-middle align-horizontal">
         {{ t('overview.no_entries') }}
       </ion-text>
     </template>
