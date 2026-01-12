@@ -24,7 +24,8 @@
               </ion-card-title>
 
               <ion-card-subtitle class="sale-seller">
-                {{ t('sales.sold_by') }} <span class="seller-name">{{ sale.seller }}</span>
+                {{ t("sales.sold_by") }}
+                <span class="seller-name">{{ sale.seller }}</span>
               </ion-card-subtitle>
             </ion-card-header>
 
@@ -40,7 +41,7 @@
 
                 <div>
                   <span v-if="savings" class="savings">
-                    {{ t('sales.you_save') }} {{ savings }} €
+                    {{ t("sales.you_save") }} {{ savings }} €
                   </span>
                 </div>
               </div>
@@ -53,7 +54,7 @@
                 target="_blank"
                 rel="noopener"
               >
-                {{ t('sales.view_sale') }}
+                {{ t("sales.view_sale") }}
               </ion-button>
             </ion-card-content>
           </ion-card>
@@ -113,6 +114,7 @@ export default defineComponent({
   mounted() {
     // Fetch sale details using the provided id
     this.fetchSaleDetails();
+    this.markAsSeen();
   },
   computed: {
     saleSubtitle(): string {
@@ -162,6 +164,13 @@ export default defineComponent({
         console.error("Error fetching sale details:", error);
       }
     },
+    async markAsSeen() {
+      try {
+        await SalesService.markSaleAsSeen(this.id);
+      } catch (error) {
+        console.error("Error marking sale as seen:", error);
+      }
+    },
   },
 });
 </script>
@@ -174,13 +183,23 @@ export default defineComponent({
 
 .sale-badge {
   position: absolute;
+  /* Adjust these negative values to move the badge further outside or inside */
   top: 8px;
   right: 8px;
+
+  z-index: 20; /* Higher than images */
+
+  /* Making it round */
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+
+  font-size: 0.7rem;
   font-weight: bold;
-  font-size: 0.85rem;
-  padding: 4px 8px;
-  border-radius: 12px;
-  z-index: 10;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .sale-title {

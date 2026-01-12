@@ -115,4 +115,18 @@ export default class SalesService {
     }
     return cached.sales.filter((sale) => sale.isNew).length;
   }
+
+  static async markSaleAsSeen(saleId: string): Promise<void> {
+    const cached = await getCachedSalesData();
+    if (!cached) {
+      return;
+    }
+    const updatedSales = cached.sales.map((sale) => {
+      if (sale.id === saleId) {
+        return { ...sale, isNew: false };
+      }
+      return sale;
+    });
+    await cacheSalesData(updatedSales);
+  }
 }
