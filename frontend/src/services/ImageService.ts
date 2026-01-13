@@ -1,8 +1,11 @@
+import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 
 const BASE_ENDPOINT = "/images";
+const RESOURCE_KEY = "image.title"; // Localization key for "Image"
 
-export default class ImageService {
+export default class ImageService extends BaseService {
+  
   static async uploadImage(
     image: File,
     entityType: EntityType,
@@ -15,38 +18,50 @@ export default class ImageService {
       formData.append("date", date.toString());
     }
 
-    const url = `/images/${entityType}/${entityId}`;
-    const response = await ApiUtils.upload(url, formData);
-    return response;
+    const url = `${BASE_ENDPOINT}/${entityType}/${entityId}`;
+    
+    // handleRequest ensures the user gets a Toast if the upload fails
+    return this.handleRequest(
+      ApiUtils.upload(url, formData), 
+      RESOURCE_KEY, 
+      "image.upload"
+    );
   }
 
   static async editImage(
     imageId: number,
-    entityType: EntityType,
+    entityType: string,
     date?: number,
     image?: File
   ) {
     const formData = new FormData();
-    if (date) {
-      formData.append("date", date.toString());
-    }
-    if (image) {
-      formData.append("image", image);
-    }
+    if (date) formData.append("date", date.toString());
+    if (image) formData.append("image", image);
+
     const url = `${BASE_ENDPOINT}/image/${entityType}/${imageId}`;
-    const response = await ApiUtils.patchImage(url, formData);
-    return response;
+    
+    return this.handleRequest(
+      ApiUtils.patchImage(url, formData), 
+      RESOURCE_KEY, 
+      "error.action_failed"
+    );
   }
 
   static async deleteImage(imageId: number) {
     const url = `${BASE_ENDPOINT}/image/${imageId}`;
-    const response = await ApiUtils.delete(url);
-    return response;
+    return this.handleRequest(
+      ApiUtils.delete(url), 
+      RESOURCE_KEY, 
+      "error.action_failed"
+    );
   }
 
-  static async deleteAllImages(entityType: EntityType, entityId: number) {
+  static async deleteAllImages(entityType: string, entityId: number) {
     const url = `${BASE_ENDPOINT}/${entityType}/${entityId}`;
-    const response = await ApiUtils.delete(url);
-    return response;
+    return this.handleRequest(
+      ApiUtils.delete(url), 
+      RESOURCE_KEY, 
+      "error.action_failed"
+    );
   }
 }

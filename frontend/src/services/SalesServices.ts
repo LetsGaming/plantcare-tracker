@@ -1,61 +1,76 @@
+import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 import storageService from "./general/StorageService";
 import SaleMapper from "@/mapping/SaleMapping";
 import Utils from "@/utils/utils";
 
-const BASE_ENDPOINT = "/sales";
-const CACHE_KEY_SALES_DATA = "sales_data";
+const ENDPOINT = "/sales";
+const CACHE_KEY = "sales_data";
+const RESOURCE_KEY = "sales.title";
 
-async function getCachedSalesData() {
-  return await storageService.get<{
-    sales: Sale[];
-    timestamp: number;
-  }>(CACHE_KEY_SALES_DATA);
+export enum SaleEvents {
+  SALE_SEEN = "sale-seen",
 }
 
-async function cacheSalesData(sales: Sale[]) {
-  await storageService.set(CACHE_KEY_SALES_DATA, {
-    sales,
-    timestamp: Date.now(),
-  });
-}
-
-export default class SalesService {
+export default class SalesService extends BaseService {
   /**
-   * Internal worker to stream data and compare it against the "known" snapshot.
+   * Fetches sales with streaming support.
+   * Wraps the complex streaming logic inside handleRequest for toast support.
    */
-  private static _streamAndCache(
+  static async getSales(options?: {
+    forceUpdate?: boolean;
+    onUpdate?: (chunk: Sale[]) => void;
+  }): Promise<Sale[]> {
+    const cached = await storageService.get<{
+      sales: Sale[];
+      timestamp: number;
+    }>(CACHE_KEY);
+    const isExpired = !cached || Utils.isCacheExpired(cached.timestamp);
+    const existingIds = new Set(cached?.sales.map((s) => s.id) || []);
+
+    if (!options?.forceUpdate && !isExpired && cached) {
+      return cached.sales.map((s) => ({ ...s, isNew: false }));
+    }
+
+    // Wrap the stream in handleRequest to catch connection errors
+    return this.handleRequest(
+      this.streamSales(existingIds, options?.onUpdate),
+      RESOURCE_KEY
+    );
+  }
+
+  /**
+   * Core Streaming Logic
+   */
+  private static streamSales(
     existingIds: Set<string>,
     onUpdate?: (chunk: Sale[]) => void
-  ): { promise: Promise<Sale[]>; stop: () => void } {
-    const accumulated: Sale[] = [];
-    let stopFn: () => void;
+  ): Promise<Sale[]> {
+    return new Promise((resolve, reject) => {
+      const accumulated: Sale[] = [];
 
-    const promise = new Promise<Sale[]>((resolve, reject) => {
-      stopFn = ApiUtils.stream(
-        BASE_ENDPOINT,
+      const stopFn = ApiUtils.stream(
+        ENDPOINT,
         (event) => {
           try {
             const rawChunk = SaleMapper.convertToSales(event.data);
-
-            // Flag items: True if the ID was NOT in the cache when we started
             const flaggedChunk = rawChunk.map((sale) => ({
               ...sale,
               isNew: !existingIds.has(sale.id),
             }));
 
-            // Deduplicate and accumulate for final storage
             flaggedChunk.forEach((sale) => {
               if (!accumulated.find((s) => s.id === sale.id)) {
                 accumulated.push(sale);
               }
             });
 
-            // Emit the flagged results to the UI immediately
             onUpdate?.(flaggedChunk);
-
-            // Incrementally update storage so data isn't lost if the tab closes
-            cacheSalesData(accumulated);
+            // Internal silent cache update
+            storageService.set(CACHE_KEY, {
+              sales: accumulated,
+              timestamp: Date.now(),
+            });
           } catch (err) {
             stopFn();
             reject(err);
@@ -71,67 +86,45 @@ export default class SalesService {
         }
       );
     });
-
-    return { promise, stop: () => stopFn() };
   }
 
-  /**
-   * Main entry point.
-   * Compares incoming network data against localStorage to flag new items.
-   */
-  static async getSales(options?: {
-    forceUpdate?: boolean;
-    onUpdate?: (chunk: Sale[]) => void;
-  }): Promise<Sale[]> {
-    const forceUpdate = options?.forceUpdate ?? false;
-    const cached = await getCachedSalesData();
-
-    const isExpired = !cached || Utils.isCacheExpired(cached.timestamp);
-
-    // 1. Create a Snapshot of current knowledge
-    const existingIds = new Set(cached?.sales.map((s) => s.id) || []);
-
-    // 2. Return cache if valid and not forced
-    if (!forceUpdate && !isExpired && cached) {
-      // When returning from cache, items aren't "new" anymore for this session
-      return cached.sales.map((s) => ({ ...s, isNew: false }));
-    }
-
-    // 3. Otherwise, stream from API and flag against the snapshot
-    const { promise } = this._streamAndCache(existingIds, options?.onUpdate);
-    return promise;
-  }
-
-  /** Get a single sale by ID from the current dataset */
   static async getSaleById(saleId: string): Promise<Sale | null> {
     const sales = await this.getSales();
     return sales.find((sale) => sale.id === saleId) || null;
   }
 
   static async getNewSalesCount(): Promise<number> {
-    const cached = await getCachedSalesData();
-    if (!cached) {
-      return 0;
-    }
-    return cached.sales.filter((sale) => sale.isNew).length;
+    const cached = await storageService.get<{ sales: Sale[] }>(CACHE_KEY);
+    return cached ? cached.sales.filter((sale) => sale.isNew).length : 0;
   }
 
+  /**
+   * Marks a sale as seen and notifies the app via DOM events
+   */
   static async markSaleAsSeen(saleId: string): Promise<void> {
-    const cached = await getCachedSalesData();
-    if (!cached) {
-      return;
-    }
-    const updatedSales = cached.sales.map((sale) => {
-      if (sale.id === saleId) {
-        return { ...sale, isNew: false };
-      }
-      return sale;
-    });
-    await cacheSalesData(updatedSales);
+    const cached = await storageService.get<{
+      sales: Sale[];
+      timestamp: number;
+    }>(CACHE_KEY);
+    if (!cached) return;
+
+    const updatedSales = cached.sales.map((sale) =>
+      sale.id === saleId ? { ...sale, isNew: false } : sale
+    );
+
+    // Using the helper from BaseService
+    await this.saveAndNotify(
+      CACHE_KEY,
+      SaleEvents.SALE_SEEN,
+      updatedSales,
+      "sales"
+    );
+    // Also emit specific ID for granular UI updates
+    this.emit(`${SaleEvents.SALE_SEEN}-id`, saleId);
   }
 
   static async getCachedSales(): Promise<Sale[] | null> {
-    const cached = await getCachedSalesData();
+    const cached = await storageService.get<{ sales: Sale[] }>(CACHE_KEY);
     return cached ? cached.sales : null;
   }
 }

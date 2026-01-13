@@ -105,7 +105,7 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         name: "sales-details",
-        path: "sales/details/:id",
+        path: "/sales/details/:id",
         meta: authMeta,
         props: true,
         component: SalesDetails,

@@ -14,7 +14,6 @@
       </ion-toolbar>
     </ion-card-header>
 
-    <!-- Records -->
     <section v-if="mappedRecords.length > 0" class="watering-records">
       <ion-card-header>
         <ion-card-title class="record-title">
@@ -30,7 +29,6 @@
           </span>
         </ion-card-title>
 
-        <!-- Statistics -->
         <section
           v-if="records.length > 0"
           class="watering-stats"
@@ -60,7 +58,12 @@
       </ion-card-content>
     </section>
 
-    <!-- Add Modal -->
+    <ion-card-content v-else class="align-middle">
+      <ion-text color="medium">{{
+        t("watering.records.no_data", {}, "Keine Aufzeichnungen vorhanden")
+      }}</ion-text>
+    </ion-card-content>
+
     <BaseFormModal
       v-if="showAddingModal"
       :is-open="showAddingModal"
@@ -74,7 +77,6 @@
       @submit="addRecord"
     />
 
-    <!-- Edit Modal -->
     <BaseFormModal
       v-if="showEditingModal && selectedRecord"
       :is-open="showEditingModal"
@@ -102,6 +104,7 @@ import {
   IonCardSubtitle,
   IonCardContent,
   IonIcon,
+  IonText,
 } from "@ionic/vue";
 import { addCircle } from "ionicons/icons";
 
@@ -124,6 +127,7 @@ export default defineComponent({
     IonCardSubtitle,
     IonCardContent,
     IonIcon,
+    IonText,
     Calendar,
     BaseFormModal,
   },
@@ -140,6 +144,7 @@ export default defineComponent({
       records: [] as WateringRecord[],
       mappedRecords: [] as CalendarDates[],
       wateringCategories: [] as Category[],
+      fertilizerOptions: [] as { label: string; value: number }[],
 
       daysAgo: -1,
       selectedDate: null as string | null,
@@ -150,8 +155,6 @@ export default defineComponent({
       showEditingModal: false,
       isGuest: false,
       isLoading: false,
-
-      fertilizerOptions: [] as { label: string; value: number }[],
 
       addingRecord: {
         date: undefined,
@@ -167,19 +170,33 @@ export default defineComponent({
     };
   },
   async mounted() {
-    this.isGuest = await UserService.isGuest();
-    this.wateringCategories = await CalendarService.getWateringCategories();
+    this.isLoading = true;
+    try {
+      // Parallel loading to optimize speed while remaining safe
+      const [isGuest, categories, types] = await Promise.all([
+        UserService.isGuest(),
+        CalendarService.getWateringCategories(),
+        WateringService.getFertilizerTypes(),
+      ]);
 
-    const types = await WateringService.getFertilizerTypes();
-    this.fertilizerOptions = [
-      ...types.map((t) => ({ label: t.name, value: t.id })),
-      {
-        label: this.t("watering.records.no_fertilizer", {}, "Kein Dünger"),
-        value: -1,
-      },
-    ];
+      this.isGuest = !!isGuest;
+      this.wateringCategories = categories || [];
 
-    await this.setRecords();
+      const fertilizerTypes = types || [];
+      this.fertilizerOptions = [
+        ...fertilizerTypes.map((t) => ({ label: t.name, value: t.id })),
+        {
+          label: this.t("watering.records.no_fertilizer", {}, "Kein Dünger"),
+          value: -1,
+        },
+      ];
+
+      await this.setRecords();
+    } catch (error) {
+      console.error("Critical error in WateringRecords mounted:", error);
+    } finally {
+      this.isLoading = false;
+    }
   },
   computed: {
     popoverInfo(): PopoverItem | undefined {
@@ -223,7 +240,6 @@ export default defineComponent({
       const sorted = [...this.records].sort(
         (a, b) => a.date_millis - b.date_millis
       );
-
       const diffs = sorted
         .slice(1)
         .map((r, i) => (r.date_millis - sorted[i].date_millis) / 86400000);
@@ -237,7 +253,6 @@ export default defineComponent({
           "ca. alle {count} Tage"
         );
       }
-
       if (avg < 30) {
         return this.t(
           "watering.records.frequency.weeks",
@@ -245,7 +260,6 @@ export default defineComponent({
           "ca. alle {count} Wochen"
         );
       }
-
       if (avg < 90) {
         return this.t(
           "watering.records.frequency.months",
@@ -253,7 +267,6 @@ export default defineComponent({
           "ca. alle {count} Monate"
         );
       }
-
       return this.t(
         "watering.records.frequency.years",
         { count: Math.round(avg / 365) },
@@ -348,18 +361,25 @@ export default defineComponent({
       ];
     },
     async setRecords() {
-      this.records = await WateringService.getWateringRecords(this.plantId);
+      try {
+        const response = await WateringService.getWateringRecords(this.plantId);
+        this.records = response || [];
 
-      if (!this.records.length) {
+        if (this.records.length === 0) {
+          this.mappedRecords = [];
+          this.daysAgo = -1;
+          return;
+        }
+
+        const latest = Math.max(...this.records.map((r) => r.date_millis));
+        this.daysAgo = Math.floor((Date.now() - latest) / 86400000);
+
+        this.mappedRecords = this.mapWateringsToCalendar(this.records);
+      } catch (error) {
+        this.records = [];
         this.mappedRecords = [];
-        this.daysAgo = -1;
-        return;
+        console.error("Error setting watering records:", error);
       }
-
-      const latest = Math.max(...this.records.map((r) => r.date_millis));
-      this.daysAgo = Math.floor((Date.now() - latest) / 86400000);
-
-      this.mappedRecords = this.mapWateringsToCalendar(this.records);
     },
     onDateChange(date: string) {
       const day = date.split("T")[0];
@@ -392,13 +412,16 @@ export default defineComponent({
     async deleteRecord() {
       if (!this.selectedRecord?.id) return;
       this.isLoading = true;
-      await WateringService.deleteWateringRecord(
-        this.plantId,
-        this.selectedRecord.id
-      );
-      this.showEditingModal = false;
-      await this.setRecords();
-      this.isLoading = false;
+      try {
+        await WateringService.deleteWateringRecord(
+          this.plantId,
+          this.selectedRecord.id
+        );
+        this.showEditingModal = false;
+        await this.setRecords();
+      } finally {
+        this.isLoading = false;
+      }
     },
     async prepareAndSaveRecord(
       record: AddWateringRecord | EditWateringRecord,
@@ -407,19 +430,23 @@ export default defineComponent({
     ) {
       this.isLoading = true;
       this.syncFertilizerUsage(record, record.fertilizerTypeId);
-
-      if (mode === "add") {
-        await WateringService.addWateringRecord(this.plantId, record);
-        this.showAddingModal = false;
-      } else if (id) {
-        await WateringService.editWateringRecord(this.plantId, id, record);
-        this.showEditingModal = false;
+      try {
+        if (mode === "add") {
+          await WateringService.addWateringRecord(this.plantId, record);
+          this.showAddingModal = false;
+        } else if (id) {
+          await WateringService.editWateringRecord(this.plantId, id, record);
+          this.showEditingModal = false;
+        }
+        await this.setRecords();
+      } finally {
+        this.isLoading = false;
       }
-
-      await this.setRecords();
-      this.isLoading = false;
     },
     mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {
+      // Logic guard: If categories failed to load, don't attempt to map
+      if (!this.wateringCategories.length) return [];
+
       return records.map((r) => {
         let category = !r.usedFertilizer
           ? this.wateringCategories.find(
@@ -428,18 +455,15 @@ export default defineComponent({
           : this.wateringCategories.find((c) => c.name === r.fertilizerType);
 
         if (!category) {
-          category = this.wateringCategories.find(
-            (c) => c.name === "watering.category.organic"
-          );
-        }
-
-        if (!category) {
-          throw new Error("No valid watering category found");
+          category =
+            this.wateringCategories.find(
+              (c) => c.name === "watering.category.organic"
+            ) || this.wateringCategories[0];
         }
 
         return {
           date: new Date(r.date_millis).toISOString().split("T")[0],
-          category,
+          category: category!,
         };
       });
     },

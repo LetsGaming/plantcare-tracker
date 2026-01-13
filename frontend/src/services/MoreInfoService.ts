@@ -1,116 +1,75 @@
+import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
-import ToastService from "@/services/general/ToastService";
-import storageService from "@/services/general/StorageService";
-import Utils from "@/utils/utils";
 import MoreInfoMapper from "@/mapping/MoreInforMaping";
-import localizationService from "@/services/general/LocalizationService";
+import storageService from "@/services/general/StorageService";
 
 const BASE_ENDPOINT = "/more-info";
-const CACHE_KEY_MORE_INFO = "more_info_data";
+const CACHE_KEY = "more_info_data";
+const RESOURCE_KEY = "moreinfo.title";
 
-async function getCachedMoreInfo() {
-  return await storageService.get<{
-    recordsByPlant: { [plantName: string]: MoreInfo[] };
-    timestamp: number;
-  }>(CACHE_KEY_MORE_INFO);
-}
-
-async function cacheMoreInfo(plantName: string, newRecords: MoreInfo[]) {
-  const cachedData = await getCachedMoreInfo();
-  const existingRecordsByPlant = cachedData?.recordsByPlant || {};
-
-  // Merge new records while keeping records for other plants
-  const updatedRecordsByPlant = {
-    ...existingRecordsByPlant,
-    [plantName]: newRecords,
-  };
-
-  await storageService.set(CACHE_KEY_MORE_INFO, {
-    recordsByPlant: updatedRecordsByPlant,
-    timestamp: Date.now(),
-  });
-}
-
-// Fetch and update cache for a specific plant
-async function fetchAndCacheMoreInfo(plantName: string): Promise<MoreInfo[]> {
-  try {
-    const response = await ApiUtils.getWithParams(BASE_ENDPOINT, {
-      plantName,
-      htmlFormatting: "true",
-    });
-    const newRecords = MoreInfoMapper.convertToMoreInfo(
-      response as APIMoreInfo
-    );
-
-    await cacheMoreInfo(plantName, newRecords);
-
-    return newRecords;
-  } catch (error) {
-    if (ApiUtils.isApiError(error) && error.status === 404) {
-      // No more info found for this plant; return empty array
-      return [];
+export default class MoreInfoService extends BaseService {
+  /**
+   * Internal fetcher with specialized 404 handling.
+   * We keep this private to wrap it in handleRequest later.
+   */
+  private static async fetchFromApi(plantName: string): Promise<MoreInfo[]> {
+    try {
+      const response = await ApiUtils.getWithParams(BASE_ENDPOINT, {
+        plantName,
+        htmlFormatting: "true",
+      });
+      return MoreInfoMapper.convertToMoreInfo(response as APIMoreInfo);
+    } catch (error) {
+      // 404 is a "successful" empty state for this domain
+      if (ApiUtils.isApiError(error) && error.status === 404) {
+        return [];
+      }
+      throw error;
     }
-    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('moreinfo.title') || 'more info', details: String(error) }, fallback: `Error fetching more info: ${error}` });
-    throw error;
-  }
-}
-
-export default class MoreInfoService {
-  // Invalidate cache for a specific plant
-  static async invalidateInfoCache(plantName: string) {
-    const cachedData = await getCachedMoreInfo();
-    if (!cachedData) return;
-
-    const updatedRecordsByPlant = { ...cachedData.recordsByPlant };
-    delete updatedRecordsByPlant[plantName];
-
-    await storageService.set(CACHE_KEY_MORE_INFO, {
-      recordsByPlant: updatedRecordsByPlant,
-      timestamp: Date.now(),
-    });
   }
 
-  // Fetch more info for a specific plant
+  /**
+   * Fetches more info for a specific plant using keyed caching.
+   */
   static async getMoreInfo(
     plantName: string,
     forceUpdate: boolean = false
   ): Promise<MoreInfo[]> {
-    if (forceUpdate) {
-      return await fetchAndCacheMoreInfo(plantName);
-    }
-
-    const cacheKey = plantName;
-    const cachedData = await getCachedMoreInfo();
-
-    if (
-      !cachedData ||
-      !cachedData.recordsByPlant[cacheKey] ||
-      Utils.isCacheExpired(cachedData.timestamp)
-    ) {
-      return await fetchAndCacheMoreInfo(plantName);
-    }
-
-    return cachedData.recordsByPlant[cacheKey];
+    return this.getFromDictionaryCache(
+      CACHE_KEY,
+      plantName,
+      () => this.handleRequest(this.fetchFromApi(plantName), RESOURCE_KEY),
+      forceUpdate
+    );
   }
 
-  // Fetch a specific watering record by Name
+  /**
+   * Unified alias for getMoreInfo (DRYing up the original redundant method).
+   */
   static async getMoreInfoByName(
     plantName: string,
     forceUpdate: boolean = false
-  ): Promise<MoreInfo[] | null> {
-    const cachedData = await getCachedMoreInfo();
+  ): Promise<MoreInfo[]> {
+    return this.getMoreInfo(plantName, forceUpdate);
+  }
 
-    if (
-      cachedData &&
-      !forceUpdate &&
-      !Utils.isCacheExpired(cachedData.timestamp)
-    ) {
-      return (
-        cachedData.recordsByPlant[plantName] ??
-        (await fetchAndCacheMoreInfo(plantName))
-      );
-    }
+  /**
+   * Removes a specific plant's records from the local cache.
+   */
+  static async invalidateInfoCache(plantName: string): Promise<void> {
+    const cached = await storageService.get<{ 
+      records: { [key: string]: any }; 
+      timestamp: number 
+    }>(CACHE_KEY);
 
-    return fetchAndCacheMoreInfo(plantName);
+    if (!cached?.records) return;
+
+    const updatedRecords = { ...cached.records };
+    delete updatedRecords[plantName];
+
+    await storageService.set(CACHE_KEY, {
+      records: updatedRecords,
+      timestamp: Date.now(),
+    });
   }
 }

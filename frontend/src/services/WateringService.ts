@@ -1,218 +1,150 @@
+import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
-import ToastService from "@/services/general/ToastService";
 import storageService from "@/services/general/StorageService";
 import WateringMapper from "@/mapping/WateringMapping";
-import Utils from "@/utils/utils";
-import localizationService from "@/services/general/LocalizationService";
 
 const BASE_ENDPOINT = "/watering";
-const CACHE_KEY_WATERING_RECORDS = "watering_records_data";
-const CACHE_KEY_FERTILIZER_TYPES = "fertilizer_types_data";
+const CACHE_KEY_RECORDS = "watering_records_data";
+const CACHE_KEY_FERTILIZER = "fertilizer_types_data";
+const RESOURCE_KEY = "watering.title";
 
-// Helper function to get all cached watering records
-async function getCachedWateringRecords() {
-  return await storageService.get<{
-    recordsByPlant: { [plantId: number]: WateringRecord[] };
-    timestamp: number;
-  }>(CACHE_KEY_WATERING_RECORDS);
-}
-
-// Helper function to cache watering records while preserving data for other plants
-async function cacheWateringRecords(
-  plantId: number,
-  newRecords: WateringRecord[]
-) {
-  const cachedData = await getCachedWateringRecords();
-  const existingRecordsByPlant = cachedData?.recordsByPlant || {};
-
-  // Merge new records while keeping records for other plants
-  const updatedRecordsByPlant = {
-    ...existingRecordsByPlant,
-    [plantId]: newRecords,
-  };
-
-  await storageService.set(CACHE_KEY_WATERING_RECORDS, {
-    recordsByPlant: updatedRecordsByPlant,
-    timestamp: Date.now(),
-  });
-}
-
-// Fetch and update cache for a specific plant
-async function fetchAndCacheWateringRecords(
-  plantId: number
-): Promise<WateringRecord[]> {
-  try {
-    const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
-    const newRecords = WateringMapper.convertToWateringRecords(response);
-
-    await cacheWateringRecords(plantId, newRecords);
-    return newRecords;
-  } catch (error: any) {
-    if(ApiUtils.isApiError(error) && error.status === 404) {
-      // No watering records found for this plant; return empty array
-      return [];
-    }
-    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('watering.title') || 'watering', details: String(error) }, fallback: `Error fetching watering records: ${error}` });
-    throw error;
-  }
-}
-
-export default class WateringService {
-  // Invalidate cache for a specific plant
-  static async invalidateWateringCacheForPlant(plantId: number) {
-    const cachedData = await getCachedWateringRecords();
-    if (!cachedData) return;
-
-    const updatedRecordsByPlant = { ...cachedData.recordsByPlant };
-    delete updatedRecordsByPlant[plantId];
-
-    await storageService.set(CACHE_KEY_WATERING_RECORDS, {
-      recordsByPlant: updatedRecordsByPlant,
-      timestamp: Date.now(),
-    });
-  }
-
-  static async invalidateWateringCache() {
-    await storageService.remove(CACHE_KEY_WATERING_RECORDS);
-  }
-
-  static async getFertilizerTypes(): Promise<FertilizerType[]> {
-    const cachedData = await storageService.get<{
-      fertilizerTypes: FertilizerType[];
-      timestamp: number;
-    }>(CACHE_KEY_FERTILIZER_TYPES);
-
-    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
-      return cachedData.fertilizerTypes;
-    }
-
-    try {
-      const response = await ApiUtils.get(`${BASE_ENDPOINT}/fertilizer-types`);
-      const fertilizerTypes = WateringMapper.convertToFertilizerTypes(response);
-      await storageService.set(CACHE_KEY_FERTILIZER_TYPES, {
-        fertilizerTypes,
-        timestamp: Date.now(),
-      });
-      return fertilizerTypes;
-    } catch (error) {
-      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('watering.fertilizer_types') || 'fertilizer types', details: String(error) }, fallback: `Error fetching fertilizer types: ${error}` });
-      throw error;
-    }
-  }
-
-  // Fetch records for a specific plant
+export default class WateringService extends BaseService {
+  /**
+   * Fetches watering records for a specific plant with dictionary caching.
+   */
   static async getWateringRecords(
     plantId: number,
     forceUpdate: boolean = false
   ): Promise<WateringRecord[]> {
-    if (forceUpdate) {
-      return fetchAndCacheWateringRecords(plantId);
-    }
-
-    const cachedData = await getCachedWateringRecords();
-    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
-      return (
-        cachedData.recordsByPlant[plantId] ??
-        (await fetchAndCacheWateringRecords(plantId))
-      );
-    }
-
-    return fetchAndCacheWateringRecords(plantId);
+    return this.getFromDictionaryCache(
+      CACHE_KEY_RECORDS,
+      plantId.toString(),
+      () => this.handleRequest(this.fetchRecordsFromApi(plantId), RESOURCE_KEY),
+      forceUpdate
+    );
   }
 
-  // Fetch a specific watering record by ID
+  /**
+   * Internal fetcher with 404 handling for empty history.
+   */
+  private static async fetchRecordsFromApi(
+    plantId: number
+  ): Promise<WateringRecord[]> {
+    try {
+      const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
+      return WateringMapper.convertToWateringRecords(response);
+    } catch (error) {
+      if (ApiUtils.isApiError(error) && error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches lookup data for fertilizer types with standard caching.
+   */
+  static async getFertilizerTypes(
+    forceUpdate: boolean = false
+  ): Promise<FertilizerType[]> {
+    return this.getCachedData(
+      CACHE_KEY_FERTILIZER,
+      () =>
+        this.handleRequest(
+          ApiUtils.get(`${BASE_ENDPOINT}/fertilizer-types`).then((res) =>
+            WateringMapper.convertToFertilizerTypes(res)
+          ),
+          "watering.fertilizer_types"
+        ),
+      forceUpdate
+    );
+  }
+
+  /**
+   * Fetches a specific record, checking the keyed cache first.
+   */
   static async getWateringRecordById(
     plantId: number,
     recordId: number,
     forceUpdate: boolean = false
   ): Promise<WateringRecord | null> {
-    const cachedData = await getCachedWateringRecords();
+    const records = await this.getWateringRecords(plantId, forceUpdate);
+    const found = records.find((r) => r.id === recordId);
 
-    if (
-      cachedData &&
-      !forceUpdate &&
-      !Utils.isCacheExpired(cachedData.timestamp)
-    ) {
-      return (
-        cachedData.recordsByPlant[plantId]?.find((r) => r.id === recordId) ||
-        null
-      );
-    }
+    if (found && !forceUpdate) return found;
 
-    try {
-      const response = await ApiUtils.get(`${BASE_ENDPOINT}/${recordId}`);
-      const record = WateringMapper.convertToWateringRecords(response)[0];
-      return record;
-    } catch (error) {
-      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error fetching watering record details: ${error}` });
-      throw error;
-    }
+    return this.handleRequest(
+      ApiUtils.get(`${BASE_ENDPOINT}/${recordId}`).then(
+        (res) => WateringMapper.convertToWateringRecords(res)[0]
+      ),
+      "watering.record"
+    );
   }
 
-  // Add a new watering record
+  /**
+   * Mutations
+   */
   static async addWateringRecord(
     plantId: number,
-    addWateringRecord: AddWateringRecord
+    data: AddWateringRecord
   ): Promise<any> {
-    try {
-      const endpoint = `${BASE_ENDPOINT}/${plantId}`;
-      const response = await ApiUtils.post<any, { waterRecordId: number }>(
-        endpoint,
-        addWateringRecord
-      );
-      if (response) {
-        // Retrieve and update the cache
-        await this.invalidateWateringCacheForPlant(plantId);
-      } else {
-        throw new Error("Failed to add watering record");
-      }
-
-      return response;
-    } catch (error) {
-      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('watering.add') || 'add', resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error adding watering record: ${error}` });
-      throw error;
-    }
+    const res = await this.handleRequest(
+      ApiUtils.post(`${BASE_ENDPOINT}/${plantId}`, data),
+      "watering.record",
+      "watering.add"
+    );
+    await this.invalidateWateringCacheForPlant(plantId);
+    return res;
   }
 
-  // Update an existing watering record
   static async editWateringRecord(
     plantId: number,
     recordId: number,
-    updatedData: EditWateringRecord
+    data: EditWateringRecord
   ): Promise<any> {
-    try {
-      const response = await ApiUtils.patch(
-        `${BASE_ENDPOINT}/${recordId}`,
-        updatedData
-      );
-      if (response) {
-        await this.invalidateWateringCacheForPlant(plantId);
-      }
-      return response;
-    } catch (error) {
-      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('watering.update') || 'update', resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error updating watering record: ${error}` });
-      throw error;
-    }
+    const res = await this.handleRequest(
+      ApiUtils.patch(`${BASE_ENDPOINT}/${recordId}`, data),
+      "watering.record",
+      "watering.update"
+    );
+    await this.invalidateWateringCacheForPlant(plantId);
+    return res;
   }
 
-  // Delete a watering record
   static async deleteWateringRecord(
     plantId: number,
     recordId: number
   ): Promise<any> {
-    try {
-      const response = await ApiUtils.delete(`${BASE_ENDPOINT}/${recordId}`);
+    const res = await this.handleRequest(
+      ApiUtils.delete(`${BASE_ENDPOINT}/${recordId}`),
+      "watering.record",
+      "watering.delete"
+    );
+    await this.invalidateWateringCacheForPlant(plantId);
+    return res;
+  }
 
-      // Retrieve and update the cache
-      const cachedData = await getCachedWateringRecords();
-      const existingRecords = cachedData?.recordsByPlant[plantId] || [];
-      const updatedRecords = existingRecords.filter((r) => r.id !== recordId);
+  /**
+   * Cache Management
+   */
+  static async invalidateWateringCacheForPlant(plantId: number) {
+    const cached = await storageService.get<{
+      records: any;
+      timestamp: number;
+    }>(CACHE_KEY_RECORDS);
+    if (!cached?.records) return;
 
-      await cacheWateringRecords(plantId, updatedRecords);
-      return response;
-    } catch (error) {
-      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('watering.delete') || 'delete', resource: localizationService.t('watering.record'), details: String(error) }, fallback: `Error deleting watering record: ${error}` });
-      throw error;
-    }
+    const updated = { ...cached.records };
+    delete updated[plantId.toString()];
+
+    await storageService.set(CACHE_KEY_RECORDS, {
+      records: updated,
+      timestamp: Date.now(),
+    });
+  }
+
+  static async invalidateWateringCache() {
+    await storageService.remove(CACHE_KEY_RECORDS);
+    await storageService.remove(CACHE_KEY_FERTILIZER);
   }
 }

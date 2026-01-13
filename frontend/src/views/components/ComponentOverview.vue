@@ -1,9 +1,10 @@
 <template>
   <ion-page>
-    <!-- Sticky Header with Filters -->
     <overview-header
       :title="t('components.title')"
-      :segments="[{ value: 'all', label: t('segment.all'), icon: personCircle }]"
+      :segments="[
+        { value: 'all', label: t('segment.all'), icon: personCircle },
+      ]"
       :showAddButton="isAdmin"
       :addIcon="addCircle"
       starting-segment="all"
@@ -16,6 +17,7 @@
       @item-click="navigateToComponent"
       @refresh-items="refreshComponents"
     ></items-overview>
+
     <component-adding-modal
       :is-open="showAddingModal"
       @close="showAddingModal = false"
@@ -29,14 +31,13 @@ import { defineComponent } from "vue";
 import { IonContent, IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
-// Importing the new custom components
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
 import UserService from "@/services/UserService";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ComponentOverview",
@@ -49,6 +50,7 @@ export default defineComponent({
   },
   data() {
     return {
+      // 1. Initialized as empty array to ensure first render is safe
       components: [] as SubstrateComponent[],
       showAddingModal: false,
       isAdmin: false,
@@ -69,27 +71,43 @@ export default defineComponent({
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
+
+    /**
+     * Helper to centralize component loading logic
+     */
+    async loadComponents(forceUpdate = false) {
+      try {
+        const response = await ComponentService.getComponents(forceUpdate);
+
+        // 2. Defensive Assignment: Ensure we never assign null/undefined to this.components
+        this.components = response || [];
+      } catch (error) {
+        // 3. Reset to empty array on catch to prevent template crashes
+        this.components = [];
+        console.error(
+          `Error ${forceUpdate ? "refreshing" : "fetching"} components:`,
+          error
+        );
+      }
+    },
+
     async fetchComponents() {
-      try {
-        this.components = await ComponentService.getComponents();
-      } catch (error) {
-        console.error("Error fetching plants:", error);
-      }
+      await this.loadComponents(false);
     },
+
     async refreshComponents() {
-      try {
-        this.components = await ComponentService.getComponents(true);
-      } catch (error) {
-        console.error("Error refreshing components:", error);
-      }
+      await this.loadComponents(true);
     },
-    handleSegmentChange(value: string) {
-      this.fetchComponents(); // Refetch plants based on segment change
+
+    handleSegmentChange() {
+      this.fetchComponents();
     },
+
     async handleComponentAdded() {
       this.showAddingModal = false;
       await this.fetchComponents();
     },
+
     navigateToComponent(id: number) {
       this.$router.push({
         name: "component-details",

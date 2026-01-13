@@ -29,7 +29,7 @@ import { pricetag } from "ionicons/icons";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 import SalesService from "@/services/SalesServices";
 
@@ -131,15 +131,22 @@ export default defineComponent({
       // no-op
     },
 
-    async onItemClick(id: string ) {
+    async onItemClick(id: string) {
       const sale = this.sales.find((s) => s.id === id);
       if (!sale) return;
 
       this.$router.push({ name: "sales-details", params: { id } });
       
+      // mark as seen first
       await SalesService.markSaleAsSeen(sale.id);
-      this.sales = await SalesService.getCachedSales() || this.sales;
-      this.allSales = this.sales;
+
+      // update local state from cache reactively
+      const cached = await SalesService.getCachedSales();
+      if (cached) {
+        this.sales = [...cached];
+        this.allSales = [...cached];
+      }
+
     },
   },
 });

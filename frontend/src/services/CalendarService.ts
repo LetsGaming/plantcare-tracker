@@ -1,15 +1,24 @@
+import { BaseService } from "./base/BaseService";
 import storageService from "@/services/general/StorageService";
 
-const getDeepCopy = <T>(data: T): T => JSON.parse(JSON.stringify(data));
-
-// Default watering categories
 const DEFAULT_WATERING_CATEGORIES: Category[] = [
-  { name: "watering.category.organic", textColor: "#ffffff", backgroundColor: "#8B4513" },
-  { name: "watering.category.mineral", textColor: "#ffffff", backgroundColor: "#228B22" },
-  { name: "watering.category.no_fertilizer", textColor: "#ffffff", backgroundColor: "#1E90FF" },
+  {
+    name: "watering.category.organic",
+    textColor: "#ffffff",
+    backgroundColor: "#8B4513",
+  },
+  {
+    name: "watering.category.mineral",
+    textColor: "#ffffff",
+    backgroundColor: "#228B22",
+  },
+  {
+    name: "watering.category.no_fertilizer",
+    textColor: "#ffffff",
+    backgroundColor: "#1E90FF",
+  },
 ];
 
-// --- ENUMS ---
 export enum StorageKeys {
   CATEGORIES = "date_categories",
   WATERING_CATEGORIES = "watering_categories",
@@ -26,42 +35,41 @@ export enum CalendarEvents {
   DELETE_AFTER_THIRTY_CHANGED = "delete-after-thirty-changed",
 }
 
-export default class CalendarService {
-  // --- NORMAL CATEGORIES ---
+export default class CalendarService extends BaseService {
+  // --- CATEGORIES ---
   static async getCategories(): Promise<Category[]> {
-    const categoriesStorage = (await storageService.get(
+    const storage = await storageService.get<StoredCategories>(
       StorageKeys.CATEGORIES
-    )) as StoredCategories | null;
-    return categoriesStorage?.categories || [];
+    );
+    return storage?.categories || [];
   }
 
   static async saveCategories(categories: Category[]): Promise<void> {
-    const plainCategories = getDeepCopy(categories);
-    await storageService.set(StorageKeys.CATEGORIES, {
-      categories: plainCategories,
-    });
-    this.dispatchCategoriesChanged(categories);
+    await this.saveAndNotify(
+      StorageKeys.CATEGORIES,
+      CalendarEvents.CATEGORIES_CHANGED,
+      categories,
+      "categories"
+    );
   }
 
   // --- WATERING CATEGORIES ---
   static async getWateringCategories(): Promise<Category[]> {
-    const stored = (await storageService.get(
+    const stored = await storageService.get<StoredCategories>(
       StorageKeys.WATERING_CATEGORIES
-    )) as StoredCategories | null;
-
-    if (!stored?.categories?.length) {
-      return DEFAULT_WATERING_CATEGORIES;
-    }
-
-    return stored.categories;
+    );
+    return stored?.categories?.length
+      ? stored.categories
+      : DEFAULT_WATERING_CATEGORIES;
   }
 
   static async saveWateringCategories(categories: Category[]): Promise<void> {
-    const plainCategories = getDeepCopy(categories);
-    await storageService.set(StorageKeys.WATERING_CATEGORIES, {
-      categories: plainCategories,
-    });
-    this.dispatchWateringCategoriesChanged(categories);
+    await this.saveAndNotify(
+      StorageKeys.WATERING_CATEGORIES,
+      CalendarEvents.WATERING_CATEGORIES_CHANGED,
+      categories,
+      "categories"
+    );
   }
 
   static async resetWateringCategories(): Promise<void> {
@@ -70,16 +78,19 @@ export default class CalendarService {
 
   // --- REMINDER DATES ---
   static async getDates(): Promise<CalendarDates[]> {
-    const datesStorage = (await storageService.get(
+    const storage = await storageService.get<StoredCalendarDates>(
       StorageKeys.DATES
-    )) as StoredCalendarDates | null;
-    return datesStorage?.calendarDates || [];
+    );
+    return storage?.calendarDates || [];
   }
 
   static async saveDates(dates: CalendarDates[]): Promise<void> {
-    const plainDates = getDeepCopy(dates);
-    await storageService.set(StorageKeys.DATES, { calendarDates: plainDates });
-    this.dispatchDatesChanged(dates);
+    await this.saveAndNotify(
+      StorageKeys.DATES,
+      CalendarEvents.DATES_CHANGED,
+      dates,
+      "calendarDates"
+    );
   }
 
   static async deleteOldDates(): Promise<void> {
@@ -88,69 +99,38 @@ export default class CalendarService {
 
     const dates = await this.getDates();
     const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(new Date().getDate() - 30);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const filteredDates = dates.filter(
-      (dateEntry) => new Date(dateEntry.date) >= thirtyDaysAgo
+      (d) => new Date(d.date) >= thirtyDaysAgo
     );
-
-    if (filteredDates.length !== dates.length) {
+    if (filteredDates.length !== dates.length)
       await this.saveDates(filteredDates);
-    }
   }
 
+  // --- SETTINGS ---
   static async getDeleteAfterThirty(): Promise<boolean> {
-    const doDelete = await storageService.get(StorageKeys.DELETE_AFTER_THIRTY);
-    return Boolean(doDelete) || false;
+    return !!(await storageService.get(StorageKeys.DELETE_AFTER_THIRTY));
   }
 
   static async saveDeleteAfterThirty(doDelete: boolean): Promise<void> {
-    await storageService.set(StorageKeys.DELETE_AFTER_THIRTY, doDelete);
-    this.dispatchDeleteAfterThirtyChanged(doDelete);
+    await this.saveAndNotify(
+      StorageKeys.DELETE_AFTER_THIRTY,
+      CalendarEvents.DELETE_AFTER_THIRTY_CHANGED,
+      doDelete
+    );
   }
 
   static async getFirstDayOfWeek(): Promise<number> {
-    const day = await storageService.get(StorageKeys.FIRST_DAY_OF_WEEK);
-    return typeof day === "number" ? day : 1; // Default to Monday
+    const day = await storageService.get<number>(StorageKeys.FIRST_DAY_OF_WEEK);
+    return typeof day === "number" ? day : 1;
   }
 
   static async saveFirstDayOfWeek(day: number): Promise<void> {
-    await storageService.set(StorageKeys.FIRST_DAY_OF_WEEK, day);
-    this.dispatchFirstDayOfWeekChanged(day);
-  }
-
-  // --- DISPATCHERS ---
-  private static dispatchCategoriesChanged(categories: Category[]) {
-    document.dispatchEvent(
-      new CustomEvent(CalendarEvents.CATEGORIES_CHANGED, { detail: categories })
-    );
-  }
-
-  private static dispatchWateringCategoriesChanged(categories: Category[]) {
-    document.dispatchEvent(
-      new CustomEvent(CalendarEvents.WATERING_CATEGORIES_CHANGED, {
-        detail: categories,
-      })
-    );
-  }
-
-  private static dispatchDatesChanged(dates: CalendarDates[]) {
-    document.dispatchEvent(
-      new CustomEvent(CalendarEvents.DATES_CHANGED, { detail: dates })
-    );
-  }
-
-  private static dispatchFirstDayOfWeekChanged(day: number) {
-    document.dispatchEvent(
-      new CustomEvent(CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED, { detail: day })
-    );
-  }
-
-  private static dispatchDeleteAfterThirtyChanged(doDelete: boolean) {
-    document.dispatchEvent(
-      new CustomEvent(CalendarEvents.DELETE_AFTER_THIRTY_CHANGED, {
-        detail: doDelete,
-      })
+    await this.saveAndNotify(
+      StorageKeys.FIRST_DAY_OF_WEEK,
+      CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED,
+      day
     );
   }
 }
