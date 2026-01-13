@@ -129,4 +129,9 @@ export default class SalesService {
     });
     await cacheSalesData(updatedSales);
   }
+
+  static async getCachedSales(): Promise<Sale[] | null> {
+    const cached = await getCachedSalesData();
+    return cached ? cached.sales : null;
+  }
 }

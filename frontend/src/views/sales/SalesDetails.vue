@@ -114,7 +114,6 @@ export default defineComponent({
   mounted() {
     // Fetch sale details using the provided id
     this.fetchSaleDetails();
-    this.markAsSeen();
   },
   computed: {
     saleSubtitle(): string {
@@ -163,14 +162,7 @@ export default defineComponent({
       } catch (error) {
         console.error("Error fetching sale details:", error);
       }
-    },
-    async markAsSeen() {
-      try {
-        await SalesService.markSaleAsSeen(this.id);
-      } catch (error) {
-        console.error("Error marking sale as seen:", error);
-      }
-    },
+    }
   },
 });
 </script>

@@ -131,8 +131,15 @@ export default defineComponent({
       // no-op
     },
 
-    onItemClick(id: string ) {
+    async onItemClick(id: string ) {
+      const sale = this.sales.find((s) => s.id === id);
+      if (!sale) return;
+
       this.$router.push({ name: "sales-details", params: { id } });
+      
+      await SalesService.markSaleAsSeen(sale.id);
+      this.sales = await SalesService.getCachedSales() || this.sales;
+      this.allSales = this.sales;
     },
   },
 });
