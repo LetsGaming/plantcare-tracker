@@ -16,7 +16,7 @@ export abstract class BaseService {
   }
 
   /**
-   * FIX for your error: Ensure this is 'static' and 'protected'
+   * Saves data to storage and emits an event to notify listeners.
    */
   protected static async saveAndNotify<T>(
     storageKey: string,

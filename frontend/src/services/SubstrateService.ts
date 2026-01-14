@@ -8,6 +8,11 @@ const RESOURCE_KEY = "substrate.title";
 const CACHE_KEY_PUBLIC = "public_substrates_data";
 const CACHE_KEY_PRIVATE = "private_substrates_data";
 
+export enum SubstrateEvents {
+  PUBLIC_SUBSTRATES_UPDATED = "public-substrates-updated",
+  PRIVATE_SUBSTRATES_UPDATED = "private-substrates-updated",
+}
+
 export default class SubstrateService extends BaseService {
   /**
    * Helper to resolve cache keys and endpoints dynamically.
@@ -22,18 +27,79 @@ export default class SubstrateService extends BaseService {
   }
 
   /**
-   * Invalidates both public and private substrate caches.
+   * Invalidates substrate caches. If an ID is provided, removes only that substrate from cache.
    */
-  static async invalidateSubstrateCache() {
-    await storageService.remove(CACHE_KEY_PUBLIC);
-    await storageService.remove(CACHE_KEY_PRIVATE);
+  /**
+   * Invalidates substrate caches. If an ID is provided, removes only that substrate from cache.
+   */
+  static async invalidateSubstrateCache(
+    substrateId?: number,
+    isPublic?: boolean
+  ) {
+    // 1. Full Reset Scenario: Clear all if parameters are missing
+    if (substrateId === undefined || isPublic === undefined) {
+      await Promise.all([
+        storageService.remove(CACHE_KEY_PUBLIC),
+        storageService.remove(CACHE_KEY_PRIVATE),
+      ]);
+      return;
+    }
+
+    // 2. Single Item Invalidation
+    const { cacheKey } = this.getContext(isPublic);
+
+    // Retrieve the stored object (e.g., { substrates: [...] })
+    const stored = await storageService.get<{ data: Substrate[] }>(cacheKey);
+    console.log("Invalidating substrate cache:", {
+      cacheKey,
+      substrateId,
+      isPublic,
+      stored,
+    });
+    if (stored && stored.data) {
+      const substrates = stored.data;
+      const updatedSubstrates = substrates.filter((s) => s.id !== substrateId);
+
+      // Save the filtered list and trigger the event for UI observers
+      await this.saveAndNotify(
+        cacheKey,
+        isPublic
+          ? SubstrateEvents.PUBLIC_SUBSTRATES_UPDATED
+          : SubstrateEvents.PRIVATE_SUBSTRATES_UPDATED,
+        updatedSubstrates,
+        "substrates"
+      );
+    }
   }
 
   /**
-   * Fetches all substrates from both public and private endpoints.
-   * Merges them into a single unique array.
+   * Fetches substrates (Public/Private) with standardized caching.
    */
-  static async getAllSubstrates(): Promise<any[]> {
+  static async getSubstrates(
+    isPublic: boolean,
+    forceUpdate: boolean = false
+  ): Promise<Substrate[]> {
+    const { cacheKey, endpoint } = this.getContext(isPublic);
+
+    const result = await this.getCachedData(
+      cacheKey,
+      () =>
+        this.handleRequest(
+          ApiUtils.get(endpoint).then((res) =>
+            SubstrateMapper.convertToSubstrates(res)
+          ),
+          RESOURCE_KEY
+        ),
+      forceUpdate
+    );
+
+    return result || [];
+  }
+
+  /**
+   * Fetches all substrates (both public and private) and merges into unique array.
+   */
+  static async getAllSubstrates(): Promise<Substrate[]> {
     const results = await Promise.allSettled([
       this.getSubstrates(false),
       this.getSubstrates(true),
@@ -50,45 +116,24 @@ export default class SubstrateService extends BaseService {
   }
 
   /**
-   * Fetches substrates (Public/Private) with standardized caching.
-   */
-  static async getSubstrates(
-    isPublic: boolean,
-    forceUpdate: boolean = false
-  ): Promise<any[]> {
-    const { cacheKey, endpoint } = this.getContext(isPublic);
-
-    return this.getCachedData(
-      cacheKey,
-      () =>
-        this.handleRequest(
-          ApiUtils.get(endpoint).then((res) =>
-            SubstrateMapper.convertToSubstrates(res)
-          ),
-          RESOURCE_KEY
-        ),
-      forceUpdate
-    );
-  }
-
-  /**
-   * Fetches a single substrate, checking cache first.
+   * Fetches a single substrate by ID, checking the appropriate list cache first.
    */
   static async getSubstrateById(
     id: number,
     isPublic: boolean,
     forceUpdate: boolean = false
-  ): Promise<any> {
-    const substrates = await this.getSubstrates(isPublic, forceUpdate);
-    const found = substrates.find((s) => s.id == id);
+  ): Promise<Substrate> {
+    const substrates = await this.getSubstrates(isPublic, false);
+    const found = substrates.find((s) => s.id === id);
 
     if (found && !forceUpdate) return found;
 
+    // Direct fetch if not found in list or forcing update
     return this.handleRequest(
       ApiUtils.get(`${BASE_ENDPOINT}/substrate/${id}`).then(
         (res) => SubstrateMapper.convertToSubstrates(res)[0]
       ),
-      "substrate.info.title"
+      RESOURCE_KEY
     );
   }
 
@@ -101,6 +146,8 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed"
     );
+
+    // Invalidate both caches after addition
     await this.invalidateSubstrateCache();
     return res;
   }
@@ -133,7 +180,14 @@ export default class SubstrateService extends BaseService {
       await this.uploadSubstrateImage(id, data.image);
     }
 
-    await this.invalidateSubstrateCache();
+    // Invalidate cache for this substrate specifically
+    if (data.isPublic !== undefined) {
+      await this.invalidateSubstrateCache(id, data.isPublic);
+    } else {
+      await this.invalidateSubstrateCache(id, true);
+      await this.invalidateSubstrateCache(id, false);
+    }
+
     return res;
   }
 
@@ -146,7 +200,10 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "substrate.components.edit.title"
     );
-    await this.invalidateSubstrateCache();
+
+    await this.invalidateSubstrateCache(id, false);
+    await this.invalidateSubstrateCache(id, true);
+
     return res;
   }
 
@@ -186,7 +243,10 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "image.upload"
     );
-    await this.invalidateSubstrateCache();
+
+    // Only invalidate the specific substrate in private cache
+    await this.invalidateSubstrateCache(substrateId, false);
+
     return res;
   }
 
@@ -196,7 +256,11 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed"
     );
-    await this.invalidateSubstrateCache();
+
+    // Remove this substrate from both caches
+    await this.invalidateSubstrateCache(id, false);
+    await this.invalidateSubstrateCache(id, true);
+
     return res;
   }
 }

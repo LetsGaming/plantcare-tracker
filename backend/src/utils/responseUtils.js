@@ -11,6 +11,7 @@ const logger = require("./logger");
 const createResponseObject = (success, message, data = null) => {
   return {
     success,
+    timestamp: new Date().toISOString(),
     message,
     ...(data && { data }), // Only include the 'data' field if data is not null
   };
