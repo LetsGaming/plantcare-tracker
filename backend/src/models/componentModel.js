@@ -97,10 +97,32 @@ const insertComponent = (name, fineness_id) => {
 
 // Update a component by ID
 const updateComponent = (id, name, fineness_id) => {
-  return pool.query(
-    "UPDATE components SET name = ?, fineness_id = ? WHERE id = ?",
-    [name, fineness_id, id]
-  );
+  if (name == null && fineness_id == null) {
+    throw new Error("At least one of name or fineness_id must be provided");
+  }
+
+  const fields = [];
+  const values = [];
+
+  if (name != null) {
+    fields.push("name = ?");
+    values.push(name);
+  }
+
+  if (fineness_id != null) {
+    fields.push("fineness_id = ?");
+    values.push(fineness_id);
+  }
+
+  values.push(id);
+
+  const sql = `
+    UPDATE components
+    SET ${fields.join(", ")}
+    WHERE id = ?
+  `;
+
+  return pool.query(sql, values);
 };
 
 // Delete a component by ID

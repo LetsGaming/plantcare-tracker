@@ -79,6 +79,49 @@ export abstract class BaseService {
     });
     return freshData;
   }
+
+  /**
+   * Inserts or updates a single item in a cached array list.
+   * Automatically initializes cache if empty or missing.
+   *
+   * Note: The generic type {@link T} is required to have an `id` property of type `number`.
+   * This is enforced at compile time where possible via `T extends { id: number }`,
+   * but callers using `any` or otherwise bypassing type checking must still ensure
+   * that `item.id` is a valid number. A runtime check is performed to guard against misuse.
+   */
+  protected static async upsertIntoListCache<T extends { id: number }>(
+    cacheKey: string,
+    eventKey: string,
+    item: T
+  ): Promise<void> {
+    if (!item || typeof (item as any).id !== "number") {
+      throw new Error(
+        "BaseService.upsertIntoListCache: item must have a numeric 'id' property."
+      );
+    }
+    // Get existing cached data
+    const cached = await storageService.get<{ data: T[]; timestamp: number }>(
+      cacheKey
+    );
+
+    // Ensure we have a valid array
+    const dataArray: T[] = cached?.data ? [...cached.data] : [];
+
+    // Replace existing item with same ID or append
+    const index = dataArray.findIndex((x) => x.id === item.id);
+    if (index !== -1) dataArray[index] = item;
+    else dataArray.push(item);
+
+    // Save back to storage
+    await storageService.set(cacheKey, {
+      data: dataArray,
+      timestamp: Date.now(),
+    });
+
+    // Notify subscribers
+    this.emit(eventKey, item);
+  }
+
   /**
    * Standardized Dictionary Caching Logic
    * */

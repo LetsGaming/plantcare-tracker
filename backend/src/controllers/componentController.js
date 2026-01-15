@@ -53,7 +53,12 @@ const addComponent = async (req, res) => {
     const [result] = await insertComponent(name, fineness);
     componentId = result.insertId;
 
-    successResponse(res, { id: componentId }, "Component added successfully", 201);
+    successResponse(
+      res,
+      { id: componentId },
+      "Component added successfully",
+      201
+    );
   } catch (err) {
     errorResponse(res, err, err.message.includes("required") ? 400 : 500);
   }
@@ -65,7 +70,13 @@ const editComponent = async (req, res) => {
   const { name, fineness } = req.body;
 
   try {
-    validateComponentData({ name, fineness });
+    if (!name && !fineness) {
+      return errorResponse(
+        res,
+        "At least one of name or fineness must be provided for update.",
+        400
+      );
+    }
 
     await updateComponent(id, name, fineness);
     successResponse(res, { updated: true }, "Component updated successfully");

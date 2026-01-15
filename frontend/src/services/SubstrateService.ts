@@ -50,12 +50,6 @@ export default class SubstrateService extends BaseService {
 
     // Retrieve the stored object (e.g., { substrates: [...] })
     const stored = await storageService.get<{ data: Substrate[] }>(cacheKey);
-    console.log("Invalidating substrate cache:", {
-      cacheKey,
-      substrateId,
-      isPublic,
-      stored,
-    });
     if (stored && stored.data) {
       const substrates = stored.data;
       const updatedSubstrates = substrates.filter((s) => s.id !== substrateId);
@@ -116,25 +110,35 @@ export default class SubstrateService extends BaseService {
   }
 
   /**
-   * Fetches a single substrate by ID, checking the appropriate list cache first.
+   * Fetches a single substrate by ID, checking cache first.
    */
   static async getSubstrateById(
-    id: number,
+    substrateId: number,
     isPublic: boolean,
     forceUpdate: boolean = false
   ): Promise<Substrate> {
+    // Never force-update the list here
     const substrates = await this.getSubstrates(isPublic, false);
-    const found = substrates.find((s) => s.id === id);
+    const found = substrates.find((s) => s.id === substrateId);
 
     if (found && !forceUpdate) return found;
 
-    // Direct fetch if not found in list or forcing update
-    return this.handleRequest(
-      ApiUtils.get(`${BASE_ENDPOINT}/substrate/${id}`).then(
+    const substrate = await this.handleRequest(
+      ApiUtils.get(`${BASE_ENDPOINT}/${substrateId}`).then(
         (res) => SubstrateMapper.convertToSubstrates(res)[0]
       ),
       RESOURCE_KEY
     );
+
+    await this.upsertIntoListCache(
+      isPublic ? CACHE_KEY_PUBLIC : CACHE_KEY_PRIVATE,
+      isPublic
+        ? SubstrateEvents.PUBLIC_SUBSTRATES_UPDATED
+        : SubstrateEvents.PRIVATE_SUBSTRATES_UPDATED,
+      substrate
+    );
+
+    return substrate;
   }
 
   /**

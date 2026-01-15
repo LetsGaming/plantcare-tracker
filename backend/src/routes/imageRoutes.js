@@ -35,42 +35,70 @@ const upload = multer({
   },
 });
 
+function _parseExifDate(value) {
+  if (!value) return null;
+
+  let date;
+
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === "number") {
+    const isSeconds = String(value).length === 10;
+    date = new Date(isSeconds ? value * 1000 : value);
+  } else if (typeof value === "string") {
+    // Normalize EXIF format: YYYY:MM:DD HH:mm:ss
+    const normalized = value.replace(/^(\d{4}):(\d{2}):(\d{2})/, "$1-$2-$3");
+    date = new Date(normalized);
+  } else {
+    return null;
+  }
+
+  if (isNaN(date.getTime())) return null;
+
+  // Reject obviously bogus dates
+  if (date.getFullYear() < 1990) return null;
+  if (date.getTime() > Date.now() + 60 * 1000) return null;
+
+  return date;
+}
+
 // Helper function to extract the image's creation date
 async function extractImageDate(fileBuffer) {
-  const defaultDate = new Date();
+  const fallbackDate = new Date();
 
   try {
     const parser = ExifParser.create(fileBuffer);
-    const exifData = parser.parse();
-    if (!exifData || !exifData.tags) return defaultDate;
+    const result = parser.parse();
 
-    let extractedDate =
-      exifData.tags.DateTimeOriginal || exifData.tags.CreateDate;
-    if (!extractedDate) return defaultDate;
-
-    // Handle Unix timestamp (seconds) case
-    if (
-      typeof extractedDate === "number" &&
-      String(extractedDate).length === 10
-    ) {
-      extractedDate = new Date(extractedDate * 1000);
-      const offset = extractedDate.getTimezoneOffset() * 60000;
-      extractedDate = new Date(extractedDate.getTime() + offset);
-    } else {
-      extractedDate = new Date(extractedDate);
+    if (!result || !result.tags) {
+      return fallbackDate;
     }
 
-    if (isNaN(extractedDate.getTime())) return defaultDate;
+    const tags = result.tags;
 
-    return extractedDate;
+    const candidates = [
+      tags.DateTimeOriginal,
+      tags.CreateDate,
+      tags.ModifyDate,
+      tags.GPSDateStamp,
+    ];
+
+    for (let value of candidates) {
+      const parsed = _parseExifDate(value);
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    return fallbackDate;
   } catch (err) {
-    logger.error("Error extracting EXIF data", err);
-    return defaultDate;
+    logger.error("EXIF extraction failed", err);
+    return fallbackDate;
   }
 }
 
 /**
- * Anonymizes an image filename, removes PII, and ensures the length 
+ * Anonymizes an image filename, removes PII, and ensures the length
  * stays within safe limits.
  * * @param {string} fileName - The original filename.
  * @param {Object} options - Configuration for anonymization.
@@ -78,27 +106,41 @@ async function extractImageDate(fileBuffer) {
  * @param {number} options.maxLength - Maximum length of the final string (default 50).
  * @returns {string} The anonymized, length-controlled filename.
  */
-function anonymizeImageName(fileName, { contextKeywords = [], maxLength = 50 } = {}) {
-  if (!fileName || typeof fileName !== 'string') return 'img.jpg';
+function anonymizeImageName(
+  fileName,
+  { contextKeywords = [], maxLength = 50 } = {}
+) {
+  if (!fileName || typeof fileName !== "string") return "img.jpg";
 
   // 1. Separate extension and name
-  const lastDotIndex = fileName.lastIndexOf('.');
-  const extension = lastDotIndex !== -1 ? fileName.slice(lastDotIndex).toLowerCase() : '.jpg';
+  const lastDotIndex = fileName.lastIndexOf(".");
+  const extension =
+    lastDotIndex !== -1 ? fileName.slice(lastDotIndex).toLowerCase() : ".jpg";
   const extensionLength = extension.length;
-  
+
   // 2. Clean the name part
-  let namePart = lastDotIndex !== -1 ? fileName.slice(0, lastDotIndex) : fileName;
+  let namePart =
+    lastDotIndex !== -1 ? fileName.slice(0, lastDotIndex) : fileName;
   let cleanName = namePart
-    .replace(/([a-z])([A-Z])/g, '$1 $2') // Split camelCase
-    .replace(/[_-]/g, ' ')               // Replace separators with spaces
-    .replace(/[^a-zA-Z0-9 ]/g, '')       // Remove special chars
+    .replace(/([a-z])([A-Z])/g, "$1 $2") // Split camelCase
+    .replace(/[_-]+/g, " ") // Treat underscores and hyphens as spaces
+    .replace(/[^a-zA-Z0-9 ]/g, "") // Remove remaining special chars but keep spaces
     .toLowerCase();
 
   const tokens = cleanName.split(/\s+/);
 
   // 3. Filter tokens (Remove PII and meaningless numbers)
-  const piiRedlist = ['admin', 'user', 'owner', 'desktop', 'download', 'iphone', 'android', 'tmp'];
-  const filteredTokens = tokens.filter(token => {
+  const piiRedlist = [
+    "admin",
+    "user",
+    "owner",
+    "desktop",
+    "download",
+    "iphone",
+    "android",
+    "tmp",
+  ];
+  const filteredTokens = tokens.filter((token) => {
     const isKeyword = contextKeywords.includes(token);
     const isTooShort = token.length < 2;
     const isPii = piiRedlist.includes(token.toLowerCase());
@@ -107,7 +149,7 @@ function anonymizeImageName(fileName, { contextKeywords = [], maxLength = 50 } =
   });
 
   // 4. Build base string
-  let baseName = filteredTokens.length > 0 ? filteredTokens.join('-') : 'image';
+  let baseName = filteredTokens.length > 0 ? filteredTokens.join("-") : "image";
 
   // 5. Short Hash (to prevent collisions)
   const hash = Math.random().toString(36).substring(2, 6); // 4 chars
@@ -120,8 +162,8 @@ function anonymizeImageName(fileName, { contextKeywords = [], maxLength = 50 } =
   if (baseName.length > maxBaseLength) {
     // Truncate at the last whole word if possible
     let truncated = baseName.substring(0, maxBaseLength);
-    const lastDash = truncated.lastIndexOf('-');
-    
+    const lastDash = truncated.lastIndexOf("-");
+
     // If there's a dash within the last 10 chars, cut there for cleaner look
     if (lastDash > maxBaseLength - 10) {
       baseName = truncated.substring(0, lastDash);
@@ -155,7 +197,7 @@ const processAndStoreImage = (options = { requireEntityType: false }) => {
       // Note: Passing maxLength 30 because we are adding a timestamp prefix later
       const baseAnonymizedName = anonymizeImageName(req.file.originalname, {
         contextKeywords: [entityType],
-        maxLength: 30 
+        maxLength: 30,
       }).replace(/\.[^/.]+$/, ""); // Strip whatever extension the function gave back
 
       // 3. Construct final name (Date + Anonymized Part + WebP)
@@ -172,9 +214,9 @@ const processAndStoreImage = (options = { requireEntityType: false }) => {
 
       // 5. Process Image
       await sharp(imageBuffer)
-        .resize({ 
-          width: 1024, 
-          withoutEnlargement: true // Prevents blurring small images by stretching them
+        .resize({
+          width: 1024,
+          withoutEnlargement: true, // Prevents blurring small images by stretching them
         })
         .toFormat("webp")
         .webp({ quality: 70, nearLossless: true })
@@ -237,7 +279,7 @@ router.patch(
 );
 
 // Delete a specific image by its ID
-router.delete("/image/:id", authenticateToken, deleteSpecificImage);
+router.delete("/image/:entityType/:id", authenticateToken, deleteSpecificImage);
 
 // Delete all images associated with a specific entity
 router.delete(

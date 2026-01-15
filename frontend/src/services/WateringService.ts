@@ -61,24 +61,47 @@ export default class WateringService extends BaseService {
   }
 
   /**
-   * Fetches a specific record, checking the keyed cache first.
+   * Fetches a specific watering record, checking the keyed cache first,
+   * and updates that single record in the cache if fetched individually.
    */
   static async getWateringRecordById(
     plantId: number,
     recordId: number,
     forceUpdate: boolean = false
   ): Promise<WateringRecord | null> {
-    const records = await this.getWateringRecords(plantId, forceUpdate);
+    const records = await this.getWateringRecords(plantId, false);
     const found = records.find((r) => r.id === recordId);
 
     if (found && !forceUpdate) return found;
 
-    return this.handleRequest(
+    const record = await this.handleRequest(
       ApiUtils.get(`${BASE_ENDPOINT}/${recordId}`).then(
         (res) => WateringMapper.convertToWateringRecords(res)[0]
       ),
       "watering.record"
     );
+
+    // Merge/update single record into dictionary cache for this plant
+    if (record) {
+      const updatedRecords = [
+        ...records.filter((r) => r.id !== recordId),
+        record,
+      ];
+      const cached = await storageService.get<{
+        records: Record<string, WateringRecord[]>;
+        timestamp: number;
+      }>(CACHE_KEY_RECORDS);
+      const merged = {
+        ...(cached?.records || {}),
+        [plantId.toString()]: updatedRecords,
+      };
+      await storageService.set(CACHE_KEY_RECORDS, {
+        records: merged,
+        timestamp: Date.now(),
+      });
+    }
+
+    return record;
   }
 
   /**

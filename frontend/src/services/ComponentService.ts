@@ -7,6 +7,10 @@ const ENDPOINT = "/components";
 const CACHE_KEY = "components_data";
 const RESOURCE_NAME = "components.title";
 
+export enum ComponentEvents {
+  COMPONENTS_UPDATED = "components-updated",
+}
+
 export default class ComponentService extends BaseService {
   /**
    * Fetches all components with standardized caching logic.
@@ -31,21 +35,26 @@ export default class ComponentService extends BaseService {
   static async getComponentById(
     id: number,
     forceUpdate: boolean = false
-  ): Promise<any> {
-    const cached = await this.getComponents(forceUpdate);
-    const component = cached.find((c) => c.id === id);
+  ): Promise<SubstrateComponent> {
+    const components = await this.getComponents(false);
+    const found = components.find((c) => c.id === id);
 
-    if (component && !forceUpdate) return component;
+    if (found && !forceUpdate) return found;
 
-    // Fetch specifically if not in list or forced
-    const result = await this.handleRequest(
-      ApiUtils.get<any>(`${ENDPOINT}/${id}`),
+    const component = await this.handleRequest(
+      ApiUtils.get<Component>(`${ENDPOINT}/${id}`).then(
+        (res) => ComponentMapper.convertToComponents(res)[0]
+      ),
       RESOURCE_NAME
     );
 
-    // Refresh the full list cache in the background
-    await this.getComponents(true);
-    return result;
+    await this.upsertIntoListCache(
+      CACHE_KEY,
+      ComponentEvents.COMPONENTS_UPDATED,
+      component
+    );
+
+    return component;
   }
 
   /**
@@ -71,7 +80,7 @@ export default class ComponentService extends BaseService {
     );
   }
 
-  static async editComponent(id: number, data: any): Promise<any> {
+  static async editComponent(id: number, data: EditComponent): Promise<any> {
     return this.mutate(
       ApiUtils.put(`${ENDPOINT}/admin/${id}`, data),
       "error.action_failed"

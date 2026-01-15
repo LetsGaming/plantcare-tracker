@@ -16,33 +16,46 @@ const entityRelations = {
   component: "component_images",
 };
 
-// Function to select images with dynamic conditions
-const selectImages = async (conditions = {}, params = []) => {
+const buildWhereClause = (conditions = {}, params = []) => {
   let whereClauses = [];
-  let joinClauses = [];
 
-  // Check if the entityType is provided
-  const entityType = conditions.entity_type; // entity_type is passed to the function now
-  const entityId = conditions.entity_id;
-  
-  // If entityType and entityId exist, create conditions for the correct entity
-  if (entityType && entityId) {
-    const entityTable = entityRelations[entityType]; // Ensure entityRelations has the proper mapping
+  if (conditions.id) {
+    whereClauses.push("images.id = ?");
+    params.push(conditions.id);
+  }
+
+  if (conditions.entity_type) {
+    const entityTable = entityRelations[conditions.entity_type];
+    if (entityTable) {
+      whereClauses.push(`${entityTable}.${conditions.entity_type}_id = ?`);
+      params.push(conditions.entity_id);
+    }
+  }
+
+  return whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+};
+
+// Function to select images with dynamic conditions
+const selectImages = async (conditions = {}) => {
+  const params = [];
+  const joinClauses = [];
+
+  const { entity_type } = conditions;
+
+  if (entity_type) {
+    const entityTable = entityRelations[entity_type];
     if (entityTable) {
       joinClauses.push(
         `JOIN ${entityTable} ON images.id = ${entityTable}.image_id`
       );
-      whereClauses.push(`${entityTable}.${entityType}_id = ?`);
-      params.push(entityId);
     }
   }
 
-  const whereSQL = whereClauses.length
-    ? ` WHERE ${whereClauses.join(" AND ")}`
-    : "";
-  const joinSQL = joinClauses.length ? joinClauses.join(" ") : "";
+  const joinSQL = joinClauses.join(" ");
+  const whereSQL = buildWhereClause(conditions, params);
 
   const query = `${selectImagesQuery} ${joinSQL} ${whereSQL}`;
+
   return await pool.query(query, params);
 };
 
@@ -78,7 +91,7 @@ const updateImage = (id, fields) => {
     updates.push("upload_date = ?");
     params.push(fields.date);
   }
-  if(fields.filePath) {
+  if (fields.filePath) {
     updates.push("image_url = ?");
     params.push(fields.filePath);
   }
@@ -93,16 +106,15 @@ const updateImage = (id, fields) => {
 };
 
 // Generic function to delete an image and its associations with any entity
-const deleteImage = (imageId) => {
+const deleteImage = async (imageId) => {
   // Delete associations with all entity types
   const deleteRelations = Object.values(entityRelations).map((table) =>
     pool.query(`DELETE FROM ${table} WHERE image_id = ?`, [imageId])
   );
 
   // After deleting the associations, delete the image itself
-  return Promise.all(deleteRelations).then(() =>
-    pool.query("DELETE FROM images WHERE id = ?", [imageId])
-  );
+  await Promise.all(deleteRelations);
+  return await pool.query("DELETE FROM images WHERE id = ?", [imageId]);
 };
 
 module.exports = { selectImages, insertImage, updateImage, deleteImage };

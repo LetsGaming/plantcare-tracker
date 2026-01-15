@@ -77,12 +77,12 @@ onMounted(() => {
   loadNewSalesCount();
 
   // Listen for the event name defined in SalesService
-  window.addEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
+  document.addEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
 });
 
 onUnmounted(() => {
   // Clean up standard DOM listener
-  window.removeEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
+  document.removeEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
 });
 </script>
 

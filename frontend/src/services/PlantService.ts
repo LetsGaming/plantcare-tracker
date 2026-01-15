@@ -31,40 +31,42 @@ export default class PlantService extends BaseService {
   /**
    * Invalidates plant caches. If no ID is provided, clears all plant data.
    */
-/**
- * Invalidates plant caches. If no ID is provided, clears all plant data.
- */
-static async invalidatePlantCache(plantId?: number, isPublic?: boolean) {
-  // 1. Full Reset Scenario: If no plantId or visibility is provided, wipe everything.
-  if (plantId === undefined || isPublic === undefined) {
-    await Promise.all([
-      storageService.remove(CACHE_KEY_PUBLIC),
-      storageService.remove(CACHE_KEY_PRIVATE)
-    ]);
-    return;
-  }
+  /**
+   * Invalidates plant caches. If no ID is provided, clears all plant data.
+   */
+  static async invalidatePlantCache(plantId?: number, isPublic?: boolean) {
+    // 1. Full Reset Scenario: If no plantId or visibility is provided, wipe everything.
+    if (plantId === undefined || isPublic === undefined) {
+      await Promise.all([
+        storageService.remove(CACHE_KEY_PUBLIC),
+        storageService.remove(CACHE_KEY_PRIVATE),
+      ]);
+      return;
+    }
 
-  // 2. Single Item Invalidation: Remove specific plant from the list
-  const { cacheKey } = this.getContext(isPublic);
-  
-  // We fetch the stored object. If it doesn't exist, there's nothing to invalidate.
-  const stored = await storageService.get<{ data: Plant[] }>(cacheKey);
-  
-  if (stored && stored.data) {
-    const updatedPlants = stored.data.filter((p) => p.id !== plantId);
-    
-    // Use BaseService's helper to save the updated list and notify the UI
-    await this.saveAndNotify(
-      cacheKey,
-      isPublic ? PlantEvents.PUBLIC_PLANTS_UPDATED : PlantEvents.PRIVATE_PLANTS_UPDATED,
-      updatedPlants,
-      "plants"
-    );
-  }
+    // 2. Single Item Invalidation: Remove specific plant from the list
+    const { cacheKey } = this.getContext(isPublic);
 
-  // 3. Cross-Service Invalidation
-  await WateringService.invalidateWateringCacheForPlant(plantId);
-}
+    // We fetch the stored object. If it doesn't exist, there's nothing to invalidate.
+    const stored = await storageService.get<{ data: Plant[] }>(cacheKey);
+
+    if (stored && stored.data) {
+      const updatedPlants = stored.data.filter((p) => p.id !== plantId);
+
+      // Use BaseService's helper to save the updated list and notify the UI
+      await this.saveAndNotify(
+        cacheKey,
+        isPublic
+          ? PlantEvents.PUBLIC_PLANTS_UPDATED
+          : PlantEvents.PRIVATE_PLANTS_UPDATED,
+        updatedPlants,
+        "plants"
+      );
+    }
+
+    // 3. Cross-Service Invalidation
+    await WateringService.invalidateWateringCacheForPlant(plantId);
+  }
 
   /**
    * Fetches all plants (Public/Private) with standardized caching.
@@ -99,20 +101,26 @@ static async invalidatePlantCache(plantId?: number, isPublic?: boolean) {
     forceUpdate: boolean = false
   ): Promise<Plant> {
     const plants = await this.getPlants(isPublic, false);
-    const found = plants.find((p) => p.id == plantId);
+    const found = plants.find((p) => p.id === plantId);
 
     if (found && !forceUpdate) return found;
 
-    // Direct fetch if not found in list or forcing update
-    return this.handleRequest(
-      ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`).then((res) => {
-        const plant = PlantMapper.convertToPlants(res)[0];
-        // Note: Individual fetch doesn't easily merge back into list cache
-        // without risking stale data, so we just return it.
-        return plant;
-      }),
+    const plant = await this.handleRequest(
+      ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`).then(
+        (res) => PlantMapper.convertToPlants(res)[0] 
+      ),
       RESOURCE_KEY
     );
+
+    await this.upsertIntoListCache(
+      isPublic ? CACHE_KEY_PUBLIC : CACHE_KEY_PRIVATE,
+      isPublic
+        ? PlantEvents.PUBLIC_PLANTS_UPDATED
+        : PlantEvents.PRIVATE_PLANTS_UPDATED,
+      plant,
+    );
+
+    return plant;
   }
 
   /**

@@ -47,8 +47,8 @@ export default class ImageService extends BaseService {
     );
   }
 
-  static async deleteImage(imageId: number) {
-    const url = `${BASE_ENDPOINT}/image/${imageId}`;
+  static async deleteImage(imageId: number, entityType: string) {
+    const url = `${BASE_ENDPOINT}/image/${entityType}/${imageId}`;
     return this.handleRequest(
       ApiUtils.delete(url), 
       RESOURCE_KEY, 

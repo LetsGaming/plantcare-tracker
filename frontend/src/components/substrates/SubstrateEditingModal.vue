@@ -1,6 +1,6 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-  <ModalHeader headerTitle="substrate.edit.title" @close="$emit('close')" />
+    <ModalHeader headerTitle="substrate.edit.title" @close="$emit('close')" />
     <IonContent>
       <!-- Step 1: Substrate Information Form -->
       <form-component
@@ -49,7 +49,7 @@
       <!-- Action Buttons -->
       <div class="action-buttons" v-if="step === 2">
         <IonButton expand="full" color="medium" @click="goToStepOne">
-          {{ t('action.back') }}
+          {{ t("action.back") }}
         </IonButton>
         <IonButton
           expand="full"
@@ -57,7 +57,7 @@
           @click="editSubstrate"
           :disabled="isLoading"
         >
-          {{ t('substrate.save') }}
+          {{ t("substrate.save") }}
         </IonButton>
       </div>
     </IonContent>
@@ -87,14 +87,14 @@ import {
 import ModalHeader from "@/components/modal/ModalHeader.vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 import SubstrateService from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
 
 export default defineComponent({
   name: "SubstrateEditingModal",
-  emits: ["close"],
+  emits: ["close", "edited"],
   components: {
     IonModal,
     IonHeader,
@@ -163,7 +163,7 @@ export default defineComponent({
   },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+      return localizationService.t(key, vars, fallback);
     },
     async fetchAvailableComponents() {
       try {
@@ -175,7 +175,10 @@ export default defineComponent({
         );
       } catch (error) {
         console.error("Error fetching components:", error);
-        ToastService.showError({ key: 'substrate.load_components_failed', fallback: 'Failed to load components' });
+        ToastService.showError({
+          key: "substrate.load_components_failed",
+          fallback: "Failed to load components",
+        });
       }
     },
     goToStepOne() {
@@ -195,7 +198,9 @@ export default defineComponent({
     },
     async editSubstrate() {
       if (this.selectedComponentIds.length === 0) {
-        ToastService.showWarning({ key: 'substrate.select_component_required' });
+        ToastService.showWarning({
+          key: "substrate.select_component_required",
+        });
         return;
       }
 
@@ -228,7 +233,7 @@ export default defineComponent({
 
       if (!metaChanged && !componentsChanged) {
         // Nothing changed, just return early
-        ToastService.showWarning({ key: 'substrate.no_changes' });
+        ToastService.showWarning({ key: "substrate.no_changes" });
         return;
       }
 
@@ -245,7 +250,7 @@ export default defineComponent({
             this.substrate.id,
             components
           );
-          ToastService.showSuccess({ key: 'substrate.components_updated' });
+          ToastService.showSuccess({ key: "substrate.components_updated" });
         } else if (!componentsChanged && metaChanged) {
           // Only meta changed
           const removedComponents = this.originalComponentIds.filter(
@@ -261,7 +266,7 @@ export default defineComponent({
             substrateData,
             removedComponents
           );
-          ToastService.showSuccess({ key: 'substrate.updated' });
+          ToastService.showSuccess({ key: "substrate.updated" });
         } else {
           // Both changed: do components update first (priority), then substrate update
           await SubstrateService.editSubstrateComponents(
@@ -284,16 +289,16 @@ export default defineComponent({
             substrateData,
             removedComponents
           );
-          ToastService.showSuccess({ key: 'substrate.updated_both' });
+          ToastService.showSuccess({ key: "substrate.updated_both" });
         }
 
         this.resetSubstrate();
 
-        this.$emit("close");
-        this.$router.push({ name: "substrate-overview" });
+        this.isLoading = false;
+        this.$emit("edited");
       } catch (error) {
         console.error("Error editing substrate or components:", error);
-        ToastService.showError({ key: 'substrate.update_error' });
+        ToastService.showError({ key: "substrate.update_error" });
       }
     },
     async deleteSubstrate() {
@@ -303,14 +308,14 @@ export default defineComponent({
           this.substrate.id
         );
         if (response) {
-          ToastService.showSuccess({ key: 'substrate.deleted' });
+          ToastService.showSuccess({ key: "substrate.deleted" });
           this.resetSubstrate();
           this.$emit("close");
           this.$router.push({ name: "substrate-overview" });
         }
       } catch (error) {
         console.error("Error deleting substrate:", error);
-        ToastService.showError({ key: 'substrate.delete_error' });
+        ToastService.showError({ key: "substrate.delete_error" });
       }
     },
     loadingTimeout() {

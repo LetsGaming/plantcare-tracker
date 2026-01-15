@@ -21,6 +21,9 @@ export default class SalesService extends BaseService {
     forceUpdate?: boolean;
     onUpdate?: (chunk: Sale[]) => void;
   }): Promise<Sale[]> {
+    options = options || {};
+    const forceUpdate = options.forceUpdate ?? false;
+
     const cached = await storageService.get<{
       sales: Sale[];
       timestamp: number;
@@ -28,7 +31,7 @@ export default class SalesService extends BaseService {
     const isExpired = !cached || Utils.isCacheExpired(cached.timestamp);
     const existingIds = new Set(cached?.sales.map((s) => s.id) || []);
 
-    if (!options?.forceUpdate && !isExpired && cached) {
+    if (!forceUpdate && !isExpired && cached) {
       return cached.sales.map((s) => ({ ...s, isNew: false }));
     }
 
@@ -119,8 +122,6 @@ export default class SalesService extends BaseService {
       updatedSales,
       "sales"
     );
-    // Also emit specific ID for granular UI updates
-    this.emit(`${SaleEvents.SALE_SEEN}-id`, saleId);
   }
 
   static async getCachedSales(): Promise<Sale[] | null> {

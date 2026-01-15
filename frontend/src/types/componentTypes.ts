@@ -15,9 +15,11 @@ interface AddComponent extends Omit<Component, "fineness"> {
   image?: File;
 }
 
-interface EditComponent extends Component{
+interface EditComponent {
+  name?: string;
+  fineness?: number;
 }
 
 interface APIComponent {
-  // TODO 
+  // TODO
 }
