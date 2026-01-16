@@ -5,76 +5,87 @@ const {
   insertSubstrate,
   insertSubstrateComponent,
   updateSubstrate,
-  updateSubstrateComponent,
+  upsertSubstrateComponent,
   deleteSubstrateComponents,
   deleteSubstrate,
 } = require("../models/substrateModel");
+
+const { deleteImagesByEntity } = require("../controllers/imageController");
 const {
   errorResponse,
   successResponse,
   notFoundResponse,
 } = require("../utils/responseUtils");
 const { ensureArray } = require("../utils/generalUtils");
-const { deleteImagesByEntity } = require("./imageController");
 
-// Centralized helper to fetch a single substrate
-const getSubstrateById = async (res, selectSubstrateFn, id, userId = null) => {
-  try {
-    const substrates = await selectSubstrateFn(id, userId);
-    const substrate = substrates[0];
-    if (!substrate) {
-      return notFoundResponse(res, "Substrate not found");
-    }
-    successResponse(res, substrate);
-  } catch (err) {
-    errorResponse(res, err, 500, "Error fetching substrate");
-  }
-};
-
-// Centralized helper to fetch substrates list
-const getSubstratesList = async (res, selectSubstratesFn, userId = null) => {
-  try {
-    const substrates = await selectSubstratesFn(userId);
-    if (substrates.length === 0) {
-      return notFoundResponse(res, "No substrates found");
-    }
-    successResponse(res, substrates);
-  } catch (err) {
-    errorResponse(res, err);
-  }
-};
-
-// Simple validation for substrate data
+/**
+ * Validate that required substrate fields are provided before insert
+ */
 const validateSubstrateData = (name) => {
   if (!name) {
     throw new Error("Name is required.");
   }
 };
 
-// Controller for fetching private substrates
+/**
+ * Fetch multiple substrates using a model function and send HTTP response.
+ * Works for both private and public lists.
+ */
+const getSubstrates = async (res, selectFn, userId = null) => {
+  try {
+    const substrates =
+      userId !== null ? await selectFn(userId) : await selectFn();
+    successResponse(res, substrates);
+  } catch (err) {
+    errorResponse(res, err);
+  }
+};
+
+/**
+ * Fetch all substrates belonging to the logged-in user
+ */
 const getPrivateSubstrates = async (req, res) => {
-  const userId = req.user.id;
-  await getSubstratesList(res, selectPrivateSubstrates, userId);
+  await getSubstrates(res, selectPrivateSubstrates, req.user.id);
 };
 
-// Controller for fetching public substrates
+/**
+ * Fetch all public substrates
+ */
 const getPublicSubstrates = async (req, res) => {
-  await getSubstratesList(res, selectPublicSubstrates);
+  await getSubstrates(res, selectPublicSubstrates);
 };
 
-// Controller for fetching a single substrate by ID
+/**
+ * Fetch a single substrate by ID, returning 404 if not found
+ */
 const getSpecificSubstrate = async (req, res) => {
   const { id } = req.params;
-  await getSubstrateById(res, selectSubstrate, id);
+
+  try {
+    const [substrate] = await selectSubstrate(id);
+
+    if (!substrate) {
+      return notFoundResponse(res, "Substrate not found");
+    }
+
+    successResponse(res, substrate);
+  } catch (err) {
+    errorResponse(res, err, 500, "Error fetching substrate");
+  }
 };
 
-// Controller for adding a new substrate
+/**
+ * Insert a new substrate for the logged-in user
+ */
 const addSubstrate = async (req, res) => {
   const { name, isPublic } = req.body;
-  const userId = req.user ? req.user.id : null;
+  const userId = req.user.id;
+
   try {
     validateSubstrateData(name);
-    const [result] = await insertSubstrate(name, userId, isPublic || false);
+
+    const [result] = await insertSubstrate(name, userId, Boolean(isPublic));
+
     successResponse(
       res,
       { substrateId: result.insertId },
@@ -82,19 +93,22 @@ const addSubstrate = async (req, res) => {
       201
     );
   } catch (err) {
-    const status = err.message.includes("required") ? 400 : 500;
-    errorResponse(res, err, status);
+    errorResponse(res, err, err.message === "Name is required." ? 400 : 500);
   }
 };
 
-// Controller for updating a substrate
+/**
+ * Partially update substrate data and optionally remove components
+ * Ensures that only the owner can update their substrate
+ */
 const editSubstrate = async (req, res) => {
   const { id } = req.params;
+  const userId = req.user.id;
   const { name, isPublic, removedComponents } = req.body;
-  const userId = req.user ? req.user.id : null;
+
   try {
     if (
-      !name &&
+      name === undefined &&
       isPublic === undefined &&
       (!removedComponents || removedComponents.length === 0)
     ) {
@@ -104,41 +118,56 @@ const editSubstrate = async (req, res) => {
         400
       );
     }
-    // Update primary substrate data if provided
-    if (name || image_url || isPublic !== undefined) {
-      const result = await updateSubstrate(id, userId, name, isPublic);
-      if (result.affectedRows === 0) {
-        return errorResponse(
-          res,
-          "Substrate not found or not authorized to update"
-        );
-      }
+
+    const [substrate] = await selectSubstrate(id, false);
+
+    if (!substrate) {
+      return notFoundResponse(res, "Substrate not found");
     }
-    // Remove components if any are provided
+
+    if (substrate.user_id !== userId) {
+      return errorResponse(res, "Unauthorized to update this substrate", 403);
+    }
+
+    // Update base substrate fields
+    if (name !== undefined || isPublic !== undefined) {
+      await updateSubstrate(id, userId, { name, is_public: isPublic });
+    }
+
+    // Delete selected components if requested
     if (removedComponents && removedComponents.length > 0) {
       await deleteSubstrateComponents(id, removedComponents);
     }
+
     successResponse(res, { updated: true }, "Substrate updated successfully");
   } catch (err) {
     errorResponse(res, err, 500, "Error updating substrate");
   }
 };
 
-// Controller for adding substrate components
+/**
+ * Add multiple components to a substrate
+ * Ensures proper decimal formatting of component parts
+ */
 const addSubstrateComponents = async (req, res) => {
   const { id } = req.params;
+  const components = ensureArray(req.body.components);
+
+  if (!components.length) {
+    return errorResponse(res, "Components array is required.", 400);
+  }
+
   try {
-    // Ensure components is an array
-    components = ensureArray(req.body.components);
-    if (!components || !Array.isArray(components) || components.length === 0) {
-      throw new Error("Components array is required.");
-    }
-    // Add each component with properly formatted parts
-    const insertPromises = components.map(({ componentId, parts }) => {
-      const decimalParts = parseFloat(parts).toFixed(2);
-      return insertSubstrateComponent(id, componentId, decimalParts);
-    });
-    await Promise.all(insertPromises);
+    await Promise.all(
+      components.map(({ componentId, parts }) =>
+        insertSubstrateComponent(
+          id,
+          componentId,
+          Number.parseFloat(parts).toFixed(2)
+        )
+      )
+    );
+
     successResponse(
       res,
       { added: true },
@@ -150,24 +179,26 @@ const addSubstrateComponents = async (req, res) => {
   }
 };
 
-// Controller for editing substrate components
+/**
+ * Update or insert components for a substrate
+ * Uses upsert to either insert new components or update existing ones
+ * Validates that the logged-in user owns the substrate
+ */
 const editSubstrateComponents = async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = req.user.id;
-
-  if (isNaN(id)) {
-    return res.status(400).json({ error: "Invalid substrate ID" });
-  }
-
-  // Normalize components: if it's an object with numeric keys, convert to array
   const components = ensureArray(req.body.components);
 
-  if (!components || !Array.isArray(components) || components.length === 0) {
+  if (!Number.isInteger(id)) {
+    return errorResponse(res, "Invalid substrate ID", 400);
+  }
+
+  if (!components.length) {
     return errorResponse(res, "Components array is required.", 400);
   }
 
   try {
-    const substrate = await selectSubstrate(id);
+    const [substrate] = await selectSubstrate(id, false);
 
     if (!substrate) {
       return notFoundResponse(res, "Substrate not found");
@@ -177,34 +208,39 @@ const editSubstrateComponents = async (req, res) => {
       return errorResponse(res, "Unauthorized to edit this substrate", 403);
     }
 
-    // Insert new components
-    const updatePromises = components.map(({ componentId, parts }, idx) => {
-      const decimalParts = parseFloat(parts).toFixed(2);
-      return updateSubstrateComponent(id, componentId, decimalParts);
-    });
-
-    await Promise.all(updatePromises);
+    await Promise.all(
+      components.map(({ componentId, parts }) =>
+        upsertSubstrateComponent(
+          id,
+          componentId,
+          Number.parseFloat(parts).toFixed(2)
+        )
+      )
+    );
 
     successResponse(
       res,
       { updated: true },
       "Substrate components updated successfully"
     );
-  } catch (error) {
-    console.error("Caught error in editSubstrateComponents:", error);
-    errorResponse(res, "Error updating substrate components", 500, error);
+  } catch (err) {
+    errorResponse(res, err, 500, "Error updating substrate components");
   }
 };
 
+/**
+ * Delete a substrate along with all associated images
+ * Only the owner is allowed to delete
+ */
 const deleteSpecificSubstrate = async (req, res) => {
   const { id } = req.params;
-  const userId = req.user ? req.user.id : null;
+  const userId = req.user.id;
 
   try {
     const result = await deleteSubstrate(id, userId);
 
     if (result.affectedRows === 0) {
-      return errorResponse(
+      return notFoundResponse(
         res,
         "Substrate not found or not authorized to delete"
       );
@@ -214,7 +250,7 @@ const deleteSpecificSubstrate = async (req, res) => {
 
     successResponse(res, { deleted: true }, "Substrate deleted successfully");
   } catch (err) {
-    errorResponse(res, err, 500, "Error deleting plant");
+    errorResponse(res, err, 500, "Error deleting substrate");
   }
 };
 

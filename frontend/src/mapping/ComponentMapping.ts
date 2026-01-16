@@ -6,7 +6,7 @@ export default class ComponentMapper {
       name: component.component_name,
       description: component.component_description || component.component_fineness,
       imageUrl: component.image_url,
-      parts: component.parts,
+      parts: component.component_parts,
       fineness: component.component_fineness,
     };
   }
@@ -15,7 +15,7 @@ export default class ComponentMapper {
     const mappedComponent = ComponentMapper.mapComponent(component);
     return {
       ...mappedComponent,
-      parts: component.parts,
+      parts: component.component_parts,
     };
   }
 

@@ -31,9 +31,6 @@ export default class PlantService extends BaseService {
   /**
    * Invalidates plant caches. If no ID is provided, clears all plant data.
    */
-  /**
-   * Invalidates plant caches. If no ID is provided, clears all plant data.
-   */
   static async invalidatePlantCache(plantId?: number, isPublic?: boolean) {
     // 1. Full Reset Scenario: If no plantId or visibility is provided, wipe everything.
     if (plantId === undefined || isPublic === undefined) {
@@ -107,7 +104,7 @@ export default class PlantService extends BaseService {
 
     const plant = await this.handleRequest(
       ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`).then(
-        (res) => PlantMapper.convertToPlants(res)[0] 
+        (res) => PlantMapper.convertToPlants(res)[0]
       ),
       RESOURCE_KEY
     );
@@ -117,7 +114,7 @@ export default class PlantService extends BaseService {
       isPublic
         ? PlantEvents.PUBLIC_PLANTS_UPDATED
         : PlantEvents.PRIVATE_PLANTS_UPDATED,
-      plant,
+      plant
     );
 
     return plant;

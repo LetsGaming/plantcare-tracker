@@ -15,6 +15,8 @@ const {
   notFoundResponse,
 } = require("../utils/responseUtils");
 
+const { versionPath } = require("../../package.json");
+
 // Generate Access and Refresh Tokens
 const generateTokens = (user) => {
   const payload = { id: user.id, username: user.username, role: user.role };
@@ -88,6 +90,7 @@ const login = async (req, res) => {
       secure: req.secure || req.headers["x-forwarded-proto"] === "https", // Only set secure if using HTTPS
       sameSite: "Strict",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: `/api/${versionPath}/auth/refresh-token`,
     });
 
     return successResponse(res, { accessToken });

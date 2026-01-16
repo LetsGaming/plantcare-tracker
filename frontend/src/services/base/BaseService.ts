@@ -29,6 +29,7 @@ export abstract class BaseService {
       ? { [wrapInObjectKey]: plainData }
       : plainData;
     await storageService.set(storageKey, valueToStore);
+
     this.emit(eventKey, data);
   }
 

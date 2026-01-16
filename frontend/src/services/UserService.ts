@@ -126,7 +126,11 @@ export default class UserService extends BaseService {
   // --- Identity & Role Getters ---
 
   static async isAuthenticated(): Promise<boolean> {
-    return (await TokenUtils.getToken()) !== null;
+    const token = await TokenUtils.getToken();
+
+    if (!token) await this.refreshToken().catch(() => null);
+    const refreshedToken = await TokenUtils.getToken();
+    return !!refreshedToken;
   }
 
   static async getUsername(): Promise<string> {

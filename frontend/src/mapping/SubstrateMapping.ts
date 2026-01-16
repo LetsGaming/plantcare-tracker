@@ -8,7 +8,9 @@ export default class SubstrateMapper {
       name: substrate.substrate_name,
       isPublic: !!substrate.is_public,
       imageUrl: substrate.image_url,
-      components: ComponentMapper.convertToSubstrateComponents(substrate.components),
+      components: ComponentMapper.convertToSubstrateComponents(
+        substrate.components
+      ),
     };
   }
 

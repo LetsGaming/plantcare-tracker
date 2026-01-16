@@ -47,7 +47,6 @@ export default class SubstrateService extends BaseService {
 
     // 2. Single Item Invalidation
     const { cacheKey } = this.getContext(isPublic);
-
     // Retrieve the stored object (e.g., { substrates: [...] })
     const stored = await storageService.get<{ data: Substrate[] }>(cacheKey);
     if (stored && stored.data) {
@@ -120,11 +119,10 @@ export default class SubstrateService extends BaseService {
     // Never force-update the list here
     const substrates = await this.getSubstrates(isPublic, false);
     const found = substrates.find((s) => s.id === substrateId);
-
     if (found && !forceUpdate) return found;
 
     const substrate = await this.handleRequest(
-      ApiUtils.get(`${BASE_ENDPOINT}/${substrateId}`).then(
+      ApiUtils.get(`${BASE_ENDPOINT}/substrate/${substrateId}`).then(
         (res) => SubstrateMapper.convertToSubstrates(res)[0]
       ),
       RESOURCE_KEY
@@ -137,7 +135,7 @@ export default class SubstrateService extends BaseService {
         : SubstrateEvents.PRIVATE_SUBSTRATES_UPDATED,
       substrate
     );
-
+    
     return substrate;
   }
 
@@ -169,7 +167,6 @@ export default class SubstrateService extends BaseService {
     ) {
       throw new Error("No fields to update");
     }
-
     const res = await this.handleRequest(
       ApiUtils.patch(`${BASE_ENDPOINT}/${id}`, {
         name: data.name,
@@ -185,12 +182,7 @@ export default class SubstrateService extends BaseService {
     }
 
     // Invalidate cache for this substrate specifically
-    if (data.isPublic !== undefined) {
-      await this.invalidateSubstrateCache(id, data.isPublic);
-    } else {
-      await this.invalidateSubstrateCache(id, true);
-      await this.invalidateSubstrateCache(id, false);
-    }
+    await this.invalidateSubstrateCache(id, data.isPublic || false);
 
     return res;
   }

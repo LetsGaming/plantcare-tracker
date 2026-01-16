@@ -4,7 +4,7 @@
       :show-edit-button="!isPublic"
       @edit-click="showEditModal = true"
       :show-upload-button="!isPublic"
-      @upload-click="showUpload"
+      @upload-click="toggleUpload"
       default-href="/tabs/substrate/overview"
     ></details-header>
 
@@ -84,7 +84,7 @@ export default defineComponent({
     },
     public: {
       type: String,
-      default: false,
+      default: "0",
     },
   },
   data() {
@@ -97,10 +97,7 @@ export default defineComponent({
   },
   async mounted() {
     try {
-      this.substrate = await SubstrateService.getSubstrateById(
-        this.substrateId,
-        this.isPublic
-      );
+      await this.fetchSubstrate();
     } catch (error) {
       console.error("Error fetching substrate details:", error);
     }
@@ -117,8 +114,15 @@ export default defineComponent({
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
-    showUpload() {
-      this.showUploadModal = true;
+    toggleUpload() {
+      this.showUploadModal = !this.showUploadModal;
+    },
+    async fetchSubstrate(forceUpdate = false) {
+      this.substrate = await SubstrateService.getSubstrateById(
+        this.substrateId,
+        this.isPublic,
+        forceUpdate
+      );
     },
     async onImageUpload(fileItem: any) {
       if (this.substrate) {
@@ -129,13 +133,10 @@ export default defineComponent({
             fileItem.file,
             fileItem.date
           );
-          this.substrate = await SubstrateService.getSubstrateById(
-            this.substrateId,
-            this.isPublic
-          );
+          await this.fetchSubstrate(true);
           this.isLoading = false;
           this.$nextTick(() => {
-            this.showUploadModal = false;
+            this.toggleUpload();
           });
         } catch (error) {
           this.isLoading = false;
@@ -146,10 +147,7 @@ export default defineComponent({
     async handleSubstrateEdited() {
       this.showEditModal = false;
       try {
-        this.substrate = await SubstrateService.getSubstrateById(
-          this.substrateId,
-          this.isPublic
-        );
+        await this.fetchSubstrate(true);
       } catch (error) {
         console.error("Error fetching substrate details:", error);
       }

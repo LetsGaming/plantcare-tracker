@@ -23,7 +23,7 @@ const authenticateToken = (req, res, next) => {
   }
 
   if (!token) {
-    return validationErrorResponse(res, "Missing authentication token");
+    return errorResponse(res, "Missing authentication token", 401);
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {

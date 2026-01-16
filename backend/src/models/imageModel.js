@@ -21,14 +21,14 @@ const buildWhereClause = (conditions = {}, params = []) => {
 
   if (conditions.id) {
     whereClauses.push("images.id = ?");
-    params.push(conditions.id);
+    params.push(Number(conditions.id));
   }
 
   if (conditions.entity_type) {
     const entityTable = entityRelations[conditions.entity_type];
     if (entityTable) {
       whereClauses.push(`${entityTable}.${conditions.entity_type}_id = ?`);
-      params.push(conditions.entity_id);
+      params.push(Number(conditions.entity_id));
     }
   }
 

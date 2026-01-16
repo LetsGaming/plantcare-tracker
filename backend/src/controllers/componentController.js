@@ -34,7 +34,7 @@ const getComponent = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const component = await selectComponent(id);
+    const [component] = await selectComponent(id);
     if (!component) {
       return notFoundResponse(res, "Component not found");
     }

@@ -91,6 +91,7 @@ import localizationService from "@/services/general/LocalizationService";
 import SubstrateService from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
+import de from "@/locales/de";
 
 export default defineComponent({
   name: "SubstrateEditingModal",
@@ -149,7 +150,6 @@ export default defineComponent({
       isPublic: this.substrate.isPublic,
       image: null,
     };
-
     // Set up initial component selections based on the substrate's components
     this.originalComponentIds = this.substrate.components.map(
       (component: SubstrateComponent) => component.id
