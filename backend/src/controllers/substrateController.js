@@ -57,7 +57,7 @@ const getAllSubstrates = async (req, res) => {
     const allSubstrates = filterDuplicatesById([
       ...publicSubstrates,
       ...privateSubstrates,
-    ]);
+    ], "substrate_id");
 
     successResponse(res, allSubstrates);
   } catch (err) {

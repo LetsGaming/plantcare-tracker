@@ -44,7 +44,7 @@ const getAllPlants = async (req, res) => {
     const privatePlants = userId ? await selectPrivatePlants(userId) : [];
 
     // Combine and filter duplicates
-    const allPlants = filterDuplicatesById([...publicPlants, ...privatePlants]);
+    const allPlants = filterDuplicatesById([...publicPlants, ...privatePlants], "plant_id");
 
     successResponse(res, allPlants);
   } catch (err) {

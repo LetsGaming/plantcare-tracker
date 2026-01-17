@@ -68,13 +68,13 @@ const formatToDBDate = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-const filterDuplicatesById = (items) => {
+const filterDuplicatesById = (items, idKey = "id") => {
   const seenIds = new Set();
   return items.filter((item) => {
-    if (seenIds.has(item.id)) {
+    if (seenIds.has(item[idKey])) {
       return false;
     } else {
-      seenIds.add(item.id);
+      seenIds.add(item[idKey]);
       return true;
     }
   });

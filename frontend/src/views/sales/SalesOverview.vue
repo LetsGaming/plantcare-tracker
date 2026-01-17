@@ -85,7 +85,7 @@ export default defineComponent({
     async initSales() {
       this.loading = true;
       try {
-        const all = await SalesService.getSales({
+        const all = await SalesService.getAllSales({
           onUpdate: (chunk: Sale[]) => {
             chunk.forEach((sale) => {
               if (!this.sales.find((s) => s.id === sale.id)) {
@@ -110,7 +110,7 @@ export default defineComponent({
       // explicit fetch without streaming
       this.loading = true;
       try {
-        const all = await SalesService.getSales({ forceUpdate: true });
+        const all = await SalesService.getAllSales({ forceUpdate: true });
         this.sales = all;
         this.allSales = all;
       } catch (err) {
