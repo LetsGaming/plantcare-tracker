@@ -128,7 +128,7 @@ export default class UserService extends BaseService {
   static async isAuthenticated(): Promise<boolean> {
     const token = await TokenUtils.getToken();
 
-    if (!token) await this.refreshToken().catch(() => null);
+    if (!token) await this.refreshToken(1).catch(() => null);
     const refreshedToken = await TokenUtils.getToken();
     return !!refreshedToken;
   }

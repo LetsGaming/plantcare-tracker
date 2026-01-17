@@ -1,12 +1,12 @@
 interface Component {
+  id: number;
   name: string;
   fineness: string;
+  imageUrl?: string;
 }
 
 interface SubstrateComponent extends Component {
-  id: number;
   description: string;
-  imageUrl: string;
   parts: number;
 }
 

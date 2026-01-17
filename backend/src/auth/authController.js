@@ -141,12 +141,14 @@ const refreshAccessToken = async (req, res) => {
     const userId = authStore.findUserByRefreshToken(refreshToken);
 
     if (!userId) {
+      res.clearCookie("refreshToken");
       return errorResponse(res, "Invalid refresh token", 403);
     }
 
     // Verify the refresh token
     jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err, user) => {
       if (err || user.id !== userId) {
+        res.clearCookie("refreshToken");
         return errorResponse(res, "Invalid refresh token", 403);
       }
 
@@ -169,26 +171,28 @@ const refreshAccessToken = async (req, res) => {
 const logout = (req, res) => {
   const refreshToken = req.cookies.refreshToken;
 
-  if (!refreshToken) {
-    return errorResponse(res, "No active session found", 400);
-  }
+  // Always clear the cookie
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: req.secure || req.headers["x-forwarded-proto"] === "https",
+    sameSite: "Strict",
+    path: `/api/${versionPath}/auth/refresh-token`,
+  });
 
-  try {
-    // Find the user associated with the refresh token
-    const userId = authStore.findUserByRefreshToken(refreshToken);
-    if (userId) {
-      // Invalidate the refresh token
-      authStore.invalidateRefreshToken(userId, refreshToken);
+  if (refreshToken) {
+    try {
+      const userId = authStore.findUserByRefreshToken(refreshToken);
+      if (userId) {
+        authStore.invalidateRefreshToken(userId, refreshToken);
+      }
+    } catch (error) {
+      logger.error(`Logout error: ${error.message}`);
+      // Even if something goes wrong internally, we don't fail logout for the user
     }
-
-    // Clear the refresh token cookie
-    res.clearCookie("refreshToken");
-
-    return successResponse(res, { loggedOut: true }, "Logged out successfully");
-  } catch (error) {
-    logger.error(`Logout error: ${error.message}`);
-    return errorResponse(res, "Internal Server Error", 500);
   }
+
+  // Always return success to avoid leaking session info
+  return successResponse(res, { loggedOut: true }, "Logged out successfully");
 };
 
 // Update user profile

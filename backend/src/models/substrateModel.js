@@ -95,7 +95,7 @@ const selectSubstrates = async (conditions = {}) => {
       substrate.components.push({
         component_id: row.component_id,
         component_name: row.component_name,
-        component_fineness_name: row.component_fineness_name,
+        component_fineness: row.component_fineness_name,
         component_parts: row.component_parts,
       });
     }
