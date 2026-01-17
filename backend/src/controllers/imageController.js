@@ -64,7 +64,6 @@ const uploadImage = async (req, res) => {
       201
     );
   } catch (err) {
-    logger.error("Error during image upload", err.message);
     errorResponse(
       res,
       "An error occurred while uploading the image.",
@@ -106,7 +105,6 @@ const updateSpecificImage = async (req, res) => {
 
     successResponse(res, { path: filePath }, "Image updated successfully.");
   } catch (err) {
-    logger.error("Error during image upload", err.message);
     errorResponse(
       res,
       "An error occurred while uploading the image.",
@@ -126,8 +124,7 @@ const getImages = async (req, res) => {
     });
     successResponse(res, images);
   } catch (err) {
-    logger.error(err);
-    errorResponse(res, "Internal Server Error while getting images");
+    errorResponse(res, "Internal Server Error while getting images", 500, err);
   }
 };
 

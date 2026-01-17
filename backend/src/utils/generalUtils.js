@@ -29,6 +29,17 @@ const ensureArray = (value) => {
   }
 };
 
+/**
+ * Create a stable, opaque, frontend-safe user identifier
+ */
+const opaqueUserId = (id) => {
+  return crypto
+    .createHmac("sha256", USER_ID_SECRET)
+    .update(id.toString())
+    .digest("hex")
+    .slice(0, 16);
+};
+
 // Custom timestamp function
 const customTimestamp = (date = new Date()) => {
   return new Intl.DateTimeFormat(undefined, {
@@ -57,9 +68,23 @@ const formatToDBDate = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
+const filterDuplicatesById = (items) => {
+  const seenIds = new Set();
+  return items.filter((item) => {
+    if (seenIds.has(item.id)) {
+      return false;
+    } else {
+      seenIds.add(item.id);
+      return true;
+    }
+  });
+}
+
 module.exports = {
   removeEmptyFields,
   ensureArray,
+  opaqueUserId,
   customTimestamp,
   formatToDBDate,
+  filterDuplicatesById,
 };

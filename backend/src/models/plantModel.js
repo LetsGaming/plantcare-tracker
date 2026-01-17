@@ -27,6 +27,7 @@ const buildWhereClause = (conditions, params) => {
 const selectPlantsQuery = `
   SELECT 
     plants.id as plant_id,
+    plants.user_id as user_id,
     plants.name as plant_name,
     plants.species as plant_species,
     plants.is_public as is_public,
@@ -57,6 +58,7 @@ const selectPlants = async (conditions = {}, params = []) => {
 
       return {
         plant_id: plant.plant_id,
+        plant_user_id: plant.user_id,
         plant_name: plant.plant_name,
         plant_species: plant.plant_species,
         image_url: latestImage, // Main image

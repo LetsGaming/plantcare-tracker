@@ -83,7 +83,7 @@ import {
 import SearchBar from "@/components/SearchBar.vue";
 import PullToRefresh from "@/components/PullToRefresh.vue";
 import Utils from "@/utils/utils";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from '@/services/general/LocalizationService';
 
 export default defineComponent({
   name: "ItemsOverview",
@@ -103,14 +103,7 @@ export default defineComponent({
   },
   props: {
     items: {
-      type: Array as PropType<
-        Array<{
-          id: number | string;
-          name: string;
-          imageUrl?: string;
-          description?: string;
-          isNew?: boolean;
-        }>
+      type: Array as PropType<OverviewItem[]
       >,
       required: true,
     },

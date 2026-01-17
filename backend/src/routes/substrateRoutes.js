@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const { cleanRequestBody } = require("../middlewares/generalMiddleware");
 const {
+  getAllSubstrates,
   getPrivateSubstrates,
   getPublicSubstrates,
   getSpecificSubstrate,
@@ -15,6 +16,8 @@ const {
 
 // Get a specific substrate for the authenticated user
 router.get('/substrate/:id', authenticateToken, getSpecificSubstrate);
+
+router.get('/', authenticateToken, getAllSubstrates);
 
 // Get all private substrates for the authenticated user
 router.get('/private', authenticateToken, getPrivateSubstrates);

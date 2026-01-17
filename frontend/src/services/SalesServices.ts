@@ -14,32 +14,39 @@ export enum SaleEvents {
 
 export default class SalesService extends BaseService {
   /**
-   * Fetches sales with streaming support.
-   * Wraps the complex streaming logic inside handleRequest for toast support.
+   * Fetches all sales.
+   *
+   * Uses a single cached list as the source of truth.
+   * Streaming updates are supported and forwarded to the caller.
+   *
+   * @param options.forceUpdate If true, bypasses the cache
+   * @param options.onUpdate Optional callback for streamed chunks
+   * @returns A list of all sales
    */
-  static async getSales(options?: {
+  static async getAllSales(options?: {
     forceUpdate?: boolean;
     onUpdate?: (chunk: Sale[]) => void;
   }): Promise<Sale[]> {
-    options = options || {};
-    const forceUpdate = options.forceUpdate ?? false;
+    const forceUpdate = options?.forceUpdate ?? false;
 
-    const cached = await storageService.get<{
-      sales: Sale[];
-      timestamp: number;
-    }>(CACHE_KEY);
-    const isExpired = !cached || Utils.isCacheExpired(cached.timestamp);
-    const existingIds = new Set(cached?.sales.map((s) => s.id) || []);
+    const result = await this.getCachedData(
+      CACHE_KEY,
+      async () => {
+        const cached = await storageService.get<{ data: Sale[] }>(CACHE_KEY);
+        const existingIds = new Set(cached?.data.map((s) => s.id) || []);
 
-    if (!forceUpdate && !isExpired && cached) {
-      return cached.sales.map((s) => ({ ...s, isNew: false }));
-    }
-
-    // Wrap the stream in handleRequest to catch connection errors
-    return this.handleRequest(
-      this.streamSales(existingIds, options?.onUpdate),
-      RESOURCE_KEY
+        return this.handleRequest(
+          this.streamSales(existingIds, options?.onUpdate),
+          RESOURCE_KEY
+        );
+      },
+      forceUpdate
     );
+
+    return (result || []).map((s) => ({
+      ...s,
+      isNew: false,
+    }));
   }
 
   /**
@@ -92,7 +99,7 @@ export default class SalesService extends BaseService {
   }
 
   static async getSaleById(saleId: string): Promise<Sale | null> {
-    const sales = await this.getSales();
+    const sales = await this.getAllSales();
     return sales.find((sale) => sale.id === saleId) || null;
   }
 
@@ -116,12 +123,7 @@ export default class SalesService extends BaseService {
     );
 
     // Using the helper from BaseService
-    await this.saveAndNotify(
-      CACHE_KEY,
-      SaleEvents.SALE_SEEN,
-      updatedSales,
-      "sales"
-    );
+    await this.saveAndNotify(CACHE_KEY, SaleEvents.SALE_SEEN, updatedSales);
   }
 
   static async getCachedSales(): Promise<Sale[] | null> {

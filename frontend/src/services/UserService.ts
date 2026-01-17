@@ -142,6 +142,10 @@ export default class UserService extends BaseService {
     const payload = await this.decodeAuthToken();
     return payload?.role || "";
   }
+  static async getUserId(): Promise<number> {
+    const payload = await this.decodeAuthToken();
+    return payload?.id || -1;
+  }
 
   static async isAdmin(): Promise<boolean> {
     const role = await this.getUserRole();

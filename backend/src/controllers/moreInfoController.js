@@ -20,8 +20,7 @@ const getMoreInfo = async (req, res) => {
       "More info generated successfully."
     );
   } catch (error) {
-    console.error("Error generating links:", error);
-    return errorResponse(res, { message: "Error generating links." });
+    return errorResponse(res, "Error generating more info", 500, error);
   }
 };
 

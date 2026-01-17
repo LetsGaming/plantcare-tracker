@@ -12,24 +12,12 @@ const {
   successResponse,
   notFoundResponse,
 } = require("../utils/responseUtils");
+const { filterDuplicatesById } = require("../utils/generalUtils");
 
 // Centralized validation logic for plant data
 const validatePlantData = (name, species, substrateId) => {
   if (!name || !species || !substrateId) {
     throw new Error("Name, species, and substrateId are required.");
-  }
-};
-
-// Centralized fetch logic for private and public plant retrieval
-const getPlant = async (res, selectPlantFn, id, userId = null) => {
-  try {
-    const [plant] = await selectPlantFn(id, userId);
-    if (!plant) {
-      return notFoundResponse(res, "Plant not found");
-    }
-    successResponse(res, plant);
-  } catch (err) {
-    errorResponse(res, err, 500, "Error fetching plant");
   }
 };
 
@@ -40,7 +28,27 @@ const getPlants = async (res, selectPlantsFn, userId = null) => {
 
     successResponse(res, plants);
   } catch (err) {
-    errorResponse(res, err);
+    errorResponse(res, "Error fetching plants", 500, err);
+  }
+};
+
+// Controller for fetching all plants (both public and private)
+const getAllPlants = async (req, res) => {
+  try {
+    const userId = req.user?.id ?? null;
+
+    // Fetch public plants
+    const publicPlants = await selectPublicPlants();
+
+    // Fetch private plants only if user is logged in
+    const privatePlants = userId ? await selectPrivatePlants(userId) : [];
+
+    // Combine and filter duplicates
+    const allPlants = filterDuplicatesById([...publicPlants, ...privatePlants]);
+
+    successResponse(res, allPlants);
+  } catch (err) {
+    errorResponse(res, "Error fetching plants", 500, err);
   }
 };
 
@@ -60,7 +68,7 @@ const getPublicPlants = async (req, res) => {
 const getSpecificPlant = async (req, res) => {
   const { id } = req.params;
   const [plant] = await selectPlant(id);
-  if(!plant) {
+  if (!plant) {
     return notFoundResponse(res, "Plant not found");
   }
   successResponse(res, plant);
@@ -88,7 +96,7 @@ const addPlant = async (req, res) => {
       err.message === "Name, species, and substrateId are required."
         ? 400
         : 500;
-    errorResponse(res, err, status);
+    errorResponse(res, err.message, status, err);
   }
 };
 
@@ -121,7 +129,7 @@ const editPlant = async (req, res) => {
 
     successResponse(res, { updated: true }, "Plant updated successfully");
   } catch (err) {
-    errorResponse(res, err, 500, "Error updating plant");
+    errorResponse(res, "Error updating plant", 500, err);
   }
 };
 
@@ -143,11 +151,12 @@ const deleteSpecificPlant = async (req, res) => {
 
     successResponse(res, { deleted: true }, "Plant deleted successfully");
   } catch (err) {
-    errorResponse(res, err, 500, "Error deleting plant");
+    errorResponse(res, "Error deleting plant", 500, err);
   }
 };
 
 module.exports = {
+  getAllPlants,
   getPrivatePlants,
   getPublicPlants,
   getSpecificPlant,

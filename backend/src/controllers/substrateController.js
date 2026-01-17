@@ -16,7 +16,7 @@ const {
   successResponse,
   notFoundResponse,
 } = require("../utils/responseUtils");
-const { ensureArray } = require("../utils/generalUtils");
+const { ensureArray, filterDuplicatesById } = require("../utils/generalUtils");
 
 /**
  * Validate that required substrate fields are provided before insert
@@ -37,7 +37,31 @@ const getSubstrates = async (res, selectFn, userId = null) => {
       userId !== null ? await selectFn(userId) : await selectFn();
     successResponse(res, substrates);
   } catch (err) {
-    errorResponse(res, err);
+    errorResponse(res, "Error fetching substrates", 500, err);
+  }
+};
+
+const getAllSubstrates = async (req, res) => {
+  try {
+    const userId = req.user?.id ?? null;
+
+    // Fetch public substrates
+    const publicSubstrates = await selectPublicSubstrates();
+
+    // Fetch private substrates only if user is logged in
+    const privateSubstrates = userId
+      ? await selectPrivateSubstrates(userId)
+      : [];
+
+    // Combine and filter duplicates
+    const allSubstrates = filterDuplicatesById([
+      ...publicSubstrates,
+      ...privateSubstrates,
+    ]);
+
+    successResponse(res, allSubstrates);
+  } catch (err) {
+    errorResponse(res, "Error fetching substrates", 500, err);
   }
 };
 
@@ -70,7 +94,7 @@ const getSpecificSubstrate = async (req, res) => {
 
     successResponse(res, substrate);
   } catch (err) {
-    errorResponse(res, err, 500, "Error fetching substrate");
+    errorResponse(res, "Error fetching substrate", 500, err);
   }
 };
 
@@ -93,7 +117,12 @@ const addSubstrate = async (req, res) => {
       201
     );
   } catch (err) {
-    errorResponse(res, err, err.message === "Name is required." ? 400 : 500);
+    errorResponse(
+      res,
+      err.message,
+      err.message === "Name is required." ? 400 : 500,
+      err
+    );
   }
 };
 
@@ -141,7 +170,7 @@ const editSubstrate = async (req, res) => {
 
     successResponse(res, { updated: true }, "Substrate updated successfully");
   } catch (err) {
-    errorResponse(res, err, 500, "Error updating substrate");
+    errorResponse(res, "Error updating substrate", 500, err);
   }
 };
 
@@ -175,7 +204,7 @@ const addSubstrateComponents = async (req, res) => {
       201
     );
   } catch (err) {
-    errorResponse(res, err);
+    errorResponse(res, "Error adding substrate components", 500, err);
   }
 };
 
@@ -224,7 +253,7 @@ const editSubstrateComponents = async (req, res) => {
       "Substrate components updated successfully"
     );
   } catch (err) {
-    errorResponse(res, err, 500, "Error updating substrate components");
+    errorResponse(res, "Error updating substrate components", 500, err);
   }
 };
 
@@ -250,11 +279,12 @@ const deleteSpecificSubstrate = async (req, res) => {
 
     successResponse(res, { deleted: true }, "Substrate deleted successfully");
   } catch (err) {
-    errorResponse(res, err, 500, "Error deleting substrate");
+    errorResponse(res, "Error deleting substrate", 500, err);
   }
 };
 
 module.exports = {
+  getAllSubstrates,
   getPrivateSubstrates,
   getPublicSubstrates,
   getSpecificSubstrate,

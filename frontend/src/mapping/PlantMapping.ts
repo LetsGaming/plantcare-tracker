@@ -7,6 +7,7 @@ export default class PlantMapper {
   static mapPlant(plant: APIPlant): Plant {
     return {
       id: plant.plant_id,
+      userId: plant.plant_user_id,
       name: plant.plant_name,
       species: plant.plant_species,
       description: plant.plant_description || plant.plant_species,

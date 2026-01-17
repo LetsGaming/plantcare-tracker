@@ -40,7 +40,7 @@ const successResponse = (
  * @param {number} [statusCode=500] - HTTP status code.
  * @param {Error} [errObj] - Optional error object to log.
  */
-const errorResponse = (res, error, statusCode = 500, errObj = null) => {
+const errorResponse = (res, errorMsg, statusCode = 500, errObj = null) => {
   if (errObj) {
     // Log the error object with a stack trace or as a JSON string
     if (errObj instanceof Error) {
@@ -49,10 +49,10 @@ const errorResponse = (res, error, statusCode = 500, errObj = null) => {
       logger.error(JSON.stringify(errObj, null, 2)); // Log other objects in a readable JSON format
     }
   } else {
-    logger.error(error); // Log the error message if no object is provided
+    logger.error(errorMsg); // Log the error message if no object is provided
   }
 
-  const response = createResponseObject(false, error);
+  const response = createResponseObject(false, errorMsg);
   res.status(statusCode).json(response);
 };
 

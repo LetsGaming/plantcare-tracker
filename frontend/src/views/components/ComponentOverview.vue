@@ -13,7 +13,7 @@
     />
 
     <items-overview
-      :items="components"
+      :items="mapToOverviewItems"
       @item-click="navigateToComponent"
       @refresh-items="refreshComponents"
     ></items-overview>
@@ -51,7 +51,7 @@ export default defineComponent({
   data() {
     return {
       // 1. Initialized as empty array to ensure first render is safe
-      components: [] as SubstrateComponent[],
+      components: [] as Component[],
       showAddingModal: false,
       isAdmin: false,
     };
@@ -67,6 +67,16 @@ export default defineComponent({
     this.isAdmin = await UserService.isAdmin();
     await this.fetchComponents();
   },
+  computed: {
+    mapToOverviewItems(): OverviewItem[] {
+      return this.components.map((component) => ({
+        id: component.id,
+        name: component.name,
+        description: component.fineness,
+        imageUrl: component.imageUrl
+      }));
+    },
+  },
   methods: {
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
@@ -77,7 +87,7 @@ export default defineComponent({
      */
     async loadComponents(forceUpdate = false) {
       try {
-        const response = await ComponentService.getComponents(forceUpdate);
+        const response = await ComponentService.getAllComponents(forceUpdate);
 
         // 2. Defensive Assignment: Ensure we never assign null/undefined to this.components
         this.components = response || [];

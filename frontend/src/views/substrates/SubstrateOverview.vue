@@ -91,10 +91,9 @@ export default defineComponent({
      */
     async loadSubstrates(isRefresh = false) {
       try {
-        const response = await SubstrateService.getSubstrates(
-          this.isPublic,
-          isRefresh
-        );
+        const response = this.isPublic
+          ? await SubstrateService.getPublicSubstrates(isRefresh)
+          : await SubstrateService.getPrivateSubstrates(isRefresh);
 
         // 2. Defensive Assignment: Ensure response is not undefined/null
         this.substrates = response || [];

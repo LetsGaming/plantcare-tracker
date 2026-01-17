@@ -89,7 +89,7 @@ const addWateringRecord = async (req, res) => {
     );
   } catch (err) {
     const status = err.message === "Date is required." ? 400 : 500;
-    errorResponse(res, err, status);
+    errorResponse(res, err.message, status, err);
   }
 };
 
@@ -102,7 +102,7 @@ const editWateringRecord = async (req, res) => {
   try {
     parsedDate = date ? formatToDBDate(date) : null;
   } catch (err) {
-    return errorResponse(res, err, 400);
+    return errorResponse(res, err.message, 400, err);
   }
   try {
     if (!date && usedFertilizer === undefined && !fertilizerTypeId) {
@@ -136,7 +136,7 @@ const editWateringRecord = async (req, res) => {
     );
   } catch (err) {
     console.error(err);
-    errorResponse(res, err, 500, "Error updating watering record");
+    errorResponse(res, "Error updating watering record", 500, err);
   }
 };
 
@@ -161,7 +161,7 @@ const deleteSpecificWateringRecord = async (req, res) => {
       "Watering record deleted successfully"
     );
   } catch (err) {
-    errorResponse(res, err, 500, "Error deleting watering record");
+    errorResponse(res, "Error deleting watering record", 500, err);
   }
 };
 

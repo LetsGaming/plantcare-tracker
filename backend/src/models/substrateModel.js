@@ -37,6 +37,7 @@ const buildWhereClause = (conditions, params) => {
 const BASE_SELECT_QUERY = `
   SELECT 
     substrates.id AS substrate_id,
+    substrates.user_id AS substrate_user_id,
     substrates.name AS substrate_name,
     substrates.user_id AS substrate_user_id,
     substrates.is_public AS substrate_is_public,
@@ -81,6 +82,7 @@ const selectSubstrates = async (conditions = {}) => {
     if (!substrate) {
       substrate = {
         substrate_id: row.substrate_id,
+        substrate_user_id: row.substrate_user_id,
         substrate_name: row.substrate_name,
         substrate_user_id: row.substrate_user_id,
         is_public: row.substrate_is_public,

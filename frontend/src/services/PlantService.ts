@@ -4,83 +4,112 @@ import storageService from "@/services/general/StorageService";
 import PlantMapper from "@/mapping/PlantMapping";
 import WateringService from "./WateringService";
 import ImageService from "@/services/ImageService";
+import UserService from "./UserService";
 
+/**
+ * Base API endpoint for all plant-related requests.
+ */
 const BASE_ENDPOINT = "/plants";
-const RESOURCE_KEY = "plants.title";
-const CACHE_KEY_PUBLIC = "public_plants_data";
-const CACHE_KEY_PRIVATE = "private_plants_data";
 
+/**
+ * Translation key for plant-related UI messages.
+ */
+const RESOURCE_KEY = "plants.title";
+
+/**
+ * Single cache key containing all plants the current user
+ * is allowed to see.
+ *
+ * This cache is the single source of truth.
+ * Public and personal views are derived from it.
+ */
+const CACHE_KEY_ALL = "plants_all";
+
+/**
+ * Events emitted when the plant cache changes.
+ */
 export enum PlantEvents {
-  PUBLIC_PLANTS_UPDATED = "public-plants-updated",
-  PRIVATE_PLANTS_UPDATED = "private-plants-updated",
+  /**
+   * Fired whenever the plant entity list changes.
+   * Used by UI layers to refresh derived views.
+   */
+  PLANTS_UPDATED = "plants-updated",
 }
 
+/**
+ * PlantService
+ *
+ * Entity-centric service for managing plant data.
+ *
+ * Architectural principles:
+ * - One cache containing all visible plant entities
+ * - Cache invalidation is always ID-based
+ * - Public and personal tabs are derived views
+ * - Visibility (isPublic) is a filter, not a cache boundary
+ */
 export default class PlantService extends BaseService {
+  /* =========================================================================
+     Cache helpers
+     ========================================================================= */
+
   /**
-   * Helper to resolve cache keys and endpoints dynamically based on visibility.
+   * Persists the full plant list into storage and notifies listeners.
+   *
+   * @param plants The updated list of plant entities
    */
-  private static getContext(isPublic: boolean) {
-    return {
-      cacheKey: isPublic ? CACHE_KEY_PUBLIC : CACHE_KEY_PRIVATE,
-      endpoint: isPublic
-        ? `${BASE_ENDPOINT}/public`
-        : `${BASE_ENDPOINT}/private`,
-    };
+  private static async savePlants(plants: Plant[]): Promise<void> {
+    await this.saveAndNotify(CACHE_KEY_ALL, PlantEvents.PLANTS_UPDATED, plants);
   }
 
   /**
-   * Invalidates plant caches. If no ID is provided, clears all plant data.
+   * Invalidates the plant cache.
+   *
+   * Behavior:
+   * - Without plantId: clears the entire plant cache
+   * - With plantId: removes that plant from the cached list
+   *
+   * This method is intentionally ID-based because a plant
+   * can appear in multiple UI views simultaneously.
+   *
+   * @param plantId Optional plant ID to invalidate
    */
-  static async invalidatePlantCache(plantId?: number, isPublic?: boolean) {
-    // 1. Full Reset Scenario: If no plantId or visibility is provided, wipe everything.
-    if (plantId === undefined || isPublic === undefined) {
-      await Promise.all([
-        storageService.remove(CACHE_KEY_PUBLIC),
-        storageService.remove(CACHE_KEY_PRIVATE),
-      ]);
+  static async invalidatePlantCache(plantId?: number): Promise<void> {
+    if (plantId === undefined) {
+      await storageService.remove(CACHE_KEY_ALL);
       return;
     }
 
-    // 2. Single Item Invalidation: Remove specific plant from the list
-    const { cacheKey } = this.getContext(isPublic);
+    const stored = await storageService.get<{ data: Plant[] }>(CACHE_KEY_ALL);
+    if (!stored?.data) return;
 
-    // We fetch the stored object. If it doesn't exist, there's nothing to invalidate.
-    const stored = await storageService.get<{ data: Plant[] }>(cacheKey);
+    const updated = stored.data.filter((p) => p.id !== plantId);
+    await this.savePlants(updated);
 
-    if (stored && stored.data) {
-      const updatedPlants = stored.data.filter((p) => p.id !== plantId);
-
-      // Use BaseService's helper to save the updated list and notify the UI
-      await this.saveAndNotify(
-        cacheKey,
-        isPublic
-          ? PlantEvents.PUBLIC_PLANTS_UPDATED
-          : PlantEvents.PRIVATE_PLANTS_UPDATED,
-        updatedPlants,
-        "plants"
-      );
-    }
-
-    // 3. Cross-Service Invalidation
     await WateringService.invalidateWateringCacheForPlant(plantId);
   }
 
-  /**
-   * Fetches all plants (Public/Private) with standardized caching.
-   */
-  static async getPlants(
-    isPublic: boolean,
-    forceUpdate: boolean = false
-  ): Promise<Plant[]> {
-    const { cacheKey, endpoint } = this.getContext(isPublic);
+  /* =========================================================================
+     Fetching
+     ========================================================================= */
 
+  /**
+   * Fetches all plants the current user is allowed to see.
+   *
+   * Uses a single cached list as the source of truth.
+   *
+   * @param forceUpdate If true, bypasses the cache and refetches from the API
+   * @returns A list of all visible plants
+   */
+  static async getAllPlants(forceUpdate: boolean = false): Promise<Plant[]> {
     const result = await this.getCachedData(
-      cacheKey,
+      CACHE_KEY_ALL,
       () =>
         this.handleRequest(
-          ApiUtils.get(endpoint).then((res) =>
-            PlantMapper.convertToPlants(res)
-          ),
+          ApiUtils.get(BASE_ENDPOINT).then((res) => {
+            const plants = PlantMapper.convertToPlants(res);
+            this.savePlants(plants);
+            return plants;
+          }),
           RESOURCE_KEY
         ),
       forceUpdate
@@ -90,17 +119,24 @@ export default class PlantService extends BaseService {
   }
 
   /**
-   * Fetches a single plant by ID, checking the appropriate list cache first.
+   * Fetches a single plant by ID.
+   *
+   * The cache is checked first. If the plant is missing
+   * or forceUpdate is enabled, it is fetched from the API
+   * and upserted into the entity cache.
+   *
+   * @param plantId The plant ID to fetch
+   * @param forceUpdate If true, always refetch from the API
+   * @returns The requested plant entity
    */
   static async getPlantById(
     plantId: number,
-    isPublic: boolean,
     forceUpdate: boolean = false
   ): Promise<Plant> {
-    const plants = await this.getPlants(isPublic, false);
-    const found = plants.find((p) => p.id === plantId);
+    const plants = await this.getAllPlants(false);
+    const cached = plants.find((p) => p.id === plantId);
 
-    if (found && !forceUpdate) return found;
+    if (cached && !forceUpdate) return cached;
 
     const plant = await this.handleRequest(
       ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`).then(
@@ -110,18 +146,60 @@ export default class PlantService extends BaseService {
     );
 
     await this.upsertIntoListCache(
-      isPublic ? CACHE_KEY_PUBLIC : CACHE_KEY_PRIVATE,
-      isPublic
-        ? PlantEvents.PUBLIC_PLANTS_UPDATED
-        : PlantEvents.PRIVATE_PLANTS_UPDATED,
+      CACHE_KEY_ALL,
+      PlantEvents.PLANTS_UPDATED,
       plant
     );
 
     return plant;
   }
 
+  /* =========================================================================
+     View selectors
+     ========================================================================= */
+
   /**
-   * Standard Mutation methods (Add, Edit, Delete)
+   * Returns all public plants.
+   *
+   * This is a derived view based on the entity cache.
+   *
+   * @param forceUpdate If true, refetches the entity cache
+   * @returns All plants marked as public
+   */
+  static async getPublicPlants(forceUpdate: boolean = false): Promise<Plant[]> {
+    const plants = await this.getAllPlants(forceUpdate);
+    return plants.filter((p) => p.isPublic);
+  }
+
+  /**
+   * Returns all plants belonging to the given user.
+   *
+   * Includes both public and private plants owned by the user.
+   *
+   * @param userId The ID of the current user
+   * @param forceUpdate If true, refetches the entity cache
+   * @returns All plants owned by the user
+   */
+  static async getPersonalPlants(
+    forceUpdate: boolean = false
+  ): Promise<Plant[]> {
+    const userId = await UserService.getUserId();
+    const plants = await this.getAllPlants(forceUpdate);
+    return plants.filter((p) => p.userId === userId);
+  }
+
+  /* =========================================================================
+     Mutations
+     ========================================================================= */
+
+  /**
+   * Creates a new plant.
+   *
+   * A full cache invalidation is used because the new plant
+   * may affect multiple derived views.
+   *
+   * @param plantToAdd Plant creation payload
+   * @returns API response
    */
   static async addPlant(plantToAdd: AddPlant): Promise<any> {
     const response = await this.handleRequest(
@@ -129,10 +207,21 @@ export default class PlantService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed"
     );
+
     await this.invalidatePlantCache();
     return response;
   }
 
+  /**
+   * Updates an existing plant.
+   *
+   * Invalidates the plant by ID to ensure all derived views
+   * are updated consistently.
+   *
+   * @param plantId The ID of the plant to update
+   * @param updatedPlantData Update payload
+   * @returns API response
+   */
   static async editPlant(
     plantId: number,
     updatedPlantData: EditPlant
@@ -142,24 +231,41 @@ export default class PlantService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed"
     );
-    await this.invalidatePlantCache(
-      plantId,
-      updatedPlantData.isPublic || false
-    );
+
+    await this.invalidatePlantCache(plantId);
     return response;
   }
 
+  /**
+   * Deletes a plant.
+   *
+   * Removes the plant entity from the cache and updates all views.
+   *
+   * @param plantId The ID of the plant to delete
+   * @returns API response
+   */
   static async deletePlant(plantId: number): Promise<any> {
     const response = await this.handleRequest(
       ApiUtils.delete(`${BASE_ENDPOINT}/${plantId}`),
       RESOURCE_KEY,
       "error.action_failed"
     );
-    await this.invalidatePlantCache(plantId, false); // Best effort clean up
-    await this.invalidatePlantCache(plantId, true);
+
+    await this.invalidatePlantCache(plantId);
     return response;
   }
 
+  /**
+   * Uploads an image for a plant.
+   *
+   * After upload, the plant is invalidated to ensure
+   * updated image metadata is reflected in the UI.
+   *
+   * @param plantId The plant ID
+   * @param image Image file to upload
+   * @param date Optional date associated with the image
+   * @returns API response
+   */
   static async uploadPlantImage(
     plantId: number,
     image: File,
@@ -171,7 +277,8 @@ export default class PlantService extends BaseService {
       plantId,
       date
     );
-    await this.invalidatePlantCache(plantId, false);
+
+    await this.invalidatePlantCache(plantId);
     return response;
   }
 }

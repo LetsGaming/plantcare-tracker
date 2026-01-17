@@ -176,7 +176,6 @@ export default defineComponent({
       try {
         const response = await PlantService.getPlantById(
           this.plantId,
-          this.isPublic,
           forceRefresh
         );
 
@@ -191,7 +190,7 @@ export default defineComponent({
     },
 
     async handlePlantEdited() {
-      await this.loadPlantData(true);
+      await this.loadPlantData();
       this.showEditModal = false;
     },
 
@@ -205,7 +204,7 @@ export default defineComponent({
             fileItem.date
           );
           // Refresh data to update image list/banner
-          await this.loadPlantData(true);
+          await this.loadPlantData();
           this.isImageLoading = false;
           this.$nextTick(() => {
             this.showUploadModal = false;
@@ -224,7 +223,7 @@ export default defineComponent({
 
     async handleImageEdited() {
       try {
-        await this.loadPlantData(true);
+        await this.loadPlantData();
         this.showImageEditModal = false;
       } catch (error) {
         console.error("Error editing image:", error);

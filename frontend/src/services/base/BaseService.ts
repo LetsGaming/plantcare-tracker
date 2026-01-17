@@ -22,7 +22,7 @@ export abstract class BaseService {
     storageKey: string,
     eventKey: string,
     data: T,
-    wrapInObjectKey?: string
+    wrapInObjectKey: string = "data" 
   ): Promise<void> {
     const plainData = this.deepCopy(data);
     const valueToStore = wrapInObjectKey

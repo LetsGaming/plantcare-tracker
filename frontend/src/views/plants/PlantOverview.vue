@@ -96,7 +96,11 @@ export default defineComponent({
 
       try {
         // FIX: Fallback to empty array if service returns null/undefined
-        const data = await PlantService.getPlants(this.isPublic, isRefresh);
+        const data = this.isPublic
+          ? await PlantService.getPublicPlants(isRefresh)
+          : await PlantService.getPersonalPlants(
+              isRefresh
+            );
         this.plants = data || [];
 
         // Now .length will never crash

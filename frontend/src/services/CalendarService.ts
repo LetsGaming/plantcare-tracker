@@ -1,6 +1,10 @@
 import { BaseService } from "./base/BaseService";
 import storageService from "@/services/general/StorageService";
 
+/* =========================================================================
+   Defaults
+   ========================================================================= */
+
 const DEFAULT_WATERING_CATEGORIES: Category[] = [
   {
     name: "watering.category.organic",
@@ -19,6 +23,10 @@ const DEFAULT_WATERING_CATEGORIES: Category[] = [
   },
 ];
 
+/* =========================================================================
+   Storage keys & events
+   ========================================================================= */
+
 export enum StorageKeys {
   CATEGORIES = "date_categories",
   WATERING_CATEGORIES = "watering_categories",
@@ -35,40 +43,70 @@ export enum CalendarEvents {
   DELETE_AFTER_THIRTY_CHANGED = "delete-after-thirty-changed",
 }
 
+/**
+ * CalendarService
+ *
+ * Local entity-centric service for calendar-related state.
+ *
+ * Architectural principles:
+ * - Storage is the single source of truth
+ * - All writes go through saveAndNotify
+ * - Defaults are derived views, never silently persisted
+ * - Consumers subscribe to events instead of polling
+ */
 export default class CalendarService extends BaseService {
-  // --- CATEGORIES ---
+  /* =========================================================================
+     Category helpers
+     ========================================================================= */
+
+  private static async getStoredCategories(
+    key: StorageKeys
+  ): Promise<Category[]> {
+    const stored = await storageService.get<{ categories: Category[] }>(key);
+    return stored?.categories || [];
+  }
+
+  private static async saveCategoriesInternal(
+    key: StorageKeys,
+    event: CalendarEvents,
+    categories: Category[]
+  ): Promise<void> {
+    await this.saveAndNotify(key, event, categories);
+  }
+
+  /* =========================================================================
+     Categories
+     ========================================================================= */
+
   static async getCategories(): Promise<Category[]> {
-    const storage = await storageService.get<StoredCategories>(
-      StorageKeys.CATEGORIES
-    );
-    return storage?.categories || [];
+    return this.getStoredCategories(StorageKeys.CATEGORIES);
   }
 
   static async saveCategories(categories: Category[]): Promise<void> {
-    await this.saveAndNotify(
+    await this.saveCategoriesInternal(
       StorageKeys.CATEGORIES,
       CalendarEvents.CATEGORIES_CHANGED,
-      categories,
-      "categories"
+      categories
     );
   }
 
-  // --- WATERING CATEGORIES ---
+  /* =========================================================================
+     Watering categories
+     ========================================================================= */
+
   static async getWateringCategories(): Promise<Category[]> {
-    const stored = await storageService.get<StoredCategories>(
+    const categories = await this.getStoredCategories(
       StorageKeys.WATERING_CATEGORIES
     );
-    return stored?.categories?.length
-      ? stored.categories
-      : DEFAULT_WATERING_CATEGORIES;
+
+    return categories.length ? categories : DEFAULT_WATERING_CATEGORIES;
   }
 
   static async saveWateringCategories(categories: Category[]): Promise<void> {
-    await this.saveAndNotify(
+    await this.saveCategoriesInternal(
       StorageKeys.WATERING_CATEGORIES,
       CalendarEvents.WATERING_CATEGORIES_CHANGED,
-      categories,
-      "categories"
+      categories
     );
   }
 
@@ -76,54 +114,62 @@ export default class CalendarService extends BaseService {
     await this.saveWateringCategories(DEFAULT_WATERING_CATEGORIES);
   }
 
-  // --- REMINDER DATES ---
+  /* =========================================================================
+     Reminder dates
+     ========================================================================= */
+
   static async getDates(): Promise<CalendarDates[]> {
-    const storage = await storageService.get<StoredCalendarDates>(
-      StorageKeys.DATES
-    );
-    return storage?.calendarDates || [];
+    const stored = await storageService.get<{
+      calendarDates: CalendarDates[];
+    }>(StorageKeys.DATES);
+
+    return stored?.calendarDates || [];
   }
 
   static async saveDates(dates: CalendarDates[]): Promise<void> {
     await this.saveAndNotify(
       StorageKeys.DATES,
       CalendarEvents.DATES_CHANGED,
-      dates,
-      "calendarDates"
+      dates
     );
   }
 
   static async deleteOldDates(): Promise<void> {
-    const doDelete = await this.getDeleteAfterThirty();
-    if (!doDelete) return;
+    if (!(await this.getDeleteAfterThirty())) return;
 
     const dates = await this.getDates();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - 30);
 
-    const filteredDates = dates.filter(
-      (d) => new Date(d.date) >= thirtyDaysAgo
-    );
-    if (filteredDates.length !== dates.length)
-      await this.saveDates(filteredDates);
+    const filtered = dates.filter((d) => new Date(d.date) >= threshold);
+
+    if (filtered.length !== dates.length) {
+      await this.saveDates(filtered);
+    }
   }
 
-  // --- SETTINGS ---
+  /* =========================================================================
+     Settings
+     ========================================================================= */
+
   static async getDeleteAfterThirty(): Promise<boolean> {
-    return !!(await storageService.get(StorageKeys.DELETE_AFTER_THIRTY));
+    return Boolean(await storageService.get(StorageKeys.DELETE_AFTER_THIRTY));
   }
 
-  static async saveDeleteAfterThirty(doDelete: boolean): Promise<void> {
+  static async saveDeleteAfterThirty(value: boolean): Promise<void> {
     await this.saveAndNotify(
       StorageKeys.DELETE_AFTER_THIRTY,
       CalendarEvents.DELETE_AFTER_THIRTY_CHANGED,
-      doDelete
+      value
     );
   }
 
   static async getFirstDayOfWeek(): Promise<number> {
-    const day = await storageService.get<number>(StorageKeys.FIRST_DAY_OF_WEEK);
-    return typeof day === "number" ? day : 1;
+    const stored = await storageService.get<number>(
+      StorageKeys.FIRST_DAY_OF_WEEK
+    );
+
+    return typeof stored === "number" ? stored : 1;
   }
 
   static async saveFirstDayOfWeek(day: number): Promise<void> {

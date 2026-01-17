@@ -1,3 +1,11 @@
+interface OverviewItem {
+  id: number | string;
+  name: string;
+  imageUrl?: string;
+  description?: string;
+  isNew?: boolean;
+}
+
 interface AccordionItem {
   id: number | string;
   name: string;

@@ -30,36 +30,14 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonCard,
-  IonCardHeader,
-  IonCardContent,
-  IonButton,
-  IonSelect,
-  IonSelectOption,
-  IonTitle,
-  IonIcon,
-  IonToolbar,
-} from "@ionic/vue";
-import { settings } from "ionicons/icons";
 import Calendar from "@/components/calendar/Calendar.vue";
-import BaseFormModal from "../modal/BaseFormModal.vue";
-
+import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import CalendarService, { CalendarEvents } from "@/services/CalendarService";
 
 export default defineComponent({
   name: "MenuCalendar",
   emits: ["settings-click"],
   components: {
-    IonCard,
-    IonCardHeader,
-    IonCardContent,
-    IonButton,
-    IonSelect,
-    IonSelectOption,
-    IonTitle,
-    IonIcon,
-    IonToolbar,
     Calendar,
     BaseFormModal,
   },
@@ -69,30 +47,29 @@ export default defineComponent({
       default: false,
     },
   },
-  setup() {
-    return {
-      settings,
-    };
-  },
+
   data() {
     return {
       selectedDate: "",
-      selectedCategory: null as {
-        name: string;
-        textColor: string;
-        backgroundColor: string;
-      } | null,
       reminderDates: [] as CalendarDates[],
       categories: [] as Category[],
+
       isPopoverOpen: false,
       isModalOpen: false,
       isLoading: false,
+
       formData: {
         date: null as number | null,
         category: null as string | null,
       },
+
       formFields: [
-        { modelKey: "date", label: "calendar.reminder.form.date", type: "date", required: true },
+        {
+          modelKey: "date",
+          label: "calendar.reminder.form.date",
+          type: "date",
+          required: true,
+        },
         {
           modelKey: "category",
           label: "calendar.reminder.form.category",
@@ -103,170 +80,182 @@ export default defineComponent({
       ] as FormField[],
     };
   },
+
   async mounted() {
-    this.setupListeners();
-    await this.getSavedDates();
-    await this.getSavedCategories();
+    this.attachListeners();
+    await this.loadInitialState();
   },
+
+  beforeUnmount() {
+    this.detachListeners();
+  },
+
   computed: {
     popoverItem(): PopoverItem | undefined {
-      const item = this.reminderDates.find(
-        (date) => date.date === this.selectedDate
-      );
+      const item = this.reminderDates.find((d) => d.date === this.selectedDate);
 
-      if (item) {
-        return {
-          title: `Erinnerung am ${item.date}`,
-          fields: [
-            { label: "Kategorie", value: item.category.name },
-            { label: "Farbe", value: item.category.textColor },
-            { label: "Hintergrundfarbe", value: item.category.backgroundColor },
-          ],
-        };
-      }
+      if (!item) return;
 
-      return undefined;
+      return {
+        title: `Erinnerung am ${item.date}`,
+        fields: [
+          { label: "Kategorie", value: item.category.name },
+          { label: "Textfarbe", value: item.category.textColor },
+          { label: "Hintergrund", value: item.category.backgroundColor },
+        ],
+      };
     },
   },
+
   methods: {
-    setupListeners() {
-      document.addEventListener(CalendarEvents.CATEGORIES_CHANGED, (event) => {
-        const customEvent = event as CustomEvent<Category[]>;
-        this.categories = customEvent.detail;
-      });
-      document.addEventListener(CalendarEvents.DATES_CHANGED, (event) => {
-        const customEvent = event as CustomEvent<CalendarDates[]>;
-        this.reminderDates = [];
-        this.$nextTick(() => {
-          this.reminderDates = customEvent.detail;
-        });
-      });
-      document.addEventListener(
-        CalendarEvents.DELETE_AFTER_THIRTY_CHANGED,
-        (event) => {
-          const customEvent = event as CustomEvent<boolean>;
-          CalendarService.saveDeleteAfterThirty(customEvent.detail);
-        }
-      );
-    },
-    async getSavedDates() {
+    /* =============================================================
+       Lifecycle helpers
+       ============================================================= */
+
+    async loadInitialState() {
       this.reminderDates = await CalendarService.getDates();
-    },
-    async getSavedCategories() {
       this.categories = await CalendarService.getCategories();
+      this.syncCategoryOptions();
     },
+
+    attachListeners() {
+      document.addEventListener(
+        CalendarEvents.DATES_CHANGED,
+        this.onDatesChanged
+      );
+      document.addEventListener(
+        CalendarEvents.CATEGORIES_CHANGED,
+        this.onCategoriesChanged
+      );
+    },
+
+    detachListeners() {
+      document.removeEventListener(
+        CalendarEvents.DATES_CHANGED,
+        this.onDatesChanged
+      );
+      document.removeEventListener(
+        CalendarEvents.CATEGORIES_CHANGED,
+        this.onCategoriesChanged
+      );
+    },
+
+    /* =============================================================
+       Event handlers
+       ============================================================= */
+
+    onDatesChanged(event: Event) {
+      const e = event as CustomEvent<CalendarDates[]>;
+      this.reminderDates = e.detail;
+    },
+
+    onCategoriesChanged(event: Event) {
+      const e = event as CustomEvent<Category[]>;
+      this.categories = e.detail;
+      this.syncCategoryOptions();
+    },
+
+    /* =============================================================
+       UI interactions
+       ============================================================= */
+
     onDateSelected(date: string) {
-      const normalizedDate = date.split("T")[0];
+      const normalized = date.split("T")[0];
+      const existing = this.reminderDates.find((d) => d.date === normalized);
 
-      // find existing reminder
-      const found = this.reminderDates.find(
-        (reminder) => reminder.date === normalizedDate
-      );
-
-      if (found) {
-        // existing reminder → show popover
-        this.selectedDate = normalizedDate;
-        this.selectedCategory = found.category;
+      if (existing) {
+        this.selectedDate = normalized;
         this.isPopoverOpen = true;
-      } else {
-        // no reminder
-        this.selectedCategory = null;
-        this.isPopoverOpen = false;
-
-        // if same date clicked twice → show adding modal
-        if (this.selectedDate === normalizedDate) {
-          this.formData = {
-            date: new Date(normalizedDate).getTime(),
-            category: null,
-          };
-
-          // safely set select options
-          const categoryField = this.formFields.find(
-            (f) => f.modelKey === "category" && f.type === "select"
-          ) as SelectField | undefined;
-
-          if (categoryField) {
-            categoryField.options = this.categories.map((c) => ({
-              label: c.name,
-              value: c.name,
-            }));
-          }
-
-          this.isModalOpen = true;
-        }
-
-        // update selectedDate
-        this.selectedDate = normalizedDate;
+        return;
       }
-    },
-    onEditClick() {
-      // open modal to edit selected date
-      const found = this.reminderDates.find(
-        (r) => r.date === this.selectedDate
-      );
-      if (found) {
+
+      if (this.selectedDate === normalized) {
         this.formData = {
-          date: new Date(found.date).getTime(),
-          category: found.category.name,
+          date: new Date(normalized).getTime(),
+          category: null,
         };
-        // safely set select options
-        const categoryField = this.formFields.find(
-          (f) => f.modelKey === "category" && f.type === "select"
-        ) as SelectField | undefined;
-
-        if (categoryField) {
-          categoryField.options = this.categories.map((c) => ({
-            label: c.name,
-            value: c.name,
-          }));
-        }
-
         this.isModalOpen = true;
       }
+
+      this.isPopoverOpen = false;
+      this.selectedDate = normalized;
     },
+
+    onEditClick() {
+      const existing = this.reminderDates.find(
+        (d) => d.date === this.selectedDate
+      );
+      if (!existing) return;
+
+      this.formData = {
+        date: new Date(existing.date).getTime(),
+        category: existing.category.name,
+      };
+
+      this.isModalOpen = true;
+    },
+
+    /* =============================================================
+       Persistence
+       ============================================================= */
+
     async submitHandler() {
       this.isLoading = true;
+
       try {
         const category = this.categories.find(
           (c) => c.name === this.formData.category
         );
-        if (!category) return;
+        if (!category || !this.formData.date) return;
 
-        // check if updating existing
-        const idx = this.reminderDates.findIndex(
-          (r) => Number(r.date) === this.formData.date
-        );
-        if (idx >= 0) {
-          this.reminderDates[idx] = {
-            date: this.formData.date
-              ? new Date(this.formData.date).toISOString().split("T")[0]
-              : "",
-            category,
-          };
-        } else {
-          this.reminderDates.push({
-            date: this.formData.date
-              ? new Date(this.formData.date).toISOString().split("T")[0]
-              : "",
-            category,
-          });
-        }
+        const dateIso = new Date(this.formData.date)
+          .toISOString()
+          .split("T")[0];
 
-        await this.saveDates();
+        const updated = this.reminderDates.filter((d) => d.date !== dateIso);
+
+        updated.push({
+          date: dateIso,
+          category: {
+            name: category.name,
+            textColor: category.textColor,
+            backgroundColor: category.backgroundColor,
+          },
+        });
+
+        await CalendarService.saveDates(updated);
         this.isModalOpen = false;
       } finally {
         this.isLoading = false;
       }
     },
+
     async onDeleteDate() {
-      this.reminderDates = this.reminderDates.filter(
-        (r) => new Date(r.date).getTime() !== this.formData.date
+      if (!this.formData.date) return;
+
+      const updated = this.reminderDates.filter(
+        (d) => new Date(d.date).getTime() !== this.formData.date
       );
-      await this.saveDates();
+
+      await CalendarService.saveDates(updated);
       this.isModalOpen = false;
     },
-    async saveDates() {
-      await CalendarService.saveDates(this.reminderDates);
+
+    /* =============================================================
+       Helpers
+       ============================================================= */
+
+    syncCategoryOptions() {
+      const field = this.formFields.find(
+        (f) => f.modelKey === "category" && f.type === "select"
+      ) as SelectField | undefined;
+
+      if (!field) return;
+
+      field.options = this.categories.map((c) => ({
+        label: c.name,
+        value: c.name,
+      }));
     },
   },
 });

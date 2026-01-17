@@ -120,7 +120,6 @@ export default defineComponent({
     async fetchSubstrate(forceUpdate = false) {
       this.substrate = await SubstrateService.getSubstrateById(
         this.substrateId,
-        this.isPublic,
         forceUpdate
       );
     },
@@ -133,7 +132,7 @@ export default defineComponent({
             fileItem.file,
             fileItem.date
           );
-          await this.fetchSubstrate(true);
+          await this.fetchSubstrate();
           this.isLoading = false;
           this.$nextTick(() => {
             this.toggleUpload();
@@ -147,7 +146,7 @@ export default defineComponent({
     async handleSubstrateEdited() {
       this.showEditModal = false;
       try {
-        await this.fetchSubstrate(true);
+        await this.fetchSubstrate();
       } catch (error) {
         console.error("Error fetching substrate details:", error);
       }
