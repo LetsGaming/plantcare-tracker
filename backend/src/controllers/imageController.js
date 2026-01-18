@@ -91,9 +91,10 @@ const updateSpecificImage = async (req, res) => {
     }
 
     if (imageFile && !allowedMimeTypes.includes(imageFile.mimetype)) {
-      return res.status(400).json({
-        message: "Uploaded file is not a valid image format (png, jpeg, jpg).",
-      });
+      return validationErrorResponse(
+        res,
+        "Invalid image format. Only PNG, JPEG, and JPG files are allowed."
+      );
     }
 
     let parsedDate = date ? formatToDBDate(date) : undefined;

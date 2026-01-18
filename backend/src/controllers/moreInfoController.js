@@ -1,11 +1,18 @@
-const { errorResponse, successResponse } = require("../utils/responseUtils");
+const {
+  errorResponse,
+  successResponse,
+  validationErrorResponse,
+} = require("../utils/responseUtils");
 const { getPlantCareFromOpenAI } = require("./moreInfo/openaiClient");
 const { generateLinks } = require("./moreInfo/plantSources");
 
 const getMoreInfo = async (req, res) => {
   const { plantName, htmlFormatting } = req.query; // Extracting plantName and htmlFormatting from the query parameters
   if (!plantName)
-    return res.status(400).json({ message: "plantName is required." });
+    return validationErrorResponse(
+      res,
+      "plantName query parameter is required."
+    );
 
   let cleanedName = plantName
     .replace(/\s*\([^)]*\)/g, "") // Remove anything inside parentheses first
