@@ -10,7 +10,7 @@ interface SubstrateComponent extends Component {
   parts: number;
 }
 
-interface AddComponent extends Omit<Component, "fineness"> {
+interface AddComponent extends Omit<Component, "id" | "fineness"> {
   fineness: number;
   image?: File;
 }

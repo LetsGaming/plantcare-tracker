@@ -26,7 +26,7 @@ export default class UserService extends BaseService {
     return this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/register`, data),
       RESOURCE_KEY,
-      "auth.registration_failed"
+      "auth.registration_failed",
     );
   }
 
@@ -34,7 +34,7 @@ export default class UserService extends BaseService {
     const response = (await this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/login`, data),
       RESOURCE_KEY,
-      "auth.login_failed"
+      "auth.login_failed",
     )) as LoginResponse;
 
     await TokenUtils.setToken(response.accessToken);
@@ -45,7 +45,7 @@ export default class UserService extends BaseService {
     const response = (await this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/login/guest`, null),
       RESOURCE_KEY,
-      "auth.failed_guest"
+      "auth.failed_guest",
     )) as LoginResponse;
 
     await TokenUtils.setToken(response.accessToken);
@@ -68,6 +68,13 @@ export default class UserService extends BaseService {
     router.replace({ name: "login" }).then(() => window.location.reload());
   }
 
+  private static RefreshError = class extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "RefreshError";
+    }
+  };
+
   /**
    * Robust Token Refresh logic with retry mechanism
    */
@@ -83,24 +90,23 @@ export default class UserService extends BaseService {
         });
 
         if (!response.ok)
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          throw new this.RefreshError(`HTTP ${response.status}`);
 
         const res = await response.json();
         if (!res.data?.accessToken)
-          throw new Error("Invalid response structure");
+          throw new this.RefreshError("Invalid response structure");
 
         await TokenUtils.setToken(res.data.accessToken);
         return;
       } catch (error) {
-        console.error(`Attempt ${attempt} to refresh token failed: ${error}`);
         if (attempt === retryCount) {
           await this.handleRequest(
             Promise.reject(error),
             RESOURCE_KEY,
-            "auth.refresh_failed"
+            "auth.refresh_failed",
           );
           await this.logout();
-          throw new Error("Token refresh failed");
+          throw error;
         }
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
@@ -111,7 +117,7 @@ export default class UserService extends BaseService {
     return this.handleRequest(
       ApiUtils.put(`${BASE_ENDPOINT}/update`, data),
       "profile.title",
-      "profile.update_failed"
+      "profile.update_failed",
     );
   }
 
@@ -119,7 +125,7 @@ export default class UserService extends BaseService {
     return this.handleRequest(
       ApiUtils.delete(`${BASE_ENDPOINT}/delete`),
       "profile.title",
-      "profile.delete_failed"
+      "profile.delete_failed",
     );
   }
 

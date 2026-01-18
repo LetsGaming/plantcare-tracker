@@ -32,7 +32,12 @@ export default defineComponent({
   computed: {
     componentFormFields() {
       return [
-        { type: "input", modelKey: "name", label: "component.field.name", required: true },
+        {
+          type: "input",
+          modelKey: "name",
+          label: "component.field.name",
+          required: true,
+        },
         {
           type: "select",
           modelKey: "fineness",
@@ -57,7 +62,10 @@ export default defineComponent({
           !componentData.fineness ||
           componentData.fineness < 0
         ) {
-          ToastService.showError({ key: 'components.add.error_required', fallback: 'Bitte füllen Sie alle erforderlichen Felder aus.' });
+          ToastService.showError({
+            key: "components.add.error_required",
+            fallback: "Please fill in all required fields.",
+          });
           return;
         }
         this.isLoading = true;
@@ -71,7 +79,10 @@ export default defineComponent({
         this.$emit("added");
       } catch (error) {
         this.isLoading = false;
-        ToastService.showError({ key: 'components.add.error_failed', fallback: 'Fehler beim Hinzufügen der Komponente' });
+        ToastService.showError({
+          key: "components.add.error_failed",
+          fallback: "Error adding component",
+        });
       }
     },
     async uploadImage(id: number, image: File) {
@@ -80,15 +91,25 @@ export default defineComponent({
         const resposne = await ComponentService.uploadComponentImage(id, image);
         if (resposne) {
           this.isLoading = false;
-          ToastService.showSuccess({ key: 'components.add.upload_success', fallback: 'Bild erfolgreich hochgeladen' });
+          ToastService.showSuccess({
+            key: "components.add.upload_success",
+            fallback: "Image uploaded successfully",
+          });
         }
       } catch (error) {
         this.isLoading = false;
-        ToastService.showError({ key: 'components.add.upload_failed', fallback: 'Fehler beim Hochladen des Bildes' });
+        ToastService.showError({
+          key: "components.add.upload_failed",
+          fallback: "Error uploading image",
+        });
       }
     },
     clearComponentData() {
-      this.component = { name: "", fineness: -1, image: undefined };
+      this.component = {
+        name: "",
+        fineness: -1,
+        image: undefined,
+      } as AddComponent;
     },
   },
 });

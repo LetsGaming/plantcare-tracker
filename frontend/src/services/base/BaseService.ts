@@ -44,7 +44,11 @@ export abstract class BaseService {
     try {
       return await request;
     } catch (error) {
-      console.error(`Service Error:`, error);
+      // check if name is RefreshError to avoid too many toasts during token refresh
+      if ((error as Error)?.name === "RefreshError") {
+        throw error;
+      }
+
       ToastService.showError({
         key: actionKey,
         vars: {
