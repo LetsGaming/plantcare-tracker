@@ -6,6 +6,7 @@ const {
   login,
   guestLogin,
   refreshAccessToken,
+  requestTicket,
   logout,
   updateProfile,
   updateUserProfile,
@@ -25,6 +26,9 @@ router.post("/login/guest", guestLogin);
 
 // Refresh access token
 router.post("/refresh-token", refreshAccessToken);
+
+// Request SSE ticket
+router.post("/request-ticket", authenticateToken, requestTicket);
 
 // User logout
 router.post("/logout", logout);

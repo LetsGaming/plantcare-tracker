@@ -154,7 +154,7 @@ const editSubstrate = async (req, res) => {
       return notFoundResponse(res, "Substrate not found");
     }
 
-    if (substrate.user_id !== userId) {
+    if (substrate.substrate_user_id !== userId) {
       return errorResponse(res, "Unauthorized to update this substrate", 403);
     }
 
@@ -233,7 +233,7 @@ const editSubstrateComponents = async (req, res) => {
       return notFoundResponse(res, "Substrate not found");
     }
 
-    if (substrate.user_id !== userId) {
+    if (substrate.substrate_user_id !== userId) {
       return errorResponse(res, "Unauthorized to edit this substrate", 403);
     }
 

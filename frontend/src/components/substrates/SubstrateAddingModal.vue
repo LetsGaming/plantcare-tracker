@@ -1,6 +1,9 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader :headerTitle="t('substrate.add.title')" @close="$emit('close')" />
+    <ModalHeader
+      :headerTitle="t('substrate.add.title')"
+      @close="$emit('close')"
+    />
     <IonContent>
       <!-- Step 1: Substrate Information Form -->
       <form-component
@@ -50,7 +53,7 @@
 
       <div class="action-buttons" v-if="step === 2">
         <IonButton expand="full" color="medium" @click="goToStepOne">
-          {{ t('action.back') }}
+          {{ t("action.back") }}
         </IonButton>
         <IonButton
           expand="full"
@@ -58,7 +61,7 @@
           @click="addSubstrate"
           :disabled="isLoading"
         >
-          {{ t('substrate.save') }}
+          {{ t("substrate.save") }}
         </IonButton>
       </div>
     </IonContent>
@@ -84,7 +87,7 @@ import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 import ComponentService from "@/services/ComponentService";
 
 export default defineComponent({
@@ -113,12 +116,13 @@ export default defineComponent({
   },
   data() {
     return {
-      step: 1, // 1: form, 2: component selection
+      step: 1,
       substrate: {
         name: "",
         image: undefined as File | undefined,
         isPublic: false,
       },
+      // Fix 1: Change type to SubstrateComponent[] to match the prop requirement
       availableComponents: [] as SubstrateComponent[],
       selectedComponentIds: [] as number[],
       componentParts: {} as Record<number, number>,
@@ -126,9 +130,10 @@ export default defineComponent({
     };
   },
   computed: {
+    // Note: This matches the prop 'components' in component-selection
     sortedComponents(): SubstrateComponent[] {
       return [...this.availableComponents].sort((a, b) =>
-        a.name.localeCompare(b.name)
+        a.name.localeCompare(b.name),
       );
     },
   },
@@ -141,15 +146,22 @@ export default defineComponent({
     },
     async fetchAvailableComponents() {
       try {
-        const response = await ComponentService.getComponents();
+        const response = await ComponentService.getAllComponents();
 
-        // Initialize the filtered list with the full list of components
-        this.availableComponents = [...response].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        );
+        // Fix 2: Map the response to include missing mandatory properties
+        // We ensure description and parts exist to satisfy the Type check
+        this.availableComponents = response
+          .map((comp: any) => ({
+            ...comp,
+            description: comp.fineness || "",
+            parts: 0,
+          }))
+          .sort((a: SubstrateComponent, b: SubstrateComponent) =>
+            a.name.localeCompare(b.name),
+          );
       } catch (error) {
         console.error("Error fetching components:", error);
-        ToastService.showError({ key: 'substrate.load_components_failed' });
+        ToastService.showError({ key: "substrate.load_components_failed" });
       }
     },
     goToStepOne() {
@@ -157,7 +169,7 @@ export default defineComponent({
     },
     goToStepTwo() {
       if (!this.substrate.name) {
-        ToastService.showWarning({ key: 'substrate.name_required' });
+        ToastService.showWarning({ key: "substrate.name_required" });
         return;
       }
       this.step = 2;
@@ -172,12 +184,14 @@ export default defineComponent({
     },
     async addSubstrate() {
       if (this.selectedComponentIds.length === 0) {
-        ToastService.showWarning({ key: 'substrate.select_component_required' });
+        ToastService.showWarning({
+          key: "substrate.select_component_required",
+        });
         return;
       }
 
       const componentsData = {
-        substrateId: 0, // to be updated after substrate creation
+        substrateId: 0,
         components: this.selectedComponentIds.map((id) => ({
           componentId: id,
           parts: this.componentParts[id] || 1,
@@ -188,13 +202,13 @@ export default defineComponent({
         this.loadingTimeout();
         const response = await SubstrateService.addSubstrateWithComponents(
           this.substrate,
-          componentsData
+          componentsData,
         );
 
         if (response) {
           const substrateId = response.substrate.substrateId;
           if (!this.substrate.image) {
-            ToastService.showSuccess({ key: 'substrate.added' });
+            ToastService.showSuccess({ key: "substrate.added" });
             this.$emit("added");
           } else {
             await this.imageUpload(substrateId, this.substrate.image);
@@ -203,7 +217,7 @@ export default defineComponent({
         }
       } catch (error) {
         console.error("Error adding substrate:", error);
-        ToastService.showError({ key: 'substrate.add_error' });
+        ToastService.showError({ key: "substrate.add_error" });
       }
     },
     async imageUpload(id: number, file: File) {
@@ -211,14 +225,14 @@ export default defineComponent({
         this.loadingTimeout();
         const response = await SubstrateService.uploadSubstrateImage(id, file);
         if (response) {
-          ToastService.showSuccess({ key: 'substrate.added' });
+          ToastService.showSuccess({ key: "substrate.added" });
           this.$emit("added");
         } else {
-          ToastService.showError({ key: 'substrate.upload_image_error' });
+          ToastService.showError({ key: "substrate.upload_image_error" });
         }
       } catch (error) {
         console.error("Error uploading image:", error);
-        ToastService.showError({ key: 'substrate.upload_image_error' });
+        ToastService.showError({ key: "substrate.upload_image_error" });
       }
     },
     loadingTimeout() {

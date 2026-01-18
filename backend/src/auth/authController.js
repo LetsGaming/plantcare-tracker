@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const logger = require("../utils/logger");
 const authService = require("./authService");
 const authStore = require("./authStore"); // In-memory session store
+const { createTicket } = require("../auth/ticketStore");
 const {
   JWT_SECRET,
   JWT_REFRESH_SECRET,
@@ -53,7 +54,7 @@ const register = async (req, res) => {
       res,
       { id: newUser.id, username },
       "User created successfully",
-      201
+      201,
     );
   } catch (error) {
     logger.error(`Register error: ${error.message}`);
@@ -156,7 +157,7 @@ const refreshAccessToken = async (req, res) => {
       const accessToken = jwt.sign(
         { id: user.id, username: user.username, role: user.role },
         JWT_SECRET,
-        { expiresIn: JWT_EXPIRATION }
+        { expiresIn: JWT_EXPIRATION },
       );
 
       return successResponse(res, { accessToken });
@@ -164,6 +165,19 @@ const refreshAccessToken = async (req, res) => {
   } catch (error) {
     logger.error(`Token refresh error: ${error.message}`);
     return errorResponse(res, "Internal Server Error", 500);
+  }
+};
+
+const requestTicket = (req, res) => {
+  try {
+    const userId = req.user.id;
+    if (!userId) {
+      return errorResponse(res, "Invalid refresh token", 403);
+    }
+    const ticket = createTicket(userId);
+    return successResponse(res, { ticket }, "Ticket created successfully");
+  } catch (error) {
+    return errorResponse(res, "Internal Server Error", 500, error);
   }
 };
 
@@ -237,7 +251,7 @@ const updateProfile = async (req, res) => {
     return successResponse(
       res,
       { updated: true },
-      "Profile updated successfully"
+      "Profile updated successfully",
     );
   } catch (error) {
     logger.error(`Error updating profile with id '${id}': ${error.message}`);
@@ -256,7 +270,7 @@ const updateUserProfile = async (req, res) => {
   try {
     const updatedUser = await authService.updateUserProfile(
       userId,
-      updateFields
+      updateFields,
     );
 
     if (!updatedUser) {
@@ -269,11 +283,11 @@ const updateUserProfile = async (req, res) => {
     return successResponse(
       res,
       { updated: true },
-      "Profile updated successfully"
+      "Profile updated successfully",
     );
   } catch (error) {
     logger.error(
-      `Error updating profile with id '${userId}': ${error.message}`
+      `Error updating profile with id '${userId}': ${error.message}`,
     );
     return errorResponse(res, "Internal Server Error", 500);
   }
@@ -297,7 +311,7 @@ const deleteProfile = async (req, res) => {
     return successResponse(
       res,
       { deleted: true },
-      "Profile deleted successfully"
+      "Profile deleted successfully",
     );
   } catch (error) {
     logger.error(`Error deleting user with id '${id}': ${error.message}`);
@@ -310,6 +324,7 @@ module.exports = {
   login,
   guestLogin,
   refreshAccessToken,
+  requestTicket,
   logout,
   updateProfile,
   updateUserProfile,

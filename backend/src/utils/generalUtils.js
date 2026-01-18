@@ -29,17 +29,6 @@ const ensureArray = (value) => {
   }
 };
 
-/**
- * Create a stable, opaque, frontend-safe user identifier
- */
-const opaqueUserId = (id) => {
-  return crypto
-    .createHmac("sha256", USER_ID_SECRET)
-    .update(id.toString())
-    .digest("hex")
-    .slice(0, 16);
-};
-
 // Custom timestamp function
 const customTimestamp = (date = new Date()) => {
   return new Intl.DateTimeFormat(undefined, {
@@ -83,7 +72,6 @@ const filterDuplicatesById = (items, idKey = "id") => {
 module.exports = {
   removeEmptyFields,
   ensureArray,
-  opaqueUserId,
   customTimestamp,
   formatToDBDate,
   filterDuplicatesById,

@@ -84,7 +84,6 @@ const selectSubstrates = async (conditions = {}) => {
         substrate_id: row.substrate_id,
         substrate_user_id: row.substrate_user_id,
         substrate_name: row.substrate_name,
-        substrate_user_id: row.substrate_user_id,
         is_public: row.substrate_is_public,
         substrate_created_at: row.substrate_created_at,
         components: [],

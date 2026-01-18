@@ -2,7 +2,6 @@ import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 import storageService from "./general/StorageService";
 import SaleMapper from "@/mapping/SaleMapping";
-import Utils from "@/utils/utils";
 
 const ENDPOINT = "/sales";
 const CACHE_KEY = "sales_data";
@@ -37,16 +36,20 @@ export default class SalesService extends BaseService {
 
         return this.handleRequest(
           this.streamSales(existingIds, options?.onUpdate),
-          RESOURCE_KEY
+          RESOURCE_KEY,
         );
       },
-      forceUpdate
+      forceUpdate,
     );
 
-    return (result || []).map((s) => ({
+    const toReturn = (result || []).map((s) => ({
       ...s,
       isNew: false,
     }));
+
+    this.emit(SaleEvents.SALE_SEEN, null); // Notify that sales have been fetched
+
+    return toReturn;
   }
 
   /**
@@ -54,47 +57,56 @@ export default class SalesService extends BaseService {
    */
   private static streamSales(
     existingIds: Set<string>,
-    onUpdate?: (chunk: Sale[]) => void
+    onUpdate?: (chunk: Sale[]) => void,
   ): Promise<Sale[]> {
     return new Promise((resolve, reject) => {
       const accumulated: Sale[] = [];
+      let stopFn: (() => void) | null = null;
 
-      const stopFn = ApiUtils.stream(
-        ENDPOINT,
-        (event) => {
-          try {
-            const rawChunk = SaleMapper.convertToSales(event.data);
-            const flaggedChunk = rawChunk.map((sale) => ({
-              ...sale,
-              isNew: !existingIds.has(sale.id),
-            }));
+      // We create an immediately invoked async function to handle the await
+      (async () => {
+        try {
+          // AWAIT the stream setup to get the actual stop function
+          stopFn = await ApiUtils.stream<any>(
+            ENDPOINT,
+            (event) => {
+              try {
+                const rawChunk = SaleMapper.convertToSales(event.data);
+                const flaggedChunk = rawChunk.map((sale) => ({
+                  ...sale,
+                  isNew: !existingIds.has(sale.id),
+                }));
 
-            flaggedChunk.forEach((sale) => {
-              if (!accumulated.find((s) => s.id === sale.id)) {
-                accumulated.push(sale);
+                flaggedChunk.forEach((sale) => {
+                  if (!accumulated.find((s) => s.id === sale.id)) {
+                    accumulated.push(sale);
+                  }
+                });
+
+                onUpdate?.(flaggedChunk);
+
+                storageService.set(CACHE_KEY, {
+                  sales: accumulated,
+                  timestamp: Date.now(),
+                });
+              } catch (err) {
+                stopFn?.(); // Use optional chaining because it might not be assigned yet
+                reject(err);
               }
-            });
-
-            onUpdate?.(flaggedChunk);
-            // Internal silent cache update
-            storageService.set(CACHE_KEY, {
-              sales: accumulated,
-              timestamp: Date.now(),
-            });
-          } catch (err) {
-            stopFn();
-            reject(err);
-          }
-        },
-        (err) => {
-          stopFn();
+            },
+            (err) => {
+              stopFn?.();
+              reject(err);
+            },
+            () => {
+              stopFn?.();
+              resolve(accumulated);
+            },
+          );
+        } catch (err) {
           reject(err);
-        },
-        () => {
-          stopFn();
-          resolve(accumulated);
         }
-      );
+      })();
     });
   }
 
@@ -104,8 +116,8 @@ export default class SalesService extends BaseService {
   }
 
   static async getNewSalesCount(): Promise<number> {
-    const cached = await storageService.get<{ sales: Sale[] }>(CACHE_KEY);
-    return cached ? cached.sales.filter((sale) => sale.isNew).length : 0;
+    const cached = await storageService.get<{ data: Sale[] }>(CACHE_KEY);
+    return cached ? cached.data.filter((sale) => sale.isNew).length : 0;
   }
 
   /**
@@ -119,7 +131,7 @@ export default class SalesService extends BaseService {
     if (!cached) return;
 
     const updatedSales = cached.sales.map((sale) =>
-      sale.id === saleId ? { ...sale, isNew: false } : sale
+      sale.id === saleId ? { ...sale, isNew: false } : sale,
     );
 
     // Using the helper from BaseService
