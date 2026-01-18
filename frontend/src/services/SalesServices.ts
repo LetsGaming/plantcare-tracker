@@ -42,14 +42,7 @@ export default class SalesService extends BaseService {
       forceUpdate,
     );
 
-    const toReturn = (result || []).map((s) => ({
-      ...s,
-      isNew: false,
-    }));
-
-    this.emit(SaleEvents.SALE_SEEN, null); // Notify that sales have been fetched
-
-    return toReturn;
+    return result;
   }
 
   /**
@@ -124,13 +117,10 @@ export default class SalesService extends BaseService {
    * Marks a sale as seen and notifies the app via DOM events
    */
   static async markSaleAsSeen(saleId: string): Promise<void> {
-    const cached = await storageService.get<{
-      sales: Sale[];
-      timestamp: number;
-    }>(CACHE_KEY);
+    const cached = await this.getCachedSales();
     if (!cached) return;
 
-    const updatedSales = cached.sales.map((sale) =>
+    const updatedSales = cached.map((sale) =>
       sale.id === saleId ? { ...sale, isNew: false } : sale,
     );
 
@@ -139,7 +129,7 @@ export default class SalesService extends BaseService {
   }
 
   static async getCachedSales(): Promise<Sale[] | null> {
-    const cached = await storageService.get<{ sales: Sale[] }>(CACHE_KEY);
-    return cached ? cached.sales : null;
+    const cached = await storageService.get<{ data: Sale[] }>(CACHE_KEY);
+    return cached ? cached.data : null;
   }
 }
