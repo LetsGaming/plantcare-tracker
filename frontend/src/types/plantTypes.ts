@@ -6,6 +6,7 @@ interface BasePlant {
 
 interface Plant extends BasePlant {
   id: number;
+  userId: number;
   description: string;
   created_at: string;
   imageUrl?: string;
@@ -25,6 +26,7 @@ interface EditPlant extends Partial<BasePlant> {
 
 interface APIPlant {
   plant_id: number;
+  plant_user_id: number;
   plant_name: string;
   plant_species: string;
   plant_description?: string;

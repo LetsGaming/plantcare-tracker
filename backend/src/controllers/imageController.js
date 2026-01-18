@@ -11,6 +11,7 @@ const {
   successResponse,
   errorResponse,
   notFoundResponse,
+  validationErrorResponse,
 } = require("../utils/responseUtils.js");
 const { formatToDBDate } = require("../utils/generalUtils.js");
 const { getPublicImagePath } = require("../utils/imageUtils.js");
@@ -26,15 +27,27 @@ const uploadImage = async (req, res) => {
     const { entityType, entityId } = req.params;
 
     if (!imageFile) {
-      return errorResponse(res, "No file was uploaded or 'image' field is missing.", 400);
+      return errorResponse(
+        res,
+        "No file was uploaded or 'image' field is missing.",
+        400
+      );
     }
 
     if (!entityType || !entityId) {
-      return errorResponse(res, "Both entityType and entityId are required.", 400);
+      return errorResponse(
+        res,
+        "Both entityType and entityId are required.",
+        400
+      );
     }
 
     if (!allowedMimeTypes.includes(imageFile.mimetype)) {
-      return errorResponse(res, "Invalid image format. Only PNG, JPEG, and JPG files are allowed.", 400);
+      return errorResponse(
+        res,
+        "Invalid image format. Only PNG, JPEG, and JPG files are allowed.",
+        400
+      );
     }
 
     const { date = Date.now() } = req.body;
@@ -51,8 +64,12 @@ const uploadImage = async (req, res) => {
       201
     );
   } catch (err) {
-    logger.error("Error during image upload", err.message);
-    errorResponse(res, "An error occurred while uploading the image.", 500, err);
+    errorResponse(
+      res,
+      "An error occurred while uploading the image.",
+      500,
+      err
+    );
   }
 };
 
@@ -67,28 +84,34 @@ const updateSpecificImage = async (req, res) => {
     }
 
     if (!date && !imageFile) {
-      return errorResponse(res, "At least one of 'date' or 'image' fields is required to update the image.");
+      return errorResponse(
+        res,
+        "At least one of 'date' or 'image' fields is required to update the image."
+      );
     }
 
     if (imageFile && !allowedMimeTypes.includes(imageFile.mimetype)) {
-      return res.status(400).json({
-        message: "Uploaded file is not a valid image format (png, jpeg, jpg).",
-      });
+      return validationErrorResponse(
+        res,
+        "Invalid image format. Only PNG, JPEG, and JPG files are allowed."
+      );
     }
 
     let parsedDate = date ? formatToDBDate(date) : undefined;
-    let filePath = imageFile ? getPublicImagePath(req, entityType, imageFile.filename) : undefined;
+    let filePath = imageFile
+      ? getPublicImagePath(req, entityType, imageFile.filename)
+      : undefined;
 
     await updateImage(id, { date: parsedDate, filePath });
 
-    successResponse(
-      res,
-      { path: filePath },
-      "Image updated successfully."
-    );
+    successResponse(res, { path: filePath }, "Image updated successfully.");
   } catch (err) {
-    logger.error("Error during image upload", err.message);
-    errorResponse(res, "An error occurred while uploading the image.", 500, err);
+    errorResponse(
+      res,
+      "An error occurred while uploading the image.",
+      500,
+      err
+    );
   }
 };
 
@@ -102,8 +125,7 @@ const getImages = async (req, res) => {
     });
     successResponse(res, images);
   } catch (err) {
-    logger.error(err);
-    errorResponse(res, "Internal Server Error while getting images");
+    errorResponse(res, "Internal Server Error while getting images", 500, err);
   }
 };
 
@@ -127,7 +149,28 @@ const getImage = async (req, res) => {
 };
 
 const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
-  const {entityType, id } = req.params;
+  const { entityType, id } = req.params;
+
+  if (!id) {
+    if (deleteFromDb) {
+      return validationErrorResponse(
+        res,
+        "Image ID is required to delete the image."
+      );
+    }
+    return false;
+  }
+
+  if (!entityType) {
+    if (deleteFromDb) {
+      return validationErrorResponse(
+        res,
+        "Entity type is required to delete the image."
+      );
+    }
+    return false;
+  }
+
   try {
     // Retrieve the image details before deleting
     const [imageResults] = await selectImages({ id });
@@ -138,11 +181,13 @@ const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
     }
 
     let imagePath = imageResults[0].image_url;
+    // If the image URL is a full URL, convert it to an absolute file path
     if (imagePath.startsWith("http")) {
       const filename = path.basename(imagePath); // Extract just the filename
       const basePath = path.join(uploadPath, entityType);
       imagePath = path.join(basePath, filename); // Construct the local file path
     }
+
     // Check if file exists before trying to delete
     await deleteImageOnSystem(imagePath);
 

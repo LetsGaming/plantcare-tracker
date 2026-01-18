@@ -1,7 +1,7 @@
 <template>
   <ion-card class="component-container align-middle">
     <ion-card-header style="max-width: 100%">
-      <ion-title>{{ title }}</ion-title>
+      <ion-title>{{ t(title, undefined, title) }}</ion-title>
       <SearchBar
         :placeholder="t('component.search.placeholder')"
         @search="filterComponents"
@@ -144,6 +144,10 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.component-container {
+  margin: 10px !important;
+}
+
 .component-list {
   display: flex;
   flex-direction: column;

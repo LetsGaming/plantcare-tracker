@@ -123,7 +123,7 @@ export default defineComponent({
     async deleteImage() {
       try {
         this.isLoading = true;
-        const response = await ImageService.deleteImage(this.image.id);
+        const response = await ImageService.deleteImage(this.image.id, this.entityType);
         if (response) {
           this.isLoading = false;
           this.$emit("edited");

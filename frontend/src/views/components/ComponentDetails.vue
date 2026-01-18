@@ -78,7 +78,7 @@ export default defineComponent({
   },
   data() {
     return {
-      component: null as null | SubstrateComponent,
+      component: null as null | Component,
       showEditingModal: false,
       isAdmin: false,
     };

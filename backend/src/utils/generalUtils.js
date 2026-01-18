@@ -57,9 +57,22 @@ const formatToDBDate = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
+const filterDuplicatesById = (items, idKey = "id") => {
+  const seenIds = new Set();
+  return items.filter((item) => {
+    if (seenIds.has(item[idKey])) {
+      return false;
+    } else {
+      seenIds.add(item[idKey]);
+      return true;
+    }
+  });
+}
+
 module.exports = {
   removeEmptyFields,
   ensureArray,
   customTimestamp,
   formatToDBDate,
+  filterDuplicatesById,
 };

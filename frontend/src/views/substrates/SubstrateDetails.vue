@@ -4,7 +4,7 @@
       :show-edit-button="!isPublic"
       @edit-click="showEditModal = true"
       :show-upload-button="!isPublic"
-      @upload-click="showUpload"
+      @upload-click="toggleUpload"
       default-href="/tabs/substrate/overview"
     ></details-header>
 
@@ -32,6 +32,7 @@
         :is-open="showEditModal"
         :substrate="substrate"
         @close="showEditModal = false"
+        @edited="handleSubstrateEdited"
       />
     </ion-content>
   </ion-page>
@@ -56,7 +57,7 @@ import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import SubstrateEditingModal from "@/components/substrates/SubstrateEditingModal.vue";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SubstrateDetails",
@@ -83,7 +84,7 @@ export default defineComponent({
     },
     public: {
       type: String,
-      default: false,
+      default: "0",
     },
   },
   data() {
@@ -96,10 +97,7 @@ export default defineComponent({
   },
   async mounted() {
     try {
-      this.substrate = await SubstrateService.getSubstrateById(
-        this.substrateId,
-        this.isPublic
-      );
+      await this.fetchSubstrate();
     } catch (error) {
       console.error("Error fetching substrate details:", error);
     }
@@ -114,10 +112,16 @@ export default defineComponent({
   },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+      return localizationService.t(key, vars, fallback);
     },
-    showUpload() {
-      this.showUploadModal = true;
+    toggleUpload() {
+      this.showUploadModal = !this.showUploadModal;
+    },
+    async fetchSubstrate(forceUpdate = false) {
+      this.substrate = await SubstrateService.getSubstrateById(
+        this.substrateId,
+        forceUpdate
+      );
     },
     async onImageUpload(fileItem: any) {
       if (this.substrate) {
@@ -128,18 +132,23 @@ export default defineComponent({
             fileItem.file,
             fileItem.date
           );
-          this.substrate = await SubstrateService.getSubstrateById(
-            this.substrateId,
-            this.isPublic
-          );
+          await this.fetchSubstrate();
           this.isLoading = false;
           this.$nextTick(() => {
-            this.showUploadModal = false;
+            this.toggleUpload();
           });
         } catch (error) {
           this.isLoading = false;
           console.error("Error uploading image:", error);
         }
+      }
+    },
+    async handleSubstrateEdited() {
+      this.showEditModal = false;
+      try {
+        await this.fetchSubstrate();
+      } catch (error) {
+        console.error("Error fetching substrate details:", error);
       }
     },
   },

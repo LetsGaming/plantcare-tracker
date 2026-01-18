@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const logger = require("../utils/logger");
 const authService = require("./authService");
 const authStore = require("./authStore"); // In-memory session store
+const { createTicket } = require("../auth/ticketStore");
 const {
   JWT_SECRET,
   JWT_REFRESH_SECRET,
@@ -14,6 +15,8 @@ const {
   errorResponse,
   notFoundResponse,
 } = require("../utils/responseUtils");
+
+const { versionPath } = require("../../package.json");
 
 // Generate Access and Refresh Tokens
 const generateTokens = (user) => {
@@ -51,7 +54,7 @@ const register = async (req, res) => {
       res,
       { id: newUser.id, username },
       "User created successfully",
-      201
+      201,
     );
   } catch (error) {
     logger.error(`Register error: ${error.message}`);
@@ -88,6 +91,7 @@ const login = async (req, res) => {
       secure: req.secure || req.headers["x-forwarded-proto"] === "https", // Only set secure if using HTTPS
       sameSite: "Strict",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: `/api/${versionPath}/auth/refresh-token`,
     });
 
     return successResponse(res, { accessToken });
@@ -138,12 +142,14 @@ const refreshAccessToken = async (req, res) => {
     const userId = authStore.findUserByRefreshToken(refreshToken);
 
     if (!userId) {
+      res.clearCookie("refreshToken");
       return errorResponse(res, "Invalid refresh token", 403);
     }
 
     // Verify the refresh token
     jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err, user) => {
       if (err || user.id !== userId) {
+        res.clearCookie("refreshToken");
         return errorResponse(res, "Invalid refresh token", 403);
       }
 
@@ -151,7 +157,7 @@ const refreshAccessToken = async (req, res) => {
       const accessToken = jwt.sign(
         { id: user.id, username: user.username, role: user.role },
         JWT_SECRET,
-        { expiresIn: JWT_EXPIRATION }
+        { expiresIn: JWT_EXPIRATION },
       );
 
       return successResponse(res, { accessToken });
@@ -162,30 +168,45 @@ const refreshAccessToken = async (req, res) => {
   }
 };
 
+const requestTicket = (req, res) => {
+  try {
+    const userId = req.user.id;
+    if (!userId) {
+      return errorResponse(res, "Invalid refresh token", 403);
+    }
+    const ticket = createTicket(userId);
+    return successResponse(res, { ticket }, "Ticket created successfully");
+  } catch (error) {
+    return errorResponse(res, "Internal Server Error", 500, error);
+  }
+};
+
 // Logout and invalidate refresh token
 const logout = (req, res) => {
   const refreshToken = req.cookies.refreshToken;
 
-  if (!refreshToken) {
-    return errorResponse(res, "No active session found", 400);
-  }
+  // Always clear the cookie
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: req.secure || req.headers["x-forwarded-proto"] === "https",
+    sameSite: "Strict",
+    path: `/api/${versionPath}/auth/refresh-token`,
+  });
 
-  try {
-    // Find the user associated with the refresh token
-    const userId = authStore.findUserByRefreshToken(refreshToken);
-    if (userId) {
-      // Invalidate the refresh token
-      authStore.invalidateRefreshToken(userId, refreshToken);
+  if (refreshToken) {
+    try {
+      const userId = authStore.findUserByRefreshToken(refreshToken);
+      if (userId) {
+        authStore.invalidateRefreshToken(userId, refreshToken);
+      }
+    } catch (error) {
+      logger.error(`Logout error: ${error.message}`);
+      // Even if something goes wrong internally, we don't fail logout for the user
     }
-
-    // Clear the refresh token cookie
-    res.clearCookie("refreshToken");
-
-    return successResponse(res, { loggedOut: true }, "Logged out successfully");
-  } catch (error) {
-    logger.error(`Logout error: ${error.message}`);
-    return errorResponse(res, "Internal Server Error", 500);
   }
+
+  // Always return success to avoid leaking session info
+  return successResponse(res, { loggedOut: true }, "Logged out successfully");
 };
 
 // Update user profile
@@ -230,7 +251,7 @@ const updateProfile = async (req, res) => {
     return successResponse(
       res,
       { updated: true },
-      "Profile updated successfully"
+      "Profile updated successfully",
     );
   } catch (error) {
     logger.error(`Error updating profile with id '${id}': ${error.message}`);
@@ -249,7 +270,7 @@ const updateUserProfile = async (req, res) => {
   try {
     const updatedUser = await authService.updateUserProfile(
       userId,
-      updateFields
+      updateFields,
     );
 
     if (!updatedUser) {
@@ -262,11 +283,11 @@ const updateUserProfile = async (req, res) => {
     return successResponse(
       res,
       { updated: true },
-      "Profile updated successfully"
+      "Profile updated successfully",
     );
   } catch (error) {
     logger.error(
-      `Error updating profile with id '${userId}': ${error.message}`
+      `Error updating profile with id '${userId}': ${error.message}`,
     );
     return errorResponse(res, "Internal Server Error", 500);
   }
@@ -290,7 +311,7 @@ const deleteProfile = async (req, res) => {
     return successResponse(
       res,
       { deleted: true },
-      "Profile deleted successfully"
+      "Profile deleted successfully",
     );
   } catch (error) {
     logger.error(`Error deleting user with id '${id}': ${error.message}`);
@@ -303,6 +324,7 @@ module.exports = {
   login,
   guestLogin,
   refreshAccessToken,
+  requestTicket,
   logout,
   updateProfile,
   updateUserProfile,

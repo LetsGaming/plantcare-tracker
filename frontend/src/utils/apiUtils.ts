@@ -308,13 +308,26 @@ const ApiUtils = {
    * @param onError - Optional callback for errors.
    * @returns A function to stop the stream.
    */
-  stream<T = any>(
+  async stream<T = any>(
     endpoint: string,
     onMessage: StreamCallback<T>,
     onError?: (err: any) => void,
     onDone?: () => void
-  ): () => void {
-    const url = `${API_BASE_URL}${endpoint}`;
+  ): Promise<() => void> {
+    // Request SSE ticket first
+    const ticketResponse = await ApiUtils.post<{ ticket: string }, { ticket: string }>(
+      "/auth/request-ticket",
+      {
+        ticket: ""
+      }
+    );
+    const ticket = ticketResponse.ticket;
+
+    if (!ticket) {
+      throw new Error("Failed to obtain SSE ticket.");
+    }
+
+    const url = `${API_BASE_URL}${endpoint}?ticket=${encodeURIComponent(ticket)}`;
     const eventSource = new EventSource(url, { withCredentials: true });
 
     eventSource.onmessage = (e) => {

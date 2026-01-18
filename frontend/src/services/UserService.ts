@@ -1,62 +1,63 @@
+import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 import TokenUtils from "@/utils/tokenUtils";
-import ToastService from "@/services/general/ToastService";
 import router from "@/router";
 import Utils from "@/utils/utils";
-import localizationService from "@/services/general/LocalizationService";
 
 const BASE_ENDPOINT = "/auth";
+const RESOURCE_KEY = "auth.title"; // Localization key for authentication context
 
-const decodeAuthToken = async () => {
-  const token = await TokenUtils.getToken();
-  if (!token) return null;
-
-  try {
-    return JSON.parse(atob(token.split(".")[1]));
-  } catch (error) {
-    console.error("Error decoding token:", error);
-    return null;
+export default class UserService extends BaseService {
+  /**
+   * Internal helper to decode JWT payload
+   */
+  private static async decodeAuthToken() {
+    const token = await TokenUtils.getToken();
+    if (!token) return null;
+    try {
+      return JSON.parse(atob(token.split(".")[1]));
+    } catch (error) {
+      console.error("Error decoding token:", error);
+      return null;
+    }
   }
-};
 
-export default class UserService {
   static async register(data: RegisterData) {
-    return ApiUtils.post(`${BASE_ENDPOINT}/register`, data);
+    return this.handleRequest(
+      ApiUtils.post(`${BASE_ENDPOINT}/register`, data),
+      RESOURCE_KEY,
+      "auth.registration_failed"
+    );
   }
 
   static async login(data: LoginData) {
-    try {
-      const response = (await ApiUtils.post(
-        `${BASE_ENDPOINT}/login`,
-        data
-      )) as LoginResponse;
-      await TokenUtils.setToken(response.accessToken);
-      return response;
-    } catch (error) {
-      ToastService.showError({ key: 'auth.login_failed', fallback: 'Login failed. Please try again.' });
-      throw error;
-    }
+    const response = (await this.handleRequest(
+      ApiUtils.post(`${BASE_ENDPOINT}/login`, data),
+      RESOURCE_KEY,
+      "auth.login_failed"
+    )) as LoginResponse;
+
+    await TokenUtils.setToken(response.accessToken);
+    return response;
   }
 
   static async guestLogin() {
-    try {
-      const response = (await ApiUtils.post(
-        `${BASE_ENDPOINT}/login/guest`,
-        null
-      )) as LoginResponse;
-      await TokenUtils.setToken(response.accessToken);
-      return response;
-    } catch (error) {
-      ToastService.showError({ key: 'auth.failed_guest', fallback: 'Guest login failed. Please try again.' });
-      throw error;
-    }
+    const response = (await this.handleRequest(
+      ApiUtils.post(`${BASE_ENDPOINT}/login/guest`, null),
+      RESOURCE_KEY,
+      "auth.failed_guest"
+    )) as LoginResponse;
+
+    await TokenUtils.setToken(response.accessToken);
+    return response;
   }
 
   static async logout() {
     try {
+      // Best effort notify server, then clear local
       await ApiUtils.post(`${BASE_ENDPOINT}/logout`, null);
     } catch (error) {
-      console.error("Error logging out:", error);
+      console.error("Server logout error:", error);
     } finally {
       await this.handleLocalLogout();
     }
@@ -67,9 +68,11 @@ export default class UserService {
     router.replace({ name: "login" }).then(() => window.location.reload());
   }
 
+  /**
+   * Robust Token Refresh logic with retry mechanism
+   */
   static async refreshToken(retryCount = 3) {
-    const API_BASE_URL = Utils.getApiBaseUrl();
-    const url = `${API_BASE_URL}${BASE_ENDPOINT}/refresh-token`;
+    const url = `${Utils.getApiBaseUrl()}${BASE_ENDPOINT}/refresh-token`;
 
     for (let attempt = 1; attempt <= retryCount; attempt++) {
       try {
@@ -83,7 +86,7 @@ export default class UserService {
           throw new Error(`HTTP error! Status: ${response.status}`);
 
         const res = await response.json();
-        if (!res.data.accessToken)
+        if (!res.data?.accessToken)
           throw new Error("Invalid response structure");
 
         await TokenUtils.setToken(res.data.accessToken);
@@ -91,7 +94,11 @@ export default class UserService {
       } catch (error) {
         console.error(`Attempt ${attempt} to refresh token failed: ${error}`);
         if (attempt === retryCount) {
-          ToastService.showError({ key: 'auth.refresh_failed', fallback: 'Failed to refresh token. Logging out...' });
+          await this.handleRequest(
+            Promise.reject(error),
+            RESOURCE_KEY,
+            "auth.refresh_failed"
+          );
           await this.logout();
           throw new Error("Token refresh failed");
         }
@@ -101,40 +108,52 @@ export default class UserService {
   }
 
   static async editProfile(data: EditProfile) {
-    try {
-      return ApiUtils.put(`${BASE_ENDPOINT}/update`, data);
-    } catch (error) {
-      ToastService.showError({ key: 'profile.update_failed', fallback: 'Profile update failed. Please try again.' });
-    }
+    return this.handleRequest(
+      ApiUtils.put(`${BASE_ENDPOINT}/update`, data),
+      "profile.title",
+      "profile.update_failed"
+    );
   }
 
   static async deleteProfile() {
-    try {
-      return ApiUtils.delete(`${BASE_ENDPOINT}/delete`);
-    } catch (error) {
-      ToastService.showError({ key: 'profile.delete_failed', fallback: 'Profile deletion failed. Please try again.' });
-    }
+    return this.handleRequest(
+      ApiUtils.delete(`${BASE_ENDPOINT}/delete`),
+      "profile.title",
+      "profile.delete_failed"
+    );
   }
 
-  static async isAuthenticated() {
-    return (await TokenUtils.getToken()) !== null;
+  // --- Identity & Role Getters ---
+
+  static async isAuthenticated(): Promise<boolean> {
+    const token = await TokenUtils.getToken();
+
+    if (!token) await this.refreshToken(1).catch(() => null);
+    const refreshedToken = await TokenUtils.getToken();
+    return !!refreshedToken;
   }
 
-  static async getUsername() {
-    const payload = await decodeAuthToken();
+  static async getUsername(): Promise<string> {
+    const payload = await this.decodeAuthToken();
     return payload?.username || "";
   }
 
-  static async getUserRole() {
-    const payload = await decodeAuthToken();
+  static async getUserRole(): Promise<string> {
+    const payload = await this.decodeAuthToken();
     return payload?.role || "";
   }
-
-  static async isAdmin() {
-    return (await this.getUserRole()).toLowerCase() === "admin";
+  static async getUserId(): Promise<number> {
+    const payload = await this.decodeAuthToken();
+    return payload?.id || -1;
   }
 
-  static async isGuest() {
-    return (await this.getUserRole()).toLowerCase() === "guest";
+  static async isAdmin(): Promise<boolean> {
+    const role = await this.getUserRole();
+    return role.toLowerCase() === "admin";
+  }
+
+  static async isGuest(): Promise<boolean> {
+    const role = await this.getUserRole();
+    return role.toLowerCase() === "guest";
   }
 }

@@ -45,7 +45,7 @@ import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 import ToastService from "@/services/general/ToastService";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "PlantOverview",
@@ -87,20 +87,40 @@ export default defineComponent({
      * @param isRefresh - Whether to force a background refresh and show success toast
      */
     async loadPlants(isRefresh = false) {
-      const typeLabel = this.isPublic ? this.t('plants.type_public') : this.t('plants.type_private');
-      const successLabel = this.isPublic ? this.t('plants.success_public') : this.t('plants.success_private');
+      const typeLabel = this.isPublic
+        ? this.t("plants.type_public")
+        : this.t("plants.type_private");
+      const successLabel = this.isPublic
+        ? this.t("plants.success_public")
+        : this.t("plants.success_private");
 
       try {
-        this.plants = await PlantService.getPlants(this.isPublic, isRefresh);
+        // FIX: Fallback to empty array if service returns null/undefined
+        const data = this.isPublic
+          ? await PlantService.getPublicPlants(isRefresh)
+          : await PlantService.getPersonalPlants(
+              isRefresh
+            );
+        this.plants = data || [];
 
+        // Now .length will never crash
         if (this.plants.length === 0) {
           this.showWarning();
         } else if (isRefresh) {
-          ToastService.showSuccess({ key: 'plants.updated', vars: { type: successLabel }, fallback: `${successLabel} plants updated.` });
+          ToastService.showSuccess({
+            key: "plants.updated",
+            vars: { type: successLabel },
+            fallback: `${successLabel} plants updated.`,
+          });
         }
       } catch (error) {
+        this.plants = []; // FIX: Reset to empty array on error to keep UI stable
         const action = isRefresh ? "refresh" : "fetch";
-        ToastService.showError({ key: 'plants.update_failed', vars: { action, type: typeLabel }, fallback: `Failed to ${action} ${typeLabel} plants.` });
+        ToastService.showError({
+          key: "plants.update_failed",
+          vars: { action, type: typeLabel },
+          fallback: `Failed to ${action} ${typeLabel} plants.`,
+        });
         console.error(
           `Error ${isRefresh ? "refreshing" : "fetching"} plants:`,
           error
@@ -117,8 +137,10 @@ export default defineComponent({
     },
 
     showWarning() {
-      const messageKey = this.isPublic ? 'plants.no_public_available' : 'plants.no_personal_found'
-      ToastService.showWarning(localizationService.t(messageKey))
+      const messageKey = this.isPublic
+        ? "plants.no_public_available"
+        : "plants.no_personal_found";
+      ToastService.showWarning(localizationService.t(messageKey));
     },
 
     handleSegmentChange(value: string) {

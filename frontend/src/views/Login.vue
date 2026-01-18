@@ -2,105 +2,119 @@
   <ion-page>
     <ion-header>
       <ion-toolbar>
-            <ion-title class="ion-text-center">{{ isRegisterMode ? t('auth.register') : t('auth.login') }}</ion-title>
+        <ion-title class="ion-text-center">
+          {{ isRegisterMode ? t("auth.register") : t("auth.login") }}
+        </ion-title>
       </ion-toolbar>
     </ion-header>
+
     <ion-content class="ion-padding" :scroll-y="false">
       <div v-if="isCheckingLogin" class="login-loading-container align-middle">
         <ion-spinner></ion-spinner>
       </div>
+
       <div v-else class="login-container align-middle">
+        <!-- Username -->
         <ion-item class="ion-margin-bottom" style="width: 100%">
-          <ion-icon :icon="personOutline" slot="start"></ion-icon>
+          <ion-icon :icon="personOutline" slot="start" />
           <ion-input
             v-model="username"
-            :aria-label="t('auth.username.label')"
-            :label="t('auth.username.label')"
-            label-placement="floating"
-            :placeholder="t('auth.username.placeholder')"
             type="text"
             required
             clear-input
-          ></ion-input>
+            label-placement="floating"
+            :label="t('auth.username.label')"
+            :placeholder="t('auth.username.placeholder')"
+            :aria-label="t('auth.username.label')"
+            autocomplete="username"
+          />
         </ion-item>
 
+        <!-- Password -->
         <ion-item class="ion-margin-bottom" style="width: 100%">
-          <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
+          <ion-icon :icon="lockClosedOutline" slot="start" />
           <ion-input
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
-            :label="t('auth.password.label')"
-            label-placement="floating"
-            :aria-label="t('auth.password.label')"
-            :placeholder="t('auth.password.placeholder')"
-            clear-input
             required
-          ></ion-input>
+            clear-input
+            label-placement="floating"
+            :label="t('auth.password.label')"
+            :placeholder="t('auth.password.placeholder')"
+            :aria-label="t('auth.password.label')"
+            autocomplete="current-password"
+          />
           <ion-button
             fill="clear"
             size="small"
             slot="end"
-            @click="togglePasswordVisibility"
+            @click="toggle('showPassword')"
           >
-            <ion-icon
-              :icon="showPassword ? eyeOffOutline : eyeOutline"
-            ></ion-icon>
+            <ion-icon :icon="showPassword ? eyeOffOutline : eyeOutline" />
           </ion-button>
         </ion-item>
 
-        <!-- Confirm password field for registration -->
+        <!-- Confirm Password (Register only) -->
         <ion-item
           v-if="isRegisterMode"
           class="ion-margin-bottom"
           style="width: 100%"
         >
-          <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
+          <ion-icon :icon="lockClosedOutline" slot="start" />
           <ion-input
             v-model="confirmPassword"
             :type="showPassword ? 'text' : 'password'"
-            :label="t('auth.confirm_password.label')"
-            label-placement="floating"
-            :aria-label="t('auth.confirm_password.label')"
-            :placeholder="t('auth.confirm_password.placeholder')"
-            clear-input
             required
-          ></ion-input>
+            clear-input
+            label-placement="floating"
+            :label="t('auth.confirm_password.label')"
+            :placeholder="t('auth.confirm_password.placeholder')"
+            :aria-label="t('auth.confirm_password.label')"
+            autocomplete="new-password"
+          />
           <ion-button
             fill="clear"
             size="small"
             slot="end"
-            @click="togglePasswordVisibility"
+            @click="toggle('showPassword')"
           >
-            <ion-icon
-              :icon="showPassword ? eyeOffOutline : eyeOutline"
-            ></ion-icon>
+            <ion-icon :icon="showPassword ? eyeOffOutline : eyeOutline" />
           </ion-button>
         </ion-item>
 
+        <!-- Submit -->
         <ion-button
           expand="block"
-          @click="isRegisterMode ? handleRegister() : handleLogin()"
-          :disabled="loading"
-          id="auth-button"
           class="ion-margin-top"
           style="width: 100%"
+          id="auth-button"
+          :disabled="loading"
+          @click="isRegisterMode ? handleRegister() : handleLogin()"
         >
-          <ion-spinner v-if="loading"></ion-spinner>
-          <span v-else>{{ isRegisterMode ? t('auth.register') : t('auth.login') }}</span>
+          <ion-spinner v-if="loading" />
+          <span v-else>
+            {{ isRegisterMode ? t("auth.register") : t("auth.login") }}
+          </span>
         </ion-button>
 
-        <!-- Toggle between login and register mode -->
+        <!-- Toggle login/register -->
         <ion-text
-          @click="toggleAuthMode"
           class="ion-margin-top"
           color="primary"
+          @click="toggle('isRegisterMode')"
         >
           <p>
-            {{ isRegisterMode ? t('auth.already_have_account') : t('auth.no_account_register') }}
+            {{
+              isRegisterMode
+                ? t("auth.already_have_account")
+                : t("auth.no_account_register")
+            }}
           </p>
         </ion-text>
-        <ion-text @click="guestLogin" class="ion-margin-top" color="primary">
-          <p>{{ t('auth.continue_as_guest') }}</p>
+
+        <!-- Guest login -->
+        <ion-text class="ion-margin-top" color="primary" @click="guestLogin">
+          <p>{{ t("auth.continue_as_guest") }}</p>
         </ion-text>
       </div>
     </ion-content>
@@ -128,12 +142,14 @@ import {
   eyeOffOutline,
   eyeOutline,
 } from "ionicons/icons";
+
 import UserService from "@/services/UserService";
 import ToastService from "@/services/general/ToastService";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "Login",
+
   components: {
     IonPage,
     IonContent,
@@ -147,6 +163,16 @@ export default defineComponent({
     IonSpinner,
     IonText,
   },
+
+  setup() {
+    return {
+      personOutline,
+      lockClosedOutline,
+      eyeOffOutline,
+      eyeOutline,
+    };
+  },
+
   data() {
     return {
       username: "",
@@ -158,102 +184,138 @@ export default defineComponent({
       isRegisterMode: false,
     };
   },
-  
-  setup() {
-    return { personOutline, lockClosedOutline, eyeOffOutline, eyeOutline };
-  },
+
   async mounted() {
     try {
       if (!(await UserService.isAuthenticated())) return;
 
-      try {
-        await UserService.refreshToken(1);
-        this.redirectUser();
-      } catch {
-        return;
-      }
-    } catch (error) {
-      this.isCheckingLogin = false;
+      await UserService.refreshToken(1);
+      this.redirectUser();
+    } catch {
+      // ignore
     } finally {
       this.isCheckingLogin = false;
     }
 
     window.addEventListener("keydown", this.handleEnterKey);
   },
+
   beforeUnmount() {
-    // Clean up listener to avoid memory leaks
     window.removeEventListener("keydown", this.handleEnterKey);
   },
+
   methods: {
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+      return localizationService.t(key, vars, fallback);
     },
-    togglePasswordVisibility() {
-      this.showPassword = !this.showPassword;
+
+    showAuthError(error: { key: string; fallback: string }) {
+      return ToastService.showError(error, undefined, "top", "auth-button");
     },
-    toggleAuthMode() {
-      this.isRegisterMode = !this.isRegisterMode;
+
+    toggle(flag: "showPassword" | "isRegisterMode") {
+      switch (flag) {
+        case "showPassword":
+          this.showPassword = !this.showPassword;
+          break;
+        case "isRegisterMode":
+          this.isRegisterMode = !this.isRegisterMode;
+          break;
+      }
     },
+
     handleEnterKey(event: KeyboardEvent) {
       if (event.key === "Enter") {
-        if (this.isRegisterMode) {
-          this.handleRegister();
-        } else {
-          this.handleLogin();
-        }
+        this.isRegisterMode ? this.handleRegister() : this.handleLogin();
       }
     },
-    async guestLogin() {
+
+    async runAuth<T>(
+      action: () => Promise<T>,
+      error: { key: string; fallback: string }
+    ) {
       this.loading = true;
       try {
-        await UserService.guestLogin();
+        await action();
         this.redirectUser();
-      } catch (error) {
-        ToastService.showError({ key: 'auth.failed_guest', fallback: 'Failed to login as guest.' }, undefined, "top", "auth-button");
+      } catch {
+        this.showAuthError(error);
       } finally {
         this.loading = false;
       }
     },
+
+    async guestLogin() {
+      await this.runAuth(() => UserService.guestLogin(), {
+        key: "auth.failed_guest",
+        fallback: "Failed to login as guest.",
+      });
+    },
+
     async handleLogin() {
       if (!this.username || !this.password) {
-        ToastService.showError({ key: 'auth.missing_fields', fallback: 'Please enter username and password.' }, undefined, "top", "auth-button");
-        return;
+        return this.showAuthError({
+          key: "auth.missing_fields",
+          fallback: "Please fill in all the fields.",
+        });
       }
 
-      this.loading = true;
-      try {
-        const data = { username: this.username, password: this.password };
-        await UserService.login(data);
-        this.redirectUser();
-      } catch (error) {
-        ToastService.showError({ key: 'auth.invalid_credentials', fallback: 'Invalid username or password' }, undefined, "top", "auth-button");
-      } finally {
-        this.loading = false;
-      }
+      await this.runAuth(
+        () =>
+          UserService.login({
+            username: this.username,
+            password: this.password,
+          }),
+        {
+          key: "auth.invalid_credentials",
+          fallback: "Invalid username or password.",
+        }
+      );
     },
+
     async handleRegister() {
       if (!this.username || !this.password || !this.confirmPassword) {
-        ToastService.showError({ key: 'auth.missing_fields', fallback: 'Please fill in all the fields.' }, undefined, "top", "auth-button");
-        return;
+        return this.showAuthError({
+          key: "auth.missing_fields",
+          fallback: "Please fill in all the fields.",
+        });
       }
 
       if (this.password !== this.confirmPassword) {
-        ToastService.showError({ key: 'auth.password_mismatch', fallback: 'Passwords do not match.' }, undefined, "top", "auth-button");
-        return;
+        return this.showAuthError({
+          key: "auth.passwords_do_not_match",
+          fallback: "Passwords do not match.",
+        });
       }
 
       this.loading = true;
       try {
-        const data = { username: this.username, password: this.password };
-        await UserService.register(data);
-        ToastService.showSuccess({ key: 'auth.register_success', fallback: 'Registration successful. Please login.' });
-        this.isRegisterMode = false; // Switch back to login mode
-      } catch (error) {
-        ToastService.showError({ key: 'auth.register_failed', fallback: 'Registration failed.' }, undefined, "top", "auth-button");
+        await UserService.register({
+          username: this.username,
+          password: this.password,
+        });
+
+        ToastService.showSuccess(
+          {
+            key: "auth.register_success",
+            fallback: "Registration successful. Please login.",
+          },
+          undefined,
+          "top",
+          "auth-button"
+        );
+
+        this.isRegisterMode = false;
+      } catch {
+        this.showAuthError({
+          key: "auth.register_failed",
+          fallback: "Registration failed. Please try again.",
+        });
       } finally {
         this.loading = false;
       }
     },
+
     redirectUser() {
       this.$router.replace({ name: "plant-overview" });
     },

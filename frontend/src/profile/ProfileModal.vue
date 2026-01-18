@@ -118,7 +118,7 @@ export default defineComponent({
       this.$emit("close");
     },
     onEditClick() {
-      console.log("Edit clicked");
+      // No action for now
     },
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback)

@@ -47,7 +47,7 @@ export default defineComponent({
       required: true,
     },
     component: {
-      type: Object as PropType<SubstrateComponent>,
+      type: Object as PropType<Component>,
       required: true,
     },
   },
@@ -55,22 +55,15 @@ export default defineComponent({
     return {
       editComponentData: {
         name: "",
-        fineness: "",
+        fineness: 0,
       } as EditComponent,
       isLoading: false,
     };
   },
   mounted() {
-    const mapped_fineness = {
-      1: "coarse",
-      2: "medium",
-      3: "fine",
-    };
-
     this.editComponentData = {
       name: this.component.name,
-      fineness:
-        mapped_fineness[Number(this.component.fineness) as 1 | 2 | 3] || "",
+      fineness: Number(this.component.fineness) || 0,
     };
   },
   methods: {
@@ -79,12 +72,11 @@ export default defineComponent({
     },
     async editComponent() {
       try {
-        console.log(this.editComponentData);
-        if (this.editComponentData.name === "") {
+        if (!this.editComponentData.name) {
           this.editComponentData.name = this.component.name;
         }
-        if (this.editComponentData.fineness === "") {
-          this.editComponentData.fineness = this.component.fineness;
+        if (!this.editComponentData.fineness) {
+          this.editComponentData.fineness = Number(this.component.fineness);
         }
         this.isLoading = true;
         const reponse = await ComponentService.editComponent(
@@ -98,7 +90,6 @@ export default defineComponent({
         }
       } catch (error) {
         this.isLoading = false;
-        console.error(error);
         ToastService.showError({ key: 'components.edit.error', fallback: 'Error editing component' });
       }
     },
@@ -123,7 +114,7 @@ export default defineComponent({
     resetComponent() {
       this.editComponentData = {
         name: "",
-        fineness: "",
+        fineness: 0,
       };
       this.isLoading = false;
     },

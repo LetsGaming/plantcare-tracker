@@ -1,10 +1,13 @@
 <template>
   <ion-page>
-    <!-- Custom Header with Filters -->
     <overview-header
       :title="t('substrate.title')"
       :segments="[
-        { value: 'public', label: t('substrate.public_label'), icon: peopleCircle },
+        {
+          value: 'public',
+          label: t('substrate.public_label'),
+          icon: peopleCircle,
+        },
         {
           value: 'private',
           label: t('substrate.private_label'),
@@ -19,12 +22,12 @@
       @add-click="showAddingModal = true"
     />
 
-    <!-- Content Area -->
     <items-overview
       :items="substrates"
       @item-click="navigateToSubstrate"
       @refresh-items="refreshSubstrates"
     ></items-overview>
+
     <substrate-adding-modal
       :is-open="showAddingModal"
       @close="showAddingModal = false"
@@ -57,6 +60,7 @@ export default defineComponent({
   },
   data() {
     return {
+      // 1. Initialized as empty array
       substrates: [] as Substrate[],
       showPublic: "private",
       showAddingModal: false,
@@ -77,34 +81,61 @@ export default defineComponent({
       return this.showPublic === "public";
     },
   },
-methods: {
+  methods: {
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
+
     /**
      * Unified logic for fetching and refreshing substrates
      */
     async loadSubstrates(isRefresh = false) {
       try {
-        this.substrates = await SubstrateService.getSubstrates(this.isPublic, isRefresh);
+        const response = this.isPublic
+          ? await SubstrateService.getPublicSubstrates(isRefresh)
+          : await SubstrateService.getPrivateSubstrates(isRefresh);
 
+        // 2. Defensive Assignment: Ensure response is not undefined/null
+        this.substrates = response || [];
+
+        // 3. Safe check now that we are guaranteed an array
         if (this.substrates.length === 0) {
-          const key = this.isPublic ? 'substrate.empty_public' : 'substrate.empty_private';
+          const key = this.isPublic
+            ? "substrate.empty_public"
+            : "substrate.empty_private";
           ToastService.showWarning({ key });
         } else if (isRefresh) {
-          const typeLabel = this.isPublic ? this.t('substrate.public_label') : this.t('substrate.private_label');
-          ToastService.showSuccess({ key: 'substrate.refreshed', vars: { type: typeLabel } });
+          const typeLabel = this.isPublic
+            ? this.t("substrate.public_label")
+            : this.t("substrate.private_label");
+          ToastService.showSuccess({
+            key: "substrate.refreshed",
+            vars: { type: typeLabel },
+          });
         }
       } catch (error) {
-        const typeLabel = this.isPublic ? this.t('substrate.public_label') : this.t('substrate.private_label');
-        ToastService.showError({ key: 'substrate.fetch_error', vars: { type: typeLabel } });
-        console.error(`Error ${isRefresh ? 'refreshing' : 'fetching'} substrates:`, error);
+        // 4. Ensure array remains valid on error
+        this.substrates = [];
+        const typeLabel = this.isPublic
+          ? this.t("substrate.public_label")
+          : this.t("substrate.private_label");
+        ToastService.showError({
+          key: "substrate.fetch_error",
+          vars: { type: typeLabel },
+        });
+        console.error(
+          `Error ${isRefresh ? "refreshing" : "fetching"} substrates:`,
+          error
+        );
       }
     },
 
-    // Shorthands for template use
-    async fetchSubstrates() { await this.loadSubstrates(false); },
-    async refreshSubstrates() { await this.loadSubstrates(true); },
+    async fetchSubstrates() {
+      await this.loadSubstrates(false);
+    },
+    async refreshSubstrates() {
+      await this.loadSubstrates(true);
+    },
 
     handleSegmentChange(value: string) {
       this.showPublic = value;
@@ -121,7 +152,7 @@ methods: {
         name: "substrate-details",
         params: {
           id,
-          public: this.isPublic ? 1 : 0
+          public: this.isPublic ? 1 : 0,
         },
       });
     },

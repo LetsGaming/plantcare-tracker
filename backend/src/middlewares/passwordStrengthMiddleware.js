@@ -1,11 +1,26 @@
 const passwordCriteria = {
   minLength: 8,
   rules: [
-    { test: (password) => password.length >= 8, message: "Password must be at least 8 characters long." },
-    { test: (password) => /[A-Z]/.test(password), message: "Password must contain at least one uppercase letter." },
-    { test: (password) => /[a-z]/.test(password), message: "Password must contain at least one lowercase letter." },
-    { test: (password) => /[0-9]/.test(password), message: "Password must contain at least one number." },
-    { test: (password) => /[!@#$%^&*(),.?":{}|<>]/.test(password), message: "Password must contain at least one special character." },
+    {
+      test: (password) => password.length >= 8,
+      message: "Password must be at least 8 characters long.",
+    },
+    {
+      test: (password) => /[A-Z]/.test(password),
+      message: "Password must contain at least one uppercase letter.",
+    },
+    {
+      test: (password) => /[a-z]/.test(password),
+      message: "Password must contain at least one lowercase letter.",
+    },
+    {
+      test: (password) => /[0-9]/.test(password),
+      message: "Password must contain at least one number.",
+    },
+    {
+      test: (password) => /[!@#$%^&*(),.?":{}|<>]/.test(password),
+      message: "Password must contain at least one special character.",
+    },
   ],
 };
 
@@ -30,16 +45,21 @@ const validatePassword = (password) => {
 // Middleware to check password strength
 const checkPasswordStrength = (req, res, next) => {
   const { password } = req.body;
+
+  // Validate the password using custom rules
   const validationErrors = validatePassword(password);
 
   if (validationErrors.length > 0) {
     return res.status(400).json({
-      error: "Password does not meet the required strength criteria.",
-      requirements: validationErrors,
+      success: false,
+      timestamp: new Date().toISOString(),
+      message: "Password does not meet the required strength criteria.",
+      data: { requirements: validationErrors },
     });
   }
 
-  next(); // Proceed to the next middleware or controller
+  // Proceed to the next middleware or controller if valid
+  next();
 };
 
 module.exports = checkPasswordStrength;

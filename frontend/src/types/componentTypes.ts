@@ -1,12 +1,12 @@
 interface Component {
+  id: number;
   name: string;
   fineness: string;
+  imageUrl?: string;
 }
 
 interface SubstrateComponent extends Component {
-  id: number;
   description: string;
-  imageUrl: string;
   parts: number;
 }
 
@@ -15,9 +15,11 @@ interface AddComponent extends Omit<Component, "fineness"> {
   image?: File;
 }
 
-interface EditComponent extends Component{
+interface EditComponent {
+  name?: string;
+  fineness?: number;
 }
 
 interface APIComponent {
-  // TODO 
+  // TODO
 }

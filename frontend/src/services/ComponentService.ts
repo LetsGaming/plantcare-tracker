@@ -1,190 +1,191 @@
+import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
-import storageService from "@/services/general/StorageService";
-import ToastService from "@/services/general/ToastService";
 import ComponentMapper from "@/mapping/ComponentMapping";
-import Utils from "@/utils/utils";
-import localizationService from "@/services/general/LocalizationService";
+import storageService from "@/services/general/StorageService";
 
-const COMPONENTS_ENDPOINT = "/components";
-const CACHE_KEY_COMPONENTS = "components_data";
+const ENDPOINT = "/components";
+const CACHE_KEY_ALL = "components_all";
+const RESOURCE_NAME = "components.title";
 
-// Common function to retrieve cached components
-async function getCachedComponents() {
-  return await storageService.get<{
-    components: any[];
-    timestamp: number;
-  }>(CACHE_KEY_COMPONENTS);
+/**
+ * Events emitted when the component cache changes
+ */
+export enum ComponentEvents {
+  COMPONENTS_UPDATED = "components-updated",
 }
 
-// Common function to invalidate the component cache
-async function invalidateComponentCache() {
-  await storageService.remove(CACHE_KEY_COMPONENTS);
-}
+export default class ComponentService extends BaseService {
+  /* =========================================================================
+     Cache helpers
+     ========================================================================= */
 
-// Common function to fetch and cache components from the API
-async function fetchAndCacheComponents(): Promise<any[]> {
-  try {
-    const response = await ApiUtils.get<any[]>(COMPONENTS_ENDPOINT);
-    const components = ComponentMapper.convertToComponents(response);
+  /**
+   * Save the full component list into storage and notify listeners
+   * @param components Array of component entities
+   */
+  private static async saveComponents(components: Component[]): Promise<void> {
+    await this.saveAndNotify(
+      CACHE_KEY_ALL,
+      ComponentEvents.COMPONENTS_UPDATED,
+      components
+    );
+  }
 
-    // Store the components and current timestamp in storage
-    await storageService.set(CACHE_KEY_COMPONENTS, {
-      components,
-      timestamp: Date.now(),
-    });
+  /**
+   * Invalidate the component cache.
+   * If componentId is provided, removes only that component.
+   * Otherwise, clears the entire cache.
+   * @param componentId Optional component ID
+   */
+  static async invalidateComponentCache(componentId?: number): Promise<void> {
+    if (componentId === undefined) {
+      await storageService.remove(CACHE_KEY_ALL);
+      return;
+    }
 
-    return components;
-  } catch (error) {
-    console.error("Error fetching components:", error);
-    ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error fetching components: ${error}` });
-    throw error;
+    const stored = await storageService.get<{ data: Component[] }>(
+      CACHE_KEY_ALL
+    );
+    if (!stored?.data) return;
+
+    const updated = stored.data.filter((c) => c.id !== componentId);
+    await this.saveComponents(updated);
+  }
+
+  /* =========================================================================
+     Fetching
+     ========================================================================= */
+
+  /**
+   * Fetch all components.
+   * All components are public; cache is single source of truth.
+   * @param forceUpdate If true, bypass cache and refetch
+   * @returns Array of components
+   */
+  static async getAllComponents(
+    forceUpdate: boolean = false
+  ): Promise<Component[]> {
+    const result = await this.getCachedData(
+      CACHE_KEY_ALL,
+      () =>
+        this.handleRequest(
+          ApiUtils.get<any[]>(ENDPOINT).then((res) =>
+            ComponentMapper.convertToComponents(res)
+          ),
+          RESOURCE_NAME
+        ),
+      forceUpdate
+    );
+
+    await this.saveComponents(result || []);
+    return result || [];
+  }
+
+  /**
+   * Fetch a single component by ID.
+   * @param componentId Component ID
+   * @param forceUpdate If true, bypass cache
+   * @returns The requested component
+   */
+  static async getComponentById(
+    componentId: number,
+    forceUpdate: boolean = false
+  ): Promise<Component> {
+    const components = await this.getAllComponents(false);
+    const cached = components.find((c) => c.id === componentId);
+
+    if (cached && !forceUpdate) return cached;
+
+    const component = await this.handleRequest(
+      ApiUtils.get(`${ENDPOINT}/component/${componentId}`).then(
+        (res) => ComponentMapper.convertToComponents(res)[0]
+      ),
+      RESOURCE_NAME
+    );
+
+    await this.upsertIntoListCache(
+      CACHE_KEY_ALL,
+      ComponentEvents.COMPONENTS_UPDATED,
+      component
+    );
+    return component;
+  }
+
+  /* =========================================================================
+     Admin mutations
+     ========================================================================= */
+
+  /**
+   * Create a new component (admin only)
+   * @param data Component payload
+   * @returns API response
+   */
+  static async addComponent(data: AddComponent): Promise<any> {
+    const response = await this.handleRequest(
+      ApiUtils.post(`${ENDPOINT}/admin`, data),
+      RESOURCE_NAME,
+      "error.action_failed"
+    );
+    await this.invalidateComponentCache();
+    return response;
+  }
+
+  /**
+   * Update an existing component (admin only)
+   * @param componentId ID of the component
+   * @param data Update payload
+   * @returns API response
+   */
+  static async editComponent(
+    componentId: number,
+    data: EditComponent
+  ): Promise<any> {
+    const response = await this.handleRequest(
+      ApiUtils.put(`${ENDPOINT}/admin/${componentId}`, data),
+      RESOURCE_NAME,
+      "error.action_failed"
+    );
+
+    await this.invalidateComponentCache(componentId);
+    return response;
+  }
+
+  /**
+   * Delete a component (admin only)
+   * @param componentId ID of the component
+   * @returns API response
+   */
+  static async deleteComponent(componentId: number): Promise<any> {
+    const response = await this.handleRequest(
+      ApiUtils.delete(`${ENDPOINT}/admin/${componentId}`),
+      RESOURCE_NAME,
+      "error.action_failed"
+    );
+
+    await this.invalidateComponentCache(componentId);
+    return response;
+  }
+
+  /**
+   * Upload an image for a component (admin only)
+   * @param componentId Component ID
+   * @param image File to upload
+   * @returns API response
+   */
+  static async uploadComponentImage(
+    componentId: number,
+    image: File
+  ): Promise<any> {
+    const formData = new FormData();
+    formData.append("image", image);
+
+    const response = await this.handleRequest(
+      ApiUtils.upload(`/images/component/${componentId}`, formData),
+      RESOURCE_NAME,
+      "error.action_failed"
+    );
+
+    await this.invalidateComponentCache(componentId);
+    return response;
   }
 }
-
-const ComponentService = {
-  /**
-   * Fetches the list of all components with caching.
-   * @returns {Promise<any[]>} - A promise that resolves to an array of components.
-   */
-  async getComponents(forceUpdate: boolean = false): Promise<any[]> {
-    if (forceUpdate) {
-      return await fetchAndCacheComponents();
-    }
-
-    // Try to get the cached data
-    const cachedData = await getCachedComponents();
-
-    if (cachedData && !Utils.isCacheExpired(cachedData.timestamp)) {
-      return cachedData.components;
-    }
-
-    // Fetch new data from the API
-    return await fetchAndCacheComponents();
-  },
-
-  /**
-   * Fetches a single component by its ID.
-   * @param {number} id - The ID of the component.
-   * @returns {Promise<any>} - A promise that resolves to the component data.
-   */
-  async getComponentById(
-    id: number,
-    forceUpdate: boolean = false
-  ): Promise<any> {
-    const cachedData = await getCachedComponents();
-
-    if (
-      !forceUpdate &&
-      cachedData &&
-      !Utils.isCacheExpired(cachedData.timestamp)
-    ) {
-      const component = cachedData.components.find((c) => c.id === id);
-      if (component) {
-        return component; // Return the cached component if found
-      }
-    }
-
-    // Otherwise, fetch the component from the API
-    try {
-      const component = await ApiUtils.get<any>(`${COMPONENTS_ENDPOINT}/${id}`);
-
-      // Refresh the cache by calling getComponents
-      await this.getComponents(true); // Invalidate the cache for components
-
-      return component;
-    } catch (error) {
-      console.error(`Error fetching component with ID ${id}:`, error);
-      ToastService.showError({ key: 'error.fetch_failed', vars: { resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error fetching component details: ${error}` });
-      throw error;
-    }
-  },
-
-  /**
-   * Adds a new component.
-   * @param {any} componentData - The data for the new component (e.g., name, fineness).
-   * @returns {Promise<any>} - A promise that resolves to the created component.
-   */
-  async addComponent(componentData: any): Promise<any> {
-    try {
-      const addEndpoint = `${COMPONENTS_ENDPOINT}/admin`;
-      const response = await ApiUtils.post<any, any>(
-        addEndpoint,
-        componentData
-      );
-
-      // Invalidate the cached components after adding a new component
-      await invalidateComponentCache();
-
-      return response; // Assuming response contains the inserted component
-    } catch (error) {
-      console.error("Error adding component:", error);
-      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('components.add.title') || localizationService.t('components.title'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error adding component: ${error}` });
-      throw error;
-    }
-  },
-
-  /**
-   * Updates an existing component by its ID.
-   * @param {number} id - The ID of the component to update.
-   * @param {any} componentData - The updated data for the component.
-   * @returns {Promise<any>} - A promise that resolves to the updated component data.
-   */
-  async editComponent(id: number, componentData: any): Promise<any> {
-    try {
-      const updateEndpoint = `${COMPONENTS_ENDPOINT}/admin/${id}`;
-      const response = await ApiUtils.put<any, any>(
-        updateEndpoint,
-        componentData
-      );
-
-      // Invalidate the cached components after updating
-      await invalidateComponentCache();
-
-      return response;
-    } catch (error) {
-      console.error(`Error updating component with ID ${id}:`, error);
-      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('components.edit.title') || localizationService.t('components.title'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error updating component: ${error}` });
-      throw error;
-    }
-  },
-
-  async uploadComponentImage(componentId: number, image: File): Promise<any> {
-    try {
-      const formData = new FormData();
-      formData.append("image", image);
-
-      // The server expects entityType and entityId in the URL parameters
-      const entityType = "component";
-      const url = `/images/${entityType}/${componentId}`;
-
-      const response = await ApiUtils.upload(url, formData);
-      await invalidateComponentCache(); // Invalidate the cache after uploading an image
-      return response;
-    } catch (error) {
-      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('image.upload'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error uploading plant image: ${error}` });
-      throw error;
-    }
-  },
-
-  /**
-   * Deletes a component by its ID.
-   * @param {number} id - The ID of the component to delete.
-   * @returns {Promise<void>} - A promise that resolves when the component is deleted.
-   */
-  async deleteComponent(id: number): Promise<any> {
-    try {
-      const deleteEndpoint = `${COMPONENTS_ENDPOINT}/admin/${id}`;
-      const response = await ApiUtils.delete(deleteEndpoint);
-
-      // Invalidate the cached components after deleting
-      await invalidateComponentCache();
-      return response;
-    } catch (error) {
-      console.error(`Error deleting component with ID ${id}:`, error);
-      ToastService.showError({ key: 'error.action_failed', vars: { action: localizationService.t('components.delete_confirm') || localizationService.t('components.title'), resource: localizationService.t('components.title'), details: String(error) }, fallback: `Error deleting component: ${error}` });
-      throw error;
-    }
-  },
-};
-
-export default ComponentService;

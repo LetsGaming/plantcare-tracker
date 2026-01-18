@@ -1,81 +1,80 @@
 const pool = require("../config/db");
 const { selectEntityImages } = require("../utils/imageUtils");
 
-// Base query for selecting components with a join to the fineness_levels table
+// Helper function to build the WHERE clause dynamically
+const buildWhereClause = (conditions, params) => {
+  const whereClauses = [];
+
+  if (conditions.id !== undefined) {
+    whereClauses.push("components.id = ?");
+    params.push(Number(conditions.id));
+  }
+
+  if (conditions.fineness_id !== undefined) {
+    whereClauses.push("components.fineness_id = ?");
+    params.push(Number(conditions.fineness_id));
+  }
+
+  return whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+};
+
+// Base query to select components with fineness level
 const selectComponentsQuery = `
-  SELECT 
-    components.id as component_id,
-    components.name as component_name,
-    components.fineness_id,
-    fineness_levels.name as component_fineness
+  SELECT
+    components.id AS component_id,
+    components.name AS component_name,
+    components.fineness_id AS fineness_id,
+    fineness_levels.name AS fineness_name
   FROM components
   JOIN fineness_levels ON components.fineness_id = fineness_levels.id
 `;
 
-// Function to select components with dynamic conditions
-const selectComponents = async (conditions = {}, params = []) => {
-  // Default selectImages to true if it's not provided
-  if (conditions.selectImages === undefined) {
-    conditions.selectImages = true;
-  }
+// Select components (list or filtered)
+const selectComponents = async (conditions = {}) => {
+  const params = [];
+  const selectImages =
+    conditions.selectImages !== undefined ? conditions.selectImages : true;
 
-  const whereClauses = [];
-
-  // Add dynamic filtering if conditions are provided
-  if (conditions.id) {
-    whereClauses.push("components.id = ?");
-    params.push(conditions.id);
-  }
-
-  if (conditions.fineness_id) {
-    whereClauses.push("components.fineness_id = ?");
-    params.push(conditions.fineness_id);
-  }
-
-  const whereSQL = whereClauses.length
-    ? `WHERE ${whereClauses.join(" AND ")}`
-    : "";
+  const whereSQL = buildWhereClause(conditions, params);
   const query = `${selectComponentsQuery} ${whereSQL}`;
 
   const [rows] = await pool.query(query, params);
 
-  // Group rows by component_id, in case there are duplicate rows due to joins
-  const componentsMap = new Map();
-  for (const row of rows) {
-    const { component_id, component_name, component_fineness } = row;
+  const components = await Promise.all(
+    rows.map(async (row) => {
+      let image_url = null;
+      let images = [];
 
-    if (!componentsMap.has(component_id)) {
-      // initialize the grouped object with base properties and empty arrays for join data
-      componentsMap.set(component_id, {
-        component_id,
-        component_name,
-        component_fineness,
-        images: [],
-      });
-    }
-  }
-
-  const components = Array.from(componentsMap.values());
-
-  // If image details should be selected, fetch them concurrently for each component.
-  if (conditions.selectImages) {
-    await Promise.all(
-      components.map(async (component) => {
-        const { latestImage, images } = await selectEntityImages(
+      if (selectImages) {
+        const imageData = await selectEntityImages(
           "component",
-          component.component_id
+          row.component_id
         );
-        component.image_url = latestImage;
-        component.images = images;
-      })
-    );
-  }
+        image_url = imageData.latestImage;
+        images = imageData.images;
+      }
+
+      return {
+        component_id: row.component_id,
+        component_name: row.component_name,
+        fineness_id: row.fineness_id,
+        component_fineness: row.fineness_name,
+        image_url,
+        images,
+      };
+    })
+  );
 
   return components;
 };
 
-const selectFinenessLevels = () => {
-  const [rows] = pool.query("SELECT * FROM fineness_levels");
+// Wrapper for selecting a single component by ID
+const selectComponent = (id, selectImages = true) =>
+  selectComponents({ id, selectImages });
+
+// Select all fineness levels
+const selectFinenessLevels = async () => {
+  const [rows] = await pool.query("SELECT id, name FROM fineness_levels");
 
   return rows.map((row) => ({
     fineness_id: row.id,
@@ -83,28 +82,46 @@ const selectFinenessLevels = () => {
   }));
 };
 
-// Wrapper for selecting a single component by ID
-const selectComponent = (id, selectImages = true) =>
-  selectComponents({ id, selectImages }).then((rows) => rows[0] || null);
-
 // Insert a new component
-const insertComponent = (name, fineness_id) => {
+const insertComponent = async (name, fineness_id) => {
   return pool.query(
     "INSERT INTO components (name, fineness_id) VALUES (?, ?)",
     [name, fineness_id]
   );
 };
 
-// Update a component by ID
-const updateComponent = (id, name, fineness_id) => {
-  return pool.query(
-    "UPDATE components SET name = ?, fineness_id = ? WHERE id = ?",
-    [name, fineness_id, id]
-  );
+// Dynamically update a component
+const updateComponent = async (id, fields) => {
+  const updates = [];
+  const params = [];
+
+  if (fields.name !== undefined) {
+    updates.push("name = ?");
+    params.push(fields.name);
+  }
+
+  if (fields.fineness_id !== undefined) {
+    updates.push("fineness_id = ?");
+    params.push(fields.fineness_id);
+  }
+
+  if (updates.length === 0) {
+    throw new Error("No fields provided for update.");
+  }
+
+  params.push(id);
+
+  const query = `
+    UPDATE components
+    SET ${updates.join(", ")}
+    WHERE id = ?
+  `;
+
+  return pool.query(query, params);
 };
 
 // Delete a component by ID
-const deleteComponent = (id) => {
+const deleteComponent = async (id) => {
   return pool.query("DELETE FROM components WHERE id = ?", [id]);
 };
 

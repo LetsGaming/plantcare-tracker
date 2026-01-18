@@ -15,7 +15,7 @@ const {
 router.get("/", authenticateToken, getComponents); // Get all components
 
 // Public route to fetch a single component by ID
-router.get("/:id", authenticateToken, getComponent); // Get a single component
+router.get("/component/:id", authenticateToken, getComponent); // Get a single component
 
 // Admin routes for component management
 router.post("/admin", authenticateToken, isAdmin, addComponent); // Add component

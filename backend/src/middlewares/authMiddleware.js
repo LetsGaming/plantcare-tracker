@@ -1,11 +1,10 @@
 const jwt = require("jsonwebtoken");
-const { JWT_SECRET, JWT_REFRESH_SECRET } = require("../config/jwtConfig");
-const logger = require("../utils/logger");
+const { JWT_SECRET } = require("../config/jwtConfig");
 const authStore = require("../auth/authStore");
 const {
-  errorResponse,
-  validationErrorResponse,
+  errorResponse
 } = require("../utils/responseUtils");
+const { validateAndBurnTicket } = require("../auth/ticketStore");
 
 // Middleware to authenticate JWT tokens and ensure session is valid
 const authenticateToken = (req, res, next) => {
@@ -23,7 +22,7 @@ const authenticateToken = (req, res, next) => {
   }
 
   if (!token) {
-    return validationErrorResponse(res, "Missing authentication token");
+    return errorResponse(res, "Missing authentication token", 401);
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -42,25 +41,23 @@ const authenticateToken = (req, res, next) => {
 };
 
 const authenticateSSE = (req, res, next) => {
-  const refreshToken = req.cookies?.refreshToken;
+  const { ticket } = req.query;
 
-  if (!refreshToken) {
-    return validationErrorResponse(res, "Missing refresh token");
+  if (!ticket) {
+    return res
+      .status(401)
+      .json({ message: "No authentication ticket provided" });
   }
 
-  jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err, payload) => {
-    if (err) {
-      return errorResponse(res, "Invalid or expired session", 403, err);
-    }
+  const userId = validateAndBurnTicket(ticket);
 
-    const validRefreshTokens = authStore.getRefreshTokens(payload.id);
-    if (!validRefreshTokens?.includes(refreshToken)) {
-      return errorResponse(res, "Invalid session. Please log in again.", 403);
-    }
+  if (!userId) {
+    return res.status(403).json({ message: "Invalid or expired ticket" });
+  }
 
-    req.user = { id: payload.id };
-    next();
-  });
+  // Attach user to request
+  req.user = { id: userId };
+  next();
 };
 
 // Middleware to check if the user is an admin
@@ -93,11 +90,16 @@ const checkGuestPermission = (req, res, next) => {
     return errorResponse(
       res,
       "Guests are not allowed to perform this action",
-      403
+      403,
     );
   }
 
   next();
 };
 
-module.exports = { authenticateToken, authenticateSSE, isAdmin, checkGuestPermission };
+module.exports = {
+  authenticateToken,
+  authenticateSSE,
+  isAdmin,
+  checkGuestPermission,
+};

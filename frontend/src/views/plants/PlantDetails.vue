@@ -9,7 +9,6 @@
     />
     <ion-content>
       <div v-if="plant">
-        <!-- Full-width banner with dynamic plant image -->
         <details-banner
           :banner-title="plant.name"
           :banner-subtitle="plant.species"
@@ -21,6 +20,7 @@
           :is-public="isPublic"
           @edit-click="handleImageEditClick"
         />
+
         <section class="plant-info align-middle">
           <substrate-container :substrate="plant.substrate" />
           <watering-records
@@ -31,6 +31,21 @@
           <more-info :plantName="plant.name" />
         </section>
       </div>
+
+      <div v-else-if="!isLoading" class="ion-padding ion-text-center">
+        <ion-text color="medium">
+          <p>
+            {{
+              t(
+                "error.plant_not_found",
+                {},
+                "Pflanze konnte nicht geladen werden."
+              )
+            }}
+          </p>
+        </ion-text>
+      </div>
+
       <PlantEditingModal
         v-if="plant"
         :is-open="showEditModal"
@@ -38,13 +53,15 @@
         @close="showEditModal = false"
         @edited="handlePlantEdited"
       />
+
       <ImageUploadModal
         :is-open="showUploadModal"
         :card-title="t('image.upload.for_name', { name: plant?.name })"
         @close="showUploadModal = false"
         @submit="onImageUpload"
-        :is-loading="isLoading"
+        :is-loading="isImageLoading"
       />
+
       <ImageEditingModal
         v-if="enlargedImage"
         :is-open="showImageEditModal"
@@ -119,7 +136,7 @@ export default defineComponent({
     },
     public: {
       type: String,
-      default: false,
+      default: "0",
     },
   },
   data() {
@@ -131,65 +148,82 @@ export default defineComponent({
       enlargedImage: null as Image | null,
       showImageEditModal: false,
       isLoading: false,
+      isImageLoading: false,
     };
   },
   async mounted() {
-    try {
-      this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
-    } catch (error) {
-      console.error("Error fetching plant details:", error);
-    }
+    await this.loadPlantData();
   },
   computed: {
     plantId() {
       return Number.parseInt(this.id);
     },
     isPublic() {
-      return this.public == "1";
+      return this.public === "1";
     },
   },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
+
+    /**
+     * Unified loading logic to handle service rework.
+     * Prevents crashes by explicitly checking for null/undefined response.
+     */
+    async loadPlantData(forceRefresh = false) {
+      this.isLoading = true;
+      try {
+        const response = await PlantService.getPlantById(
+          this.plantId,
+          forceRefresh
+        );
+
+        // Defensive Assignment: Ensure we stay at null if response is undefined
+        this.plant = response || null;
+      } catch (error) {
+        this.plant = null;
+        console.error("Error fetching plant details:", error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
     async handlePlantEdited() {
-      this.plant = await PlantService.getPlantById(this.plantId, this.isPublic);
+      await this.loadPlantData();
       this.showEditModal = false;
     },
+
     async onImageUpload(fileItem: any) {
       if (this.plant) {
         try {
-          this.isLoading = true;
+          this.isImageLoading = true;
           await PlantService.uploadPlantImage(
             this.plant.id,
             fileItem.file,
             fileItem.date
           );
-          this.plant = await PlantService.getPlantById(
-            this.plantId,
-            this.isPublic
-          );
-          this.isLoading = false;
+          // Refresh data to update image list/banner
+          await this.loadPlantData();
+          this.isImageLoading = false;
           this.$nextTick(() => {
             this.showUploadModal = false;
           });
         } catch (error) {
-          this.isLoading = false;
+          this.isImageLoading = false;
           console.error("Error uploading image:", error);
         }
       }
     },
+
     async handleImageEditClick(image: Image) {
       this.enlargedImage = image;
       this.showImageEditModal = true;
     },
+
     async handleImageEdited() {
       try {
-        this.plant = await PlantService.getPlantById(
-          this.plantId,
-          this.isPublic,
-          true
-        );
+        await this.loadPlantData();
         this.showImageEditModal = false;
       } catch (error) {
         console.error("Error editing image:", error);

@@ -5,10 +5,13 @@ export default class SubstrateMapper {
   static mapSubstrate(substrate: APISubstrate): Substrate {
     return {
       id: substrate.substrate_id,
+      userId: substrate.substrate_user_id,
       name: substrate.substrate_name,
       isPublic: !!substrate.is_public,
       imageUrl: substrate.image_url,
-      components: ComponentMapper.convertToSubstrateComponents(substrate.components),
+      components: ComponentMapper.convertToSubstrateComponents(
+        substrate.components
+      ),
     };
   }
 

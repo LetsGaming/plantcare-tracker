@@ -3,6 +3,7 @@ const router = express.Router();
 const {authenticateToken} = require('../middlewares/authMiddleware');
 const { cleanRequestBody } = require("../middlewares/generalMiddleware");
 const {
+  getAllPlants,
   getPrivatePlants,
   getSpecificPlant,
   getPublicPlants,
@@ -13,6 +14,8 @@ const {
 
 // Get a specific private plant for the authenticated user
 router.get('/plant/:id', authenticateToken, getSpecificPlant);
+
+router.get('/', authenticateToken, getAllPlants);
 
 // Get all private plants for the authenticated user
 router.get('/private', authenticateToken, getPrivatePlants);
