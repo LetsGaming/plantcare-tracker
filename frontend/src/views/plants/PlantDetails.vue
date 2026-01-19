@@ -2,11 +2,12 @@
   <ion-page>
     <details-header
       :show-edit-button="!isPublic"
-      @edit-click="showEditModal = true"
+      @edit-click="openEditModal"
       :show-upload-button="!isPublic"
       @uploadClick="showUploadModal = true"
       default-href="/tabs/plants"
     />
+
     <ion-content>
       <div v-if="plant">
         <details-banner
@@ -39,21 +40,26 @@
               t(
                 "error.plant_not_found",
                 {},
-                "Pflanze konnte nicht geladen werden."
+                "Pflanze konnte nicht geladen werden.",
               )
             }}
           </p>
         </ion-text>
       </div>
 
+      <!-- EDIT PLANT (stupified modal) -->
       <PlantEditingModal
         v-if="plant"
         :is-open="showEditModal"
         :plant="plant"
+        :substrates="substrates"
+        :is-loading="isEditLoading"
         @close="showEditModal = false"
-        @edited="handlePlantEdited"
+        @save="handlePlantSave"
+        @delete="handlePlantDelete"
       />
 
+      <!-- IMAGE UPLOAD -->
       <ImageUploadModal
         :is-open="showUploadModal"
         :card-title="t('image.upload.for_name', { name: plant?.name })"
@@ -62,6 +68,7 @@
         :is-loading="isImageLoading"
       />
 
+      <!-- IMAGE EDIT -->
       <ImageEditingModal
         v-if="enlargedImage"
         :is-open="showImageEditModal"
@@ -75,22 +82,12 @@
 </template>
 
 <script lang="ts">
-import {
-  IonPage,
-  IonContent,
-  IonHeader,
-  IonToolbar,
-  IonButtons,
-  IonBackButton,
-  IonAccordionGroup,
-  IonAccordion,
-  IonItem,
-  IonLabel,
-  IonImg,
-  IonText,
-} from "@ionic/vue";
+import { IonPage, IonContent, IonText } from "@ionic/vue";
 import { defineComponent } from "vue";
+
 import PlantService from "@/services/PlantService";
+import SubstrateService from "@/services/SubstrateService";
+import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
@@ -99,7 +96,7 @@ import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import MoreInfo from "@/components/plants/MoreInfo.vue";
-import PlantEditingModal from "../../components/plants/PlantEditingModal.vue";
+import PlantEditingModal from "@/components/plants/PlantEditingModal.vue";
 import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import ImageEditingModal from "@/components/images/ImageEditingModal.vue";
 
@@ -108,52 +105,44 @@ export default defineComponent({
   components: {
     IonPage,
     IonContent,
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonBackButton,
-    IonAccordionGroup,
-    IonAccordion,
-    IonItem,
-    IonLabel,
-    IonImg,
     IonText,
-
     DetailsHeader,
     DetailsBanner,
     HorizontalGallery,
     SubstrateContainer,
     WateringRecords,
     MoreInfo,
+    PlantEditingModal,
     ImageUploadModal,
     ImageEditingModal,
-    PlantEditingModal,
   },
+
   props: {
-    id: {
-      type: String,
-      required: true,
-    },
-    public: {
-      type: String,
-      default: "0",
-    },
+    id: { type: String, required: true },
+    public: { type: String, default: "0" },
   },
+
   data() {
     return {
-      plant: null as null | Plant,
-      wateringRecords: [] as WateringRecord[],
+      plant: null as Plant | null,
+      substrates: [] as Substrate[],
+
       showEditModal: false,
       showUploadModal: false,
+
       enlargedImage: null as Image | null,
       showImageEditModal: false,
+
       isLoading: false,
+      isEditLoading: false,
       isImageLoading: false,
     };
   },
+
   async mounted() {
-    await this.loadPlantData();
+    await Promise.all([this.loadPlantData(), this.fetchSubstrates()]);
   },
+
   computed: {
     plantId() {
       return Number.parseInt(this.id);
@@ -162,24 +151,21 @@ export default defineComponent({
       return this.public === "1";
     },
   },
+
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
 
-    /**
-     * Unified loading logic to handle service rework.
-     * Prevents crashes by explicitly checking for null/undefined response.
-     */
+    /* -------------------- DATA -------------------- */
+
     async loadPlantData(forceRefresh = false) {
       this.isLoading = true;
       try {
         const response = await PlantService.getPlantById(
           this.plantId,
-          forceRefresh
+          forceRefresh,
         );
-
-        // Defensive Assignment: Ensure we stay at null if response is undefined
         this.plant = response || null;
       } catch (error) {
         this.plant = null;
@@ -189,45 +175,88 @@ export default defineComponent({
       }
     },
 
-    async handlePlantEdited() {
-      await this.loadPlantData();
-      this.showEditModal = false;
-    },
-
-    async onImageUpload(fileItem: any) {
-      if (this.plant) {
-        try {
-          this.isImageLoading = true;
-          await PlantService.uploadPlantImage(
-            this.plant.id,
-            fileItem.file,
-            fileItem.date
-          );
-          // Refresh data to update image list/banner
-          await this.loadPlantData();
-          this.isImageLoading = false;
-          this.$nextTick(() => {
-            this.showUploadModal = false;
-          });
-        } catch (error) {
-          this.isImageLoading = false;
-          console.error("Error uploading image:", error);
-        }
+    async fetchSubstrates() {
+      try {
+        this.substrates = await SubstrateService.getAllSubstrates();
+      } catch (e) {
+        console.error("Failed to fetch substrates", e);
       }
     },
 
-    async handleImageEditClick(image: Image) {
+    /* -------------------- EDIT -------------------- */
+
+    openEditModal() {
+      this.showEditModal = true;
+    },
+
+    async handlePlantSave(payload: EditPlant) {
+      if (!this.plant) return;
+
+      this.isEditLoading = true;
+      try {
+        await PlantService.editPlant(this.plant.id, payload);
+        ToastService.showSuccess({ key: "plant.edit.success" });
+        await this.loadPlantData(true);
+        this.showEditModal = false;
+      } catch (error) {
+        ToastService.showError({
+          key: "plant.edit.error",
+          fallback: "Error while editing the plant",
+        });
+        console.error("Edit plant failed:", error);
+      } finally {
+        this.isEditLoading = false;
+      }
+    },
+
+    async handlePlantDelete() {
+      if (!this.plant) return;
+
+      this.isEditLoading = true;
+      try {
+        await PlantService.deletePlant(this.plant.id);
+        ToastService.showSuccess({ key: "plant.delete.success" });
+        this.$router.push({ name: "plant-overview" });
+      } catch (error) {
+        ToastService.showError({
+          key: "plant.delete.error",
+          fallback: "Error while deleting the plant",
+        });
+        console.error("Delete plant failed:", error);
+      } finally {
+        this.isEditLoading = false;
+      }
+    },
+
+    /* -------------------- IMAGES -------------------- */
+
+    async onImageUpload(fileItem: any) {
+      if (!this.plant) return;
+
+      try {
+        this.isImageLoading = true;
+        await PlantService.uploadPlantImage(
+          this.plant.id,
+          fileItem.file,
+          fileItem.date,
+        );
+        await this.loadPlantData(true);
+        this.showUploadModal = false;
+      } catch (error) {
+        console.error("Error uploading image:", error);
+      } finally {
+        this.isImageLoading = false;
+      }
+    },
+
+    handleImageEditClick(image: Image) {
       this.enlargedImage = image;
       this.showImageEditModal = true;
     },
 
     async handleImageEdited() {
-      try {
-        await this.loadPlantData();
-        this.showImageEditModal = false;
-      } catch (error) {
-        console.error("Error editing image:", error);
-      }
+      await this.loadPlantData(true);
+      this.showImageEditModal = false;
     },
   },
 });
@@ -291,7 +320,9 @@ export default defineComponent({
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 .fade-enter-from,
@@ -302,7 +333,9 @@ export default defineComponent({
 
 .slide-fade-enter-active,
 .slide-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 .slide-fade-enter-from,

@@ -10,7 +10,6 @@
 
     <ion-content>
       <div v-if="substrate">
-        <!-- Full-width banner with dynamic substrate image -->
         <details-banner
           :banner-title="substrate.name"
           :image-url="substrate.imageUrl"
@@ -20,6 +19,7 @@
           <SubstrateContainer :substrate="substrate"></SubstrateContainer>
         </section>
       </div>
+
       <ImageUploadModal
         :is-open="showUploadModal"
         :card-title="t('image.upload.for_name', { name: substrate?.name })"
@@ -27,12 +27,16 @@
         @submit="onImageUpload"
         :is-loading="isLoading"
       />
+
       <SubstrateEditingModal
         v-if="substrate"
         :is-open="showEditModal"
         :substrate="substrate"
+        :available-components="availableComponents"
+        :is-loading="isSubmitting"
         @close="showEditModal = false"
-        @edited="handleSubstrateEdited"
+        @save="handleSubstrateUpdate"
+        @delete="handleSubstrateDelete"
       />
     </ion-content>
   </ion-page>
@@ -40,37 +44,23 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonPage,
-  IonContent,
-  IonHeader,
-  IonToolbar,
-  IonButtons,
-  IonBackButton,
-  IonTitle,
-  IonImg,
-} from "@ionic/vue";
+import { IonPage, IonContent } from "@ionic/vue";
 import SubstrateService from "@/services/SubstrateService";
+import ComponentService from "@/services/ComponentService";
+import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import SubstrateEditingModal from "@/components/substrates/SubstrateEditingModal.vue";
-import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SubstrateDetails",
   components: {
     IonPage,
     IonContent,
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonBackButton,
-    IonTitle,
-    IonImg,
-
     DetailsHeader,
     DetailsBanner,
     SubstrateContainer,
@@ -78,77 +68,169 @@ export default defineComponent({
     SubstrateEditingModal,
   },
   props: {
-    id: {
-      type: String,
-      required: true,
-    },
-    public: {
-      type: String,
-      default: "0",
-    },
+    id: { type: String, required: true },
+    public: { type: String, default: "0" },
   },
   data() {
     return {
       substrate: null as null | Substrate,
+      availableComponents: [] as SubstrateComponent[],
       showUploadModal: false,
       showEditModal: false,
-      isLoading: false,
+      isLoading: false, // For image upload
+      isSubmitting: false, // For substrate editing
     };
   },
-  async mounted() {
-    try {
-      await this.fetchSubstrate();
-    } catch (error) {
-      console.error("Error fetching substrate details:", error);
-    }
-  },
   computed: {
-    substrateId() {
+    substrateId(): number {
       return Number.parseInt(this.id);
     },
-    isPublic() {
+    isPublic(): boolean {
       return this.public === "1";
     },
+  },
+  async mounted() {
+    await Promise.all([this.fetchSubstrate(), this.fetchAvailableComponents()]);
   },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
+
+    async fetchSubstrate(forceUpdate = false) {
+      try {
+        this.substrate = await SubstrateService.getSubstrateById(
+          this.substrateId,
+          forceUpdate,
+        );
+      } catch (error) {
+        console.error("Error fetching substrate:", error);
+      }
+    },
+
+    async fetchAvailableComponents() {
+      try {
+        const response = await ComponentService.getAllComponents();
+        this.availableComponents = response
+          .map((comp: any) => ({
+            ...comp,
+            description: comp.description || "",
+            parts: comp.parts || 0,
+          }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      } catch (error) {
+        console.error("Error fetching available components:", error);
+      }
+    },
+
     toggleUpload() {
       this.showUploadModal = !this.showUploadModal;
     },
-    async fetchSubstrate(forceUpdate = false) {
-      this.substrate = await SubstrateService.getSubstrateById(
-        this.substrateId,
-        forceUpdate
-      );
-    },
-    async onImageUpload(fileItem: any) {
-      if (this.substrate) {
-        try {
-          this.isLoading = true;
-          await SubstrateService.uploadSubstrateImage(
-            this.substrate.id,
-            fileItem.file,
-            fileItem.date
+
+    // --- Optimization: Change Detection and Parallel Updates ---
+    async handleSubstrateUpdate(payload: {
+      meta: any;
+      componentIds: number[];
+      parts: Record<number, number>;
+    }) {
+      if (!this.substrate) return;
+
+      const { meta, componentIds, parts } = payload;
+
+      // 1. Detect Meta Changes
+      const metaChanged =
+        meta.name !== this.substrate.name ||
+        meta.isPublic !== this.substrate.isPublic ||
+        !!meta.image;
+
+      // 2. Detect Component Changes (sorted JSON comparison)
+      const currentComps = componentIds
+        .map((id) => ({ componentId: id, parts: parts[id] || 1 }))
+        .sort((a, b) => a.componentId - b.componentId);
+
+      const oldComps = this.substrate.components
+        .map((c) => ({ componentId: c.id, parts: c.parts }))
+        .sort((a, b) => a.componentId - b.componentId);
+
+      const componentsChanged =
+        JSON.stringify(currentComps) !== JSON.stringify(oldComps);
+
+      if (!metaChanged && !componentsChanged) {
+        return ToastService.showWarning({ key: "substrate.no_changes" });
+      }
+
+      this.isSubmitting = true;
+      try {
+        const tasks = [];
+
+        if (componentsChanged) {
+          tasks.push(
+            SubstrateService.editSubstrateComponents(
+              this.substrate.id,
+              currentComps,
+            ),
           );
-          await this.fetchSubstrate();
-          this.isLoading = false;
-          this.$nextTick(() => {
-            this.toggleUpload();
-          });
-        } catch (error) {
-          this.isLoading = false;
-          console.error("Error uploading image:", error);
         }
+
+        if (metaChanged) {
+          tasks.push(
+            SubstrateService.editSubstrate(this.substrate.id, {
+              name: meta.name,
+              isPublic: meta.isPublic,
+              image: meta.image || undefined,
+            }),
+          );
+        }
+
+        await Promise.all(tasks);
+
+        const toastKey =
+          metaChanged && componentsChanged
+            ? "substrate.updated_both"
+            : componentsChanged
+              ? "substrate.components_updated"
+              : "substrate.updated";
+
+        ToastService.showSuccess({ key: toastKey });
+
+        await this.fetchSubstrate(true); // Refresh data
+        this.showEditModal = false;
+      } catch (error) {
+        ToastService.showError({ key: "substrate.update_error" });
+      } finally {
+        this.isSubmitting = false;
       }
     },
-    async handleSubstrateEdited() {
-      this.showEditModal = false;
+
+    async handleSubstrateDelete(id: number) {
       try {
-        await this.fetchSubstrate();
+        this.isSubmitting = true;
+        await SubstrateService.deleteSubstrate(id);
+        ToastService.showSuccess({ key: "substrate.deleted" });
+        this.showEditModal = false;
+        this.$router.push({ name: "substrate-overview" });
       } catch (error) {
-        console.error("Error fetching substrate details:", error);
+        ToastService.showError({ key: "substrate.delete_error" });
+      } finally {
+        this.isSubmitting = false;
+      }
+    },
+
+    async onImageUpload(fileItem: any) {
+      if (!this.substrate) return;
+      try {
+        this.isLoading = true;
+        await SubstrateService.uploadSubstrateImage(
+          this.substrate.id,
+          fileItem.file,
+          fileItem.date,
+        );
+        await this.fetchSubstrate(true);
+        this.showUploadModal = false;
+      } catch (error) {
+        console.error("Error uploading image:", error);
+      } finally {
+        this.isLoading = false;
       }
     },
   },
