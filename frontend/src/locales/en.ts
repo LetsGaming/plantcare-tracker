@@ -87,7 +87,7 @@ export default {
   "profile.role.label": "Role:",
   "profile.edit": "Edit",
   "profile.edit.title": "Edit profile",
-  "profile.info.title": "Profile information",
+  "profile.edit.form_title": "Profile information",
   "profile.field.username.placeholder": "New username",
   "profile.field.password.placeholder": "New password",
   "profile.edit.submit": "Save profile",

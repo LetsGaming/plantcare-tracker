@@ -90,6 +90,7 @@ import ProfileEditingModal from "@/components/profile/ProfileEditingModal.vue";
 import UserService from "@/services/UserService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "ProfilePage",
@@ -120,7 +121,7 @@ export default defineComponent({
       showEditingModal: false,
       isLoading: false,
       username: "",
-      role: null as UserRole | null,
+      role: "",
       editProfileData: {
         username: "",
         password: "",
@@ -155,7 +156,7 @@ export default defineComponent({
   async mounted() {
     this.showEditButton = !(await UserService.isGuest());
     this.username = await UserService.getUsername();
-    this.role = await UserService.getUserRole();
+    this.role = Utils.capitalizeFirstLetter((await UserService.getUserRole()) || "") as string;
     this.editProfileData.username = this.username;
   },
   methods: {

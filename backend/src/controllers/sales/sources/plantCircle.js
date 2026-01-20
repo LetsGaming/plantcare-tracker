@@ -10,6 +10,7 @@ module.exports = createScraper({
     container: ".card--product",
     oldPrice: ".price-item--regular span",
     newPrice: ".price-item--sale span",
+    outOfStock: ".card__badge--out-of-stock",
     link: 'a[href*="/products/"]',
     name: ".card__title",
     img: ".card__image img"

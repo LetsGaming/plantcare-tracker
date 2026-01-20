@@ -10,8 +10,9 @@ module.exports = createScraper({
     container: ".product--box",
     oldPrice: ".price--discount",
     newPrice: ".price--default.is--discount",
+    outOfStock: ".badge--not-instock",
     link: "a.product--title",
     name: "a.product--title",
-    img: ".product--image img"
-  }
+    img: ".product--image img",
+  },
 });
