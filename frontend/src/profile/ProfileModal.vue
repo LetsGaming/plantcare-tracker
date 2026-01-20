@@ -101,7 +101,7 @@ export default defineComponent({
       label: 'profile.title',
       showEditButton: false,
       username: "",
-      role: "",
+      role: null as UserRole | null,
     };
   },
   async mounted() {

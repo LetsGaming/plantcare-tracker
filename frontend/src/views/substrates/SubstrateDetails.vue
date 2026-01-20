@@ -101,7 +101,7 @@ export default defineComponent({
       try {
         this.substrate = await SubstrateService.getSubstrateById(
           this.substrateId,
-          forceUpdate,
+          forceUpdate
         );
       } catch (error) {
         console.error("Error fetching substrate:", error);
@@ -127,7 +127,6 @@ export default defineComponent({
       this.showUploadModal = !this.showUploadModal;
     },
 
-    // --- Optimization: Change Detection and Parallel Updates ---
     async handleSubstrateUpdate(payload: {
       meta: any;
       componentIds: number[];
@@ -137,23 +136,8 @@ export default defineComponent({
 
       const { meta, componentIds, parts } = payload;
 
-      // 1. Detect Meta Changes
-      const metaChanged =
-        meta.name !== this.substrate.name ||
-        meta.isPublic !== this.substrate.isPublic ||
-        !!meta.image;
-
-      // 2. Detect Component Changes (sorted JSON comparison)
-      const currentComps = componentIds
-        .map((id) => ({ componentId: id, parts: parts[id] || 1 }))
-        .sort((a, b) => a.componentId - b.componentId);
-
-      const oldComps = this.substrate.components
-        .map((c) => ({ componentId: c.id, parts: c.parts }))
-        .sort((a, b) => a.componentId - b.componentId);
-
-      const componentsChanged =
-        JSON.stringify(currentComps) !== JSON.stringify(oldComps);
+      const metaChanged = this.hasMetaChanged(meta);
+      const componentsChanged = this.haveComponentsChanged(componentIds, parts);
 
       if (!metaChanged && !componentsChanged) {
         return ToastService.showWarning({ key: "substrate.no_changes" });
@@ -161,47 +145,95 @@ export default defineComponent({
 
       this.isSubmitting = true;
       try {
-        const tasks = [];
-
-        if (componentsChanged) {
-          tasks.push(
-            SubstrateService.editSubstrateComponents(
-              this.substrate.id,
-              currentComps,
-            ),
-          );
-        }
-
-        if (metaChanged) {
-          tasks.push(
-            SubstrateService.editSubstrate(this.substrate.id, {
-              name: meta.name,
-              isPublic: meta.isPublic,
-              image: meta.image || undefined,
-            }),
-          );
-        }
-
-        await Promise.all(tasks);
-
-        const toastKey =
-          metaChanged && componentsChanged
-            ? "substrate.updated_both"
-            : componentsChanged
-              ? "substrate.components_updated"
-              : "substrate.updated";
-
-        ToastService.showSuccess({ key: toastKey });
-
-        await this.fetchSubstrate(true); // Refresh data
+        await this.updateSubstrate(
+          metaChanged,
+          componentsChanged,
+          meta,
+          componentIds,
+          parts
+        );
+        await this.fetchSubstrate(); // Refresh data
         this.showEditModal = false;
-      } catch (error) {
+      } catch {
         ToastService.showError({ key: "substrate.update_error" });
       } finally {
         this.isSubmitting = false;
       }
     },
 
+    /** Check if meta data changed */
+    hasMetaChanged(meta: any): boolean {
+      return (
+        meta.name !== this.substrate?.name ||
+        meta.isPublic !== this.substrate?.isPublic ||
+        !!meta.image
+      );
+    },
+
+    /** Check if component list changed */
+    haveComponentsChanged(
+      componentIds: number[],
+      parts: Record<number, number>
+    ): boolean {
+      const currentComps = this.sortedComponents(componentIds, parts);
+      const oldComps = this.sortedComponentsFromSubstrate();
+      return JSON.stringify(currentComps) !== JSON.stringify(oldComps);
+    },
+
+    /** Sort and map new components */
+    sortedComponents(componentIds: number[], parts: Record<number, number>) {
+      return componentIds
+        .map((id) => ({ componentId: id, parts: parts[id] || 1 }))
+        .sort((a, b) => a.componentId - b.componentId);
+    },
+
+    /** Sort and map existing substrate components */
+    sortedComponentsFromSubstrate() {
+      return this.substrate?.components
+        .map((c) => ({ componentId: c.id, parts: c.parts }))
+        .sort((a, b) => a.componentId - b.componentId);
+    },
+
+    /** Perform the actual update */
+    async updateSubstrate(
+      metaChanged: boolean,
+      componentsChanged: boolean,
+      meta: any,
+      componentIds: number[],
+      parts: Record<number, number>
+    ) {
+      const tasks = [];
+
+      if (componentsChanged) {
+        tasks.push(
+          SubstrateService.editSubstrateComponents(
+            this.substrate?.id || -1,
+            this.sortedComponents(componentIds, parts)
+          )
+        );
+      }
+
+      if (metaChanged) {
+        tasks.push(
+          SubstrateService.editSubstrate(this.substrate?.id || -1, {
+            name: meta.name,
+            isPublic: meta.isPublic,
+            image: meta.image || undefined,
+          })
+        );
+      }
+
+      await Promise.all(tasks);
+
+      const toastKey =
+        metaChanged && componentsChanged
+          ? "substrate.updated_both"
+          : componentsChanged
+            ? "substrate.components_updated"
+            : "substrate.updated";
+
+      ToastService.showSuccess({ key: toastKey });
+    },
     async handleSubstrateDelete(id: number) {
       try {
         this.isSubmitting = true;
@@ -223,9 +255,9 @@ export default defineComponent({
         await SubstrateService.uploadSubstrateImage(
           this.substrate.id,
           fileItem.file,
-          fileItem.date,
+          fileItem.date
         );
-        await this.fetchSubstrate(true);
+        await this.fetchSubstrate();
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);

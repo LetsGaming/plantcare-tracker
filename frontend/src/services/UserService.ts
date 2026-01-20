@@ -11,11 +11,16 @@ export default class UserService extends BaseService {
   /**
    * Internal helper to decode JWT payload
    */
-  private static async decodeAuthToken() {
+  private static async decodeAuthToken(): Promise<AuthToken | null> {
     const token = await TokenUtils.getToken();
     if (!token) return null;
     try {
-      return JSON.parse(atob(token.split(".")[1]));
+      const decoded = JSON.parse(atob(token.split(".")[1]));
+      return {
+        id: decoded.id,
+        username: decoded.username,
+        role: decoded.role,
+      } as AuthToken;
     } catch (error) {
       console.error("Error decoding token:", error);
       return null;
@@ -144,10 +149,11 @@ export default class UserService extends BaseService {
     return payload?.username || "";
   }
 
-  static async getUserRole(): Promise<string> {
+  static async getUserRole(): Promise<UserRole | null> {
     const payload = await this.decodeAuthToken();
-    return payload?.role || "";
+    return payload?.role || null;
   }
+  
   static async getUserId(): Promise<number> {
     const payload = await this.decodeAuthToken();
     return payload?.id || -1;
@@ -155,11 +161,11 @@ export default class UserService extends BaseService {
 
   static async isAdmin(): Promise<boolean> {
     const role = await this.getUserRole();
-    return role.toLowerCase() === "admin";
+    return role === "admin";
   }
 
   static async isGuest(): Promise<boolean> {
     const role = await this.getUserRole();
-    return role.toLowerCase() === "guest";
+    return role === "guest";
   }
 }

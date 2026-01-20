@@ -121,6 +121,7 @@ export default {
   "plant.edit.title": "Edit plant",
   "plant.edit.form_title": "Plant information",
   "plant.edit.submit": "Save plant",
+  "plant.edit.success": "Plant edited successfully.",
   "plant.edit.error": "Error while editing the plant",
   "plant.delete.error": "Error while deleting the plant",
 

@@ -126,6 +126,7 @@ export default {
   "plant.edit.title": "Pflanze bearbeiten",
   "plant.edit.form_title": "Pflanzen Informationen",
   "plant.edit.submit": "Pflanze speichern",
+  "plant.edit.success": "Pflanze erfolgreich bearbeitet.",
   "plant.edit.error": "Fehler beim Bearbeiten der Pflanze",
   "plant.delete.error": "Fehler beim Löschen der Pflanze",
 

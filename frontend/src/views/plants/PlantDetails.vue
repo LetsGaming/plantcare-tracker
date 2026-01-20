@@ -40,14 +40,13 @@
               t(
                 "error.plant_not_found",
                 {},
-                "Pflanze konnte nicht geladen werden.",
+                "Pflanze konnte nicht geladen werden."
               )
             }}
           </p>
         </ion-text>
       </div>
 
-      <!-- EDIT PLANT (stupified modal) -->
       <PlantEditingModal
         v-if="plant"
         :is-open="showEditModal"
@@ -58,8 +57,6 @@
         @save="handlePlantSave"
         @delete="handlePlantDelete"
       />
-
-      <!-- IMAGE UPLOAD -->
       <ImageUploadModal
         :is-open="showUploadModal"
         :card-title="t('image.upload.for_name', { name: plant?.name })"
@@ -67,8 +64,6 @@
         @submit="onImageUpload"
         :is-loading="isImageLoading"
       />
-
-      <!-- IMAGE EDIT -->
       <ImageEditingModal
         v-if="enlargedImage"
         :is-open="showImageEditModal"
@@ -159,13 +154,10 @@ export default defineComponent({
 
     /* -------------------- DATA -------------------- */
 
-    async loadPlantData(forceRefresh = false) {
+    async loadPlantData() {
       this.isLoading = true;
       try {
-        const response = await PlantService.getPlantById(
-          this.plantId,
-          forceRefresh,
-        );
+        const response = await PlantService.getPlantById(this.plantId);
         this.plant = response || null;
       } catch (error) {
         this.plant = null;
@@ -196,7 +188,7 @@ export default defineComponent({
       try {
         await PlantService.editPlant(this.plant.id, payload);
         ToastService.showSuccess({ key: "plant.edit.success" });
-        await this.loadPlantData(true);
+        await this.loadPlantData();
         this.showEditModal = false;
       } catch (error) {
         ToastService.showError({
@@ -238,9 +230,9 @@ export default defineComponent({
         await PlantService.uploadPlantImage(
           this.plant.id,
           fileItem.file,
-          fileItem.date,
+          fileItem.date
         );
-        await this.loadPlantData(true);
+        await this.loadPlantData();
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);
@@ -255,7 +247,7 @@ export default defineComponent({
     },
 
     async handleImageEdited() {
-      await this.loadPlantData(true);
+      await this.loadPlantData();
       this.showImageEditModal = false;
     },
   },

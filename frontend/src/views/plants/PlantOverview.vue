@@ -1,6 +1,5 @@
 <template>
   <ion-page>
-    <!-- Sticky Header with Filters -->
     <overview-header
       :title="t('plants.title')"
       :segments="[
@@ -18,25 +17,17 @@
       @add-click="openAddModal"
     />
 
-    <!-- Content Area -->
     <items-overview
       :items="plants"
       @item-click="navigateToPlant"
       @refresh-items="refreshPlants"
     />
-
-    <!-- ADD PLANT MODAL (inlined) -->
-    <base-form-modal
+    
+    <plant-adding-modal
       :isOpen="showAddingModal"
-      modalTitle="plant.add.title"
-      formTitle="plant.add.form_title"
-      submitLabel="plant.add.submit"
-      :formData="plant"
-      :formFields="plantFormFields"
-      :extra-content-component="SubstrateContainer"
-      :extra-content-data="{ substrate: selectedSubstrate }"
-      :is-loading="isAddingLoading"
-      @submit="addPlant"
+      :isLoading="isAddingLoading"
+      :substrates="substrates"
+      @save="addPlant"
       @close="closeAddModal"
     />
   </ion-page>
@@ -44,13 +35,12 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonPage, IonContent } from "@ionic/vue";
+import { IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
-import BaseFormModal from "@/components/modal/BaseFormModal.vue";
-import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
+import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 
 import PlantService from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
@@ -61,10 +51,9 @@ export default defineComponent({
   name: "PlantOverview",
   components: {
     IonPage,
-    IonContent,
     OverviewHeader,
     ItemsOverview,
-    BaseFormModal,
+    PlantAddingModal,
   },
 
   data() {
@@ -73,26 +62,12 @@ export default defineComponent({
       showPublic: "private",
       showAddingModal: false,
       isAddingLoading: false,
-
       substrates: [] as Substrate[],
-
-      plant: {
-        name: "",
-        species: "",
-        substrateId: 0,
-        isPublic: false,
-        image: undefined,
-      } as AddPlant,
     };
   },
 
   setup() {
-    return {
-      peopleCircle,
-      personCircle,
-      addCircle,
-      SubstrateContainer,
-    };
+    return { peopleCircle, personCircle, addCircle };
   },
 
   async ionViewWillEnter() {
@@ -103,53 +78,6 @@ export default defineComponent({
     isPublic() {
       return this.showPublic === "public";
     },
-
-    plantFormFields(): FormField[] {
-      return [
-        {
-          type: "input",
-          modelKey: "name",
-          label: "plant.field.name",
-          required: true,
-        },
-        {
-          type: "input",
-          modelKey: "species",
-          label: "plant.field.species",
-          required: true,
-        },
-        {
-          type: "select",
-          modelKey: "substrateId",
-          label: "plant.field.substrate",
-          placeholder: "plant.field.substrate_placeholder",
-          required: true,
-          options: this.substrates.map((s) => ({
-            value: s.id,
-            label: s.name,
-          })),
-        },
-        {
-          type: "radio",
-          modelKey: "isPublic",
-          label: "plant.field.visibility",
-          options: [
-            { value: true, label: "plant.visibility.public" },
-            { value: false, label: "plant.visibility.private" },
-          ],
-          defaultValue: Boolean(this.plant.isPublic),
-        },
-        {
-          type: "file",
-          modelKey: "image",
-          label: "plant.image.upload",
-        },
-      ];
-    },
-
-    selectedSubstrate() {
-      return this.substrates.find((s) => s.id === this.plant.substrateId);
-    },
   },
 
   methods: {
@@ -158,7 +86,6 @@ export default defineComponent({
     },
 
     /* -------------------- PLANTS -------------------- */
-
     async loadPlants(isRefresh = false) {
       const typeLabel = this.isPublic
         ? this.t("plants.type_public")
@@ -192,7 +119,7 @@ export default defineComponent({
     },
 
     async fetchPlants() {
-      await this.loadPlants(false);
+      await this.loadPlants();
     },
 
     async refreshPlants() {
@@ -214,18 +141,13 @@ export default defineComponent({
     navigateToPlant(id: number) {
       this.$router.push({
         name: "plant-details",
-        params: {
-          id,
-          public: this.isPublic ? 1 : 0,
-        },
+        params: { id, public: this.isPublic ? 1 : 0 },
       });
     },
 
     /* -------------------- ADD PLANT -------------------- */
-
     async openAddModal() {
       this.showAddingModal = true;
-
       if (this.substrates.length === 0) {
         try {
           this.substrates = await SubstrateService.getAllSubstrates();
@@ -237,7 +159,6 @@ export default defineComponent({
 
     closeAddModal() {
       this.showAddingModal = false;
-      this.resetPlantForm();
     },
 
     async addPlant(plantData: AddPlant) {
@@ -254,57 +175,33 @@ export default defineComponent({
       }
 
       try {
-        this.startLoadingTimeout();
+        this.isAddingLoading = true;
 
         const response = await PlantService.addPlant(plantData);
         if (!response) return;
 
         if (plantData.image) {
-          await this.uploadImage(response.plantId, plantData.image);
+          await PlantService.uploadPlantImage(
+            response.plantId,
+            plantData.image
+          );
+          ToastService.showSuccess({
+            key: "plant.add.upload_success",
+            fallback: "Image uploaded successfully.",
+          });
         }
 
         this.isAddingLoading = false;
         this.closeAddModal();
         await this.fetchPlants();
       } catch (error) {
+        this.isAddingLoading = false;
         ToastService.showError({
           key: "plant.add.error_failed",
           fallback: "Failed to add plant.",
         });
         console.error("Add plant failed:", error);
       }
-    },
-
-    async uploadImage(id: number, image: File) {
-      try {
-        await PlantService.uploadPlantImage(id, image);
-        ToastService.showSuccess({
-          key: "plant.add.upload_success",
-          fallback: "Image uploaded successfully.",
-        });
-      } catch {
-        ToastService.showError({
-          key: "plant.add.upload_failed",
-          fallback: "Failed to upload image.",
-        });
-      }
-    },
-
-    startLoadingTimeout() {
-      this.isAddingLoading = true;
-      setTimeout(() => {
-        this.isAddingLoading = false;
-      }, 10_000);
-    },
-
-    resetPlantForm() {
-      this.plant = {
-        name: "",
-        species: "",
-        substrateId: 0,
-        isPublic: false,
-        image: undefined,
-      };
     },
   },
 });

@@ -1,6 +1,5 @@
-const e = require("express");
 const logger = require("./logger");
-
+const { isDev } = require("./generalUtils");
 /**
  * Creates a base response object.
  * @param {boolean} success - Indicates if the operation was successful.
@@ -40,7 +39,7 @@ const successResponse = (
  * @param {number} [statusCode=500] - HTTP status code.
  * @param {Error} [errObj] - Optional error object to log.
  */
-const errorResponse = (res, errorMsg, statusCode = 500, errObj = null) => {
+const errorResponse = (res, errorMsg, statusCode = 500, errObj = null, doLogMsg = isDev) => {
   if (errObj) {
     // Log the error object with a stack trace or as a JSON string
     if (errObj instanceof Error) {
@@ -49,7 +48,9 @@ const errorResponse = (res, errorMsg, statusCode = 500, errObj = null) => {
       logger.error(JSON.stringify(errObj, null, 2)); // Log other objects in a readable JSON format
     }
   } else {
-    logger.error(errorMsg); // Log the error message if no object is provided
+    if (doLogMsg) {
+      logger.error(errorMsg);
+    }
   }
 
   const response = createResponseObject(false, errorMsg);
