@@ -52,7 +52,7 @@ import {
   IonCardHeader,
   IonCardTitle,
 } from "@ionic/vue";
-import PieChart from "@/components/PieChart.vue";
+import PieChart from "@/components/charts/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import AccordionList from "@/components/accordion/AccordionList.vue";
 import localizationService from '@/services/general/LocalizationService'

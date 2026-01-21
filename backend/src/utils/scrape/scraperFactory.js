@@ -1,4 +1,4 @@
-const { parsePrice, getText, resolveLink } = require("./scrapeUtils");
+const { parsePrice, commercialRound, getText, resolveLink } = require("./scrapeUtils");
 
 /**
  * Creates a standardized scraper object with default parsing logic.
@@ -20,8 +20,8 @@ module.exports = (config) => {
           if (outOfStockElem) return null;
 
           // 1. Price Extraction & Validation
-          const oldPrice = parsePrice(item.querySelector(selectors.oldPrice));
-          const newPrice = parsePrice(item.querySelector(selectors.newPrice));
+          const oldPrice = commercialRound(parsePrice(item.querySelector(selectors.oldPrice)));
+          const newPrice = commercialRound(parsePrice(item.querySelector(selectors.newPrice)));
 
           if (!newPrice || !oldPrice || newPrice >= oldPrice) return null;
 

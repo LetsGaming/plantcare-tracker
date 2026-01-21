@@ -1,6 +1,6 @@
 <template>
   <ion-page>
-    <details-header title="sales.details.title" :show-edit-button="false" />
+    <details-header :show-edit-button="false" default-back-href="/sales" />
     <ion-content>
       <div v-if="sale">
         <details-banner
@@ -15,7 +15,7 @@
               color="danger"
               class="sale-badge"
             >
-              -{{ discountPercentage }}
+              {{ discountPercentage }}
             </ion-badge>
 
             <ion-card-header>
@@ -23,33 +23,47 @@
                 {{ sale.nameFull }}
               </ion-card-title>
 
-              <ion-card-subtitle class="sale-seller">
-                {{ t("sales.sold_by") }}
-                <span class="seller-name">{{ sale.seller }}</span>
-              </ion-card-subtitle>
+              <div class="seller-info">
+                <ion-icon :icon="storefrontOutline" color="medium" />
+                <ion-card-subtitle class="sale-seller">
+                  {{ t("sales.sold_by") }}
+                  <span class="seller-name">{{ sale.seller }}</span>
+                </ion-card-subtitle>
+              </div>
             </ion-card-header>
 
             <ion-card-content>
-              <div class="price-row">
-                <span v-if="sale.oldPrice" class="old-price">
-                  {{ sale.oldPrice.toFixed(2) }} €
-                </span>
-
-                <span class="current-price">
-                  {{ sale.price.toFixed(2) }} €
-                </span>
-
-                <div>
-                  <span v-if="savings" class="savings">
-                    {{ t("sales.you_save") }} {{ savings }} €
+              <div class="price-section">
+                <div class="price-row">
+                  <span class="current-price">
+                    {{ sale.price.toFixed(2) }} €
+                  </span>
+                  <span v-if="sale.oldPrice" class="old-price">
+                    {{ sale.oldPrice.toFixed(2) }} €
                   </span>
                 </div>
+
+                <div v-if="savings" class="savings-container">
+                  <span class="savings-label">
+                    {{ t("sales.you_save") }}
+                  </span>
+                  <span class="savings-amount">{{ savings }} €</span>
+                </div>
               </div>
+
+              <template v-if="priceHistory.length">
+                <separator-line />
+                <div class="chart-wrapper">
+                  <p class="chart-header">{{ t("sales.price_history") }}</p>
+                  <PriceHistoryChart :history="priceHistory" />
+                </div>
+              </template>
 
               <ion-button
                 expand="block"
                 fill="solid"
                 color="primary"
+                class="view-button"
                 :href="sale.link"
                 target="_blank"
                 rel="noopener"
@@ -76,10 +90,14 @@ import {
   IonCardSubtitle,
   IonButton,
   IonBadge,
+  IonIcon,
 } from "@ionic/vue";
+import { storefrontOutline } from "ionicons/icons";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
+import SeparatorLine from "@/components/SeperatorLine.vue";
+import PriceHistoryChart from "@/components/sales/PriceHistoryChart.vue";
 
 import SalesService from "@/services/SalesServices";
 import localizationService from "@/services/general/LocalizationService";
@@ -96,8 +114,11 @@ export default defineComponent({
     IonCardSubtitle,
     IonButton,
     IonBadge,
+    IonIcon,
     DetailsHeader,
     DetailsBanner,
+    SeparatorLine,
+    PriceHistoryChart,
   },
   props: {
     id: {
@@ -108,28 +129,25 @@ export default defineComponent({
   data() {
     return {
       sale: null as null | Sale,
+      priceHistory: [] as { price: number; timestamp: number }[],
     };
   },
-
-  mounted() {
-    // Fetch sale details using the provided id
-    this.fetchSaleDetails();
+  setup() {
+    return {
+      storefrontOutline,
+    };
   },
+  mounted() {
+    this.fetchSaleDetails();
+    this.fetchPriceHistory();
+  },
+
   computed: {
     saleSubtitle(): string {
       if (!this.sale) return "";
-
       const parts: string[] = [];
-
-      // Seller
-      if (this.sale.seller) {
-        parts.push(this.sale.seller);
-      }
-
-      // Prices
-
+      if (this.sale.seller) parts.push(this.sale.seller);
       parts.push(`${this.sale.price.toFixed(2)}€`);
-
       return parts.join(" · ");
     },
     savings(): string | null {
@@ -147,11 +165,12 @@ export default defineComponent({
       ) {
         const discount =
           ((this.sale.oldPrice - this.sale.price) / this.sale.oldPrice) * 100;
-        return Math.round(discount) + "%";
+        return `-${Math.round(discount)}%`;
       }
       return null;
     },
   },
+
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
@@ -162,7 +181,14 @@ export default defineComponent({
       } catch (error) {
         console.error("Error fetching sale details:", error);
       }
-    }
+    },
+    async fetchPriceHistory() {
+      try {
+        this.priceHistory = await SalesService.getPriceHistory(this.id);
+      } catch (error) {
+        console.error("Error fetching price history:", error);
+      }
+    },
   },
 });
 </script>
@@ -171,60 +197,97 @@ export default defineComponent({
 .sale-card {
   margin: 16px;
   position: relative;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 .sale-badge {
   position: absolute;
-  top: 8px;
-  right: 8px;
-
-  z-index: 20; /* Higher than images */
-
-  /* Making it round */
-  width: 45px;
-  height: 45px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-
-  font-size: 0.7rem;
-  font-weight: bold;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  padding: 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(var(--ion-color-danger-rgb), 0.3);
 }
 
 .sale-title {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ion-color-step-900);
+}
+
+.seller-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .sale-seller {
+  margin-top: 4px;
   font-size: 0.9rem;
-  opacity: 0.7;
+  color: var(--ion-color-step-600);
 }
 
 .seller-name {
-  font-weight: bold;
-  opacity: 1;
-}
-
-.price-row {
-  align-items: baseline;
-  gap: 12px;
-  margin: 12px 0 20px;
-}
-
-.current-price {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ion-color-primary);
 }
 
+.price-section {
+  margin: 16px 0;
+}
+
+.price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.current-price {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--ion-color-step-900);
+}
+
 .old-price {
-  margin-right: 8px;
-  font-size: 1rem;
+  font-size: 1.1rem;
   text-decoration: line-through;
-  opacity: 0.6;
-  color: var(--ion-color-danger);
+  color: var(--ion-color-step-400);
+}
+
+.savings-container {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+
+.savings-label {
+  color: var(--ion-color-step-600);
+}
+
+.savings-amount {
+  color: var(--ion-color-success);
+  font-weight: 700;
+}
+
+.chart-header {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ion-color-step-500);
+}
+
+.view-button {
+  margin-top: 16px;
+  height: 48px;
+  font-weight: 700;
+  --border-radius: 8px;
 }
 </style>

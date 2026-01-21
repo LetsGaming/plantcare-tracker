@@ -8,7 +8,6 @@ module.exports = createScraper({
   maxPages: 5,
   priority: 2,
   selectors: {
-    salesOnly: true,
     container: ".product-item",
     oldPrice: ".price__sale s.price-item--regular",
     newPrice: ".price__sale .price-item--sale",

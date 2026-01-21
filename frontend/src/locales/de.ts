@@ -316,6 +316,7 @@ export default {
   "sales.sold_by": "Verkauft von",
   "sales.you_save": "Sie sparen:",
   "sales.view_sale": "Angebot ansehen",
+  "sales.price_history": "Preisverlauf",
 
   /* =====================================================
    * Overview / More Info

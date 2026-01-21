@@ -1,27 +1,21 @@
 import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
-import storageService from "./general/StorageService";
 import SaleMapper from "@/mapping/SaleMapping";
+import storageService from "@/services/general/StorageService";
 
 const ENDPOINT = "/sales";
 const CACHE_KEY = "sales_data";
 const RESOURCE_KEY = "sales.title";
+const PRICE_HISTORY_CACHE = "sales_price_history";
+const MAX_PRICE_POINTS = 30; // keep last 30 points per sale
 
 export enum SaleEvents {
   SALE_SEEN = "sale-seen",
+  PRICE_HISTORY_UPDATED = "price-history-updated",
 }
 
 export default class SalesService extends BaseService {
-  /**
-   * Fetches all sales.
-   *
-   * Uses a single cached list as the source of truth.
-   * Streaming updates are supported and forwarded to the caller.
-   *
-   * @param options.forceUpdate If true, bypasses the cache
-   * @param options.onUpdate Optional callback for streamed chunks
-   * @returns A list of all sales
-   */
+  /** Fetch all sales from cache or API */
   static async getAllSales(options?: {
     forceUpdate?: boolean;
     onUpdate?: (chunk: Sale[]) => void;
@@ -31,8 +25,8 @@ export default class SalesService extends BaseService {
     const result = await this.getCachedData(
       CACHE_KEY,
       async () => {
-        const cached = await storageService.get<{ data: Sale[] }>(CACHE_KEY);
-        const existingIds = new Set(cached?.data.map((s) => s.id) || []);
+        const cached = await this.getCachedSales();
+        const existingIds = new Set(cached?.map((s) => s.id) || []);
 
         return this.handleRequest(
           this.streamSales(existingIds, options?.onUpdate),
@@ -45,9 +39,7 @@ export default class SalesService extends BaseService {
     return result;
   }
 
-  /**
-   * Core Streaming Logic
-   */
+  /** Stream sales updates */
   private static streamSales(
     existingIds: Set<string>,
     onUpdate?: (chunk: Sale[]) => void,
@@ -56,13 +48,11 @@ export default class SalesService extends BaseService {
       const accumulated: Sale[] = [];
       let stopFn: (() => void) | null = null;
 
-      // We create an immediately invoked async function to handle the await
       (async () => {
         try {
-          // AWAIT the stream setup to get the actual stop function
           stopFn = await ApiUtils.stream<any>(
             ENDPOINT,
-            (event) => {
+            async (event) => {
               try {
                 const rawChunk = SaleMapper.convertToSales(event.data);
                 const flaggedChunk = rawChunk.map((sale) => ({
@@ -78,12 +68,15 @@ export default class SalesService extends BaseService {
 
                 onUpdate?.(flaggedChunk);
 
-                storageService.set(CACHE_KEY, {
-                  sales: accumulated,
-                  timestamp: Date.now(),
-                });
+                // Save cache
+                await this.saveAndNotify(CACHE_KEY, "", accumulated, "data");
+
+                // Update price history for all new/updated sales
+                for (const sale of flaggedChunk) {
+                  await this.addPricePoint(sale);
+                }
               } catch (err) {
-                stopFn?.(); // Use optional chaining because it might not be assigned yet
+                stopFn?.();
                 reject(err);
               }
             },
@@ -103,19 +96,28 @@ export default class SalesService extends BaseService {
     });
   }
 
+  /** Get a single sale */
   static async getSaleById(saleId: string): Promise<Sale | null> {
     const sales = await this.getAllSales();
-    return sales.find((sale) => sale.id === saleId) || null;
+    return sales.find((s) => s.id === saleId) || null;
   }
 
+  /** Return cached sales array */
+  static async getCachedSales(): Promise<Sale[] | null> {
+    const cached = await storageService.get<{
+      data: Sale[];
+      timestamp: number;
+    }>(CACHE_KEY);
+    return cached?.data ?? null;
+  }
+
+  /** Count new sales */
   static async getNewSalesCount(): Promise<number> {
-    const cached = await storageService.get<{ data: Sale[] }>(CACHE_KEY);
-    return cached ? cached.data.filter((sale) => sale.isNew).length : 0;
+    const cached = await this.getCachedSales();
+    return cached ? cached.filter((s) => s.isNew).length : 0;
   }
 
-  /**
-   * Marks a sale as seen and notifies the app via DOM events
-   */
+  /** Mark sale as seen */
   static async markSaleAsSeen(saleId: string): Promise<void> {
     const cached = await this.getCachedSales();
     if (!cached) return;
@@ -124,12 +126,64 @@ export default class SalesService extends BaseService {
       sale.id === saleId ? { ...sale, isNew: false } : sale,
     );
 
-    // Using the helper from BaseService
-    await this.saveAndNotify(CACHE_KEY, SaleEvents.SALE_SEEN, updatedSales);
+    await this.saveAndNotify(
+      CACHE_KEY,
+      SaleEvents.SALE_SEEN,
+      updatedSales,
+      "data",
+    );
   }
 
-  static async getCachedSales(): Promise<Sale[] | null> {
-    const cached = await storageService.get<{ data: Sale[] }>(CACHE_KEY);
-    return cached ? cached.data : null;
+  /** Add a price point for a sale (list cache) */
+  static async addPricePoint(sale: Sale): Promise<void> {
+    // Get existing cache
+    const cached = await storageService.get<{
+      data: { id: string; points: { price: number; timestamp: number }[] }[];
+      timestamp: number;
+    }>(PRICE_HISTORY_CACHE);
+
+    // Find existing record for this sale ID
+    const existing = cached?.data?.find((x) => x.id === sale.id);
+
+    // Compute new points array
+    const last = existing?.points?.[existing.points.length - 1];
+    const newPoints =
+      !last || last.price !== sale.price
+        ? [
+            ...(existing?.points || []),
+            { price: sale.price, timestamp: Date.now() },
+          ]
+        : existing?.points || [];
+
+    // Trim to max points
+    const trimmedPoints = newPoints.slice(-MAX_PRICE_POINTS);
+
+    // Upsert into cache with keepOnClear
+    await this.upsertIntoListCache(
+      PRICE_HISTORY_CACHE,
+      SaleEvents.SALE_SEEN,
+      {
+        id: sale.id,
+        points: trimmedPoints,
+      },
+      true,
+    );
+  }
+
+  /** Get price history for a sale */
+  static async getPriceHistory(
+    saleId: string,
+  ): Promise<{ price: number; timestamp: number }[]> {
+    const cached = await storageService.get<{
+      data: {
+        id: string;
+        points: { price: number; timestamp: number }[];
+        keepOnClear?: boolean;
+      }[];
+      timestamp: number;
+    }>(PRICE_HISTORY_CACHE);
+
+    const record = cached?.data?.find((x) => x.id === saleId);
+    return record?.points ?? [];
   }
 }

@@ -103,14 +103,15 @@ export abstract class BaseService {
    * but callers using `any` or otherwise bypassing type checking must still ensure
    * that `item.id` is a valid number. A runtime check is performed to guard against misuse.
    */
-  protected static async upsertIntoListCache<T extends { id: number }>(
+  protected static async upsertIntoListCache<T extends { id: number | string }>(
     cacheKey: string,
     eventKey: string,
-    item: T
+    item: T,
+    keepOnClear: boolean = false
   ): Promise<void> {
-    if (!item || typeof (item as any).id !== "number") {
+    if (!item || (typeof (item as any).id !== "number" && typeof (item as any).id !== "string")) {
       throw new Error(
-        "BaseService.upsertIntoListCache: item must have a numeric 'id' property."
+        "BaseService.upsertIntoListCache: item must have a numeric or string 'id' property."
       );
     }
     // Get existing cached data
@@ -130,6 +131,7 @@ export abstract class BaseService {
     await storageService.set(cacheKey, {
       data: dataArray,
       timestamp: Date.now(),
+      ...(keepOnClear ? { keepOnClear: true } : {}),
     });
 
     // Notify subscribers

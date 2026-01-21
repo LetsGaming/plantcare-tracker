@@ -53,7 +53,7 @@ async function fetchWithAxios(url, method = "GET", payload = null) {
 const fetchData = async (
   url,
   extractFn,
-  { method = "GET", payload = null, cacheKey = null, useChromium = false } = {}
+  { method = "GET", payload = null, cacheKey = null, useChromium = false } = {},
 ) => {
   if (cacheKey) {
     const cached = cache.get(cacheKey);
@@ -75,7 +75,7 @@ const fetchData = async (
   } catch (err) {
     console.error(
       `Error fetching ${url} (${useChromium ? "chromium" : "axios"}):`,
-      err.message
+      err.message,
     );
     return null;
   }
@@ -92,6 +92,10 @@ const parsePrice = (input) => {
   return isNaN(number) ? null : number;
 };
 
+const commercialRound = (num) => {
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 const getText = (el, selector = null) => {
   const target = selector ? el?.querySelector(selector) : el;
   return target?.text?.trim() ?? null;
@@ -106,4 +110,11 @@ const resolveLink = (href, baseUrl) => {
   }${href}`;
 };
 
-module.exports = { fetchData, getCache, parsePrice, getText, resolveLink };
+module.exports = {
+  fetchData,
+  getCache,
+  parsePrice,
+  commercialRound,
+  getText,
+  resolveLink,
+};
