@@ -165,7 +165,6 @@ import ModalHeader from "../modal/ModalHeader.vue";
 import localizationService from "@/services/general/LocalizationService";
 
 import Utils from "@/utils/utils";
-import de from "@/locales/de";
 
 export default defineComponent({
   name: "CalendarSettingsModal",

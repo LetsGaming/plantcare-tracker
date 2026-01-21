@@ -1,11 +1,11 @@
 <template>
   <BaseFormModal
     :is-open="isOpen"
-    modal-title="component.edit.title"
+    modal-title="'component.edit.title'"
     :form-data="editComponentData"
     :form-fields="componentFormFields"
-    :form-title="t('components.add.form_title')"
-    submit-label="component.edit.submit"
+    :form-title="'components.add.form_title'"
+    submit-label="'component.edit.submit'"
     :is-loading="isLoading"
     @submit="submit"
     @close="$emit('close')"
@@ -46,26 +46,23 @@ export default defineComponent({
         {
           type: "input",
           modelKey: "name",
-          label: this.t("component.field.name"),
+          label: "component.field.name",
         },
         {
           type: "select",
           modelKey: "fineness",
-          label: this.t("component.field.fineness"),
-          placeholder: this.t("component.field.fineness_placeholder"),
+          label: "component.field.fineness",
+          placeholder: "component.field.fineness_placeholder",
           options: [
-            { value: "1", label: this.t("component.fineness.coarse") },
-            { value: "2", label: this.t("component.fineness.medium") },
-            { value: "3", label: this.t("component.fineness.fine") },
+            { value: "1", label: "component.fineness.coarse" },
+            { value: "2", label: "component.fineness.medium" },
+            { value: "3", label: "component.fineness.fine" },
           ],
         },
       ];
     },
   },
   methods: {
-    t(key: string) {
-      return key; // keep it simple, parent handles localization
-    },
     submit() {
       this.$emit("save", { ...this.editComponentData });
     },

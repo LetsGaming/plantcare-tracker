@@ -175,7 +175,6 @@ export default defineComponent({
 
 .sale-badge {
   position: absolute;
-  /* Adjust these negative values to move the badge further outside or inside */
   top: 8px;
   right: 8px;
 

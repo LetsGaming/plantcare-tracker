@@ -115,8 +115,6 @@ export default defineComponent({
         params: { id: id, public: 1 },
       });
     },
-
-    // New handler for the stupid modal
     async handleComponentSave(componentData: AddComponent) {
       this.isAdding = true;
       try {
