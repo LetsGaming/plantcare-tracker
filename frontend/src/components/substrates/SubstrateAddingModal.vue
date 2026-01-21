@@ -138,6 +138,17 @@ export default defineComponent({
         componentIds: [...this.selectedComponentIds],
         parts: { ...this.componentParts },
       });
+      this.resetSubstrateData();
+    },
+    resetSubstrateData() {
+      this.form = {
+        name: "",
+        isPublic: false,
+        image: null,
+      };
+      this.selectedComponentIds = [];
+      this.componentParts = {};
+      this.step = 1;
     },
   },
 });

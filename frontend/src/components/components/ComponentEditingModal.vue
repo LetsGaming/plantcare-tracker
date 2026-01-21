@@ -34,11 +34,13 @@ export default defineComponent({
       } as EditComponent,
     };
   },
-  mounted() {
-    this.editComponentData = {
-      name: this.component.name,
-      fineness: Number(this.component.fineness) || 0,
-    };
+  watch: {
+    component: {
+      immediate: true,
+      handler() {
+        this.resetFromComponent();
+      },
+    },
   },
   computed: {
     componentFormFields(): FormField[] {
@@ -68,6 +70,12 @@ export default defineComponent({
     },
     emitDelete() {
       this.$emit("delete", this.component.id);
+    },
+    resetFromComponent() {
+      this.editComponentData = {
+        name: this.component.name,
+        fineness: 0,
+      };
     },
   },
 });

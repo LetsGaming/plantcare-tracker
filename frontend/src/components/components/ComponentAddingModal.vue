@@ -56,6 +56,7 @@ export default defineComponent({
     submit() {
       // emit the current form data to the parent
       this.$emit("save", { ...this.componentData });
+      this.clearComponentData();
     },
     clearComponentData() {
       this.componentData = { name: "", fineness: -1, image: undefined };

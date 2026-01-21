@@ -93,6 +93,14 @@ export default defineComponent({
       componentParts: {} as Record<number, number>,
     };
   },
+  watch: {
+    substrate: {
+      immediate: true,
+      handler() {
+        this.resetFromSubstrate();
+      },
+    },
+  },
   computed: {
     formFields() {
       return [
@@ -126,9 +134,6 @@ export default defineComponent({
       ] as FormField[];
     },
   },
-  mounted() {
-    this.resetFromSubstrate();
-  },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
@@ -150,6 +155,8 @@ export default defineComponent({
         },
         {} as Record<number, number>,
       );
+
+      this.step = 1;
     },
 
     toggleComponent(id: number) {

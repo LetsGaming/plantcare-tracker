@@ -96,6 +96,16 @@ export default defineComponent({
   methods: {
     submit() {
       this.$emit("save", { ...this.plant });
+      this.resetPlantData();
+    },
+    resetPlantData() {
+      this.plant = {
+        name: "",
+        species: "",
+        substrateId: 0,
+        isPublic: false,
+        image: undefined,
+      };
     },
   },
 });

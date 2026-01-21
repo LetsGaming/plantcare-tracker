@@ -64,13 +64,8 @@ export default defineComponent({
     plant: {
       immediate: true,
       deep: true,
-      handler(plant: Plant) {
-        this.editPlantData = {
-          name: plant.name,
-          species: plant.species,
-          substrateId: plant.substrate.id,
-          isPublic: plant.isPublic,
-        };
+      handler()  {
+        this.resetFromPlant();
       },
     },
   },
@@ -129,6 +124,15 @@ export default defineComponent({
 
     onDelete() {
       this.$emit("delete");
+    },
+
+    resetFromPlant() {
+      this.editPlantData = {
+        name: this.plant.name,
+        species: this.plant.species,
+        substrateId: this.plant.substrate.id,
+        isPublic: this.plant.isPublic
+      };
     },
   },
 });
