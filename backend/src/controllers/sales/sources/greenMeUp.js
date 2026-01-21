@@ -11,6 +11,7 @@ module.exports = createScraper({
     container: ".ed-card-product",
     oldPrice: "s.price-item--regular",
     newPrice: ".price-item--sale",
+    outOfStock: ".color-inverse",
     link: "h3.card__heading.h5 a",
     name: "h3.card__heading.h5 a",
     img: ".card__media img"

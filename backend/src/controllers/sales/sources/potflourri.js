@@ -3,8 +3,8 @@ const createScraper = require("../../../utils/scrape/scraperFactory");
 module.exports = createScraper({
   key: "potflourri",
   seller: "Potflourri",
-  baseUrl: "https://potflourri.de/collections/sale-zimmerpflanzen",
-  pagePattern: "?page={{page}}",
+  baseUrl: "https://potflourri.de/collections/sale-zimmerpflanzen?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=best-selling",
+  pagePattern: "&page={{page}}",
   maxPages: 1,
   selectors: {
     container: ".product-card-wrapper",

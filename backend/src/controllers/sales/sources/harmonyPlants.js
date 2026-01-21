@@ -4,8 +4,8 @@ const { parsePrice, resolveLink, getText } = require("../../../utils/scrape/scra
 module.exports = createScraper({
   key: "harmonyPlants",
   seller: "Harmony Plants",
-  baseUrl: "https://www.harmony-plants.com/collections/sale",
-  pagePattern: "?page={{page}}",
+  baseUrl: "https://www.harmony-plants.com/collections/sale?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual",
+  pagePattern: "&page={{page}}",
   maxPages: 2,
   options: { useChromium: false },
   parseFn: (root) => {
