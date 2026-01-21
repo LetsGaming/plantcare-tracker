@@ -222,7 +222,20 @@ export default defineComponent({
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       } as Category,
+      debouncedUpdateCategories: (() => {}) as (index: number) => void,
+      debouncedUpdateWateringCategories: (() => {}) as (index: number) => void,
     };
+  },
+  created() {
+    this.debouncedUpdateCategories = Utils.debounce((index: number) => {
+      this.setContrastColor(this.categories[index]);
+      this.$emit("update:categories", this.categories);
+    }, 300);
+
+    this.debouncedUpdateWateringCategories = Utils.debounce((index: number) => {
+      this.setContrastColor(this.wateringCategories[index]);
+      this.$emit("update:wateringCategories", this.wateringCategories);
+    }, 500);
   },
   computed: {
     localizedWeekdays() {
@@ -235,18 +248,6 @@ export default defineComponent({
         d.setDate(base.getDate() + i);
         return { value: i, label: fmt.format(d) };
       });
-    },
-    debouncedUpdateCategories() {
-      return Utils.debounce((index: number) => {
-        this.setContrastColor(this.categories[index]);
-        this.$emit("update:categories", this.categories);
-      }, 300);
-    },
-    debouncedUpdateWateringCategories() {
-      return Utils.debounce((index: number) => {
-        this.setContrastColor(this.wateringCategories[index]);
-        this.$emit("update:wateringCategories", this.wateringCategories);
-      }, 500);
     },
   },
   methods: {
