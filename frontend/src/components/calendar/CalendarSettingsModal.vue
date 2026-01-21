@@ -74,7 +74,7 @@
               <input
                 type="color"
                 v-model="category.backgroundColor"
-                @input="debouncedUpdateWateringCategories!(index)"
+                @input="debouncedUpdateWateringCategories(index)"
               />
             </ion-item>
           </ion-list>
@@ -105,7 +105,7 @@
               <input
                 type="color"
                 v-model="category.backgroundColor"
-                @input="debouncedUpdateCategories!(index)"
+                @input="debouncedUpdateCategories(index)"
               />
 
               <ion-button
@@ -222,13 +222,15 @@ export default defineComponent({
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       } as Category,
-      debouncedUpdateCategories: null as ((index: number) => void) | null,
-      debouncedUpdateWateringCategories: null as
-        | ((index: number) => void)
-        | null,
+      debouncedUpdateCategories: ((index: number) => {
+        console.warn('debouncedUpdateCategories called before initialization');
+      }) as (index: number) => void,
+      debouncedUpdateWateringCategories: ((index: number) => {
+        console.warn('debouncedUpdateWateringCategories called before initialization');
+      }) as (index: number) => void,
     };
   },
-  mounted() {
+  created() {
     this.debouncedUpdateCategories = Utils.debounce((index: number) => {
       this.setContrastColor(this.categories[index]);
       this.$emit("update:categories", this.categories);
