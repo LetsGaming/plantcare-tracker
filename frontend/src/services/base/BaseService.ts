@@ -31,12 +31,21 @@ export abstract class BaseService {
     storageKey: string,
     eventKey: string,
     data: T,
-    wrapInObjectKey: string = "data"
+    wrapInObjectKey: string = "data",
+    keepOnClear: boolean = false,
   ): Promise<void> {
     const plainData = this.deepCopy(data);
+
     const valueToStore = wrapInObjectKey
-      ? { [wrapInObjectKey]: plainData }
-      : plainData;
+      ? {
+          [wrapInObjectKey]: plainData,
+          keepOnClear, // always set or override
+        }
+      : {
+          ...(plainData as any),
+          keepOnClear,
+        };
+
     await storageService.set(storageKey, valueToStore);
 
     this.emit(eventKey, data);
@@ -48,7 +57,7 @@ export abstract class BaseService {
   protected static async handleRequest<T>(
     request: Promise<T>,
     resourceNameKey: string,
-    actionKey: string = "error.fetch_failed"
+    actionKey: string = "error.fetch_failed",
   ): Promise<T> {
     try {
       return await request;
@@ -76,10 +85,10 @@ export abstract class BaseService {
   protected static async getCachedData<T>(
     cacheKey: string,
     fetcher: () => Promise<T>,
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<T> {
     const cached = await storageService.get<{ data: T; timestamp: number }>(
-      cacheKey
+      cacheKey,
     );
 
     if (!forceUpdate && cached && !Utils.isCacheExpired(cached.timestamp)) {
@@ -107,16 +116,20 @@ export abstract class BaseService {
     cacheKey: string,
     eventKey: string,
     item: T,
-    keepOnClear: boolean = false
+    keepOnClear: boolean = false,
   ): Promise<void> {
-    if (!item || (typeof (item as any).id !== "number" && typeof (item as any).id !== "string")) {
+    if (
+      !item ||
+      (typeof (item as any).id !== "number" &&
+        typeof (item as any).id !== "string")
+    ) {
       throw new Error(
-        "BaseService.upsertIntoListCache: item must have a numeric or string 'id' property."
+        "BaseService.upsertIntoListCache: item must have a numeric or string 'id' property.",
       );
     }
     // Get existing cached data
     const cached = await storageService.get<{ data: T[]; timestamp: number }>(
-      cacheKey
+      cacheKey,
     );
 
     // Ensure we have a valid array
@@ -145,7 +158,7 @@ export abstract class BaseService {
     cacheKey: string,
     subKey: string,
     fetcher: () => Promise<T>,
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<T> {
     const cached = await storageService.get<{
       records: { [key: string]: T };

@@ -60,7 +60,7 @@ export default class CalendarService extends BaseService {
      ========================================================================= */
 
   private static async getStoredCategories(
-    key: StorageKeys
+    key: StorageKeys,
   ): Promise<Category[]> {
     const stored = await storageService.get<{ categories: Category[] }>(key);
     return stored?.categories || [];
@@ -69,9 +69,9 @@ export default class CalendarService extends BaseService {
   private static async saveCategoriesInternal(
     key: StorageKeys,
     event: CalendarEvents,
-    categories: Category[]
+    categories: Category[],
   ): Promise<void> {
-    await this.saveAndNotify(key, event, categories);
+    await this.saveAndNotify(key, event, categories, undefined, true);
   }
 
   /* =========================================================================
@@ -86,7 +86,7 @@ export default class CalendarService extends BaseService {
     await this.saveCategoriesInternal(
       StorageKeys.CATEGORIES,
       CalendarEvents.CATEGORIES_CHANGED,
-      categories
+      categories,
     );
   }
 
@@ -96,7 +96,7 @@ export default class CalendarService extends BaseService {
 
   static async getWateringCategories(): Promise<Category[]> {
     const categories = await this.getStoredCategories(
-      StorageKeys.WATERING_CATEGORIES
+      StorageKeys.WATERING_CATEGORIES,
     );
 
     return categories.length ? categories : DEFAULT_WATERING_CATEGORIES;
@@ -131,7 +131,9 @@ export default class CalendarService extends BaseService {
     await this.saveAndNotify(
       StorageKeys.DATES,
       CalendarEvents.DATES_CHANGED,
-      dates
+      dates,
+      undefined,
+      true,
     );
   }
 
@@ -161,13 +163,15 @@ export default class CalendarService extends BaseService {
     await this.saveAndNotify(
       StorageKeys.DELETE_AFTER_THIRTY,
       CalendarEvents.DELETE_AFTER_THIRTY_CHANGED,
-      value
+      value,
+      undefined,
+      true,
     );
   }
 
   static async getFirstDayOfWeek(): Promise<number> {
     const stored = await storageService.get<number>(
-      StorageKeys.FIRST_DAY_OF_WEEK
+      StorageKeys.FIRST_DAY_OF_WEEK,
     );
 
     return typeof stored === "number" ? stored : 1;
@@ -177,7 +181,9 @@ export default class CalendarService extends BaseService {
     await this.saveAndNotify(
       StorageKeys.FIRST_DAY_OF_WEEK,
       CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED,
-      day
+      day,
+      undefined,
+      true,
     );
   }
 }
