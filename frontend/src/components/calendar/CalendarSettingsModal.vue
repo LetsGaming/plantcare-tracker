@@ -222,8 +222,12 @@ export default defineComponent({
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       } as Category,
-      debouncedUpdateCategories: (() => {}) as (index: number) => void,
-      debouncedUpdateWateringCategories: (() => {}) as (index: number) => void,
+      debouncedUpdateCategories: ((index: number) => {
+        console.warn('debouncedUpdateCategories called before initialization');
+      }) as (index: number) => void,
+      debouncedUpdateWateringCategories: ((index: number) => {
+        console.warn('debouncedUpdateWateringCategories called before initialization');
+      }) as (index: number) => void,
     };
   },
   created() {
