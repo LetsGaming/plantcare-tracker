@@ -1,7 +1,7 @@
 <template>
   <BaseFormModal
     :is-open="isOpen"
-    modal-title="'component.edit.title'"
+    modal-title="component.edit.title"
     :form-data="editComponentData"
     :form-fields="componentFormFields"
     :form-title="'components.add.form_title'"
