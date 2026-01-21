@@ -27,6 +27,9 @@ export default {
   "toast.retry": "Retry",
   "toast.dismiss": "Dismiss",
 
+  /* Accordion */
+  "accordion.no_details": "No details available.",
+
   /* =====================================================
    * Not Found Page
    * ===================================================== */

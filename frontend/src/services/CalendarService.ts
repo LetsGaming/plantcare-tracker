@@ -110,8 +110,9 @@ export default class CalendarService extends BaseService {
     );
   }
 
-  static async resetWateringCategories(): Promise<void> {
+  static async resetWateringCategories(): Promise<Category[]> {
     await this.saveWateringCategories(DEFAULT_WATERING_CATEGORIES);
+    return DEFAULT_WATERING_CATEGORIES;
   }
 
   /* =========================================================================

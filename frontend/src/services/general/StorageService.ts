@@ -61,6 +61,22 @@ class StorageService {
    */
   async clear(): Promise<void> {
     if (this.storage) {
+      // only clear data that does not have keepOnClear flag set
+      const keys = await this.storage.keys();
+      for (const key of keys) {
+        const item = await this.storage.get(key);
+        if (!item || !item.keepOnClear) {
+          await this.storage.remove(key);
+        }
+      }
+    }
+  }
+
+  /**
+   * Clear all items in storage, including those with keepOnClear flag
+   */
+  async clearAll(): Promise<void> {
+    if (this.storage) {
       await this.storage.clear();
     }
   }

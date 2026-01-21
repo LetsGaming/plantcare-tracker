@@ -3,6 +3,7 @@ import ApiUtils from "@/utils/apiUtils";
 import TokenUtils from "@/utils/tokenUtils";
 import router from "@/router";
 import Utils from "@/utils/utils";
+import storageService from "./general/StorageService";
 
 const BASE_ENDPOINT = "/auth";
 const RESOURCE_KEY = "auth.title"; // Localization key for authentication context
@@ -31,7 +32,7 @@ export default class UserService extends BaseService {
     return this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/register`, data),
       RESOURCE_KEY,
-      "auth.registration_failed",
+      "auth.registration_failed"
     );
   }
 
@@ -39,7 +40,7 @@ export default class UserService extends BaseService {
     const response = (await this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/login`, data),
       RESOURCE_KEY,
-      "auth.login_failed",
+      "auth.login_failed"
     )) as LoginResponse;
 
     await TokenUtils.setToken(response.accessToken);
@@ -50,7 +51,7 @@ export default class UserService extends BaseService {
     const response = (await this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/login/guest`, null),
       RESOURCE_KEY,
-      "auth.failed_guest",
+      "auth.failed_guest"
     )) as LoginResponse;
 
     await TokenUtils.setToken(response.accessToken);
@@ -70,6 +71,7 @@ export default class UserService extends BaseService {
 
   static async handleLocalLogout() {
     await TokenUtils.clearToken();
+    await storageService.clear();
     router.replace({ name: "login" }).then(() => window.location.reload());
   }
 
@@ -108,7 +110,7 @@ export default class UserService extends BaseService {
           await this.handleRequest(
             Promise.reject(error),
             RESOURCE_KEY,
-            "auth.refresh_failed",
+            "auth.refresh_failed"
           );
           await this.logout();
           throw error;
@@ -122,16 +124,22 @@ export default class UserService extends BaseService {
     return this.handleRequest(
       ApiUtils.put(`${BASE_ENDPOINT}/update`, data),
       "profile.title",
-      "profile.update_failed",
+      "profile.update_failed"
     );
   }
 
   static async deleteProfile() {
-    return this.handleRequest(
-      ApiUtils.delete(`${BASE_ENDPOINT}/delete`),
-      "profile.title",
-      "profile.delete_failed",
-    );
+    try {
+      const res = await this.handleRequest(
+        ApiUtils.delete(`${BASE_ENDPOINT}/delete`),
+        "profile.title",
+        "profile.delete_failed"
+      );
+
+      await storageService.clearAll();
+
+      return res;
+    } catch (error) {}
   }
 
   // --- Identity & Role Getters ---
@@ -153,7 +161,7 @@ export default class UserService extends BaseService {
     const payload = await this.decodeAuthToken();
     return payload?.role || null;
   }
-  
+
   static async getUserId(): Promise<number> {
     const payload = await this.decodeAuthToken();
     return payload?.id || -1;

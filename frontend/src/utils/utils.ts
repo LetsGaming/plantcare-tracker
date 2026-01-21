@@ -109,6 +109,14 @@ const Utils = {
     return str.charAt(0).toUpperCase() + str.slice(1);
   },
 
+  debounce<F extends (...args: any[]) => any>(fn: F, delay: number) {
+    let timeout: number | undefined;
+    return (...args: Parameters<F>) => {
+      if (timeout) clearTimeout(timeout);
+      timeout = window.setTimeout(() => fn(...args), delay);
+    };
+  },
+
   async closeOpenModal() {
     const topModal = await modalController.getTop();
     if (topModal) {
