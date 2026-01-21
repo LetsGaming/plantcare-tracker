@@ -53,10 +53,10 @@ export default defineComponent({
 .search-bar {
   width: 100%;
   margin-top: 20px;
-  padding: 12px 16px; /* Added padding for better look */
-  border-radius: 20px; /* Increased border-radius for more rounded edges */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Stronger shadow for better visibility */
-  border: 2px solid rgba(110, 110, 110, 0.1); /* Lighter border for better contrast */
+  padding: 12px 16px;
+  border-radius: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border: 2px solid rgba(110, 110, 110, 0.1);
 }
 
 .search-input {

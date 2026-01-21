@@ -27,6 +27,9 @@ export default {
   "toast.retry": "Retry",
   "toast.dismiss": "Dismiss",
 
+  /* Accordion */
+  "accordion.no_details": "No details available.",
+
   /* =====================================================
    * Not Found Page
    * ===================================================== */
@@ -87,7 +90,7 @@ export default {
   "profile.role.label": "Role:",
   "profile.edit": "Edit",
   "profile.edit.title": "Edit profile",
-  "profile.info.title": "Profile information",
+  "profile.edit.form_title": "Profile information",
   "profile.field.username.placeholder": "New username",
   "profile.field.password.placeholder": "New password",
   "profile.edit.submit": "Save profile",
@@ -121,6 +124,7 @@ export default {
   "plant.edit.title": "Edit plant",
   "plant.edit.form_title": "Plant information",
   "plant.edit.submit": "Save plant",
+  "plant.edit.success": "Plant edited successfully.",
   "plant.edit.error": "Error while editing the plant",
   "plant.delete.error": "Error while deleting the plant",
 

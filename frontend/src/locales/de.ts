@@ -27,6 +27,9 @@ export default {
   "toast.retry": "Erneut versuchen",
   "toast.dismiss": "Schließen",
 
+  /* Accordion */
+  "accordion.no_details": "Keine Details verfügbar.",
+
   /* =====================================================
    * Not Found Page
    * ===================================================== */
@@ -89,7 +92,7 @@ export default {
   "profile.role.label": "Rolle:",
   "profile.edit": "Bearbeiten",
   "profile.edit.title": "Profil bearbeiten",
-  "profile.info.title": "Profil Informationen",
+  "profile.edit.form_title": "Profil Informationen",
   "profile.field.username.placeholder": "Neuer Benutzername",
   "profile.field.password.placeholder": "Neues Passwort",
   "profile.field.confirm_password.placeholder": "Neues Passwort bestätigen",
@@ -126,6 +129,7 @@ export default {
   "plant.edit.title": "Pflanze bearbeiten",
   "plant.edit.form_title": "Pflanzen Informationen",
   "plant.edit.submit": "Pflanze speichern",
+  "plant.edit.success": "Pflanze erfolgreich bearbeitet.",
   "plant.edit.error": "Fehler beim Bearbeiten der Pflanze",
   "plant.delete.error": "Fehler beim Löschen der Pflanze",
 

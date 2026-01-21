@@ -31,7 +31,7 @@
             </template>
           </div>
         </template>
-        <p v-else>No details available.</p>
+        <p v-else>{{ t("accordion.no_details", "No details available.") }}</p>
       </div>
     </transition>
   </li>
@@ -42,6 +42,7 @@ import UserService from "@/services/UserService";
 import { defineComponent, ref } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { create } from "ionicons/icons";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "Accordion",
@@ -75,6 +76,9 @@ export default defineComponent({
     this.isGuest = await UserService.isGuest();
   },
   methods: {
+    t(key: string, defaultValue: string): string {
+      return localizationService.t(key, undefined, defaultValue);
+    },
     onEditClick() {
       this.$emit("edit-click", this.item);
     },

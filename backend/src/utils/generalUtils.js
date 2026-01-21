@@ -1,3 +1,5 @@
+const isDev = process.env.NODE_ENV === "development";
+
 const removeEmptyFields = (obj) => {
   if (typeof obj !== "object" || obj === null) return obj; // Ensure obj is an object
 
@@ -70,6 +72,7 @@ const filterDuplicatesById = (items, idKey = "id") => {
 }
 
 module.exports = {
+  isDev,
   removeEmptyFields,
   ensureArray,
   customTimestamp,

@@ -138,6 +138,6 @@ export default defineComponent({
   color: white;
   padding: 5px;
   border-radius: 5px;
-  font-size: 24px; /* Adjust font size as needed */
+  font-size: 24px;
 }
 </style>

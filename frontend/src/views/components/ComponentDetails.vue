@@ -4,10 +4,9 @@
       :show-edit-button="isAdmin"
       @edit-click="showEditingModal = true"
       default-href="/tabs/components/overview"
-    ></details-header>
+    />
     <ion-content>
       <div v-if="component">
-        <!-- Full-width banner with dynamic component image -->
         <details-banner
           :banner-title="component.name"
           :banner-subtitle="component.fineness"
@@ -20,67 +19,62 @@
             </ion-card-header>
             <ion-card-content>
               <p class="component-fineness">
-                {{ t('component.fineness_prefix') }} {{ component.fineness }}
+                {{ t("component.fineness_prefix") }} {{ component.fineness }}
               </p>
             </ion-card-content>
           </ion-card>
         </section>
       </div>
+
       <component-editing-modal
         v-if="component"
         :is-open="showEditingModal"
         :component="component"
+        :is-loading="isEditing"
         @close="showEditingModal = false"
-        @edited="handleComponentEdited"
+        @save="handleComponentSave"
+        @delete="handleComponentDelete"
       />
     </ion-content>
   </ion-page>
 </template>
 
 <script lang="ts">
+import { defineComponent } from "vue";
 import {
   IonPage,
   IonContent,
-  IonImg,
-  IonLabel,
   IonCard,
-  IonCardContent,
   IonCardHeader,
+  IonCardContent,
 } from "@ionic/vue";
-import { defineComponent } from "vue";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
-
 import ComponentService from "@/services/ComponentService";
 import UserService from "@/services/UserService";
-import localizationService from '@/services/general/LocalizationService'
+import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ComponentDetails",
   components: {
     IonPage,
     IonContent,
-    IonImg,
-    IonLabel,
     IonCard,
-    IonCardContent,
     IonCardHeader,
+    IonCardContent,
     DetailsHeader,
     DetailsBanner,
     ComponentEditingModal,
   },
-  props: {
-    id: {
-      type: String,
-      required: true,
-    },
-  },
+  props: { id: { type: String, required: true } },
   data() {
     return {
-      component: null as null | Component,
+      component: null as Component | null,
       showEditingModal: false,
       isAdmin: false,
+      isEditing: false,
     };
   },
   async ionViewDidEnter() {
@@ -89,10 +83,13 @@ export default defineComponent({
   },
   computed: {
     componentId() {
-      return Number.parseInt(this.id);
+      return Number(this.id);
     },
   },
   methods: {
+    t(key: string) {
+      return localizationService.t(key, {}, key);
+    },
     async fetchComponent() {
       try {
         this.component = await ComponentService.getComponentById(
@@ -102,16 +99,51 @@ export default defineComponent({
         console.error("Error fetching component details:", error);
       }
     },
-    async handleComponentEdited() {
-      this.showEditingModal = false;
-      await this.fetchComponent();
+    async handleComponentSave(updated: EditComponent) {
+      if (!this.component) return;
+      this.isEditing = true;
+      try {
+        const response = await ComponentService.editComponent(
+          this.component.id,
+          updated
+        );
+        if (response) {
+          this.showEditingModal = false;
+          await this.fetchComponent();
+          ToastService.showSuccess({
+            key: "components.edit.success",
+            fallback: "Component edited successfully",
+          });
+        }
+      } catch (error) {
+        ToastService.showError({
+          key: "components.edit.failed",
+          fallback: "Error editing component",
+        });
+      } finally {
+        this.isEditing = false;
+      }
     },
-    navigateToComponentEditing() {
-      const id = this.componentId;
-      this.$router.push({ name: "component-editing", params: { id: id } });
-    },
-    t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+    async handleComponentDelete(id: number) {
+      this.isEditing = true;
+      try {
+        const response = await ComponentService.deleteComponent(id);
+        if (response) {
+          this.showEditingModal = false;
+          ToastService.showSuccess({
+            key: "components.delete.success",
+            fallback: "Component deleted successfully",
+          });
+          this.$router.push({ name: "component-overview" });
+        }
+      } catch (error) {
+        ToastService.showError({
+          key: "components.delete.failed",
+          fallback: "Error deleting component",
+        });
+      } finally {
+        this.isEditing = false;
+      }
     },
   },
 });
@@ -167,7 +199,9 @@ export default defineComponent({
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 .fade-enter-from,
@@ -178,7 +212,9 @@ export default defineComponent({
 
 .slide-fade-enter-active,
 .slide-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 .slide-fade-enter-from,

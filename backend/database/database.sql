@@ -6,7 +6,7 @@ CREATE TABLE roles (
   name VARCHAR(50) NOT NULL UNIQUE
 );
 
-INSERT INTO roles (name) VALUES ('Admin'), ('Guest'), ('User');
+INSERT INTO roles (name) VALUES ('admin'), ('guest'), ('user');
 
 -- Benutzer
 CREATE TABLE users (

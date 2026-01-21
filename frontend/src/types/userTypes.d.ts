@@ -14,3 +14,11 @@ interface EditProfile {
   password?: string;
   passwordConfirmation?: string;
 }
+
+type UserRole = "admin" | "user" | "guest";
+
+interface AuthToken {
+  id: number;
+  username: string;
+  role: UserRole;
+}

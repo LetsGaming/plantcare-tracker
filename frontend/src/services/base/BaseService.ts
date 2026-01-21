@@ -3,9 +3,18 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
 
+import { isProxy } from "vue";
+
 export abstract class BaseService {
   protected static deepCopy<T>(data: T): T {
     if (!data) return data;
+
+    // If Vue proxy, use JSON
+    if (isProxy(data)) {
+      return JSON.parse(JSON.stringify(data));
+    }
+
+    // Otherwise, structuredClone if available
     return typeof structuredClone === "function"
       ? structuredClone(data)
       : JSON.parse(JSON.stringify(data));
@@ -22,7 +31,7 @@ export abstract class BaseService {
     storageKey: string,
     eventKey: string,
     data: T,
-    wrapInObjectKey: string = "data" 
+    wrapInObjectKey: string = "data"
   ): Promise<void> {
     const plainData = this.deepCopy(data);
     const valueToStore = wrapInObjectKey

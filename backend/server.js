@@ -29,6 +29,7 @@ const { checkGuestPermission } = require("./src/middlewares/authMiddleware");
 
 // Get API version from package.json
 const { versionPath } = require("./package.json");
+const { isDev } = require("./src/utils/generalUtils");
 
 // Create the Express application
 const app = express();
@@ -44,7 +45,7 @@ const corsOptions = {
   origin: (origin, callback) => {
     // Allow localhost in development
     let isLocalhost = false;
-    if (process.env.NODE_ENV === "development") {
+    if (isDev) {
       isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(
         origin || ""
       );

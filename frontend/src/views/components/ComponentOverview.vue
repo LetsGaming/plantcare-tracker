@@ -16,12 +16,13 @@
       :items="mapToOverviewItems"
       @item-click="navigateToComponent"
       @refresh-items="refreshComponents"
-    ></items-overview>
+    />
 
     <component-adding-modal
       :is-open="showAddingModal"
+      :is-loading="isAdding"
       @close="showAddingModal = false"
-      @added="handleComponentAdded"
+      @save="handleComponentSave"
     />
   </ion-page>
 </template>
@@ -37,6 +38,7 @@ import ComponentAddingModal from "@/components/components/ComponentAddingModal.v
 
 import ComponentService from "@/services/ComponentService";
 import UserService from "@/services/UserService";
+import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -50,9 +52,9 @@ export default defineComponent({
   },
   data() {
     return {
-      // 1. Initialized as empty array to ensure first render is safe
       components: [] as Component[],
       showAddingModal: false,
+      isAdding: false,
       isAdmin: false,
     };
   },
@@ -73,7 +75,7 @@ export default defineComponent({
         id: component.id,
         name: component.name,
         description: component.fineness,
-        imageUrl: component.imageUrl
+        imageUrl: component.imageUrl,
       }));
     },
   },
@@ -82,17 +84,11 @@ export default defineComponent({
       return localizationService.t(key, vars, fallback);
     },
 
-    /**
-     * Helper to centralize component loading logic
-     */
     async loadComponents(forceUpdate = false) {
       try {
         const response = await ComponentService.getAllComponents(forceUpdate);
-
-        // 2. Defensive Assignment: Ensure we never assign null/undefined to this.components
         this.components = response || [];
       } catch (error) {
-        // 3. Reset to empty array on catch to prevent template crashes
         this.components = [];
         console.error(
           `Error ${forceUpdate ? "refreshing" : "fetching"} components:`,
@@ -113,16 +109,37 @@ export default defineComponent({
       this.fetchComponents();
     },
 
-    async handleComponentAdded() {
-      this.showAddingModal = false;
-      await this.fetchComponents();
-    },
-
     navigateToComponent(id: number) {
       this.$router.push({
         name: "component-details",
         params: { id: id, public: 1 },
       });
+    },
+    async handleComponentSave(componentData: AddComponent) {
+      this.isAdding = true;
+      try {
+        const response = await ComponentService.addComponent(componentData);
+        if (!response) return;
+        if (componentData.image) {
+          await ComponentService.uploadComponentImage(
+            response.id,
+            componentData.image
+          );
+        }
+        this.showAddingModal = false;
+        await this.fetchComponents();
+        ToastService.showSuccess({
+          key: "components.add.success",
+          fallback: "Component added successfully",
+        });
+      } catch (error) {
+        ToastService.showError({
+          key: "components.add.failed",
+          fallback: "Failed to add component",
+        });
+      } finally {
+        this.isAdding = false;
+      }
     },
   },
 });

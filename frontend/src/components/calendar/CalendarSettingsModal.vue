@@ -6,17 +6,21 @@
     />
 
     <ion-content>
+      <!-- GENERAL SETTINGS -->
       <ion-card>
         <ion-card-header>
-          <ion-card-title>{{ t('calendar.settings.general_settings') }}</ion-card-title>
+          <ion-card-title>
+            {{ t("calendar.settings.general_settings") }}
+          </ion-card-title>
         </ion-card-header>
+
         <ion-card-content>
           <ion-item>
             <ion-select
               :label="t('calendar.settings.first_weekday_label')"
               :value="firstDayOfWeek"
               :placeholder="t('calendar.settings.first_weekday_placeholder')"
-              @ionChange="saveFirstDayOfWeek"
+              @ionChange="$emit('update:firstDayOfWeek', $event.detail.value)"
             >
               <ion-select-option
                 v-for="weekday in localizedWeekdays"
@@ -31,23 +35,28 @@
           <ion-item>
             <ion-toggle
               :checked="doDeleteAfterThirty"
-              v-model="doDeleteAfterThirty"
-              @ionChange="toggleAutoDelete"
+              @ionChange="
+                $emit('update:deleteAfterThirty', $event.detail.checked)
+              "
             >
-              {{ t('calendar.settings.auto_delete_label') }}
+              {{ t("calendar.settings.auto_delete_label") }}
             </ion-toggle>
           </ion-item>
         </ion-card-content>
       </ion-card>
+
+      <!-- WATERING CATEGORIES -->
       <ion-card>
         <ion-card-header>
           <ion-toolbar>
-            <ion-title class="ion-text-start">{{ t('calendar.settings.watering_categories') }}</ion-title>
+            <ion-title class="ion-text-start">
+              {{ t("calendar.settings.watering_categories") }}
+            </ion-title>
             <ion-buttons slot="end">
               <ion-button
                 fill="clear"
                 color="warning"
-                @click="resetWateringCategories"
+                @click="$emit('reset-watering-categories')"
               >
                 <ion-icon :icon="refreshCircle" />
               </ion-button>
@@ -65,43 +74,47 @@
               <input
                 type="color"
                 v-model="category.backgroundColor"
-                @input="() => handleWateringCategoryColorChange(index)"
+                @input="debouncedUpdateWateringCategories(index)"
               />
             </ion-item>
           </ion-list>
+
           <small class="text-muted">
-            {{ t('calendar.settings.watering_categories_info') }}
+            {{ t("calendar.settings.watering_categories_info") }}
           </small>
         </ion-card-content>
       </ion-card>
 
+      <!-- CATEGORIES -->
       <ion-card>
         <ion-card-header>
-          <ion-card-title>{{ t('calendar.settings.categories') }}</ion-card-title>
+          <ion-card-title>
+            {{ t("calendar.settings.categories") }}
+          </ion-card-title>
         </ion-card-header>
+
         <ion-card-content>
           <ion-list>
             <ion-item v-for="(category, index) in categories" :key="index">
               <ion-input
                 v-model="category.name"
                 :placeholder="t('calendar.category.name_placeholder')"
-                @input="saveCategories"
-                style="width: 90%; margin-right: 10px"
+                @ionInput="$emit('update:categories', categories)"
               />
+
               <input
                 type="color"
                 v-model="category.backgroundColor"
-                @input="() => handleCategoryColorChange(index)"
+                @input="debouncedUpdateCategories(index)"
               />
-              <ion-item lines="none">
-                <ion-button
-                  fill="clear"
-                  color="danger"
-                  @click="deleteCategory(index)"
-                >
-                  <ion-icon :icon="trash" />
-                </ion-button>
-              </ion-item>
+
+              <ion-button
+                fill="clear"
+                color="danger"
+                @click="$emit('delete-category', index)"
+              >
+                <ion-icon :icon="trash" />
+              </ion-button>
             </ion-item>
           </ion-list>
 
@@ -115,7 +128,9 @@
               v-model="newCategory.backgroundColor"
               @input="setContrastColor(newCategory)"
             />
-            <ion-button @click="saveCategory"> {{ t('calendar.category.add_button') }} </ion-button>
+            <ion-button @click="addCategory">
+              {{ t("calendar.category.add_button") }}
+            </ion-button>
           </ion-item>
         </ion-card-content>
       </ion-card>
@@ -124,15 +139,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 import {
   IonModal,
-  IonButton,
   IonContent,
-  IonList,
   IonItem,
-  IonLabel,
-  IonInput,
   IonSelect,
   IonSelectOption,
   IonToggle,
@@ -144,24 +155,23 @@ import {
   IonToolbar,
   IonButtons,
   IonTitle,
+  IonList,
+  IonInput,
+  IonButton,
+  IonLabel,
 } from "@ionic/vue";
-import { create, trash, refreshCircle } from "ionicons/icons";
+import { trash, refreshCircle } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
-import localizationService from '@/services/general/LocalizationService'
-import CalendarService from "@/services/CalendarService";
+import localizationService from "@/services/general/LocalizationService";
+
+import Utils from "@/utils/utils";
 
 export default defineComponent({
   name: "CalendarSettingsModal",
-  emits: ["close", "update:categories", "update:dates"],
-  props: { isOpen: Boolean },
   components: {
     IonModal,
-    IonButton,
     IonContent,
-    IonList,
     IonItem,
-    IonLabel,
-    IonInput,
     IonSelect,
     IonSelectOption,
     IonToggle,
@@ -173,98 +183,90 @@ export default defineComponent({
     IonToolbar,
     IonButtons,
     IonTitle,
+    IonList,
+    IonInput,
+    IonButton,
+    IonLabel,
     ModalHeader,
   },
+  props: {
+    isOpen: Boolean,
+    firstDayOfWeek: Number,
+    doDeleteAfterThirty: Boolean,
+    categories: {
+      type: Array as PropType<Category[]>,
+      required: true,
+    },
+    wateringCategories: {
+      type: Array as PropType<Category[]>,
+      required: true,
+    },
+  },
+  emits: [
+    "close",
+    "update:firstDayOfWeek",
+    "update:deleteAfterThirty",
+    "update:categories",
+    "update:wateringCategories",
+    "reset-watering-categories",
+    "delete-category",
+    "add-category",
+  ],
   setup() {
-    return { create, trash, refreshCircle };
+    return { trash, refreshCircle };
   },
   data() {
     return {
-      categories: [] as Category[],
-      wateringCategories: [] as Category[],
       newCategory: {
         name: "",
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       } as Category,
-      doDeleteAfterThirty: false,
-      firstDayOfWeek: 0,
+      debouncedUpdateCategories: ((index: number) => {
+        console.warn('debouncedUpdateCategories called before initialization');
+      }) as (index: number) => void,
+      debouncedUpdateWateringCategories: ((index: number) => {
+        console.warn('debouncedUpdateWateringCategories called before initialization');
+      }) as (index: number) => void,
     };
   },
-  async mounted() {
-    this.doDeleteAfterThirty = await CalendarService.getDeleteAfterThirty();
-    await CalendarService.deleteOldDates();
-    await this.loadCategories();
-    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(
-      () => 0
-    );
+  created() {
+    this.debouncedUpdateCategories = Utils.debounce((index: number) => {
+      this.setContrastColor(this.categories[index]);
+      this.$emit("update:categories", this.categories);
+    }, 300);
+
+    this.debouncedUpdateWateringCategories = Utils.debounce((index: number) => {
+      this.setContrastColor(this.wateringCategories[index]);
+      this.$emit("update:wateringCategories", this.wateringCategories);
+    }, 500);
   },
   computed: {
-    localizedWeekdays(): { value: number; label: string }[] {
-      const baseDate = new Date(2021, 7, 1); // Sunday
-      const formatter = new Intl.DateTimeFormat(navigator.language, {
+    localizedWeekdays() {
+      const base = new Date(2021, 7, 1);
+      const fmt = new Intl.DateTimeFormat(navigator.language, {
         weekday: "long",
       });
       return Array.from({ length: 7 }, (_, i) => {
-        const date = new Date(baseDate);
-        date.setDate(baseDate.getDate() + i);
-        return { value: i, label: formatter.format(date) };
+        const d = new Date(base);
+        d.setDate(base.getDate() + i);
+        return { value: i, label: fmt.format(d) };
       });
     },
   },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+      return localizationService.t(key, vars, fallback);
     },
-    /** GENERAL SETTINGS **/
-    async saveFirstDayOfWeek(event: CustomEvent) {
-      this.firstDayOfWeek = event.detail.value;
-      await CalendarService.saveFirstDayOfWeek(this.firstDayOfWeek);
-    },
-    async toggleAutoDelete(event: CustomEvent) {
-      this.doDeleteAfterThirty = event.detail.checked;
-      await CalendarService.saveDeleteAfterThirty(this.doDeleteAfterThirty);
-    },
-
-    /** CATEGORIES **/
-    async loadCategories() {
-      this.categories = await CalendarService.getCategories();
-      this.wateringCategories = await CalendarService.getWateringCategories();
-    },
-    async saveCategories() {
-      await CalendarService.saveCategories(this.categories);
-    },
-    async saveCategory() {
+    addCategory() {
       if (!this.newCategory.name.trim()) return;
       this.setContrastColor(this.newCategory);
-      this.categories.push({ ...this.newCategory });
-      await this.saveCategories();
+      this.$emit("add-category", { ...this.newCategory });
       this.newCategory = {
         name: "",
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       };
-    },
-    async deleteCategory(index: number) {
-      this.categories.splice(index, 1);
-      await this.saveCategories();
-    },
-    handleCategoryColorChange(index: number) {
-      this.setContrastColor(this.categories[index]);
-      this.saveCategories();
-    },
-
-    /** WATERING CATEGORIES **/
-    async saveWateringCategories() {
-      await CalendarService.saveWateringCategories(this.wateringCategories);
-    },
-    async resetWateringCategories() {
-      await CalendarService.resetWateringCategories();
-      this.wateringCategories = await CalendarService.getWateringCategories();
-    },
-    handleWateringCategoryColorChange(index: number) {
-      this.setContrastColor(this.wateringCategories[index]);
-      this.saveWateringCategories();
     },
 
     /** COLOR HELPERS **/

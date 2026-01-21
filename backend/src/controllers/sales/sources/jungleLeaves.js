@@ -11,6 +11,7 @@ module.exports = createScraper({
     container: ".product",
     oldPrice: "span.price del bdi",
     newPrice: "span.price ins bdi",
+    outOfStock: ".out-of-stock",
     link: ".product-loop-title",
     name: ".woocommerce-loop-product__title",
     img: "img"

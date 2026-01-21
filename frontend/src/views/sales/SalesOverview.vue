@@ -135,7 +135,7 @@ export default defineComponent({
       const sale = this.sales.find((s) => s.id === id);
       if (!sale) return;
 
-      this.$router.push({ name: "sales-details", params: { id } });
+      await this.$router.push({ name: "sales-details", params: { id } });
       
       // mark as seen first
       await SalesService.markSaleAsSeen(sale.id);

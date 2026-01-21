@@ -1,5 +1,6 @@
 // src/middlewares/errorHandler.js
 const logger = require("../utils/logger");
+const { isDev } = require("../utils/generalUtils");
 const { errorResponse } = require("../utils/responseUtils");
 
 /**
@@ -26,7 +27,7 @@ const globalErrorHandler = (err, req, res, next) => {
   res.status(status).json({
     error: {
       message: err.message || "Internal Server Error",
-      ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+      ...(isDev && { stack: err.stack }),
     },
   });
 };
