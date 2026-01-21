@@ -84,7 +84,7 @@ export default defineComponent({
       try {
         const response = await ComponentService.getAllComponents();
         this.availableComponents = response
-          .map((comp: any) => ({
+          .map((comp: Component) => ({
             ...comp,
             description: comp.fineness || "",
             parts: 0,

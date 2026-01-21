@@ -38,6 +38,7 @@ const successResponse = (
  * @param {string} error - Error message to send back.
  * @param {number} [statusCode=500] - HTTP status code.
  * @param {Error} [errObj] - Optional error object to log.
+ * @param {boolean} [doLogMsg=isDev] - Whether to log the error message.
  */
 const errorResponse = (res, errorMsg, statusCode = 500, errObj = null, doLogMsg = isDev) => {
   if (errObj) {

@@ -112,10 +112,10 @@ export default defineComponent({
       try {
         const response = await ComponentService.getAllComponents();
         this.availableComponents = response
-          .map((comp: any) => ({
+          .map((comp: Component) => ({
             ...comp,
-            description: comp.description || "",
-            parts: comp.parts || 0,
+            description: comp.fineness || "",
+            parts: 0,
           }))
           .sort((a: any, b: any) => a.name.localeCompare(b.name));
       } catch (error) {

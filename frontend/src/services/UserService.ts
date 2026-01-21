@@ -139,7 +139,9 @@ export default class UserService extends BaseService {
       await storageService.clearAll();
 
       return res;
-    } catch (error) {}
+    } catch (error) {
+      throw error;
+    }
   }
 
   // --- Identity & Role Getters ---
