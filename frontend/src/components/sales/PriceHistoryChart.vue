@@ -1,10 +1,6 @@
 <template>
   <div class="price-history-chart">
-    <LineChart
-      v-if="history.length"
-      :data="chartData"
-      :options="chartOptions"
-    />
+    <LineChart :data="chartData" :options="chartOptions" />
   </div>
 </template>
 
@@ -25,69 +21,52 @@ export default defineComponent({
       type: Array as () => PricePoint[],
       required: true,
     },
+    referencePrice: {
+      type: Number,
+      required: false,
+    },
   },
   setup(props) {
-    const chartData = computed(() => {
-      const sorted = [...props.history].sort(
-        (a, b) => a.timestamp - b.timestamp,
-      );
+    const sorted = [...props.history].sort((a, b) => a.timestamp - b.timestamp);
 
-      return {
-        labels: sorted.map((p) => {
-          const d = new Date(p.timestamp);
-          return `${d.getDate()}/${d.getMonth() + 1}`;
-        }),
-        datasets: [
-          {
-            label: "Price (€)",
-            data: sorted.map((p) => p.price),
-            borderColor: "#3880ff", // Ionic primary
-            backgroundColor: (ctx: any) => {
-              const chart = ctx.chart;
-              const { ctx: c, chartArea } = chart;
-              if (!chartArea) return "#3880ff33";
-              const gradient = c.createLinearGradient(
-                0,
-                chartArea.top,
-                0,
-                chartArea.bottom,
-              );
-              gradient.addColorStop(0, "rgba(56, 128, 255, 0.3)");
-              gradient.addColorStop(1, "rgba(56, 128, 255, 0)");
-              return gradient;
-            },
-            tension: 0.3,
-            fill: true,
-            pointRadius: (ctx: any) => {
-              // highlight last point
-              return ctx.dataIndex === sorted.length - 1 ? 5 : 3;
-            },
-            pointBackgroundColor: (ctx: any) =>
-              ctx.dataIndex === sorted.length - 1 ? "#3880ff" : "#fff",
-            pointBorderColor: "#3880ff",
-            pointBorderWidth: 2,
-          },
-        ],
-      };
-    });
+    const prices = sorted.map((p) => p.price);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const padding = Math.max((max - min) * 0.2, 0.5);
+
+    const chartData = computed(() => ({
+      labels: sorted.map((p) => {
+        const d = new Date(p.timestamp);
+        return `${d.getDate()}/${d.getMonth() + 1}`;
+      }),
+      datasets: [
+        {
+          data: prices,
+          borderColor: "#3880ff",
+          tension: 0.3,
+          fill: true,
+          pointRadius: (ctx: any) =>
+            ctx.dataIndex === prices.length - 1 ? 5 : 3,
+          pointBackgroundColor: "#3880ff",
+        },
+        ...(props.referencePrice
+          ? [
+              {
+                data: new Array(prices.length).fill(props.referencePrice),
+                borderColor: "rgba(0,0,0,0.25)",
+                borderDash: [4, 4],
+                pointRadius: 0,
+              },
+            ]
+          : []),
+      ],
+    }));
 
     const chartOptions = computed(() => ({
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (context: any) => `${context.parsed.y.toFixed(2)} €`,
-          },
-        },
-      },
-      scales: {
-        x: { grid: { display: false } },
-        y: {
-          beginAtZero: false,
-          ticks: { callback: (value: any) => `${value} €` },
-        },
       },
     }));
 
@@ -98,8 +77,7 @@ export default defineComponent({
 
 <style scoped>
 .price-history-chart {
-  height: 100%;
-  width: 100%;
+  height: 160px;
   margin-top: 12px;
 }
 </style>

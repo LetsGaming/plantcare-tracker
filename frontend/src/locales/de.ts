@@ -317,11 +317,18 @@ export default {
   "sales.you_save": "Sie sparen:",
   "sales.view_sale": "Angebot ansehen",
   "sales.price_history": "Preisverlauf",
+  "sales.first_tracked_price": "Erster verfolgter Preis",
+  "sales.lowest_tracked_price": "Niedrigster verfolgter Preis",
+  "sales.highest_tracked_price": "Höchster verfolgter Preis",
+  "sales.price_unchanged": "Preis unverändert",
+  "sales.price_dropped": "Preis gesunken",
+  "sales.price_increased": "Preis gestiegen",
 
   /* =====================================================
    * Overview / More Info
    * ===================================================== */
   "overview.more_details": "Mehr Details",
+  "overview.items": "Einträge",
   "overview.no_entries": "Keine Einträge gefunden.",
   "moreinfo.title": "Mehr Informationen",
   "moreinfo.loading": "Lade zusätzliche Informationen...",

@@ -6,6 +6,7 @@
         :placeholder="t('search.placeholder')"
         class="align-middle"
       />
+      <ion-text class="align-middle" color="tertiary">{{ filteredItems.length }} {{ t('overview.items') }}</ion-text>
     </template>
     <template v-if="filteredItems.length">
       <ion-grid class="item-grid">

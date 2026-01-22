@@ -310,11 +310,18 @@ export default {
   "sales.you_save": "You save:",
   "sales.view_sale": "View Sale",
   "sales.price_history": "Price History",
+  "sales.first_tracked_price": "First tracked price",
+  "sales.lowest_tracked_price": "Lowest tracked price",
+  "sales.highest_tracked_price": "Highest tracked price",
+  "sales.price_unchanged": "Price unchanged",
+  "sales.price_dropped": "Price dropped",
+  "sales.price_increased": "Price increased",
 
   /* =====================================================
    * Overview / More Info
    * ===================================================== */
   "overview.more_details": "More details",
+  "overview.items": "items",
   "overview.no_entries": "No entries found.",
   "moreinfo.title": "More Information",
   "moreinfo.loading": "Loading additional information...",

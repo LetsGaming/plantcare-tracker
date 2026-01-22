@@ -1,6 +1,7 @@
 <template>
   <ion-page>
     <details-header :show-edit-button="false" default-back-href="/sales" />
+
     <ion-content>
       <div v-if="sale">
         <details-banner
@@ -8,8 +9,10 @@
           :banner-subtitle="saleSubtitle"
           :image-url="sale.imageUrl"
         />
-        <section class="sale-info align-middle">
-          <ion-card class="sale-card">
+
+        <section class="sale-info">
+          <!-- PRIMARY CARD: minimal info + CTA -->
+          <ion-card class="sale-card align-middle">
             <ion-badge
               v-if="discountPercentage"
               color="danger"
@@ -24,7 +27,11 @@
               </ion-card-title>
 
               <div class="seller-info">
-                <ion-icon :icon="storefrontOutline" color="medium" />
+                <ion-icon
+                  :icon="storefrontOutline"
+                  color="medium"
+                  style="cursor: unset"
+                />
                 <ion-card-subtitle class="sale-seller">
                   {{ t("sales.sold_by") }}
                   <span class="seller-name">{{ sale.seller }}</span>
@@ -33,35 +40,31 @@
             </ion-card-header>
 
             <ion-card-content>
+              <!-- Minimal price info -->
               <div class="price-section">
                 <div class="price-row">
                   <span class="current-price">
                     {{ sale.price.toFixed(2) }} €
                   </span>
+
                   <span v-if="sale.oldPrice" class="old-price">
                     {{ sale.oldPrice.toFixed(2) }} €
                   </span>
                 </div>
 
-                <div v-if="savings" class="savings-container">
-                  <span class="savings-label">
-                    {{ t("sales.you_save") }}
+                <div
+                  v-if="discountPercentage && savings"
+                  class="savings-container"
+                >
+                  <span class="savings-amount">
+                    {{ discountPercentage }} · {{ savings }} € cheaper
                   </span>
-                  <span class="savings-amount">{{ savings }} €</span>
                 </div>
               </div>
 
-              <template v-if="priceHistory.length">
-                <separator-line />
-                <div class="chart-wrapper">
-                  <p class="chart-header">{{ t("sales.price_history") }}</p>
-                  <PriceHistoryChart :history="priceHistory" />
-                </div>
-              </template>
-
+              <!-- PRIMARY CTA -->
               <ion-button
                 expand="block"
-                fill="solid"
                 color="primary"
                 class="view-button"
                 :href="sale.link"
@@ -70,6 +73,45 @@
               >
                 {{ t("sales.view_sale") }}
               </ion-button>
+            </ion-card-content>
+          </ion-card>
+
+          <!-- SECONDARY CARD: optional deep info -->
+          <ion-card
+            v-if="priceHistory.length"
+            class="sale-card align-middle secondary-card"
+          >
+            <ion-card-header>
+              <ion-card-title class="chart-header">
+                {{ t("sales.price_history") }}
+              </ion-card-title>
+            </ion-card-header>
+
+            <ion-card-content>
+              <!-- 1 point -->
+              <div v-if="priceHistory.length === 1" class="history-fallback">
+                <p class="history-meta">
+                  {{ t("sales.first_tracked_price") }}
+                </p>
+              </div>
+
+              <!-- 2 points -->
+              <div
+                v-else-if="priceHistory.length === 2"
+                class="history-fallback"
+              >
+                <p class="history-meta">
+                  {{ priceTrendLabel }}
+                </p>
+              </div>
+
+              <!-- 3+ points -->
+              <div v-else class="chart-wrapper">
+                <PriceHistoryChart
+                  :history="priceHistory"
+                  :reference-price="sale.oldPrice"
+                />
+              </div>
             </ion-card-content>
           </ion-card>
         </section>
@@ -96,7 +138,6 @@ import { storefrontOutline } from "ionicons/icons";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
-import SeparatorLine from "@/components/SeperatorLine.vue";
 import PriceHistoryChart from "@/components/sales/PriceHistoryChart.vue";
 
 import SalesService from "@/services/SalesServices";
@@ -117,7 +158,6 @@ export default defineComponent({
     IonIcon,
     DetailsHeader,
     DetailsBanner,
-    SeparatorLine,
     PriceHistoryChart,
   },
   props: {
@@ -128,66 +168,59 @@ export default defineComponent({
   },
   data() {
     return {
-      sale: null as null | Sale,
+      sale: null as Sale | null,
       priceHistory: [] as { price: number; timestamp: number }[],
     };
   },
   setup() {
-    return {
-      storefrontOutline,
-    };
+    return { storefrontOutline };
   },
   mounted() {
     this.fetchSaleDetails();
     this.fetchPriceHistory();
   },
-
   computed: {
     saleSubtitle(): string {
       if (!this.sale) return "";
-      const parts: string[] = [];
-      if (this.sale.seller) parts.push(this.sale.seller);
-      parts.push(`${this.sale.price.toFixed(2)}€`);
-      return parts.join(" · ");
+      return `${this.sale.seller} · ${this.sale.price.toFixed(2)} €`;
     },
     savings(): string | null {
-      if (this.sale && this.sale.oldPrice) {
-        const savings = this.sale.oldPrice - this.sale.price;
-        return savings > 0 ? savings.toFixed(2) : null;
-      }
-      return null;
+      if (!this.sale?.oldPrice) return null;
+      const diff = this.sale.oldPrice - this.sale.price;
+      return diff > 0 ? diff.toFixed(2) : null;
     },
     discountPercentage(): string | null {
-      if (
-        this.sale &&
-        this.sale.oldPrice &&
-        this.sale.oldPrice > this.sale.price
-      ) {
-        const discount =
-          ((this.sale.oldPrice - this.sale.price) / this.sale.oldPrice) * 100;
-        return `-${Math.round(discount)}%`;
+      if (!this.sale?.oldPrice || this.sale.oldPrice <= this.sale.price) {
+        return null;
       }
-      return null;
+      const pct =
+        ((this.sale.oldPrice - this.sale.price) / this.sale.oldPrice) * 100;
+      return `-${Math.round(pct)}%`;
+    },
+    priceTrendLabel(): string {
+      const sorted = [...this.priceHistory].sort(
+        (a, b) => a.timestamp - b.timestamp,
+      );
+      const [first, last] = sorted;
+
+      if (last.price < first.price) {
+        return this.t("sales.price_dropped");
+      }
+      if (last.price > first.price) {
+        return this.t("sales.price_increased");
+      }
+      return this.t("sales.price_unchanged");
     },
   },
-
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
     async fetchSaleDetails() {
-      try {
-        this.sale = await SalesService.getSaleById(this.id);
-      } catch (error) {
-        console.error("Error fetching sale details:", error);
-      }
+      this.sale = await SalesService.getSaleById(this.id);
     },
     async fetchPriceHistory() {
-      try {
-        this.priceHistory = await SalesService.getPriceHistory(this.id);
-      } catch (error) {
-        console.error("Error fetching price history:", error);
-      }
+      this.priceHistory = await SalesService.getPriceHistory(this.id);
     },
   },
 });
@@ -195,40 +228,33 @@ export default defineComponent({
 
 <style scoped>
 .sale-card {
-  margin: 16px;
-  position: relative;
+  display: block;
   border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.secondary-card {
+  opacity: 0.95;
 }
 
 .sale-badge {
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 10;
-  padding: 8px;
-  font-size: 0.85rem;
   font-weight: 800;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(var(--ion-color-danger-rgb), 0.3);
 }
 
 .sale-title {
   font-size: 1.25rem;
   font-weight: 700;
-  line-height: 1.3;
-  color: var(--ion-color-step-900);
 }
 
 .seller-info {
   display: flex;
-  align-items: center;
   gap: 6px;
   margin-top: 4px;
 }
 
 .sale-seller {
-  margin-top: 4px;
   font-size: 0.9rem;
   color: var(--ion-color-step-600);
 }
@@ -239,55 +265,48 @@ export default defineComponent({
 }
 
 .price-section {
-  margin: 16px 0;
+  margin: 12px 0 16px;
 }
 
 .price-row {
   display: flex;
-  align-items: baseline;
   gap: 10px;
+  align-items: baseline;
 }
 
 .current-price {
   font-size: 1.75rem;
   font-weight: 800;
-  color: var(--ion-color-step-900);
 }
 
 .old-price {
-  font-size: 1.1rem;
   text-decoration: line-through;
   color: var(--ion-color-step-400);
 }
 
-.savings-container {
-  display: flex;
-  gap: 4px;
-  margin-top: 4px;
-  font-size: 0.9rem;
-}
-
-.savings-label {
-  color: var(--ion-color-step-600);
-}
-
 .savings-amount {
-  color: var(--ion-color-success);
+  font-size: 0.95rem;
   font-weight: 700;
+  color: var(--ion-color-success);
 }
 
 .chart-header {
   font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--ion-color-step-500);
 }
 
+.history-fallback {
+  padding: 8px 0;
+}
+
+.history-meta {
+  font-size: 0.95rem;
+  color: var(--ion-color-step-700);
+}
+
 .view-button {
-  margin-top: 16px;
-  height: 48px;
   font-weight: 700;
-  --border-radius: 8px;
 }
 </style>
