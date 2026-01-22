@@ -7,6 +7,11 @@ import storageService from "@/services/general/StorageService";
 
 const DEFAULT_WATERING_CATEGORIES: Category[] = [
   {
+    name: "watering.category.no_fertilizer",
+    textColor: "#ffffff",
+    backgroundColor: "#1E90FF",
+  },
+  {
     name: "watering.category.organic",
     textColor: "#ffffff",
     backgroundColor: "#8B4513",
@@ -15,11 +20,6 @@ const DEFAULT_WATERING_CATEGORIES: Category[] = [
     name: "watering.category.mineral",
     textColor: "#ffffff",
     backgroundColor: "#228B22",
-  },
-  {
-    name: "watering.category.no_fertilizer",
-    textColor: "#ffffff",
-    backgroundColor: "#1E90FF",
   },
 ];
 
@@ -106,7 +106,7 @@ export default class CalendarService extends BaseService {
     await this.saveCategoriesInternal(
       StorageKeys.WATERING_CATEGORIES,
       CalendarEvents.WATERING_CATEGORIES_CHANGED,
-      categories
+      categories,
     );
   }
 

@@ -27,7 +27,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "@capacitor/cli": "^2.5.0",
+    "@capacitor/cli": "^8.0.1",
     "@types/luxon": "^3.7.1",
     "@vitejs/plugin-legacy": "^7.2.1",
     "@vitejs/plugin-vue": "^6.0.3",

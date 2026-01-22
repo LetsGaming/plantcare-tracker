@@ -1,6 +1,6 @@
 {
     "name": "plantcare-backend",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "versionPath": "v1",
     "description": "Backend for Plant Care Tracker Webapp",
     "main": "server.js",

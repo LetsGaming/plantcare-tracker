@@ -16,7 +16,7 @@
             <ion-badge
               v-if="discountPercentage"
               color="danger"
-              class="sale-badge"
+              class="sale-badge round-badge"
             >
               {{ discountPercentage }}
             </ion-badge>
@@ -244,6 +244,7 @@ export default defineComponent({
 }
 
 .sale-title {
+  max-width: 90%;
   font-size: 1.25rem;
   font-weight: 700;
 }

@@ -212,7 +212,7 @@ export default defineComponent({
           label: this.t(
             "watering.records.fertilizer_used",
             {},
-            "Dünger verwendet"
+            "Dünger verwendet",
           ),
           value: r.usedFertilizer
             ? this.t("common.yes", {}, "Ja")
@@ -238,7 +238,7 @@ export default defineComponent({
       }
 
       const sorted = [...this.records].sort(
-        (a, b) => a.date_millis - b.date_millis
+        (a, b) => a.date_millis - b.date_millis,
       );
       const diffs = sorted
         .slice(1)
@@ -250,27 +250,27 @@ export default defineComponent({
         return this.t(
           "watering.records.frequency.days",
           { count: Math.round(avg) },
-          "ca. alle {count} Tage"
+          "ca. alle {count} Tage",
         );
       }
       if (avg < 30) {
         return this.t(
           "watering.records.frequency.weeks",
           { count: Math.round(avg / 7) },
-          "ca. alle {count} Wochen"
+          "ca. alle {count} Wochen",
         );
       }
       if (avg < 90) {
         return this.t(
           "watering.records.frequency.months",
           { count: Math.round(avg / 30) },
-          "ca. alle {count} Monate"
+          "ca. alle {count} Monate",
         );
       }
       return this.t(
         "watering.records.frequency.years",
         { count: Math.round(avg / 365) },
-        "ca. alle {count} Jahre"
+        "ca. alle {count} Jahre",
       );
     },
     averageFertilizerUsage(): string {
@@ -286,25 +286,25 @@ export default defineComponent({
         return this.t(
           "watering.records.fertilizer_usage.every_time",
           {},
-          "jede Wässerung"
+          "jede Wässerung",
         );
       if (ratio >= 0.75)
         return this.t(
           "watering.records.fertilizer_usage.mostly",
           {},
-          "meistens"
+          "meistens",
         );
       if (ratio >= 0.5)
         return this.t(
           "watering.records.fertilizer_usage.about_every_second",
           {},
-          "ungefähr jede zweite"
+          "ungefähr jede zweite",
         );
       if (ratio >= 0.25)
         return this.t(
           "watering.records.fertilizer_usage.occasional",
           {},
-          "gelegentlich"
+          "gelegentlich",
         );
       if (ratio > 0)
         return this.t("watering.records.fertilizer_usage.rarely", {}, "selten");
@@ -330,7 +330,7 @@ export default defineComponent({
     },
     syncFertilizerUsage(
       record: AddWateringRecord | EditWateringRecord,
-      typeId?: number
+      typeId?: number,
     ) {
       if (typeId === -1 || typeId === undefined) {
         record.usedFertilizer = false;
@@ -346,7 +346,7 @@ export default defineComponent({
           type: "date",
           modelKey: "date",
           defaultValue:
-            mode === "add" ? this.selectedDate ?? undefined : undefined,
+            mode === "add" ? (this.selectedDate ?? undefined) : undefined,
         },
         {
           label: this.t("watering.records.fertilizer_type", {}, "Düngertyp"),
@@ -355,7 +355,7 @@ export default defineComponent({
           options: this.fertilizerOptions,
           defaultValue:
             mode === "edit"
-              ? this.editWateringRecord.fertilizerTypeId ?? -1
+              ? (this.editWateringRecord.fertilizerTypeId ?? -1)
               : -1,
         },
       ];
@@ -385,7 +385,7 @@ export default defineComponent({
       const day = date.split("T")[0];
       this.selectedRecord =
         this.records.find(
-          (r) => new Date(r.date_millis).toISOString().split("T")[0] === day
+          (r) => new Date(r.date_millis).toISOString().split("T")[0] === day,
         ) ?? null;
 
       this.showPopover = !!this.selectedRecord;
@@ -415,7 +415,7 @@ export default defineComponent({
       try {
         await WateringService.deleteWateringRecord(
           this.plantId,
-          this.selectedRecord.id
+          this.selectedRecord.id,
         );
         this.showEditingModal = false;
         await this.setRecords();
@@ -426,7 +426,7 @@ export default defineComponent({
     async prepareAndSaveRecord(
       record: AddWateringRecord | EditWateringRecord,
       mode: "add" | "edit",
-      id?: number
+      id?: number,
     ) {
       this.isLoading = true;
       this.syncFertilizerUsage(record, record.fertilizerTypeId);
@@ -444,28 +444,36 @@ export default defineComponent({
       }
     },
     mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {
-      // Logic guard: If categories failed to load, don't attempt to map
       if (!this.wateringCategories.length) return [];
 
-      return records.map((r) => {
-        let category = !r.usedFertilizer
-          ? this.wateringCategories.find(
-              (c) => c.name === "watering.category.no_fertilizer"
-            )
-          : this.wateringCategories.find((c) => c.name === r.fertilizerType);
+      const getCategoryForRecord = (record: WateringRecord) => {
+        let category;
 
+        if (!record.usedFertilizer) {
+          // Default category for no fertilizer
+          category = this.wateringCategories.find(
+            (c) => c.name === "watering.category.no_fertilizer",
+          );
+        } else {
+          // Use fertilizerTypeId as index
+          category = this.wateringCategories[record.fertilizerTypeId || 0];
+        }
+
+        // Fallback if undefined
         if (!category) {
           category =
             this.wateringCategories.find(
-              (c) => c.name === "watering.category.organic"
+              (c) => c.name === "watering.category.organic",
             ) || this.wateringCategories[0];
         }
 
-        return {
-          date: new Date(r.date_millis).toISOString().split("T")[0],
-          category: category!,
-        };
-      });
+        return category;
+      };
+
+      return records.map((record) => ({
+        date: new Date(record.date_millis).toISOString().split("T")[0],
+        category: getCategoryForRecord(record)!,
+      }));
     },
   },
 });

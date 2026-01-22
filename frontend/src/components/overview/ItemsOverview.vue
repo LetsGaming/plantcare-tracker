@@ -23,7 +23,7 @@
             <ion-card class="item-card" @click="navigateToItem(item.id)">
               <ion-badge
                 v-if="item.isNew"
-                class="new-badge-round"
+                class="new-badge round-badge"
                 color="danger"
               >
                 {{ t('label.new') }}
@@ -200,22 +200,13 @@ ion-col {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
-/* ROUND OVERLAPPING BADGE */
-.new-badge-round {
+.new-badge {
   position: absolute;
   /* Adjust these negative values to move the badge further outside or inside */
   top: 8px;
   right: 8px;
 
   z-index: 20; /* Higher than images */
-
-  /* Making it round */
-  width: 45px;
-  height: 45px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
 
   font-size: 0.7rem;
   font-weight: bold;
@@ -253,7 +244,7 @@ ion-col {
   font-size: 1.1rem;
   font-weight: 600;
   margin-bottom: 4px;
-  max-width: 90%;
+  max-width: 85%;
 }
 
 .item-content {
