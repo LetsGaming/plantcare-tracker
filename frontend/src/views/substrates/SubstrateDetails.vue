@@ -5,7 +5,7 @@
       @edit-click="showEditModal = true"
       :show-upload-button="!isPublic"
       @upload-click="toggleUpload"
-      default-href="/tabs/substrate/overview"
+      default-href="/tabs/substrates"
     ></details-header>
 
     <ion-content>

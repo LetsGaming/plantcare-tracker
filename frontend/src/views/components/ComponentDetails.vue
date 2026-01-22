@@ -3,7 +3,7 @@
     <details-header
       :show-edit-button="isAdmin"
       @edit-click="showEditingModal = true"
-      default-href="/tabs/components/overview"
+      default-href="/tabs/components"
     />
     <ion-content>
       <div v-if="component">
