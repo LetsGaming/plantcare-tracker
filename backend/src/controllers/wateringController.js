@@ -68,14 +68,14 @@ const addWateringRecord = async (req, res) => {
       plantId,
       parsedDate,
       usedFertilizer,
-      fertilizerTypeId
+      fertilizerTypeId,
     );
 
     if (result.affectedRows === 0) {
       return errorResponse(
         res,
         "Plant not found or not authorized to add watering record",
-        404
+        404,
       );
     }
 
@@ -85,7 +85,7 @@ const addWateringRecord = async (req, res) => {
       res,
       { waterRecordId: recordId },
       "Watering record added successfully",
-      201
+      201,
     );
   } catch (err) {
     const status = err.message === "Date is required." ? 400 : 500;
@@ -95,48 +95,76 @@ const addWateringRecord = async (req, res) => {
 
 // Controller to update an existing watering record
 const editWateringRecord = async (req, res) => {
-  const { id } = req.params;
-  const { date, usedFertilizer, fertilizerTypeId } = req.body;
-  const userId = req.user ? req.user.id : null;
-  let parsedDate;
   try {
-    parsedDate = date ? formatToDBDate(date) : null;
-  } catch (err) {
-    return errorResponse(res, err.message, 400, err);
-  }
-  try {
-    if (!date && usedFertilizer === undefined && !fertilizerTypeId) {
+    const id = Number(req.params.id);
+    const { date, usedFertilizer, fertilizerTypeId } = req.body;
+    const userId = req.user?.id ?? null;
+
+    if (!Number.isInteger(id)) {
+      return errorResponse(
+        res,
+        "Watering record ID must be a valid number",
+        400,
+      );
+    }
+
+    if (
+      date === undefined &&
+      usedFertilizer === undefined &&
+      fertilizerTypeId === undefined
+    ) {
       return errorResponse(
         res,
         "At least one field must be provided for update",
-        400
+        400,
       );
     }
-    if (typeof fertilizerTypeId !== "number" && fertilizerTypeId !== null && fertilizerTypeId !== undefined) {
-      return errorResponse(res, "Fertilizer type ID must be a number", 400);
+
+    const parsedDate = date ? formatToDBDate(date) : null;
+
+    const fertilizerTypeIdParsed =
+      fertilizerTypeId === undefined || fertilizerTypeId === null
+        ? fertilizerTypeId
+        : Number(fertilizerTypeId);
+
+    if (
+      fertilizerTypeIdParsed !== undefined &&
+      fertilizerTypeIdParsed !== null &&
+      !Number.isInteger(fertilizerTypeIdParsed)
+    ) {
+      return errorResponse(
+        res,
+        "Fertilizer type ID must be a valid number",
+        400,
+      );
     }
 
     const result = await updateWateringRecord(id, userId, {
       date: parsedDate,
       usedFertilizer,
-      fertilizerTypeId,
+      fertilizerTypeId: fertilizerTypeIdParsed,
     });
 
     if (result.affectedRows === 0) {
       return errorResponse(
         res,
-        "Watering record not found or not authorized to update"
+        "Watering record not found or not authorized to update",
+        404,
       );
     }
 
-    successResponse(
+    return successResponse(
       res,
       { updated: true },
-      "Watering record updated successfully"
+      "Watering record updated successfully",
     );
   } catch (err) {
-    console.error(err);
-    errorResponse(res, "Error updating watering record", 500, err);
+    return errorResponse(
+      res,
+      err.message || "Error updating watering record",
+      err.message ? 400 : 500,
+      err,
+    );
   }
 };
 
@@ -151,14 +179,14 @@ const deleteSpecificWateringRecord = async (req, res) => {
     if (result.affectedRows === 0) {
       return notFoundResponse(
         res,
-        "Watering record not found or not authorized to delete"
+        "Watering record not found or not authorized to delete",
       );
     }
 
     successResponse(
       res,
       { deleted: true },
-      "Watering record deleted successfully"
+      "Watering record deleted successfully",
     );
   } catch (err) {
     errorResponse(res, "Error deleting watering record", 500, err);

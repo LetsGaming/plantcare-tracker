@@ -16,3 +16,9 @@ interface EditImage {
   date?: number;
   file?: File;
 }
+
+interface APIImage {
+  id: number;
+  url: string;
+  date: string;
+}

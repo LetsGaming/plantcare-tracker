@@ -156,7 +156,9 @@ export default defineComponent({
   async mounted() {
     this.showEditButton = !(await UserService.isGuest());
     this.username = await UserService.getUsername();
-    this.role = Utils.capitalizeFirstLetter((await UserService.getUserRole()) || "") as string;
+    this.role = Utils.capitalizeFirstLetter(
+      (await UserService.getUserRole()) || "",
+    ) as string;
     this.editProfileData.username = this.username;
   },
   methods: {
@@ -166,8 +168,8 @@ export default defineComponent({
     openEditingModal() {
       this.showEditingModal = true;
     },
-    t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback);
+    t(key: string) {
+      return localizationService.t(key, undefined, key);
     },
     async editProfile(profile: EditProfile) {
       if (!profile.username && !profile.password) {

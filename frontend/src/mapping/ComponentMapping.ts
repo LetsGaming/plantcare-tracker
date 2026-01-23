@@ -1,6 +1,6 @@
 export default class ComponentMapper {
   // Helper function to map components
-  static mapComponent(component: any): Component {
+  static mapComponent(component: APIComponent): Component {
     return {
       id: component.component_id,
       name: component.component_name,
@@ -9,7 +9,9 @@ export default class ComponentMapper {
     };
   }
 
-  static mapSubstrateComponent(component: any): SubstrateComponent {
+  static mapSubstrateComponent(
+    component: APISubstrateComponent,
+  ): SubstrateComponent {
     const mappedComponent = ComponentMapper.mapComponent(component);
     return {
       ...mappedComponent,
@@ -20,7 +22,9 @@ export default class ComponentMapper {
   }
 
   // Convert API response to Substrate array
-  static convertToComponents(response: any): Component[] {
+  static convertToComponents(
+    response: APIComponent | APIComponent[],
+  ): Component[] {
     if (Array.isArray(response)) {
       return response.map(this.mapComponent);
     } else {
@@ -28,7 +32,9 @@ export default class ComponentMapper {
     }
   }
 
-  static convertToSubstrateComponents(response: any): SubstrateComponent[] {
+  static convertToSubstrateComponents(
+    response: APISubstrateComponent | APISubstrateComponent[],
+  ): SubstrateComponent[] {
     if (Array.isArray(response)) {
       return response.map(this.mapSubstrateComponent);
     } else {

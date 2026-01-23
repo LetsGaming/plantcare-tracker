@@ -1,7 +1,7 @@
 <template>
   <ion-card class="component-container align-middle">
     <ion-card-header style="max-width: 100%">
-      <ion-title>{{ t(title, undefined, title) }}</ion-title>
+      <ion-title>{{ t(title) }}</ion-title>
       <SearchBar
         :placeholder="t('component.search.placeholder')"
         @search="filterComponents"
@@ -136,8 +136,8 @@ export default defineComponent({
     filterComponents(query: string) {
       this.searchQuery = query;
     },
-    t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+    t(key: string) {
+      return localizationService.t(key, undefined, key);
     }
   },
 });

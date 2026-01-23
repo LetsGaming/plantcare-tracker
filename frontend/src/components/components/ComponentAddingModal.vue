@@ -31,6 +31,7 @@ export default defineComponent({
         fineness: -1,
         image: undefined,
       } as AddComponent,
+      
     };
   },
   computed: {
@@ -43,9 +44,9 @@ export default defineComponent({
           label: "component.field.fineness",
           placeholder: "component.field.fineness_placeholder",
           options: [
-            { value: "1", label: "component.fineness.coarse" },
-            { value: "2", label: "component.fineness.medium" },
-            { value: "3", label: "component.fineness.fine" },
+            { value: 1, label: "component.fineness.coarse" },
+            { value: 2, label: "component.fineness.medium" },
+            { value: 3, label: "component.fineness.fine" },
           ],
         },
         { type: "file", modelKey: "image", label: "component.image.upload" },

@@ -120,10 +120,13 @@ export default defineComponent({
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
 
     // Add listener for firstDayOfWeek changes
-    document.addEventListener(CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED, (event: Event) => {
-      const customEvent = event as CustomEvent;
-      this.firstDayOfWeek = customEvent.detail;
-    });
+    document.addEventListener(
+      CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED,
+      (event: Event) => {
+        const customEvent = event as CustomEvent;
+        this.firstDayOfWeek = customEvent.detail;
+      },
+    );
   },
   computed: {
     legendItems(): { label: string; color: string }[] {
@@ -152,8 +155,8 @@ export default defineComponent({
     },
   },
   methods: {
-    t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback);
+    t(key: string) {
+      return localizationService.t(key, undefined, key);
     },
     onDateChange(event: CustomEvent) {
       this.changedEvent = event;

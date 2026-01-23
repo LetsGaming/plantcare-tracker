@@ -3,6 +3,7 @@ import ApiUtils from "@/utils/apiUtils";
 import storageService from "@/services/general/StorageService";
 import SubstrateMapper from "@/mapping/SubstrateMapping";
 import UserService from "./UserService";
+import ImageService from "./ImageService";
 
 const BASE_ENDPOINT = "/substrates";
 const RESOURCE_KEY = "substrate.title";
@@ -25,7 +26,7 @@ export default class SubstrateService extends BaseService {
     await this.saveAndNotify(
       CACHE_KEY_ALL,
       SubstrateEvents.SUBSTRATES_UPDATED,
-      substrates
+      substrates,
     );
   }
 
@@ -36,13 +37,13 @@ export default class SubstrateService extends BaseService {
    * @param substrateId Optional substrate ID to remove
    */
   static async invalidateSubstrateCache(substrateId?: number): Promise<void> {
-    if (substrateId === undefined) {
+    if (!substrateId) {
       await storageService.remove(CACHE_KEY_ALL);
       return;
     }
 
     const stored = await storageService.get<{ data: Substrate[] }>(
-      CACHE_KEY_ALL
+      CACHE_KEY_ALL,
     );
     if (!stored?.data) return;
 
@@ -60,21 +61,20 @@ export default class SubstrateService extends BaseService {
    * @returns Array of all substrates
    */
   static async getAllSubstrates(
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Substrate[]> {
     const result = await this.getCachedData(
       CACHE_KEY_ALL,
       () =>
         this.handleRequest(
-          ApiUtils.get(BASE_ENDPOINT).then((res) => {
+          ApiUtils.get<APISubstrate[]>(BASE_ENDPOINT).then((res) => {
             const substrates = SubstrateMapper.convertToSubstrates(res);
             this.saveSubstrates(substrates);
             return substrates;
-          }
-          ),
-          RESOURCE_KEY
+          }),
+          RESOURCE_KEY,
         ),
-      forceUpdate
+      forceUpdate,
     );
 
     return result || [];
@@ -88,7 +88,7 @@ export default class SubstrateService extends BaseService {
    */
   static async getSubstrateById(
     substrateId: number,
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Substrate> {
     const substrates = await this.getAllSubstrates(false);
     const cached = substrates.find((s) => s.id === substrateId);
@@ -96,16 +96,16 @@ export default class SubstrateService extends BaseService {
     if (cached && !forceUpdate) return cached;
 
     const substrate = await this.handleRequest(
-      ApiUtils.get(`${BASE_ENDPOINT}/substrate/${substrateId}`).then(
-        (res) => SubstrateMapper.convertToSubstrates(res)[0]
-      ),
-      RESOURCE_KEY
+      ApiUtils.get<APISubstrate>(
+        `${BASE_ENDPOINT}/substrate/${substrateId}`,
+      ).then((res) => SubstrateMapper.convertToSubstrates(res)[0]),
+      RESOURCE_KEY,
     );
 
     await this.upsertIntoListCache(
       CACHE_KEY_ALL,
       SubstrateEvents.SUBSTRATES_UPDATED,
-      substrate
+      substrate,
     );
     return substrate;
   }
@@ -120,7 +120,7 @@ export default class SubstrateService extends BaseService {
    * @returns Array of public substrates
    */
   static async getPublicSubstrates(
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Substrate[]> {
     const all = await this.getAllSubstrates(forceUpdate);
     return all.filter((s) => s.isPublic);
@@ -132,7 +132,7 @@ export default class SubstrateService extends BaseService {
    * @returns Array of private substrates
    */
   static async getPrivateSubstrates(
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Substrate[]> {
     const userId = await UserService.getUserId();
     const all = await this.getAllSubstrates(forceUpdate);
@@ -152,7 +152,7 @@ export default class SubstrateService extends BaseService {
     const response = await this.handleRequest(
       ApiUtils.post(BASE_ENDPOINT, substrateData),
       RESOURCE_KEY,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidateSubstrateCache();
@@ -163,12 +163,12 @@ export default class SubstrateService extends BaseService {
    * Add a substrate along with components
    * @param substrateData Substrate creation payload
    * @param componentsData Optional components data
-   * @returns Object containing substrate and optionally components
+   * @returns ID of the created substrate
    */
   static async addSubstrateWithComponents(
     substrateData: AddSubstrate,
-    componentsData?: AddSubstrateComponents
-  ): Promise<{ substrate: any; components?: any }> {
+    componentsData?: AddSubstrateComponents,
+  ): Promise<number> {
     const substrateResponse = await this.addSubstrate(substrateData);
     const substrateId = (substrateResponse as { substrateId: number })
       .substrateId;
@@ -176,17 +176,16 @@ export default class SubstrateService extends BaseService {
     let componentsResponse;
     if (componentsData?.components?.length) {
       componentsData.substrateId = substrateId;
-      componentsResponse = await this.handleRequest(
+      componentsResponse = await this.handleRequest<SubstrateComponent[]>(
         ApiUtils.post(
           `${BASE_ENDPOINT}/components/${substrateId}`,
-          componentsData
+          componentsData,
         ),
-        RESOURCE_KEY
+        RESOURCE_KEY,
       );
     }
 
-    const updatedSubstrate = await this.getSubstrateById(substrateId, true);
-    return { substrate: updatedSubstrate, components: componentsResponse };
+    return substrateId;
   }
 
   /**
@@ -197,12 +196,12 @@ export default class SubstrateService extends BaseService {
    */
   static async editSubstrate(
     substrateId: number,
-    data: EditSubstrate
+    data: EditSubstrate,
   ): Promise<any> {
     const response = await this.handleRequest(
       ApiUtils.patch(`${BASE_ENDPOINT}/${substrateId}`, data),
       RESOURCE_KEY,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidateSubstrateCache(substrateId);
@@ -217,14 +216,14 @@ export default class SubstrateService extends BaseService {
    */
   static async editSubstrateComponents(
     substrateId: number,
-    components: EditSubstrateComponent[]
+    components: EditSubstrateComponent[],
   ): Promise<any> {
     const response = await this.handleRequest(
       ApiUtils.patch(`${BASE_ENDPOINT}/components/${substrateId}`, {
         components,
       }),
       RESOURCE_KEY,
-      "substrate.components.edit.title"
+      "substrate.components.edit.title",
     );
 
     await this.getSubstrateById(substrateId, true);
@@ -240,7 +239,7 @@ export default class SubstrateService extends BaseService {
     const response = await this.handleRequest(
       ApiUtils.delete(`${BASE_ENDPOINT}/${substrateId}`),
       RESOURCE_KEY,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidateSubstrateCache(substrateId);
@@ -257,19 +256,23 @@ export default class SubstrateService extends BaseService {
   static async uploadSubstrateImage(
     substrateId: number,
     image: File,
-    date?: string | Date
+    date?: string | Date,
+    doInvalidate: boolean = true,
   ): Promise<any> {
     const formData = new FormData();
     formData.append("image", image);
     if (date) formData.append("date", date.toString());
 
-    const response = await this.handleRequest(
-      ApiUtils.upload(`/images/substrate/${substrateId}`, formData),
-      RESOURCE_KEY,
-      "image.upload"
+    const response = await ImageService.uploadImage(
+      image,
+      "substrate",
+      substrateId,
+      date,
     );
 
-    await this.invalidateSubstrateCache(substrateId);
+    if (doInvalidate) {
+      await this.invalidateSubstrateCache(substrateId);
+    }
     return response;
   }
 }

@@ -1,12 +1,12 @@
 <template>
   <div class="field-wrapper">
     <IonItem>
-      <IonLabel>{{ translate(field.label) }}</IonLabel>
+      <IonLabel>{{ t(field.label) }}</IonLabel>
 
       <IonRadioGroup :value="modelValue" @ionChange="onRadioChange">
         <IonItem v-for="(option, index) in field.options" :key="index">
           <IonRadio :value="option.value">
-            {{ translate(option.label) }}
+            {{ t(option.label) }}
           </IonRadio>
         </IonItem>
       </IonRadioGroup>
@@ -20,7 +20,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonLabel, IonRadioGroup, IonRadio } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "RadioFieldComponent",
@@ -36,7 +36,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    // Sett default value if provided 
+    // Sett default value if provided
     if (this.field.defaultValue !== undefined) {
       this.$emit("update:modelValue", this.field.defaultValue);
     }
@@ -46,10 +46,8 @@ export default defineComponent({
       const newVal = event.detail.value;
       this.$emit("update:modelValue", newVal);
     },
-    translate(key: string | undefined, vars?: Record<string, any>, fallback?: string) {
-      //
-
-      return localizationService.t(key || '', vars, fallback || key || '');
+    t(key: string) {
+      return localizationService.t(key, undefined, key);
     },
   },
 });

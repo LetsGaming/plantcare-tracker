@@ -46,27 +46,39 @@ const getComponent = async (req, res) => {
 
 // Add a new component
 const addComponent = async (req, res) => {
-  const { name, fineness } = req.body;
-
   try {
-    validateComponentData({ name, fineness });
+    const { name, fineness } = req.body;
 
-    if(typeof fineness !== 'number') {
-      errorResponse(res, "Fineness must be a number", 400);
-      return;
+    const finenessParsed = Number(fineness);
+
+    if (!Number.isInteger(finenessParsed)) {
+      return errorResponse(res, "Fineness must be a valid integer", 400);
     }
 
-    const [result] = await insertComponent(name, fineness);
-    componentId = result.insertId;
+    validateComponentData({
+      name,
+      fineness: finenessParsed,
+    });
 
-    successResponse(
+    const [result] = await insertComponent(name, finenessParsed);
+
+    return successResponse(
       res,
-      { id: componentId },
+      { id: result.insertId },
       "Component added successfully",
-      201
+      201,
     );
   } catch (err) {
-    errorResponse(res, err.message, err.message.includes("required") ? 400 : 500, err);
+    const statusCode = err.message?.toLowerCase().includes("required")
+      ? 400
+      : 500;
+
+    return errorResponse(
+      res,
+      err.message || "Internal server error",
+      statusCode,
+      err,
+    );
   }
 };
 
@@ -80,7 +92,7 @@ const editComponent = async (req, res) => {
       return errorResponse(
         res,
         "At least one of name or fineness must be provided for update.",
-        400
+        400,
       );
     }
 

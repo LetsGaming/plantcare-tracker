@@ -20,7 +20,7 @@ export default class PlantMapper {
   }
 
   // Convert API response to Plant array
-  static convertToPlants(response: any): Plant[] {
+  static convertToPlants(response: APIPlant | APIPlant[]): Plant[] {
     if (Array.isArray(response)) {
       return response.map(this.mapPlant);
     } else {

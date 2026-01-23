@@ -16,7 +16,7 @@ export default class SubstrateMapper {
   }
 
   // Convert API response to Substrate array
-  static convertToSubstrates(response: any): Substrate[] {
+  static convertToSubstrates(response: APISubstrate | APISubstrate[]): Substrate[] {
     if (Array.isArray(response)) {
       return response.map(this.mapSubstrate);
     } else {

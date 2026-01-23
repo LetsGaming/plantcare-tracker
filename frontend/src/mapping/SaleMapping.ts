@@ -14,7 +14,7 @@ export default class SaleMapper {
   }
 
   // Convert API response to an array of Sale records
-  static convertToSales(response: any): Sale[] {
+  static convertToSales(response: APISale | APISale[]): Sale[] {
     if (Array.isArray(response)) {
       return response.map(this.mapSale);
     } else {

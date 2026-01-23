@@ -74,7 +74,7 @@ export default class PlantService extends BaseService {
    * @param plantId Optional plant ID to invalidate
    */
   static async invalidatePlantCache(plantId?: number): Promise<void> {
-    if (plantId === undefined) {
+    if (!plantId) {
       await storageService.remove(CACHE_KEY_ALL);
       return;
     }
@@ -105,7 +105,7 @@ export default class PlantService extends BaseService {
       CACHE_KEY_ALL,
       () =>
         this.handleRequest(
-          ApiUtils.get(BASE_ENDPOINT).then((res) => {
+          ApiUtils.get<APIPlant[]>(BASE_ENDPOINT).then((res) => {
             const plants = PlantMapper.convertToPlants(res);
             this.savePlants(plants);
             return plants;
@@ -139,7 +139,7 @@ export default class PlantService extends BaseService {
     if (cached && !forceUpdate) return cached;
 
     const plant = await this.handleRequest(
-      ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`).then(
+      ApiUtils.get<APIPlant>(`${BASE_ENDPOINT}/plant/${plantId}`).then(
         (res) => PlantMapper.convertToPlants(res)[0]
       ),
       RESOURCE_KEY

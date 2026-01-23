@@ -34,5 +34,5 @@ interface APIPlant {
   plant_created_at: string;
   image_url: string;
   substrate: APISubstrate;
-  images: any[];
+  images: APIImage[];
 }

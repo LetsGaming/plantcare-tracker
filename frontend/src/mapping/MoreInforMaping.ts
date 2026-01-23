@@ -8,7 +8,7 @@ export default class MoreInfoMapper {
   }
 
   // Convert API response to an array of WateringRecords
-  static convertToMoreInfo(response: APIMoreInfo): MoreInfo[] {
+  static convertToMoreInfo(response: APIMoreInfo | APIMoreInfo[]): MoreInfo[] {
     if (Array.isArray(response)) {
       return response.map(this.mapMoreInfo);
     } else {

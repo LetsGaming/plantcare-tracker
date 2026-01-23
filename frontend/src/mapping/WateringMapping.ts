@@ -20,7 +20,7 @@ export default class WateringMapper {
   }
 
   // Convert API response to an array of WateringRecords
-  static convertToWateringRecords(response: any): WateringRecord[] {
+  static convertToWateringRecords(response: APIWateringRecord | APIWateringRecord[]): WateringRecord[] {
     if (Array.isArray(response)) {
       return response.map(this.mapWateringRecord);
     } else {
@@ -35,7 +35,7 @@ export default class WateringMapper {
     };
   }
 
-  static convertToFertilizerTypes(response: any): FertilizerType[] {
+  static convertToFertilizerTypes(response: APIFertilizerType | APIFertilizerType[]): FertilizerType[] {
     if (Array.isArray(response)) {
       return response.map(this.mapFertilizerType);
     } else {

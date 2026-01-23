@@ -36,5 +36,5 @@ interface APISubstrate {
   substrate_name: string;
   is_public: number;
   image_url: string;
-  components: any[];
+  components: APISubstrateComponent[];
 }

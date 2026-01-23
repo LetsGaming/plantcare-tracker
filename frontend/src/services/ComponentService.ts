@@ -2,6 +2,7 @@ import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 import ComponentMapper from "@/mapping/ComponentMapping";
 import storageService from "@/services/general/StorageService";
+import ImageService from "./ImageService";
 
 const ENDPOINT = "/components";
 const CACHE_KEY_ALL = "components_all";
@@ -27,7 +28,7 @@ export default class ComponentService extends BaseService {
     await this.saveAndNotify(
       CACHE_KEY_ALL,
       ComponentEvents.COMPONENTS_UPDATED,
-      components
+      components,
     );
   }
 
@@ -38,13 +39,13 @@ export default class ComponentService extends BaseService {
    * @param componentId Optional component ID
    */
   static async invalidateComponentCache(componentId?: number): Promise<void> {
-    if (componentId === undefined) {
+    if (!componentId) {
       await storageService.remove(CACHE_KEY_ALL);
       return;
     }
 
     const stored = await storageService.get<{ data: Component[] }>(
-      CACHE_KEY_ALL
+      CACHE_KEY_ALL,
     );
     if (!stored?.data) return;
 
@@ -63,18 +64,18 @@ export default class ComponentService extends BaseService {
    * @returns Array of components
    */
   static async getAllComponents(
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Component[]> {
     const result = await this.getCachedData(
       CACHE_KEY_ALL,
       () =>
         this.handleRequest(
-          ApiUtils.get<any[]>(ENDPOINT).then((res) =>
-            ComponentMapper.convertToComponents(res)
+          ApiUtils.get<APIComponent[]>(ENDPOINT).then((res) =>
+            ComponentMapper.convertToComponents(res),
           ),
-          RESOURCE_NAME
+          RESOURCE_NAME,
         ),
-      forceUpdate
+      forceUpdate,
     );
 
     await this.saveComponents(result || []);
@@ -89,7 +90,7 @@ export default class ComponentService extends BaseService {
    */
   static async getComponentById(
     componentId: number,
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Component> {
     const components = await this.getAllComponents(false);
     const cached = components.find((c) => c.id === componentId);
@@ -97,16 +98,16 @@ export default class ComponentService extends BaseService {
     if (cached && !forceUpdate) return cached;
 
     const component = await this.handleRequest(
-      ApiUtils.get(`${ENDPOINT}/component/${componentId}`).then(
-        (res) => ComponentMapper.convertToComponents(res)[0]
+      ApiUtils.get<APIComponent>(`${ENDPOINT}/component/${componentId}`).then(
+        (res) => ComponentMapper.convertToComponents(res)[0],
       ),
-      RESOURCE_NAME
+      RESOURCE_NAME,
     );
 
     await this.upsertIntoListCache(
       CACHE_KEY_ALL,
       ComponentEvents.COMPONENTS_UPDATED,
-      component
+      component,
     );
     return component;
   }
@@ -124,7 +125,7 @@ export default class ComponentService extends BaseService {
     const response = await this.handleRequest(
       ApiUtils.post(`${ENDPOINT}/admin`, data),
       RESOURCE_NAME,
-      "error.action_failed"
+      "error.action_failed",
     );
     await this.invalidateComponentCache();
     return response;
@@ -138,12 +139,12 @@ export default class ComponentService extends BaseService {
    */
   static async editComponent(
     componentId: number,
-    data: EditComponent
+    data: EditComponent,
   ): Promise<any> {
     const response = await this.handleRequest(
       ApiUtils.put(`${ENDPOINT}/admin/${componentId}`, data),
       RESOURCE_NAME,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidateComponentCache(componentId);
@@ -159,7 +160,7 @@ export default class ComponentService extends BaseService {
     const response = await this.handleRequest(
       ApiUtils.delete(`${ENDPOINT}/admin/${componentId}`),
       RESOURCE_NAME,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidateComponentCache(componentId);
@@ -174,15 +175,15 @@ export default class ComponentService extends BaseService {
    */
   static async uploadComponentImage(
     componentId: number,
-    image: File
+    image: File,
   ): Promise<any> {
     const formData = new FormData();
     formData.append("image", image);
 
-    const response = await this.handleRequest(
-      ApiUtils.upload(`/images/component/${componentId}`, formData),
-      RESOURCE_NAME,
-      "error.action_failed"
+    const response = await ImageService.uploadImage(
+      image,
+      "component",
+      componentId,
     );
 
     await this.invalidateComponentCache(componentId);

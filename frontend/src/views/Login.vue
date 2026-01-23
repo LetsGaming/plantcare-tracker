@@ -10,40 +10,40 @@
 
     <ion-content class="ion-padding" :scroll-y="false">
       <div v-if="isCheckingLogin" class="login-loading-container align-middle">
-        <ion-spinner></ion-spinner>
+        <ion-spinner />
       </div>
 
       <div v-else class="login-container align-middle">
         <!-- Username -->
-        <ion-item class="ion-margin-bottom" style="width: 100%">
+        <ion-item class="ion-margin-bottom custom-input-item">
           <ion-icon :icon="personOutline" slot="start" />
-          <ion-input
-            v-model="username"
-            type="text"
-            required
-            clear-input
-            label-placement="floating"
-            :label="t('auth.username.label')"
-            :placeholder="t('auth.username.placeholder')"
-            :aria-label="t('auth.username.label')"
-            autocomplete="username"
-          />
-        </ion-item>
 
+          <div class="input-wrapper">
+            <input
+              v-model="username"
+              type="text"
+              required
+              autocomplete="username"
+              :aria-label="t('auth.username.label')"
+            />
+            <label>{{ t("auth.username.label") }}</label>
+          </div>
+        </ion-item>
         <!-- Password -->
-        <ion-item class="ion-margin-bottom" style="width: 100%">
+        <ion-item class="ion-margin-bottom custom-input-item">
           <ion-icon :icon="lockClosedOutline" slot="start" />
-          <ion-input
-            v-model="password"
-            :type="showPassword ? 'text' : 'password'"
-            required
-            clear-input
-            label-placement="floating"
-            :label="t('auth.password.label')"
-            :placeholder="t('auth.password.placeholder')"
-            :aria-label="t('auth.password.label')"
-            autocomplete="current-password"
-          />
+
+          <div class="input-wrapper">
+            <input
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              required
+              autocomplete="current-password"
+              :aria-label="t('auth.password.label')"
+            />
+            <label>{{ t("auth.password.label") }}</label>
+          </div>
+
           <ion-button
             fill="clear"
             size="small"
@@ -54,24 +54,24 @@
           </ion-button>
         </ion-item>
 
-        <!-- Confirm Password (Register only) -->
+        <!-- Confirm Password -->
         <ion-item
           v-if="isRegisterMode"
-          class="ion-margin-bottom"
-          style="width: 100%"
+          class="ion-margin-bottom custom-input-item"
         >
           <ion-icon :icon="lockClosedOutline" slot="start" />
-          <ion-input
-            v-model="confirmPassword"
-            :type="showPassword ? 'text' : 'password'"
-            required
-            clear-input
-            label-placement="floating"
-            :label="t('auth.confirm_password.label')"
-            :placeholder="t('auth.confirm_password.placeholder')"
-            :aria-label="t('auth.confirm_password.label')"
-            autocomplete="new-password"
-          />
+
+          <div class="input-wrapper">
+            <input
+              v-model="confirmPassword"
+              :type="showPassword ? 'text' : 'password'"
+              required
+              autocomplete="new-password"
+              :aria-label="t('auth.confirm_password.label')"
+            />
+            <label>{{ t("auth.confirm_password.label") }}</label>
+          </div>
+
           <ion-button
             fill="clear"
             size="small"
@@ -86,7 +86,6 @@
         <ion-button
           expand="block"
           class="ion-margin-top"
-          style="width: 100%"
           id="auth-button"
           :disabled="loading"
           @click="isRegisterMode ? handleRegister() : handleLogin()"
@@ -130,7 +129,6 @@ import {
   IonToolbar,
   IonTitle,
   IonItem,
-  IonInput,
   IonButton,
   IonIcon,
   IonSpinner,
@@ -157,7 +155,6 @@ export default defineComponent({
     IonToolbar,
     IonTitle,
     IonItem,
-    IonInput,
     IonButton,
     IonIcon,
     IonSpinner,
@@ -214,14 +211,8 @@ export default defineComponent({
     },
 
     toggle(flag: "showPassword" | "isRegisterMode") {
-      switch (flag) {
-        case "showPassword":
-          this.showPassword = !this.showPassword;
-          break;
-        case "isRegisterMode":
-          this.isRegisterMode = !this.isRegisterMode;
-          break;
-      }
+      if (flag === "showPassword") this.showPassword = !this.showPassword;
+      if (flag === "isRegisterMode") this.isRegisterMode = !this.isRegisterMode;
     },
 
     handleEnterKey(event: KeyboardEvent) {
@@ -232,7 +223,7 @@ export default defineComponent({
 
     async runAuth<T>(
       action: () => Promise<T>,
-      error: { key: string; fallback: string }
+      error: { key: string; fallback: string },
     ) {
       this.loading = true;
       try {
@@ -269,7 +260,7 @@ export default defineComponent({
         {
           key: "auth.invalid_credentials",
           fallback: "Invalid username or password.",
-        }
+        },
       );
     },
 
@@ -302,7 +293,7 @@ export default defineComponent({
           },
           undefined,
           "top",
-          "auth-button"
+          "auth-button",
         );
 
         this.isRegisterMode = false;
@@ -334,14 +325,45 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
   height: 100%;
   padding: 16px;
 }
 
-ion-item {
+.custom-input-item {
   --padding-start: 16px;
   --inner-padding-end: 8px;
+}
+
+.input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.input-wrapper input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 20px 0 6px;
+  font-size: 16px;
+  color: var(--ion-text-color, #000);
+}
+
+.input-wrapper label {
+  position: absolute;
+  left: 0;
+  top: 18px;
+  font-size: 16px;
+  color: var(--ion-color-medium);
+  pointer-events: none;
+  transition: 0.2s ease;
+}
+
+.input-wrapper input:focus + label,
+.input-wrapper input:not(:placeholder-shown) + label {
+  top: 2px;
+  font-size: 12px;
+  color: var(--ion-color-primary);
 }
 
 ion-icon {
@@ -349,7 +371,6 @@ ion-icon {
 }
 
 ion-text {
-  margin-top: 12px;
   cursor: pointer;
   text-align: center;
 }

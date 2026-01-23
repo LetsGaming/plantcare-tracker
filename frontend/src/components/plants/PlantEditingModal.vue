@@ -114,8 +114,8 @@ export default defineComponent({
   },
 
   methods: {
-    t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback);
+    t(key: string) {
+      return localizationService.t(key, undefined, key);
     },
 
     submit() {

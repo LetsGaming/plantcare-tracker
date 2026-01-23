@@ -2,7 +2,7 @@ import Utils from "@/utils/utils";
 
 export default class ImageMapper {
   // Helper function to map substrate
-  static mapImage(image: any): Image {
+  static mapImage(image: APIImage): Image {
     return {
       id: image.id,
       url: image.url,
@@ -12,7 +12,7 @@ export default class ImageMapper {
   }
 
   // Convert API response to Substrate array
-  static convertToImages(response: any): Image[] {
+  static convertToImages(response: APIImage | APIImage[]): Image[] {
     if (Array.isArray(response)) {
       return response.map(this.mapImage);
     } else {

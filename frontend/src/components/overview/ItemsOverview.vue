@@ -124,7 +124,7 @@ export default defineComponent({
   data() {
     return {
       currentSearch: "",
-      filteredItems: [] as any[],
+      filteredItems: [] as OverviewItem[],
     };
   },
   methods: {
@@ -136,7 +136,7 @@ export default defineComponent({
       const filtered = Utils.baseSearchFilter(query, this.items);
       this.filteredItems = this.sortItems(filtered);
     },
-    sortItems(items: any[]) {
+    sortItems(items: OverviewItem[]) {
       return [...items].sort((a, b) => {
         // 1. Sort by isNew status (true before false)
         if (a.isNew && !b.isNew) return -1;

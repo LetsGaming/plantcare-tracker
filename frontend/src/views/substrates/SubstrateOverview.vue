@@ -19,7 +19,7 @@
       :addIcon="addCircle"
       starting-segment="private"
       @segment-change="handleSegmentChange"
-      @add-click="showAddingModal = true"
+      @add-click="openAddModal"
     />
 
     <items-overview
@@ -89,7 +89,9 @@ export default defineComponent({
             description: comp.fineness || "",
             parts: 0,
           }))
-          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+          .sort((a: SubstrateComponent, b: SubstrateComponent) =>
+            a.name.localeCompare(b.name),
+          );
       } catch (e) {
         console.error("Error loading components", e);
       }
@@ -126,7 +128,7 @@ export default defineComponent({
     },
 
     async fetchSubstrates() {
-      await this.loadSubstrates(false);
+      await this.loadSubstrates();
     },
     async refreshSubstrates() {
       await this.loadSubstrates(true);
@@ -137,6 +139,12 @@ export default defineComponent({
       this.fetchSubstrates();
     },
 
+    openAddModal() {
+      this.showAddingModal = true;
+      if (this.availableComponents.length === 0) {
+        this.fetchAvailableComponents();
+      }
+    },
     async handleSubstrateSave(payload: {
       meta: {
         name: string;
@@ -167,23 +175,26 @@ export default defineComponent({
           parts: payload.parts[id] || 1,
         }));
 
-        const response = await SubstrateService.addSubstrateWithComponents(
-          {
-            name: payload.meta.name,
-            isPublic: payload.meta.isPublic,
-          },
-          {
-            substrateId: 0,
-            components,
-          },
-        );
+        const newSubstrateId =
+          await SubstrateService.addSubstrateWithComponents(
+            {
+              name: payload.meta.name,
+              isPublic: payload.meta.isPublic,
+            },
+            {
+              substrateId: 0,
+              components,
+            },
+          );
 
-        if (!response) return;
+        if (!newSubstrateId) return;
 
         if (payload.meta.image) {
           await SubstrateService.uploadSubstrateImage(
-            response.substrate.substrateId,
+            newSubstrateId,
             payload.meta.image,
+            undefined,
+            false,
           );
         }
 

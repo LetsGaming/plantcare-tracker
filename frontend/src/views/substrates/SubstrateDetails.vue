@@ -101,7 +101,7 @@ export default defineComponent({
       try {
         this.substrate = await SubstrateService.getSubstrateById(
           this.substrateId,
-          forceUpdate
+          forceUpdate,
         );
       } catch (error) {
         console.error("Error fetching substrate:", error);
@@ -117,7 +117,9 @@ export default defineComponent({
             description: comp.fineness || "",
             parts: 0,
           }))
-          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+          .sort((a: SubstrateComponent, b: SubstrateComponent) =>
+            a.name.localeCompare(b.name),
+          );
       } catch (error) {
         console.error("Error fetching available components:", error);
       }
@@ -150,7 +152,7 @@ export default defineComponent({
           componentsChanged,
           meta,
           componentIds,
-          parts
+          parts,
         );
         await this.fetchSubstrate(); // Refresh data
         this.showEditModal = false;
@@ -173,7 +175,7 @@ export default defineComponent({
     /** Check if component list changed */
     haveComponentsChanged(
       componentIds: number[],
-      parts: Record<number, number>
+      parts: Record<number, number>,
     ): boolean {
       const currentComps = this.sortedComponents(componentIds, parts);
       const oldComps = this.sortedComponentsFromSubstrate();
@@ -200,7 +202,7 @@ export default defineComponent({
       componentsChanged: boolean,
       meta: any,
       componentIds: number[],
-      parts: Record<number, number>
+      parts: Record<number, number>,
     ) {
       const tasks = [];
 
@@ -208,8 +210,8 @@ export default defineComponent({
         tasks.push(
           SubstrateService.editSubstrateComponents(
             this.substrate?.id || -1,
-            this.sortedComponents(componentIds, parts)
-          )
+            this.sortedComponents(componentIds, parts),
+          ),
         );
       }
 
@@ -219,7 +221,7 @@ export default defineComponent({
             name: meta.name,
             isPublic: meta.isPublic,
             image: meta.image || undefined,
-          })
+          }),
         );
       }
 
@@ -255,7 +257,7 @@ export default defineComponent({
         await SubstrateService.uploadSubstrateImage(
           this.substrate.id,
           fileItem.file,
-          fileItem.date
+          fileItem.date,
         );
         await this.fetchSubstrate();
         this.showUploadModal = false;

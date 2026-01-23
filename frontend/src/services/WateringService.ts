@@ -31,7 +31,7 @@ export default class WateringService extends BaseService {
     plantId: number
   ): Promise<WateringRecord[]> {
     try {
-      const response = await ApiUtils.get(`${BASE_ENDPOINT}/plant/${plantId}`);
+      const response = await ApiUtils.get<APIWateringRecord[]>(`${BASE_ENDPOINT}/plant/${plantId}`);
       return WateringMapper.convertToWateringRecords(response);
     } catch (error) {
       if (ApiUtils.isApiError(error) && error.status === 404) {
@@ -51,7 +51,7 @@ export default class WateringService extends BaseService {
       CACHE_KEY_FERTILIZER,
       () =>
         this.handleRequest(
-          ApiUtils.get(`${BASE_ENDPOINT}/fertilizer-types`).then((res) =>
+          ApiUtils.get<APIFertilizerType[]>(`${BASE_ENDPOINT}/fertilizer-types`).then((res) =>
             WateringMapper.convertToFertilizerTypes(res)
           ),
           "watering.fertilizer_types"
@@ -75,7 +75,7 @@ export default class WateringService extends BaseService {
     if (found && !forceUpdate) return found;
 
     const record = await this.handleRequest(
-      ApiUtils.get(`${BASE_ENDPOINT}/${recordId}`).then(
+      ApiUtils.get<APIWateringRecord>(`${BASE_ENDPOINT}/${recordId}`).then(
         (res) => WateringMapper.convertToWateringRecords(res)[0]
       ),
       "watering.record"

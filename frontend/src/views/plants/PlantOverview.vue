@@ -22,7 +22,7 @@
       @item-click="navigateToPlant"
       @refresh-items="refreshPlants"
     />
-    
+
     <plant-adding-modal
       :isOpen="showAddingModal"
       :isLoading="isAddingLoading"
@@ -183,7 +183,7 @@ export default defineComponent({
         if (plantData.image) {
           await PlantService.uploadPlantImage(
             response.plantId,
-            plantData.image
+            plantData.image,
           );
           ToastService.showSuccess({
             key: "plant.add.upload_success",
@@ -201,6 +201,8 @@ export default defineComponent({
           fallback: "Failed to add plant.",
         });
         console.error("Add plant failed:", error);
+      } finally {
+        this.isAddingLoading = false;
       }
     },
   },

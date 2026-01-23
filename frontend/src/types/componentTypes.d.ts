@@ -21,5 +21,13 @@ interface EditComponent {
 }
 
 interface APIComponent {
-  // TODO
+  component_id: number;
+  component_name: string;
+  component_fineness: string;
+  image_url?: string;
+}
+
+interface APISubstrateComponent extends APIComponent {
+  component_description: string;
+  component_parts: number;
 }

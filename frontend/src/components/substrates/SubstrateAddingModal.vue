@@ -118,8 +118,8 @@ export default defineComponent({
     },
   },
   methods: {
-    t(key: string, vars?: Record<string, any>) {
-      return localizationService.t(key, vars);
+    t(key: string) {
+      return localizationService.t(key, undefined, key);
     },
 
     toggleComponent(id: number) {
