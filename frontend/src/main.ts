@@ -48,6 +48,7 @@ for (const path in localeLoaders) {
  * to prevent Layout Shift or "flickering" translation keys.
  */
 async function initializeApp() {
+  document.title = Utils.getAppTitle();
   const app = createApp(App).use(IonicVue).use(router);
 
   // We provide the service globally
