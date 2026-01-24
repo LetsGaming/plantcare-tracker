@@ -1,5 +1,6 @@
 const { parse } = require("node-html-parser");
 const crypto = require("crypto");
+const logger = require("../../utils/logger");
 const { setupSSE } = require("../../utils/responseUtils");
 const { createLimiter } = require("../../utils/concurrency");
 const { fetchData } = require("../../utils/scrape/scrapeUtils");
@@ -17,7 +18,8 @@ const normalizeUrl = (url) => {
     u.search = "";
     u.pathname = u.pathname.replace(/\/$/, "");
     return u.toString();
-  } catch {
+  } catch (err) {
+    logger.warn(`Failed to normalize URL: ${url}`, err);
     return url;
   }
 };
@@ -82,19 +84,19 @@ const getSalesData = async (req, res) => {
           // SSEManager handles deduplication internally via sendUnique
           sse.sendUnique(formattedItems, "sale_id");
         },
-        { ...scraper.options, cacheKey: `${scraper.key}_${page}` }
+        { ...scraper.options, cacheKey: `${scraper.key}_${page}` },
       );
     } catch (err) {
-      console.error(
+      logger.error(
         `[Scraper: ${scraper.key}] Page ${page} failed:`,
-        err.message
+        err.message,
       );
     }
   };
 
   // 1. Create a flattened list of all scraping tasks
   const jobs = SCRAPERS.sort(
-    (a, b) => (a.priority ?? 0) - (b.priority ?? 0)
+    (a, b) => (a.priority ?? 0) - (b.priority ?? 0),
   ).flatMap((scraper) =>
     Array.from({ length: scraper.maxPages }, (_, i) => {
       const page = i + 1;
@@ -102,7 +104,7 @@ const getSalesData = async (req, res) => {
 
       // Return a promise that the limiter will resolve
       return runner(() => scrapeWorker(scraper, page));
-    })
+    }),
   );
 
   // 2. Execute all tasks in parallel (limited by the runners)

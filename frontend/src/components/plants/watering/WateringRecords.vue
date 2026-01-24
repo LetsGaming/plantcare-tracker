@@ -53,7 +53,7 @@
           :popover-item="popoverInfo"
           @update-date="onDateChange"
           @edit-click="handleEditClick"
-          @dismissed-popover="showPopover = false"
+          @dismissed-popover="(showPopover = false)"
         />
       </ion-card-content>
     </section>

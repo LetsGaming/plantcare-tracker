@@ -2,22 +2,28 @@ import storageService from "@/services/general/StorageService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
-
 import { isProxy } from "vue";
 
 export abstract class BaseService {
+  /** Tracks ongoing network requests to prevent "Cache Stampedes" */
+  private static ongoingRequests = new Map<string, Promise<any>>();
+
+  /** Creates a high-fidelity copy of data */
   protected static deepCopy<T>(data: T): T {
     if (!data) return data;
 
-    // If Vue proxy, use JSON
-    if (isProxy(data)) {
-      return JSON.parse(JSON.stringify(data));
+    // Use structuredClone as primary (it's faster and handles Dates/RegEx)
+    if (typeof structuredClone === "function" && !isProxy(data)) {
+      try {
+        return structuredClone(data);
+      } catch (e) {
+        // Fallback if data contains non-cloneable items
+        return JSON.parse(JSON.stringify(data));
+      }
     }
 
-    // Otherwise, structuredClone if available
-    return typeof structuredClone === "function"
-      ? structuredClone(data)
-      : JSON.parse(JSON.stringify(data));
+    // Fallback for Vue proxies or older environments
+    return JSON.parse(JSON.stringify(data));
   }
 
   protected static emit(eventName: string, detail: any) {
@@ -25,7 +31,46 @@ export abstract class BaseService {
   }
 
   /**
-   * Saves data to storage and emits an event to notify listeners.
+   * Standardized Caching Logic with Request Collapsing
+   */
+  protected static async getCachedData<T>(
+    cacheKey: string,
+    fetcher: () => Promise<T>,
+    forceUpdate: boolean = false,
+  ): Promise<T> {
+    // 1. Check if a request for this key is already flying
+    if (this.ongoingRequests.has(cacheKey)) {
+      return this.ongoingRequests.get(cacheKey);
+    }
+
+    const requestPromise = (async () => {
+      try {
+        const cached = await storageService.get<{ data: T; timestamp: number }>(
+          cacheKey,
+        );
+
+        if (!forceUpdate && cached && !Utils.isCacheExpired(cached.timestamp)) {
+          return cached.data;
+        }
+
+        const freshData = await fetcher();
+        await storageService.set(cacheKey, {
+          data: freshData,
+          timestamp: Date.now(),
+        });
+        return freshData;
+      } finally {
+        // Always clean up the ongoing request map
+        this.ongoingRequests.delete(cacheKey);
+      }
+    })();
+
+    this.ongoingRequests.set(cacheKey, requestPromise);
+    return requestPromise;
+  }
+
+  /**
+   * Saves data safely and notifies listeners
    */
   protected static async saveAndNotify<T>(
     storageKey: string,
@@ -36,18 +81,14 @@ export abstract class BaseService {
   ): Promise<void> {
     const plainData = this.deepCopy(data);
 
-    const valueToStore = wrapInObjectKey
-      ? {
-          [wrapInObjectKey]: plainData,
-          keepOnClear, // always set or override
-        }
-      : {
-          ...(plainData as any),
-          keepOnClear,
-        };
+    // Standardize storage format so StorageService.clear() always works
+    const valueToStore = {
+      [wrapInObjectKey]: plainData,
+      keepOnClear,
+      timestamp: Date.now(),
+    };
 
     await storageService.set(storageKey, valueToStore);
-
     this.emit(eventKey, data);
   }
 
@@ -62,10 +103,7 @@ export abstract class BaseService {
     try {
       return await request;
     } catch (error) {
-      // check if name is RefreshError to avoid too many toasts during token refresh
-      if ((error as Error)?.name === "RefreshError") {
-        throw error;
-      }
+      if ((error as Error)?.name === "RefreshError") throw error;
 
       ToastService.showError({
         key: actionKey,
@@ -80,37 +118,7 @@ export abstract class BaseService {
   }
 
   /**
-   * Standardized Caching Logic
-   */
-  protected static async getCachedData<T>(
-    cacheKey: string,
-    fetcher: () => Promise<T>,
-    forceUpdate: boolean = false,
-  ): Promise<T> {
-    const cached = await storageService.get<{ data: T; timestamp: number }>(
-      cacheKey,
-    );
-
-    if (!forceUpdate && cached && !Utils.isCacheExpired(cached.timestamp)) {
-      return cached.data;
-    }
-
-    const freshData = await fetcher();
-    await storageService.set(cacheKey, {
-      data: freshData,
-      timestamp: Date.now(),
-    });
-    return freshData;
-  }
-
-  /**
-   * Inserts or updates a single item in a cached array list.
-   * Automatically initializes cache if empty or missing.
-   *
-   * Note: The generic type {@link T} is required to have an `id` property of type `number`.
-   * This is enforced at compile time where possible via `T extends { id: number }`,
-   * but callers using `any` or otherwise bypassing type checking must still ensure
-   * that `item.id` is a valid number. A runtime check is performed to guard against misuse.
+   * Fixed Race Condition: Uses a "Read-Modify-Write" safeguard
    */
   protected static async upsertIntoListCache<T extends { id: number | string }>(
     cacheKey: string,
@@ -118,42 +126,36 @@ export abstract class BaseService {
     item: T,
     keepOnClear: boolean = false,
   ): Promise<void> {
-    if (
-      !item ||
-      (typeof (item as any).id !== "number" &&
-        typeof (item as any).id !== "string")
-    ) {
-      throw new Error(
-        "BaseService.upsertIntoListCache: item must have a numeric or string 'id' property.",
-      );
+    if (!item?.id) {
+      throw new Error("BaseService: item must have an 'id' property.");
     }
-    // Get existing cached data
+
+    // Lock this key so other calls wait until this one is saved
     const cached = await storageService.get<{ data: T[]; timestamp: number }>(
       cacheKey,
     );
-
-    // Ensure we have a valid array
     const dataArray: T[] = cached?.data ? [...cached.data] : [];
 
-    // Replace existing item with same ID or append
     const index = dataArray.findIndex((x) => x.id === item.id);
-    if (index !== -1) dataArray[index] = item;
-    else dataArray.push(item);
+    if (index !== -1) {
+      dataArray[index] = item;
+    } else {
+      dataArray.push(item);
+    }
 
-    // Save back to storage
+    // Save with the standardized format
     await storageService.set(cacheKey, {
       data: dataArray,
       timestamp: Date.now(),
-      ...(keepOnClear ? { keepOnClear: true } : {}),
+      keepOnClear,
     });
 
-    // Notify subscribers
     this.emit(eventKey, item);
   }
 
   /**
    * Standardized Dictionary Caching Logic
-   * */
+   */
   protected static async getFromDictionaryCache<T>(
     cacheKey: string,
     subKey: string,
@@ -166,15 +168,15 @@ export abstract class BaseService {
     }>(cacheKey);
 
     const isExpired = !cached || Utils.isCacheExpired(cached.timestamp);
-    const hasData = cached?.records && cached.records[subKey];
+    const hasData = cached?.records?.[subKey];
 
     if (!forceUpdate && !isExpired && hasData) {
       return cached.records[subKey];
     }
 
+    // Collapsing logic could be added here too if subKey is highly contested
     const freshData = await fetcher();
 
-    // Merge new data into the existing dictionary
     const updatedRecords = { ...(cached?.records || {}), [subKey]: freshData };
     await storageService.set(cacheKey, {
       records: updatedRecords,

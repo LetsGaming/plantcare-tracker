@@ -37,9 +37,9 @@
                   },
                 ]
           "
-          @dismiss="$emit('dissmised-popover')"
+          @dismiss="$emit('dismissed-popover')"
           @edit-click="$emit('edit-click', popoverItem)"
-        ></Popover>
+        />
       </ion-card-content>
     </ion-card>
   </div>
@@ -65,7 +65,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "Calendar",
-  emits: ["settings-click", "update-date", "dissmised-popover", "edit-click"],
+  emits: ["settings-click", "update-date", "dismissed-popover", "edit-click"],
   components: {
     IonCard,
     IonCardHeader,

@@ -1,5 +1,6 @@
 const { OpenAI } = require("openai");
 const NodeCache = require("node-cache");
+const logger = require("../../utils/logger");
 
 const cache = new NodeCache({ stdTTL: 43200, checkperiod: 3600 }); // Cache for 12 hours, check every hour
 
@@ -121,7 +122,7 @@ const getPlantCareFromOpenAI = async (
       return formattedResponse;
     }
   } catch (error) {
-    console.error("OpenAI request failed:", error.message);
+    logger.warn("OpenAI request failed:", error.message);
   }
 
   return null;

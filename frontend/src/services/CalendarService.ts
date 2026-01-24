@@ -2,7 +2,7 @@ import { BaseService } from "./base/BaseService";
 import storageService from "@/services/general/StorageService";
 
 /* =========================================================================
-   Defaults
+    Defaults
    ========================================================================= */
 
 const DEFAULT_WATERING_CATEGORIES: Category[] = [
@@ -24,7 +24,7 @@ const DEFAULT_WATERING_CATEGORIES: Category[] = [
 ];
 
 /* =========================================================================
-   Storage keys & events
+    Storage keys & events
    ========================================================================= */
 
 export enum StorageKeys {
@@ -47,23 +47,25 @@ export enum CalendarEvents {
  * CalendarService
  *
  * Local entity-centric service for calendar-related state.
- *
- * Architectural principles:
- * - Storage is the single source of truth
- * - All writes go through saveAndNotify
- * - Defaults are derived views, never silently persisted
- * - Consumers subscribe to events instead of polling
  */
 export default class CalendarService extends BaseService {
   /* =========================================================================
-     Category helpers
+      Category helpers
      ========================================================================= */
 
-  private static async getStoredCategories(
+  /**
+   * Internal helper to unwrap data from the new Storage format.
+   * Matches the structure: { data: T, keepOnClear: boolean, timestamp: number }
+   */
+  private static async getStoredData<T>(
     key: StorageKeys,
-  ): Promise<Category[]> {
-    const stored = await storageService.get<{ categories: Category[] }>(key);
-    return stored?.categories || [];
+    fallback: T,
+  ): Promise<T> {
+    const wrapped = await storageService.get<{ data: T }>(key);
+    // If wrapped exists and has a .data property, return it. Otherwise fallback.
+    return wrapped && Object.prototype.hasOwnProperty.call(wrapped, "data")
+      ? wrapped.data
+      : fallback;
   }
 
   private static async saveCategoriesInternal(
@@ -71,15 +73,16 @@ export default class CalendarService extends BaseService {
     event: CalendarEvents,
     categories: Category[],
   ): Promise<void> {
-    await this.saveAndNotify(key, event, categories, undefined, true);
+    // We use "data" as the wrap key to keep things consistent across the app
+    await this.saveAndNotify(key, event, categories, "data", true);
   }
 
   /* =========================================================================
-     Categories
+      Categories
      ========================================================================= */
 
   static async getCategories(): Promise<Category[]> {
-    return this.getStoredCategories(StorageKeys.CATEGORIES);
+    return this.getStoredData<Category[]>(StorageKeys.CATEGORIES, []);
   }
 
   static async saveCategories(categories: Category[]): Promise<void> {
@@ -91,15 +94,19 @@ export default class CalendarService extends BaseService {
   }
 
   /* =========================================================================
-     Watering categories
+      Watering categories
      ========================================================================= */
 
   static async getWateringCategories(): Promise<Category[]> {
-    const categories = await this.getStoredCategories(
-      StorageKeys.WATERING_CATEGORIES,
-    );
-
-    return categories.length ? categories : DEFAULT_WATERING_CATEGORIES;
+    // We use getCachedData here so multiple components loading the calendar
+    // don't all hit the storage at the same time.
+    return this.getCachedData(StorageKeys.WATERING_CATEGORIES, async () => {
+      const categories = await this.getStoredData<Category[]>(
+        StorageKeys.WATERING_CATEGORIES,
+        [],
+      );
+      return categories.length ? categories : [...DEFAULT_WATERING_CATEGORIES];
+    });
   }
 
   static async saveWateringCategories(categories: Category[]): Promise<void> {
@@ -116,15 +123,11 @@ export default class CalendarService extends BaseService {
   }
 
   /* =========================================================================
-     Reminder dates
+      Reminder dates
      ========================================================================= */
 
   static async getDates(): Promise<CalendarDates[]> {
-    const stored = await storageService.get<{
-      calendarDates: CalendarDates[];
-    }>(StorageKeys.DATES);
-
-    return stored?.calendarDates || [];
+    return this.getStoredData<CalendarDates[]>(StorageKeys.DATES, []);
   }
 
   static async saveDates(dates: CalendarDates[]): Promise<void> {
@@ -132,7 +135,7 @@ export default class CalendarService extends BaseService {
       StorageKeys.DATES,
       CalendarEvents.DATES_CHANGED,
       dates,
-      undefined,
+      "data",
       true,
     );
   }
@@ -152,11 +155,15 @@ export default class CalendarService extends BaseService {
   }
 
   /* =========================================================================
-     Settings
+      Settings
      ========================================================================= */
 
   static async getDeleteAfterThirty(): Promise<boolean> {
-    return Boolean(await storageService.get(StorageKeys.DELETE_AFTER_THIRTY));
+    const value = await this.getStoredData<boolean>(
+      StorageKeys.DELETE_AFTER_THIRTY,
+      false,
+    );
+    return !!value;
   }
 
   static async saveDeleteAfterThirty(value: boolean): Promise<void> {
@@ -164,17 +171,13 @@ export default class CalendarService extends BaseService {
       StorageKeys.DELETE_AFTER_THIRTY,
       CalendarEvents.DELETE_AFTER_THIRTY_CHANGED,
       value,
-      undefined,
+      "data",
       true,
     );
   }
 
   static async getFirstDayOfWeek(): Promise<number> {
-    const stored = await storageService.get<number>(
-      StorageKeys.FIRST_DAY_OF_WEEK,
-    );
-
-    return typeof stored === "number" ? stored : 1;
+    return this.getStoredData<number>(StorageKeys.FIRST_DAY_OF_WEEK, 1);
   }
 
   static async saveFirstDayOfWeek(day: number): Promise<void> {
@@ -182,7 +185,7 @@ export default class CalendarService extends BaseService {
       StorageKeys.FIRST_DAY_OF_WEEK,
       CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED,
       day,
-      undefined,
+      "data",
       true,
     );
   }

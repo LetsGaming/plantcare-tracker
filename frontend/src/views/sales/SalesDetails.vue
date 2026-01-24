@@ -198,18 +198,25 @@ export default defineComponent({
       return `-${Math.round(pct)}%`;
     },
     priceTrendLabel(): string {
+      if (!this.priceHistory || this.priceHistory.length === 0) return "";
+
+      // Sort by timestamp ascending
       const sorted = [...this.priceHistory].sort(
         (a, b) => a.timestamp - b.timestamp,
       );
       const [first, last] = sorted;
 
-      if (last.price < first.price) {
-        return this.t("sales.price_dropped");
+      const diff = last.price - first.price; // positive if increased
+      const diffAbs = Math.abs(diff);
+      const diffPct = ((diff / first.price) * 100).toFixed(2);
+
+      if (diff < 0) {
+        return `${this.t("sales.price_dropped")} -€${diffAbs.toFixed(2)} (${diffPct}%)`;
       }
-      if (last.price > first.price) {
-        return this.t("sales.price_increased");
+      if (diff > 0) {
+        return `${this.t("sales.price_increased")} +€${diffAbs.toFixed(2)} (${diffPct}%)`;
       }
-      return this.t("sales.price_unchanged");
+      return `${this.t("sales.price_unchanged")} €0.00 (0.00%)`;
     },
   },
   methods: {

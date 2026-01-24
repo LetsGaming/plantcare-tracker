@@ -10,7 +10,7 @@
       @settings-click="$emit('settings-click')"
       @edit-click="onEditClick"
       @update-date="onDateSelected"
-      @dissmised-popover="isPopoverOpen = false"
+      @dismissed-popover="isPopoverOpen = false"
     />
   </div>
 

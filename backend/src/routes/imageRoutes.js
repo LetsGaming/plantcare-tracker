@@ -228,7 +228,7 @@ const processAndStoreImage = (options = { requireEntityType: false }) => {
 
       next();
     } catch (err) {
-      console.error("Image Processing Error:", err);
+      logger.error("Image Processing Error:", err);
       next(err);
     }
   };

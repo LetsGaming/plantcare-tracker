@@ -7,9 +7,10 @@ const ENDPOINT = "/sales";
 const CACHE_KEY = "sales_data";
 const RESOURCE_KEY = "sales.title";
 const PRICE_HISTORY_CACHE = "sales_price_history";
-const MAX_PRICE_POINTS = 30; // keep last 30 points per sale
+const MAX_PRICE_POINTS = 30;
 
 export enum SaleEvents {
+  SALES_UPDATED = "sales-updated",
   SALE_SEEN = "sale-seen",
   PRICE_HISTORY_UPDATED = "price-history-updated",
 }
@@ -22,7 +23,7 @@ export default class SalesService extends BaseService {
   }): Promise<Sale[]> {
     const forceUpdate = options?.forceUpdate ?? false;
 
-    const result = await this.getCachedData(
+    return await this.getCachedData(
       CACHE_KEY,
       async () => {
         const cached = await this.getCachedSales();
@@ -35,17 +36,15 @@ export default class SalesService extends BaseService {
       },
       forceUpdate,
     );
-
-    return result;
   }
 
-  /** Stream sales updates */
+  /** Stream sales updates with improved performance and batching */
   private static streamSales(
     existingIds: Set<string>,
     onUpdate?: (chunk: Sale[]) => void,
   ): Promise<Sale[]> {
     return new Promise((resolve, reject) => {
-      const accumulated: Sale[] = [];
+      const accumulatedMap = new Map<string, Sale>();
       let stopFn: (() => void) | null = null;
 
       (async () => {
@@ -55,25 +54,29 @@ export default class SalesService extends BaseService {
             async (event) => {
               try {
                 const rawChunk = SaleMapper.convertToSales(event.data);
-                const flaggedChunk = rawChunk.map((sale) => ({
-                  ...sale,
-                  isNew: !existingIds.has(sale.id),
-                }));
+                const flaggedChunk: Sale[] = [];
 
-                flaggedChunk.forEach((sale) => {
-                  if (!accumulated.find((s) => s.id === sale.id)) {
-                    accumulated.push(sale);
+                for (const sale of rawChunk) {
+                  const enhancedSale = {
+                    ...sale,
+                    isNew: !existingIds.has(sale.id),
+                  };
+
+                  // Use Map for O(1) lookup instead of .find() O(n)
+                  if (!accumulatedMap.has(sale.id)) {
+                    accumulatedMap.set(sale.id, enhancedSale);
+                    flaggedChunk.push(enhancedSale);
                   }
-                });
+                }
 
-                onUpdate?.(flaggedChunk);
+                if (flaggedChunk.length > 0) {
+                  onUpdate?.(flaggedChunk);
 
-                // Save cache
-                await this.saveAndNotify(CACHE_KEY, "", accumulated, "data");
-
-                // Update price history for all new/updated sales
-                for (const sale of flaggedChunk) {
-                  await this.addPricePoint(sale);
+                  // Optimization: Only update price points here.
+                  // Delay full cache save until the end to avoid storage thrashing.
+                  for (const sale of flaggedChunk) {
+                    await this.addPricePoint(sale);
+                  }
                 }
               } catch (err) {
                 stopFn?.();
@@ -84,9 +87,18 @@ export default class SalesService extends BaseService {
               stopFn?.();
               reject(err);
             },
-            () => {
+            async () => {
               stopFn?.();
-              resolve(accumulated);
+              const finalData = Array.from(accumulatedMap.values());
+              // Final Save: Write once when the stream is done
+              await this.saveAndNotify(
+                CACHE_KEY,
+                SaleEvents.SALES_UPDATED,
+                finalData,
+                "data",
+                true,
+              );
+              resolve(finalData);
             },
           );
         } catch (err) {
@@ -96,13 +108,11 @@ export default class SalesService extends BaseService {
     });
   }
 
-  /** Get a single sale */
   static async getSaleById(saleId: string): Promise<Sale | null> {
     const sales = await this.getAllSales();
     return sales.find((s) => s.id === saleId) || null;
   }
 
-  /** Return cached sales array */
   static async getCachedSales(): Promise<Sale[] | null> {
     const cached = await storageService.get<{
       data: Sale[];
@@ -111,13 +121,11 @@ export default class SalesService extends BaseService {
     return cached?.data ?? null;
   }
 
-  /** Count new sales */
   static async getNewSalesCount(): Promise<number> {
     const cached = await this.getCachedSales();
     return cached ? cached.filter((s) => s.isNew).length : 0;
   }
 
-  /** Mark sale as seen */
   static async markSaleAsSeen(saleId: string): Promise<void> {
     const cached = await this.getCachedSales();
     if (!cached) return;
@@ -131,46 +139,40 @@ export default class SalesService extends BaseService {
       SaleEvents.SALE_SEEN,
       updatedSales,
       "data",
+      true,
     );
   }
 
-  /** Add a price point for a sale (list cache) */
+  /** Fixed the event key bug and improved point checking */
   static async addPricePoint(sale: Sale): Promise<void> {
-    // Get existing cache
     const cached = await storageService.get<{
       data: { id: string; points: { price: number; timestamp: number }[] }[];
       timestamp: number;
     }>(PRICE_HISTORY_CACHE);
 
-    // Find existing record for this sale ID
     const existing = cached?.data?.find((x) => x.id === sale.id);
-
-    // Compute new points array
     const last = existing?.points?.[existing.points.length - 1];
-    const newPoints =
-      !last || last.price !== sale.price
-        ? [
-            ...(existing?.points || []),
-            { price: sale.price, timestamp: Date.now() },
-          ]
-        : existing?.points || [];
 
-    // Trim to max points
-    const trimmedPoints = newPoints.slice(-MAX_PRICE_POINTS);
+    // Only proceed if the price is actually different
+    if (last && last.price === sale.price) return;
 
-    // Upsert into cache with keepOnClear
+    const newPoints = [
+      ...(existing?.points || []),
+      { price: sale.price, timestamp: Date.now() },
+    ].slice(-MAX_PRICE_POINTS);
+
+    // FIXED: Corrected the event key to PRICE_HISTORY_UPDATED
     await this.upsertIntoListCache(
       PRICE_HISTORY_CACHE,
-      SaleEvents.SALE_SEEN,
+      SaleEvents.PRICE_HISTORY_UPDATED,
       {
         id: sale.id,
-        points: trimmedPoints,
+        points: newPoints,
       },
       true,
     );
   }
 
-  /** Get price history for a sale */
   static async getPriceHistory(
     saleId: string,
   ): Promise<{ price: number; timestamp: number }[]> {

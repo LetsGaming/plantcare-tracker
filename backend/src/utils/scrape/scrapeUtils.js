@@ -1,6 +1,7 @@
 const axios = require("axios");
 const NodeCache = require("node-cache");
 const { chromium } = require("playwright");
+const logger = require("../logger");
 
 const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 }); // 24h TTL
 
@@ -73,9 +74,9 @@ const fetchData = async (
 
     return relevantData;
   } catch (err) {
-    console.error(
+    logger.error(
       `Error fetching ${url} (${useChromium ? "chromium" : "axios"}):`,
-      err.message,
+      err,
     );
     return null;
   }
