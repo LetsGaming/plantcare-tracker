@@ -1,154 +1,193 @@
 import { Storage } from "@ionic/storage";
 
+/**
+ * High-performance wrapper around @ionic/storage.
+ * Ensures safe async initialization and optimized parallel operations.
+ */
 class StorageService {
-  private storage: Storage | null = null;
+  /** Internal Ionic Storage instance */
+  private storage!: Storage;
+
+  /**
+   * Promise that resolves once the storage engine is fully initialized.
+   * All public methods await this to guarantee readiness.
+   */
+  private readonly ready: Promise<void>;
+
+  /** Shared encoder instance to avoid repeated allocations */
+  private readonly encoder = new TextEncoder();
 
   constructor() {
-    this.init();
+    this.ready = this.init();
   }
 
-  // Initialize Ionic Storage
-  async init() {
+  /**
+   * Initializes the Ionic Storage engine.
+   */
+  private async init(): Promise<void> {
     const storage = new Storage();
     this.storage = await storage.create();
   }
 
   /**
-   * Set an item in storage
-   * @param key Key for the item
-   * @param value Value to store (can be string, object, array, etc.)
+   * Stores a value under the given key.
+   *
+   * @param key Unique storage key
+   * @param value Any serializable value
    */
   async set(key: string, value: any): Promise<void> {
-    if (this.storage) {
-      await this.storage.set(key, value);
-    }
+    await this.ready;
+    await this.storage.set(key, value);
   }
 
   /**
-   * Get an item from storage
-   * @param key Key for the item
-   * @returns The value stored or null if not found
+   * Retrieves a value by key.
+   *
+   * @template T
+   * @param key Storage key
+   * @returns The stored value or null if not found
    */
   async get<T>(key: string): Promise<T | null> {
-    if (this.storage) {
-      return await this.storage.get(key);
-    }
-    return null;
+    await this.ready;
+    return this.storage.get(key);
   }
 
   /**
-   * Remove an item from storage
-   * @param key Key for the item to remove
+   * Removes a value from storage.
+   *
+   * @param key Storage key to remove
    */
   async remove(key: string): Promise<void> {
-    if (this.storage) {
-      await this.storage.remove(key);
-    }
+    await this.ready;
+    await this.storage.remove(key);
   }
 
   /**
-   * Check if a key exists in storage
-   * @param key Key to check
-   * @returns True if key exists, false otherwise
+   * Checks whether a key exists in storage.
+   *
+   * @param key Storage key to check
+   * @returns True if the key exists, false otherwise
    */
   async exists(key: string): Promise<boolean> {
-    const value = await this.get(key);
-    return value !== null;
+    return (await this.get(key)) !== null;
   }
 
   /**
-   * Clear items that DON'T have the keepOnClear flag.
-   *  Uses Promise.all for 10x faster performance.
+   * Clears all items EXCEPT those with a `keepOnClear` flag.
+   * All reads and removals are fully parallelized.
    */
   async clear(): Promise<void> {
-    if (!this.storage) {
-      return;
-    }
+    await this.ready;
+
     const keys = await this.storage.keys();
 
-    // 1. Start all "get" requests at once
-    const allItems = await Promise.all(
-      keys.map(async (key) => ({ key, val: await this.storage!.get(key) })),
+    const items = await Promise.all(
+      keys.map(async (key) => ({
+        key,
+        value: await this.storage.get(key),
+      })),
     );
 
-    // 2. Filter for items that should be removed
-    const keysToRemove = allItems
-      .filter((item) => !item.val || !item.val.keepOnClear)
-      .map((item) => item.key);
-
-    // 3. Remove them all in parallel
-    await Promise.all(keysToRemove.map((key) => this.storage!.remove(key)));
+    await Promise.all(
+      items
+        .filter((item) => !item.value || !item.value.keepOnClear)
+        .map((item) => this.storage.remove(item.key)),
+    );
   }
 
   /**
-   * Clear all items in storage, including those with keepOnClear flag
+   * Clears all items from storage, including protected ones.
    */
   async clearAll(): Promise<void> {
-    if (this.storage) {
-      await this.storage.clear();
-    }
+    await this.ready;
+    await this.storage.clear();
   }
 
   /**
-   * Get all keys in storage
-   * @returns Array of keys
+   * Returns all keys currently stored.
+   *
+   * @returns Array of storage keys
    */
   async keys(): Promise<string[]> {
-    if (this.storage) {
-      return await this.storage.keys();
-    }
-    return [];
+    await this.ready;
+    return this.storage.keys();
   }
 
   /**
-   * Get the number of items stored
-   * @returns Number of items in storage
-   */
-  async length(): Promise<number> {
-    if (this.storage) {
-      return await this.storage.length();
-    }
-    return 0;
-  }
-
-  /**
-   * Set multiple items at once
-   * @param items An array of key-value pairs
+   * Stores multiple key-value pairs in parallel.
+   *
+   * @param items Array of key-value objects
    */
   async setMultiple(items: { key: string; value: any }[]): Promise<void> {
-    if (this.storage) {
-      const promises = items.map((item) =>
-        this.storage!.set(item.key, item.value),
-      );
-      await Promise.all(promises);
-    }
+    await this.ready;
+    await Promise.all(
+      items.map((item) => this.storage.set(item.key, item.value)),
+    );
   }
 
   /**
-   * Get multiple items at once
-   * @param keys An array of keys to fetch
-   * @returns An object with key-value pairs
+   * Retrieves multiple values in parallel.
+   *
+   * @param keys Array of storage keys
+   * @returns Object mapping keys to their values
    */
-  async getMultiple(keys: string[]): Promise<{ [key: string]: any }> {
-    const result: { [key: string]: any } = {};
-    if (this.storage) {
-      const promises = keys.map(async (key) => {
-        result[key] = await this.storage!.get(key);
-      });
-      await Promise.all(promises);
-    }
+  async getMultiple(keys: string[]): Promise<Record<string, any>> {
+    await this.ready;
+
+    const result: Record<string, any> = {};
+
+    await Promise.all(
+      keys.map(async (key) => {
+        result[key] = await this.storage.get(key);
+      }),
+    );
+
     return result;
   }
 
   /**
-   * Remove multiple items at once
-   * @param keys An array of keys to remove
+   * Removes multiple keys from storage in parallel.
+   *
+   * @param keys Array of keys to remove
    */
   async removeMultiple(keys: string[]): Promise<void> {
-    if (this.storage) {
-      const promises = keys.map((key) => this.storage!.remove(key));
-      await Promise.all(promises);
-    }
+    await this.ready;
+    await Promise.all(keys.map((key) => this.storage.remove(key)));
+  }
+
+  /**
+   * Returns the number of stored entries.
+   *
+   * @returns Number of stored items
+   */
+  async length(): Promise<number> {
+    await this.ready;
+    return this.storage.length();
+  }
+
+  /**
+   * Calculates the approximate total size of storage contents in bytes.
+   * Uses parallel reads and avoids unnecessary allocations.
+   *
+   * @returns Total storage size in bytes
+   */
+  async getSizeInBytes(): Promise<number> {
+    await this.ready;
+
+    const keys = await this.storage.keys();
+    let totalSize = 0;
+
+    await Promise.all(
+      keys.map(async (key) => {
+        const value = await this.storage.get(key);
+
+        totalSize +=
+          this.encoder.encode(key).length +
+          this.encoder.encode(JSON.stringify(value)).length;
+      }),
+    );
+
+    return totalSize;
   }
 }
 

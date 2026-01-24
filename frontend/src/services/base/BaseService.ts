@@ -81,7 +81,6 @@ export abstract class BaseService {
     wrapInObjectKey: string = "data",
     keepOnClear: boolean = false,
   ): Promise<void> {
-    console.log(`Saving data to ${storageKey} and emitting ${eventKey}, keepOnClear: ${keepOnClear}`);
     const plainData = this.deepCopy(data);
 
     // Standardize storage format so StorageService.clear() always works
@@ -90,8 +89,6 @@ export abstract class BaseService {
       keepOnClear: keepOnClear,
       timestamp: Date.now(),
     };
-
-    console.log(`Data to store for ${storageKey}:`, valueToStore);
 
     await storageService.set(storageKey, valueToStore);
     this.emit(eventKey, data);

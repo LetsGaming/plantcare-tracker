@@ -101,7 +101,6 @@ export default defineComponent({
 
       const values = this.data.datasets[0].data as number[];
       const { min, max } = this.computeYAxisBounds(values);
-      console.log({ min, max });
       this.chartData = {
         ...this.data,
         datasets: this.data.datasets.map((ds) => ({
