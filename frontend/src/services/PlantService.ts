@@ -114,7 +114,6 @@ export default class PlantService extends BaseService {
         ),
       forceUpdate
     );
-
     return result || [];
   }
 
@@ -183,8 +182,8 @@ export default class PlantService extends BaseService {
   static async getPersonalPlants(
     forceUpdate: boolean = false
   ): Promise<Plant[]> {
-    const userId = await UserService.getUserId();
     const plants = await this.getAllPlants(forceUpdate);
+    const userId = await UserService.getUserId();
     return plants.filter((p) => p.userId === userId);
   }
 

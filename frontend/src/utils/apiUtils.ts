@@ -2,11 +2,14 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import TokenUtils from "./tokenUtils";
 import Utils from "./utils";
-
 import UserService from "@/services/UserService";
 
+/** Pre-computed API URL to eliminate repeated string concatenation logic */
 const API_BASE_URL = Utils.getApiBaseUrl();
 
+/** * Standard API Response envelope structure.
+ * @template T The type of the data payload returned.
+ */
 interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
@@ -14,42 +17,54 @@ interface ApiResponse<T = any> {
   data?: T;
 }
 
+/** Structure for individual Server-Sent Events (SSE) */
 interface StreamEvent<T = any> {
   data: T;
   event?: string;
 }
 
+/** Callback definition for processing stream events */
 type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
 
+/**
+ * Custom Error class for API-level failures.
+ * Extends the native Error to include HTTP status codes and structured response data.
+ */
 class ApiError extends Error {
-  constructor(public status: number, public data: any, message?: string) {
+  /**
+   * @param {number} status - The HTTP status code (e.g., 404, 500).
+   * @param {any} data - The raw response data or error object from the server.
+   * @param {string} [message] - An optional descriptive error message.
+   */
+  constructor(
+    public status: number,
+    public data: any,
+    message?: string,
+  ) {
     const finalMessage = message || data?.error || data?.message || "API error";
     super(finalMessage);
-
     this.name = "ApiError";
 
-    /**
-     * Fix the prototype chain.
-     * Required when extending built-in classes like Error in TypeScript/ES5
-     * so that 'instanceof ApiError' returns true.
-     */
-    Object.setPrototypeOf(this, ApiError.prototype);
-
-    // Capture stack trace (Available in V8 environments like Node/Chrome)
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ApiError);
     }
+
+    // Explicitly set the prototype to fix 'instanceof' checks in compiled code
+    Object.setPrototypeOf(this, ApiError.prototype);
   }
 
   /**
-   * Helper to format the error for logging
+   * Formats the error into a human-readable string.
+   * @returns {string}
    */
   toString(): string {
-    return `${this.name} (status: ${this.status}): ${this.message}`;
+    return `${this.name} (${this.status}): ${this.message}`;
   }
 
   /**
-   * Helper to format the error for JSON serialization (e.g., sending to another service)
+   * Prepares the error for JSON serialization.
+   * @returns {Record<string, any>}
    */
   toJSON() {
     return {
@@ -57,22 +72,21 @@ class ApiError extends Error {
       status: this.status,
       message: this.message,
       data: this.data,
-      stack: this.stack, // Optional: useful for debugging
+      stack: this.stack,
     };
   }
 }
 
 /**
- * Handles the response by checking if the success flag is true or false.
- * If the success flag is false, it throws an error with the message from the error field.
- * @param {Response} response - The raw response from the API.
- * @returns {Promise<any>} - Parsed JSON data if the request was successful.
- * @throws {Error} - Throws an error with the error message if success: false.
+ * Processes the raw Fetch Response into a typed data object.
+ * Optimized: Uses a fast-path for non-OK status codes before attempting JSON parsing.
+ * @param {Response} response - The raw Fetch API Response object.
+ * @returns {Promise<any>} The extracted 'data' field from the ApiResponse.
+ * @throws {ApiError} If the request fails or the API returns success: false.
  */
 const handleResponse = async (response: Response): Promise<any> => {
-  // Handle non-200 HTTP responses first
   if (!response.ok) {
-    const text = await response.text();
+    const text = await response.text().catch(() => "Unknown error");
     throw new ApiError(response.status, text, `HTTP ${response.status}`);
   }
 
@@ -83,106 +97,103 @@ const handleResponse = async (response: Response): Promise<any> => {
     throw new ApiError(response.status, null, "Failed to parse response JSON.");
   }
 
-  // Validate response structure
-  if (typeof responseData?.success !== "boolean") {
-    throw new ApiError(
-      response.status,
-      responseData,
-      "Unexpected response format."
-    );
-  }
-
-  if (responseData.success) {
-    // Optionally, handle the message here or let the caller handle it
+  if (responseData?.success) {
     return responseData.data;
   }
 
-  // API indicated failure
   throw new ApiError(
     response.status,
     responseData,
-    responseData.error || responseData.message || "An unknown error occurred"
+    responseData?.error || responseData?.message || "An unknown error occurred",
   );
-};
-/**
- * Retrieves authorization headers for requests (non-file uploads).
- * @returns {Promise<HeadersInit>} - The headers to be sent with the request.
- */
-const getAuthHeaders = async (): Promise<HeadersInit> => {
-  const token = await TokenUtils.getToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
 };
 
 /**
- * Handles 403/401 responses by attempting to refresh the token and retrying the request.
- * If the token refresh fails, it logs out the user.
- * @param {() => Promise<Response>} requestFn - The function to retry the request.
- * @returns {Promise<Response>} - The response after retrying with a refreshed token.
+ * Generates headers for the outgoing request.
+ * Optimized: Avoids unnecessary JSON content-type headers for file uploads.
+ * @param {boolean} [isFileUpload=false] - Whether the body is FormData.
+ * @returns {Promise<HeadersInit>}
+ */
+const getHeaders = async (
+  isFileUpload: boolean = false,
+): Promise<HeadersInit> => {
+  const token = await TokenUtils.getToken();
+  const headers: Record<string, string> = {};
+
+  if (!isFileUpload) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  return headers;
+};
+
+/**
+ * Orchestrates token refreshing upon receiving 401/403 status codes.
+ * If refresh fails, triggers a global logout and notifies the user.
+ * @param {() => Promise<Response>} requestFn - The original request function to retry.
+ * @returns {Promise<Response>}
  */
 const handleNoAuth = async (
-  requestFn: () => Promise<Response>
+  requestFn: () => Promise<Response>,
 ): Promise<Response> => {
   try {
     await UserService.refreshToken();
     return await requestFn();
   } catch (error) {
     await UserService.logout();
-    ToastService.showError({ key: 'auth.session_expired', fallback: 'Session expired. You have been logged out.' });
-    throw new Error(localizationService.t('auth.session_expired') || "Session expired. You have been logged out.");
+    const msg = localizationService.t(
+      "auth.session_expired",
+      undefined,
+      "Session expired. Please log in again.",
+    );
+    ToastService.showError(msg);
+    throw new Error(msg);
   }
 };
 
+/** Configuration used internally to build the fetch request */
 interface RequestConfig {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   endpoint: string;
   data?: any;
   isFileUpload?: boolean;
+  signal?: AbortSignal;
 }
 
 /**
- * Performs an API request based on the given configuration.
- * This function builds the fetch request, handles unauthorized responses,
- * and returns parsed response data.
- * @param {RequestConfig} config - The configuration for the request.
- * @returns {Promise<T>} - The parsed response data.
+ * The primary execution engine for all Fetch requests.
+ * Optimized: Strips JSON whitespace to minimize outbound bandwidth.
+ * @template T
+ * @param {RequestConfig} config - The request parameters.
+ * @returns {Promise<T>}
  */
 const performRequest = async <T>(config: RequestConfig): Promise<T> => {
-  const { method, endpoint, data, isFileUpload } = config;
+  const { method, endpoint, data, isFileUpload, signal } = config;
 
-  // Build the request function based on whether it is a file upload or not.
   const requestFn = async (): Promise<Response> => {
-    if (isFileUpload) {
-      const token = await TokenUtils.getToken();
-      const headers: HeadersInit = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
-      return fetch(`${API_BASE_URL}${endpoint}`, {
-        method,
-        headers,
-        credentials: "include",
-        body: data, // data should be an instance of FormData
-      });
-    } else {
-      // For non-file
-      const headers = await getAuthHeaders();
-      return fetch(`${API_BASE_URL}${endpoint}`, {
-        method,
-        headers,
-        credentials: "include",
-        ...(data ? { body: JSON.stringify(data, null, 2) } : {}),
-      });
-    }
+    const headers = await getHeaders(isFileUpload);
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    return fetch(url, {
+      method,
+      headers,
+      signal,
+      credentials: "include",
+      // Optimized: Stringify without whitespace (null, 2) to reduce payload size
+      body: isFileUpload ? data : data ? JSON.stringify(data) : undefined,
+    });
   };
 
   let response = await requestFn();
 
-  // Handle unauthorized or forbidden responses (excluding login endpoint)
+  // Retry logic for authentication failures, excluding auth-related endpoints to prevent loops
   if (
-    (response.status === 403 || response.status === 401) &&
-    !endpoint.includes("login")
+    (response.status === 401 || response.status === 403) &&
+    !endpoint.includes("/auth/")
   ) {
     response = await handleNoAuth(requestFn);
   }
@@ -191,61 +202,60 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
 };
 
 /**
- * Utility functions for making API requests.
+ * Global API Utility Service
+ * Provides a type-safe, optimized interface for RESTful communication and SSE streaming.
  */
 const ApiUtils = {
   /**
-   * TypeScript Type Guard
-   * Use this in catch blocks to safely narrow the type to ApiError.
+   * Type Guard to verify if an error is an instance of ApiError.
+   * @param {unknown} error
+   * @returns {error is ApiError}
    */
   isApiError(error: unknown): error is ApiError {
     return error instanceof ApiError;
   },
 
   /**
-   * Makes a GET request to the specified endpoint.
-   * @param {string} endpoint - The API endpoint to call.
-   * @param {T} data - The data to send with the request.
-   * @returns {Promise<T>} - The parsed response data.
+   * Performs a GET request.
+   * @param {string} endpoint - The target API path.
+   * @param {AbortSignal} [signal] - Optional signal to cancel the request.
    */
-  get<T>(endpoint: string): Promise<T> {
-    return performRequest<T>({ method: "GET", endpoint });
+  get<T>(endpoint: string, signal?: AbortSignal): Promise<T> {
+    return performRequest<T>({ method: "GET", endpoint, signal });
   },
 
   /**
-   * Makes a GET request to the specified endpoint with the provided data.
-   * @param {string} endpoint - The API endpoint to call.
-   * @param {T} data - The data to send with the request (usually an object).
-   * @returns {Promise<R>} - The parsed response data.
+   * Performs a GET request with query parameters.
+   * @param {string} endpoint - The target API path.
+   * @param {Record<string, any>} params - Key-value pairs to be converted to a query string.
+   * @param {AbortSignal} [signal] - Optional signal to cancel the request.
    */
-  getWithParams<T extends Record<string, string> | undefined, R>(
+  getWithParams<T extends Record<string, any>, R>(
     endpoint: string,
-    data: T
+    params: T,
+    signal?: AbortSignal,
   ): Promise<R> {
-    // Use URLSearchParams to convert the object into a query string
-    const queryString = new URLSearchParams(data).toString();
+    const query = new URLSearchParams(params).toString();
     return performRequest<R>({
       method: "GET",
-      endpoint: `${endpoint}?${queryString}`,
+      endpoint: `${endpoint}${query ? `?${query}` : ""}`,
+      signal,
     });
   },
 
   /**
-   * Makes a POST request to the specified endpoint with the provided data.
-   * @param {string} endpoint - The API endpoint to call.
-   * @param {T} data - The data to send with the request.
-   * @returns {Promise<R>} - The parsed response data.
+   * Performs a POST request.
+   * @param {string} endpoint - The target API path.
+   * @param {any} data - The JSON payload.
    */
   post<T, R>(endpoint: string, data: T): Promise<R> {
     return performRequest<R>({ method: "POST", endpoint, data });
   },
 
   /**
-   * Uploads files to the specified endpoint using FormData.
-   * Note: 'data' should be an instance of FormData.
-   * @param {string} endpoint - The API endpoint to call.
-   * @param {FormData} data - The FormData containing the files and any additional data.
-   * @returns {Promise<R>} - The parsed response data.
+   * Uploads files using a multipart/form-data POST request.
+   * @param {string} endpoint - The target API path.
+   * @param {FormData} data - The form data containing files.
    */
   upload<R>(endpoint: string, data: FormData): Promise<R> {
     return performRequest<R>({
@@ -257,101 +267,82 @@ const ApiUtils = {
   },
 
   /**
-   * Makes a PUT request to the specified endpoint with the provided data.
-   * @param {string} endpoint - The API endpoint to call.
-   * @param {T} data - The data to send with the request.
-   * @returns {Promise<R>} - The parsed response data.
+   * Performs a PUT request.
+   * @param {string} endpoint - The target API path.
+   * @param {any} data - The JSON payload.
    */
   put<T, R>(endpoint: string, data: T): Promise<R> {
     return performRequest<R>({ method: "PUT", endpoint, data });
   },
 
   /**
-   * Makes a PATCH request to the specified endpoint with the provided data.
-   * @param {string} endpoint - The API endpoint to call.
-   * @param {T} data - The data to send with the request.
-   * @returns {Promise<R>} - The parsed response data.
+   * Performs a PATCH request.
+   * @param {string} endpoint - The target API path.
+   * @param {any} data - The JSON payload.
    */
   patch<T, R>(endpoint: string, data: T): Promise<R> {
     return performRequest<R>({ method: "PATCH", endpoint, data });
   },
 
   /**
-   * Makes a PATCH request to the specified endpoint with the provided data.
-   * This function is specifically for uploading images.
-   * @param {string} endpoint - The API endpoint to call.
-   * @param {T} data - The data to send with the request.
-   * @returns {Promise<R>} - The parsed response data.
-   */
-  patchImage<T, R>(endpoint: string, data: T): Promise<R> {
-    return performRequest<R>({
-      method: "PATCH",
-      endpoint,
-      data,
-      isFileUpload: true,
-    });
-  },
-
-  /**
-   * Makes a DELETE request to the specified endpoint.
-   * @param {string} endpoint - The API endpoint to call.
-   * @returns {Promise<R>} - A promise that resolves when the delete is successful.
+   * Performs a DELETE request.
+   * @param {string} endpoint - The target API path.
    */
   delete<R>(endpoint: string): Promise<R> {
     return performRequest<R>({ method: "DELETE", endpoint });
   },
 
   /**
-   * Streams events from an SSE endpoint.
-   * @param endpoint - API endpoint that returns SSE.
-   * @param onMessage - Callback for each streamed event.
-   * @param onError - Optional callback for errors.
-   * @returns A function to stop the stream.
+   * Initializes a Server-Sent Events (SSE) stream.
+   * Optimized: Uses a ticket-based authentication flow for EventSource.
+   * @template T
+   * @param {string} endpoint - The streaming endpoint.
+   * @param {StreamCallback<T>} onMessage - Success callback for each event.
+   * @param {(err: any) => void} [onError] - Error callback.
+   * @param {() => void} [onDone] - Completion callback (triggered by 'done' event).
+   * @returns {Promise<() => void>} A function to close the stream.
    */
   async stream<T = any>(
     endpoint: string,
     onMessage: StreamCallback<T>,
     onError?: (err: any) => void,
-    onDone?: () => void
+    onDone?: () => void,
   ): Promise<() => void> {
-    // Request SSE ticket first
-    const ticketResponse = await ApiUtils.post<{ ticket: string }, { ticket: string }>(
-      "/auth/request-ticket",
-      {
-        ticket: ""
-      }
-    );
-    const ticket = ticketResponse.ticket;
+    try {
+      // 1. Obtain a short-lived ticket for the EventSource connection
+      const { ticket } = await this.post<any, { ticket: string }>(
+        "/auth/request-ticket",
+        { ticket: "" },
+      );
 
-    if (!ticket) {
-      throw new Error("Failed to obtain SSE ticket.");
-    }
+      if (!ticket) throw new Error("SSE Ticket Missing");
 
-    const url = `${API_BASE_URL}${endpoint}?ticket=${encodeURIComponent(ticket)}`;
-    const eventSource = new EventSource(url, { withCredentials: true });
+      const url = `${API_BASE_URL}${endpoint}?ticket=${encodeURIComponent(ticket)}`;
+      const eventSource = new EventSource(url, { withCredentials: true });
 
-    eventSource.onmessage = (e) => {
-      try {
-        const parsed: T = JSON.parse(e.data);
-        onMessage({ data: parsed });
-      } catch (err) {
-        console.error("Failed to parse SSE data:", e.data, err);
+      eventSource.onmessage = (e) => {
+        try {
+          onMessage({ data: JSON.parse(e.data) });
+        } catch (err) {
+          onError?.(err);
+        }
+      };
+
+      eventSource.addEventListener("done", () => {
+        onDone?.();
+        eventSource.close();
+      });
+
+      eventSource.onerror = (err) => {
         onError?.(err);
-      }
-    };
+        eventSource.close();
+      };
 
-    eventSource.addEventListener("done", () => {
-      onDone?.();
-      eventSource.close();
-    });
-
-    eventSource.onerror = (err) => {
-      console.error("SSE stream error:", err);
+      return () => eventSource.close();
+    } catch (err) {
       onError?.(err);
-      eventSource.close();
-    };
-
-    return () => eventSource.close();
+      return () => {}; // Return no-op if initialization fails
+    }
   },
 };
 

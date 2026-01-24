@@ -1,130 +1,175 @@
 import { DateTime } from "luxon";
 import { modalController } from "@ionic/vue";
-
 import config from "@/config.json";
+
+/** Environment identifiers for configuration mapping */
 type Environment = "development" | "production";
 
-const getLocalDate = (dateString: string) => {
-  // Get the local time zone
-  const timeZone = DateTime.local().zoneName;
+/** * Static Environment Constants
+ * Pre-computing these at module load time avoids repeated lookups and logic
+ * during the application's runtime hot-paths.
+ */
+const ENV: Environment = (process.env.NODE_ENV as Environment) || "development";
+const ACTIVE_CONFIG = config[ENV];
 
-  // If the date string is already in UTC (ends with 'Z'), parse it directly without 'zone: utc'
-  let utcDate = DateTime.fromISO(dateString);
+/** Pre-computed API URL to avoid repeated string concatenation */
+const API_URL = (() => {
+  const { server } = ACTIVE_CONFIG;
+  const port = "port" in server ? `:${server.port}` : "";
+  return `${server.base_url}${port}${server.base_path}${server.api_version}`;
+})();
 
-  // If the date string is in UTC (i.e., ends with 'Z'), make sure it's treated as UTC by adjusting the time zone
-  if (dateString.endsWith("Z")) {
-    utcDate = utcDate.setZone("utc", { keepLocalTime: true });
-  }
+/** Pre-computed expiry threshold in milliseconds */
+const CACHE_EXPIRY_MS = ACTIVE_CONFIG.storage.expire_h * 60 * 60 * 1000;
 
-  // Now convert to the local time zone
-  const localDate = utcDate.setZone(timeZone);
-  return localDate;
+/**
+ * Internal helper for high-performance date parsing.
+ * Luxon's fromISO natively detects 'Z' suffixes; toLocal() ensures the transition.
+ * @param {string} dateString - ISO 8601 date string.
+ * @returns {DateTime}
+ */
+const getLocalDate = (dateString: string): DateTime => {
+  return DateTime.fromISO(dateString).toLocal();
 };
 
+/**
+ * Global Utility Service
+ * Provides optimized helper functions for configuration, date manipulation, and UI control.
+ */
 const Utils = {
+  /**
+   * Retrieves the environment-specific configuration object.
+   * @returns {typeof ACTIVE_CONFIG} The active configuration segment.
+   */
   getConfig() {
-    const environment = process.env.NODE_ENV || "development";
-    const envConfig = config[environment as Environment];
-    return envConfig;
-  },
-
-  getAppTitle(): string {
-    return this.getConfig().frontend.app_title;
-  },
-
-  getApiBaseUrl(): string {
-    const envConfig = this.getConfig();
-    const apiUrl =
-      envConfig.server.base_url +
-      ("port" in envConfig.server ? `:${envConfig.server.port}` : "");
-    return `${apiUrl}${envConfig.server.base_path}${envConfig.server.api_version}`;
-  },
-
-  // Check if cached data is expired
-  isCacheExpired(timestamp: number): boolean {
-    const expiry_ms = this.getConfig().storage.expire_h * 60 * 60 * 1000;
-    return Date.now() - timestamp > expiry_ms;
-  },
-
-  convertToMillis(dateString: string): number {
-    const localDate = getLocalDate(dateString);
-    // Format the date in the desired format
-    return localDate.toLocal().toMillis();
+    return ACTIVE_CONFIG;
   },
 
   /**
-   * Filters an array of objects based on a search query.
-   * The function checks if any string value in the object contains the query string (case-insensitive).
-   * @param {string} query - The search query.
-   * @param {any[]} toFilter - The array of objects to filter.
-   * @returns {any[]} - The filtered array of objects.
+   * Returns the application title defined in the configuration.
+   * @returns {string}
    */
-  baseSearchFilter(query: string, toFilter: any[]): any[] {
-    if (!query || !toFilter || toFilter.length === 0) {
-      return toFilter;
-    }
+  getAppTitle(): string {
+    return ACTIVE_CONFIG.frontend.app_title;
+  },
 
-    if (query.trim() === "") {
-      return toFilter; // Return original array if query is empty
-    }
+  /**
+   * Returns the pre-computed API Base URL.
+   * Optimized: Performs zero logic or string concatenation when called.
+   * @returns {string}
+   */
+  getApiBaseUrl(): string {
+    return API_URL;
+  },
 
-    const lowerQuery = query.toLowerCase();
+  /**
+   * Determines if a specific timestamp has exceeded the cache lifetime.
+   * Optimized: Uses pre-computed millisecond constants.
+   * @param {number} timestamp - Epoch milliseconds to check.
+   * @returns {boolean} True if the cache is considered stale.
+   */
+  isCacheExpired(timestamp: number): boolean {
+    return Date.now() - timestamp > CACHE_EXPIRY_MS;
+  },
+
+  /**
+   * Converts an ISO date string to epoch milliseconds in local time.
+   * @param {string} dateString - ISO 8601 string.
+   * @returns {number}
+   */
+  convertToMillis(dateString: string): number {
+    return getLocalDate(dateString).toMillis();
+  },
+
+  /**
+   * High-performance array filter for search queries.
+   * Optimized: Replaced Object.values() with for...in to eliminate
+   * unnecessary array allocations during the filtering loop.
+   * @template T
+   * @param {string} query - The search query.
+   * @param {T[]} toFilter - The array of objects to filter.
+   * @returns {T[]} The filtered subset.
+   */
+  baseSearchFilter<T extends object>(query: string, toFilter: T[]): T[] {
+    if (!query || !toFilter?.length) return toFilter;
+
+    const lowerQuery = query.trim().toLowerCase();
+    if (!lowerQuery) return toFilter;
+
     return toFilter.filter((item) => {
-      return Object.values(item).some(
-        (value) =>
-          typeof value === "string" && value.toLowerCase().includes(lowerQuery)
-      );
+      // Manual iteration is significantly faster than Object.values().some()
+      // as it avoids creating a new array on every single item.
+      for (const key in item) {
+        const value = item[key];
+        if (
+          typeof value === "string" &&
+          value.toLowerCase().includes(lowerQuery)
+        ) {
+          return true;
+        }
+      }
+      return false;
     });
   },
 
   /**
-   * Converts a date string to a formatted string in the local time zone.
-   * If the date string is not in ISO format, it returns the original string.
-   * @param {string} dateString - The date string to convert.
-   * @returns {string} - The formatted date string or the original string if not in ISO format.
+   * Converts a date string to a localized, human-readable format.
+   * Returns original string if the format is invalid.
+   * @param {string} dateString - ISO 8601 string.
+   * @returns {string} Formatted date (e.g., "Monday, Jan 24, 2026").
    */
   convertDateString(dateString: string): string {
-    // Check if the dateString is already formatted (basic check)
-    if (
-      isNaN(Date.parse(dateString)) &&
-      !/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateString)
-    ) {
-      return dateString; // Return as-is if it doesn't look like an ISO date
+    // Quick-check regex avoids Luxon overhead for clearly non-ISO strings
+    if (!/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+      return dateString;
     }
 
     const localDate = getLocalDate(dateString);
-
-    // Format the date in the desired format
-    return localDate.toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY);
+    return localDate.isValid
+      ? localDate.toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)
+      : dateString;
   },
 
   /**
-   * Converts a date string to a formatted date string in the local time zone.
-   * If the date string is not in ISO format, it returns the original string.
-   * @param {string} dateString - The date string to convert.
-   * @returns {string} - The formatted date string or the original string if not in ISO format.
+   * Capitalizes only the first letter of a string.
+   * @param {string} str - Target string.
+   * @returns {string}
    */
   capitalizeFirstLetter(str: string): string {
     if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    return str[0].toUpperCase() + str.slice(1);
   },
 
+  /**
+   * Standard debounce to limit function execution frequency.
+   * @template F
+   * @param {F} fn - Target function.
+   * @param {number} delay - Delay in milliseconds.
+   */
   debounce<F extends (...args: any[]) => any>(fn: F, delay: number) {
     let timeout: number | undefined;
     return (...args: Parameters<F>) => {
-      if (timeout) clearTimeout(timeout);
+      window.clearTimeout(timeout);
       timeout = window.setTimeout(() => fn(...args), delay);
     };
   },
 
-  async closeOpenModal() {
+  /**
+   * Closes the active top-most Ionic modal.
+   * @returns {Promise<void>}
+   */
+  async closeOpenModal(): Promise<void> {
     const topModal = await modalController.getTop();
     if (topModal) {
       await modalController.dismiss();
     }
   },
 
-  async closeAllOpenModals() {
+  /**
+   * Recursively dismisses all currently open Ionic modals.
+   * @returns {Promise<void>}
+   */
+  async closeAllOpenModals(): Promise<void> {
     let topModal = await modalController.getTop();
     while (topModal) {
       await modalController.dismiss();

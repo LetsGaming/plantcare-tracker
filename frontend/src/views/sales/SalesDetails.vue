@@ -57,7 +57,7 @@
                   class="savings-container"
                 >
                   <span class="savings-amount">
-                    {{ discountPercentage }} · {{ savings }} € cheaper
+                    {{ discountPercentage }} · {{ savings }} € {{ t("sales.savings") }}
                   </span>
                 </div>
               </div>

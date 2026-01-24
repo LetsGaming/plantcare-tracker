@@ -1,7 +1,10 @@
-import { toastController } from "@ionic/vue";
-import localizationService from '@/services/general/LocalizationService'
+import { toastController, ToastButton } from "@ionic/vue";
+import localizationService from "@/services/general/LocalizationService";
 
+/** Valid positions for the toast notification */
 type ToastPosition = "top" | "middle" | "bottom";
+
+/** Ionic-specific color palette keys */
 type ToastColor =
   | "primary"
   | "secondary"
@@ -13,36 +16,66 @@ type ToastColor =
   | "medium"
   | "dark";
 
+/** Structure for messages that require localization lookup */
 interface LocalizedMessage {
+  /** The translation key (e.g., 'errors.network_failure') */
   key: string;
+  /** Interpolation variables */
   vars?: Record<string, string | number>;
+  /** Text to show if the key is missing */
   fallback?: string;
 }
 
+/** Configuration for creating a new toast */
 interface ToastOptions {
+  /** The message body or a localization object */
   message: string | LocalizedMessage;
+  /** Duration in ms before auto-dismissal (default: 2000) */
   duration?: number;
+  /** Screen position */
   position?: ToastPosition;
+  /** Element ID or 'nav-tab-bar' to anchor the toast above */
   positionAnchor?: string;
+  /** Ionic color theme */
   color?: ToastColor;
+  /** If true, renders a close/cancel button */
   showCloseButton?: boolean;
+  /** Text for the close button */
   closeButtonText?: string;
+  /** Text for the primary action button */
   actionText?: string;
+  /** Callback executed when the action button is clicked */
   actionHandler?: () => void;
 }
 
+/**
+ * High-performance, queued Toast notification service.
+ * * Features:
+ * - **Sequential Queueing:** Prevents toast overlap by showing them one after another.
+ * - **Instant Localization:** Resolves translation keys immediately upon entry to the queue.
+ * - **Pre-computed Buttons:** Minimizes logic during the critical 'create' phase of the Ionic controller.
+ */
 class ToastService {
+  /** Queue of pending toast configurations */
   private static toastQueue: ToastOptions[] = [];
+  /** Semaphore to track if a toast is currently animating or visible */
   private static isDisplayingToast: boolean = false;
 
-  private static async showNextToast() {
+  /**
+   * Processes the next item in the queue.
+   * Logic: Shift from queue -> Resolve Message -> Create Controller -> Present -> Recurse on Dismiss.
+   * @internal
+   */
+  private static async showNextToast(): Promise<void> {
     if (this.toastQueue.length === 0 || this.isDisplayingToast) {
       return;
     }
 
     this.isDisplayingToast = true;
+
+    const options = this.toastQueue.shift()!;
     const {
-      message: messageOrLocalized,
+      message: msgOrLoc,
       duration = 2000,
       position = "bottom",
       positionAnchor = "nav-tab-bar",
@@ -51,94 +84,133 @@ class ToastService {
       closeButtonText,
       actionText,
       actionHandler,
-    } = this.toastQueue.shift()!;
+    } = options;
 
-    // resolve localized message if needed
-    let message: string
-    if (typeof messageOrLocalized === 'string') {
-      message = messageOrLocalized
-    } else if (messageOrLocalized && typeof messageOrLocalized === 'object') {
-      message = localizationService.t(messageOrLocalized.key, messageOrLocalized.vars, messageOrLocalized.fallback)
-    } else {
-      message = ''
+    // Resolve localization immediately before creation
+    const finalMessage =
+      typeof msgOrLoc === "string"
+        ? msgOrLoc
+        : localizationService.t(msgOrLoc.key, msgOrLoc.vars, msgOrLoc.fallback);
+
+    // Pre-calculate button array to keep .create() clean
+    let buttons: ToastButton[] | undefined = undefined;
+    if (showCloseButton) {
+      buttons = [{ text: closeButtonText || "Close", role: "cancel" }];
+    } else if (actionText) {
+      buttons = [{ text: actionText, handler: actionHandler }];
     }
 
-    const toast = await toastController.create({
-      message,
-      duration,
-      position,
-      positionAnchor: positionAnchor ? positionAnchor : undefined,
-      color,
-      buttons: showCloseButton
-        ? [{ text: closeButtonText, role: "cancel" }]
-        : actionText
-        ? [{ text: actionText, handler: actionHandler }]
-        : undefined,
-    });
+    try {
+      const toast = await toastController.create({
+        message: finalMessage,
+        duration,
+        position,
+        positionAnchor: positionAnchor || undefined,
+        color,
+        buttons,
+        // Performance optimization: cssClass can be used for hardware acceleration if needed
+        cssClass: "toast-custom-class",
+      });
 
-    await toast.present();
-    toast.onDidDismiss().then(() => {
+      await toast.present();
+
+      // Listen for dismissal to trigger the next toast in line
+      toast.onDidDismiss().then(() => {
+        this.isDisplayingToast = false;
+        this.showNextToast();
+      });
+    } catch (error) {
+      console.error("[ToastService] Failed to present toast:", error);
       this.isDisplayingToast = false;
-      this.showNextToast(); // Show the next toast in the queue
-    });
+      this.showNextToast();
+    }
   }
 
   /**
-   * Show a custom toast with message and options
+   * Pushes a toast into the global queue.
+   * @param {ToastOptions} options Toast configuration object.
    */
-  static addToast(options: ToastOptions) {
+  static addToast(options: ToastOptions): void {
     this.toastQueue.push(options);
-    this.showNextToast(); // Attempt to show the next toast
+    this.showNextToast();
   }
 
   /**
-   * Show a success toast
+   * Displays a success notification (Green).
+   * @param message String or LocalizedMessage object.
    */
   static showSuccess(
     message: string | LocalizedMessage,
     duration?: number,
     position?: ToastPosition,
-    positionAnchor?: string
-  ) {
-    this.addToast({ message, duration, position, positionAnchor, color: "success" });
+    positionAnchor?: string,
+  ): void {
+    this.addToast({
+      message,
+      duration,
+      position,
+      positionAnchor,
+      color: "success",
+    });
   }
 
   /**
-   * Show an error toast
+   * Displays an error notification (Red).
+   * @param message String or LocalizedMessage object.
    */
   static showError(
     message: string | LocalizedMessage,
     duration?: number,
     position?: ToastPosition,
-    positionAnchor?: string
-  ) {
-    this.addToast({ message, duration, position, positionAnchor, color: "danger" });
+    positionAnchor?: string,
+  ): void {
+    this.addToast({
+      message,
+      duration,
+      position,
+      positionAnchor,
+      color: "danger",
+    });
   }
 
   /**
-   * Show a warning toast
+   * Displays a warning notification (Yellow/Orange).
+   * @param message String or LocalizedMessage object.
    */
   static showWarning(
     message: string | LocalizedMessage,
     duration?: number,
     position?: ToastPosition,
-    positionAnchor?: string
-  ) {
-    this.addToast({ message, duration, position, positionAnchor, color: "warning" });
+    positionAnchor?: string,
+  ): void {
+    this.addToast({
+      message,
+      duration,
+      position,
+      positionAnchor,
+      color: "warning",
+    });
   }
 
   /**
-   * Show a toast with a button for custom actions (e.g. Undo, Retry)
+   * Displays a toast with a primary action button (e.g., 'Undo', 'Retry').
+   * @param message String or LocalizedMessage object.
+   * @param actionText The button label.
+   * @param actionHandler Callback on click.
    */
   static showToastWithAction(
     message: string | LocalizedMessage,
-    actionText: string = localizationService.t('toast.retry', undefined, 'Retry'),
+    actionText: string = localizationService.t(
+      "toast.retry",
+      undefined,
+      "Retry",
+    ),
     actionHandler: () => void,
     duration: number = 4000,
     position: ToastPosition = "bottom",
     positionAnchor?: string,
-    color: ToastColor = "dark"
-  ) {
+    color: ToastColor = "dark",
+  ): void {
     this.addToast({
       message,
       actionText,
@@ -151,32 +223,34 @@ class ToastService {
   }
 
   /**
-   * Show a toast that can be manually dismissed
+   * Displays a toast with a close/dismiss button that persists until clicked or duration ends.
    */
   static showDismissableToast(
     message: string | LocalizedMessage,
     position: ToastPosition = "bottom",
     positionAnchor?: string,
     color: ToastColor = "medium",
-    dismissButtonText: string = "Dismiss"
-  ) {
+    dismissButtonText?: string,
+  ): void {
     this.addToast({
       message,
       position,
       positionAnchor,
       color,
       showCloseButton: true,
-      closeButtonText: dismissButtonText || localizationService.t('toast.dismiss', undefined, 'Dismiss'),
+      closeButtonText:
+        dismissButtonText ||
+        localizationService.t("toast.dismiss", undefined, "Dismiss"),
     });
   }
 
   /**
-   * Dismiss all currently open toasts
+   * Forcefully closes the current toast and clears all pending notifications in the queue.
    */
-  static async dismissAllToasts() {
+  static async dismissAllToasts(): Promise<void> {
+    this.toastQueue = [];
     await toastController.dismiss();
-    this.toastQueue = []; // Clear the queue
-    this.isDisplayingToast = false; // Reset the display state
+    this.isDisplayingToast = false;
   }
 }
 

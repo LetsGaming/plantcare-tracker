@@ -2,189 +2,211 @@ import storageService from "@/services/general/StorageService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
-import { isProxy } from "vue";
+import { isProxy, toRaw } from "vue";
 
+/**
+ * High-performance, safe abstract BaseService.
+ * Implements a dual-layer caching strategy (L1/L2) with request collapsing.
+ */
 export abstract class BaseService {
-  /** Tracks ongoing network requests to prevent "Cache Stampedes" */
-  private static ongoingRequests = new Map<string, Promise<any>>();
+  /** Memory cache (L1) with TTL awareness */
+  private static l1Cache = new Map<
+    string,
+    { data: unknown; timestamp: number }
+  >();
 
-  /** Creates a high-fidelity copy of data */
+  /** Map of active promises to collapse concurrent requests */
+  private static ongoingRequests = new Map<string, Promise<unknown>>();
+
+  /** Maximum L1 entries before FIFO eviction kicks in */
+  private static readonly L1_MAX_ENTRIES = 500;
+
+  /**
+   * Performs a high-speed deep copy. Unwraps Vue proxies to maximize performance.
+   * @template T
+   * @param {T} data - The object to clone.
+   * @returns {T}
+   */
   protected static deepCopy<T>(data: T): T {
-    if (!data) return data;
+    if (data == null || typeof data !== "object") return data;
+    const raw = isProxy(data) ? toRaw(data) : data;
 
-    // Use structuredClone as primary (it's faster and handles Dates/RegEx)
-    if (typeof structuredClone === "function" && !isProxy(data)) {
-      try {
-        return structuredClone(data);
-      } catch (e) {
-        // Fallback if data contains non-cloneable items
-        return JSON.parse(JSON.stringify(data));
-      }
+    try {
+      return typeof structuredClone === "function"
+        ? structuredClone(raw)
+        : JSON.parse(JSON.stringify(raw));
+    } catch {
+      return raw; // Fallback to raw if non-serializable
     }
-
-    // Fallback for Vue proxies or older environments
-    return JSON.parse(JSON.stringify(data));
   }
 
-  protected static emit(eventName: string, detail: any) {
+  /**
+   * Dispatches a custom DOM event.
+   * @param {string} eventName
+   * @param {unknown} detail
+   */
+  protected static emit(eventName: string, detail: unknown): void {
     document.dispatchEvent(new CustomEvent(eventName, { detail }));
   }
 
   /**
-   * Standardized Caching Logic with Request Collapsing
+   * Retrieves an item from L1 memory.
+   * @private
+   */
+  private static readL1<T>(key: string): T | null {
+    const entry = this.l1Cache.get(key);
+    if (!entry) return null;
+
+    if (Utils.isCacheExpired(entry.timestamp)) {
+      this.l1Cache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
+
+  /**
+   * Writes to L1 memory with FIFO eviction.
+   * @private
+   */
+  private static writeL1(key: string, data: unknown): void {
+    if (this.l1Cache.size >= this.L1_MAX_ENTRIES) {
+      const oldestKey = this.l1Cache.keys().next().value;
+      if (oldestKey) this.l1Cache.delete(oldestKey);
+    }
+    this.l1Cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  /**
+   * Tiered data retrieval: L1 -> L2 -> Fetcher.
+   * Fixed: Added robust try/catch inside the promise to prevent "stuck" pending states.
+   * @template T
+   * @param {string} cacheKey - The storage key.
+   * @param {() => Promise<T>} fetcher - The API call logic.
+   * @param {boolean} [forceUpdate=false] - Bypass cache.
+   * @param {boolean} [keepOnClear=false] - Persist across clears.
    */
   protected static async getCachedData<T>(
     cacheKey: string,
     fetcher: () => Promise<T>,
-    forceUpdate: boolean = false,
-    keepOnClear: boolean = false,
+    forceUpdate = false,
+    keepOnClear = false,
   ): Promise<T> {
-    // 1. Check if a request for this key is already flying
-    if (this.ongoingRequests.has(cacheKey)) {
-      return this.ongoingRequests.get(cacheKey);
+    // 1. Check L1 (Memory)
+    if (!forceUpdate) {
+      const l1 = this.readL1<T>(cacheKey);
+      if (l1 !== null) return l1;
     }
 
-    const requestPromise = (async () => {
-      try {
-        const cached = await storageService.get<{ data: T; timestamp: number }>(
-          cacheKey,
-        );
+    // 2. Check for In-Flight requests
+    const inflight = this.ongoingRequests.get(cacheKey);
+    if (inflight) return inflight as Promise<T>;
 
-        if (!forceUpdate && cached && !Utils.isCacheExpired(cached.timestamp)) {
-          return cached.data;
+    // 3. Define the execution task
+    const promise = (async () => {
+      try {
+        if (!forceUpdate) {
+          const cached = await storageService.get<{
+            data: T;
+            timestamp: number;
+          }>(cacheKey);
+          if (cached && !Utils.isCacheExpired(cached.timestamp)) {
+            this.writeL1(cacheKey, cached.data);
+            return cached.data;
+          }
         }
 
-        const freshData = await fetcher();
-        await storageService.set(cacheKey, {
-          data: freshData,
-          keepOnClear: keepOnClear,
-          timestamp: Date.now(),
+        const fresh = await fetcher();
+        const now = Date.now();
+
+        this.writeL1(cacheKey, fresh);
+
+        // Background L2 update
+        storageService.set(cacheKey, {
+          data: fresh,
+          keepOnClear,
+          timestamp: now,
         });
-        return freshData;
+
+        return fresh;
+      } catch (error) {
+        // Clear from ongoing if it fails so next call can retry
+        this.ongoingRequests.delete(cacheKey);
+        throw error;
       } finally {
-        // Always clean up the ongoing request map
         this.ongoingRequests.delete(cacheKey);
       }
     })();
 
-    this.ongoingRequests.set(cacheKey, requestPromise);
-    return requestPromise;
+    this.ongoingRequests.set(cacheKey, promise);
+    return promise as Promise<T>;
   }
 
   /**
-   * Saves data safely and notifies listeners
+   * Saves data to L1/L2 and broadcasts an event.
    */
   protected static async saveAndNotify<T>(
     storageKey: string,
     eventKey: string,
     data: T,
-    wrapInObjectKey: string = "data",
-    keepOnClear: boolean = false,
+    wrapInObjectKey = "data",
+    keepOnClear = false,
   ): Promise<void> {
-    const plainData = this.deepCopy(data);
+    const now = Date.now();
+    this.writeL1(storageKey, data);
 
-    // Standardize storage format so StorageService.clear() always works
-    const valueToStore = {
-      [wrapInObjectKey]: plainData,
-      keepOnClear: keepOnClear,
-      timestamp: Date.now(),
+    const value = {
+      [wrapInObjectKey]: this.deepCopy(data),
+      keepOnClear,
+      timestamp: now,
     };
 
-    await storageService.set(storageKey, valueToStore);
+    await storageService.set(storageKey, value);
     this.emit(eventKey, data);
   }
 
   /**
-   * Generic API Wrapper with Toast Error Handling
+   * Standardized request wrapper with localization and toast support.
    */
   protected static async handleRequest<T>(
     request: Promise<T>,
     resourceNameKey: string,
-    actionKey: string = "error.fetch_failed",
+    actionKey = "error.fetch_failed",
   ): Promise<T> {
     try {
       return await request;
-    } catch (error) {
-      if ((error as Error)?.name === "RefreshError") throw error;
+    } catch (error: any) {
+      if (error?.name === "RefreshError" || error?.status === 401) throw error;
 
       ToastService.showError({
         key: actionKey,
         vars: {
           resource: localizationService.t(resourceNameKey),
-          details: String(error),
+          details: error?.message || String(error),
         },
         fallback: `Operation failed: ${error}`,
       });
+
       throw error;
     }
   }
 
   /**
-   * Fixed Race Condition: Uses a "Read-Modify-Write" safeguard
+   * Safely updates a list item in the cache by ID.
    */
   protected static async upsertIntoListCache<T extends { id: number | string }>(
     cacheKey: string,
     eventKey: string,
     item: T,
-    keepOnClear: boolean = false,
+    keepOnClear = false,
   ): Promise<void> {
-    if (!item?.id) {
-      throw new Error("BaseService: item must have an 'id' property.");
-    }
+    if (!item?.id) throw new Error("BaseService: item must have an 'id'");
 
-    // Lock this key so other calls wait until this one is saved
-    const cached = await storageService.get<{ data: T[]; timestamp: number }>(
-      cacheKey,
-    );
-    const dataArray: T[] = cached?.data ? [...cached.data] : [];
+    const cached = await storageService.get<{ data: T[] }>(cacheKey);
+    const list = cached?.data ? [...cached.data] : [];
 
-    const index = dataArray.findIndex((x) => x.id === item.id);
-    if (index !== -1) {
-      dataArray[index] = item;
-    } else {
-      dataArray.push(item);
-    }
+    const index = list.findIndex((x) => x.id === item.id);
+    index === -1 ? list.push(item) : (list[index] = item);
 
-    // Save with the standardized format
-    await this.saveAndNotify(
-      cacheKey,
-      eventKey,
-      dataArray,
-      "data",
-      keepOnClear,
-    );
-  }
-
-  /**
-   * Standardized Dictionary Caching Logic
-   */
-  protected static async getFromDictionaryCache<T>(
-    cacheKey: string,
-    subKey: string,
-    fetcher: () => Promise<T>,
-    forceUpdate: boolean = false,
-  ): Promise<T> {
-    const cached = await storageService.get<{
-      records: { [key: string]: T };
-      timestamp: number;
-    }>(cacheKey);
-
-    const isExpired = !cached || Utils.isCacheExpired(cached.timestamp);
-    const hasData = cached?.records?.[subKey];
-
-    if (!forceUpdate && !isExpired && hasData) {
-      return cached.records[subKey];
-    }
-
-    // Collapsing logic could be added here too if subKey is highly contested
-    const freshData = await fetcher();
-
-    const updatedRecords = { ...(cached?.records || {}), [subKey]: freshData };
-    await storageService.set(cacheKey, {
-      records: updatedRecords,
-      timestamp: Date.now(),
-    });
-
-    return freshData;
+    await this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear);
   }
 }

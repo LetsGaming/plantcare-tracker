@@ -134,8 +134,8 @@ export default class SubstrateService extends BaseService {
   static async getPrivateSubstrates(
     forceUpdate: boolean = false,
   ): Promise<Substrate[]> {
-    const userId = await UserService.getUserId();
     const all = await this.getAllSubstrates(forceUpdate);
+    const userId = await UserService.getUserId();
     return all.filter((s) => s.userId === userId);
   }
 

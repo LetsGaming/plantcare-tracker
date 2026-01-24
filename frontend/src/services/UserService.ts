@@ -32,7 +32,7 @@ export default class UserService extends BaseService {
     return this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/register`, data),
       RESOURCE_KEY,
-      "auth.registration_failed"
+      "auth.registration_failed",
     );
   }
 
@@ -40,7 +40,7 @@ export default class UserService extends BaseService {
     const response = (await this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/login`, data),
       RESOURCE_KEY,
-      "auth.login_failed"
+      "auth.login_failed",
     )) as LoginResponse;
 
     await TokenUtils.setToken(response.accessToken);
@@ -51,7 +51,7 @@ export default class UserService extends BaseService {
     const response = (await this.handleRequest(
       ApiUtils.post(`${BASE_ENDPOINT}/login/guest`, null),
       RESOURCE_KEY,
-      "auth.failed_guest"
+      "auth.failed_guest",
     )) as LoginResponse;
 
     await TokenUtils.setToken(response.accessToken);
@@ -100,17 +100,18 @@ export default class UserService extends BaseService {
           throw new this.RefreshError(`HTTP ${response.status}`);
 
         const res = await response.json();
-        if (!res.data?.accessToken)
+        const accessToken = res.data?.accessToken;
+        if (!accessToken)
           throw new this.RefreshError("Invalid response structure");
 
-        await TokenUtils.setToken(res.data.accessToken);
-        return;
+        await TokenUtils.setToken(accessToken);
+        return accessToken;
       } catch (error) {
         if (attempt === retryCount) {
           await this.handleRequest(
             Promise.reject(error),
             RESOURCE_KEY,
-            "auth.refresh_failed"
+            "auth.refresh_failed",
           );
           await this.logout();
           throw error;
@@ -124,7 +125,7 @@ export default class UserService extends BaseService {
     return this.handleRequest(
       ApiUtils.put(`${BASE_ENDPOINT}/update`, data),
       "profile.title",
-      "profile.update_failed"
+      "profile.update_failed",
     );
   }
 
@@ -133,7 +134,7 @@ export default class UserService extends BaseService {
       const res = await this.handleRequest(
         ApiUtils.delete(`${BASE_ENDPOINT}/delete`),
         "profile.title",
-        "profile.delete_failed"
+        "profile.delete_failed",
       );
 
       await storageService.clearAll();

@@ -309,6 +309,7 @@ export default {
   "sales.sold_by": "Sold by",
   "sales.you_save": "You save:",
   "sales.view_sale": "View Sale",
+  "sales.savings": "Savings",
   "sales.price_history": "Price History",
   "sales.first_tracked_price": "First tracked price",
   "sales.lowest_tracked_price": "Lowest tracked price",
