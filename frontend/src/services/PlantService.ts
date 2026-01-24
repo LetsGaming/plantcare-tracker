@@ -85,7 +85,7 @@ export default class PlantService extends BaseService {
     const updated = stored.data.filter((p) => p.id !== plantId);
     await this.savePlants(updated);
 
-    await WateringService.invalidateWateringCacheForPlant(plantId);
+    await WateringService.invalidatePlantCache(plantId);
   }
 
   /* =========================================================================

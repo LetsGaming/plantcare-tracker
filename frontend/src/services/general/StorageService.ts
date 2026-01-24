@@ -61,7 +61,7 @@ class StorageService {
    *  Uses Promise.all for 10x faster performance.
    */
   async clear(): Promise<void> {
-    if(!this.storage) {
+    if (!this.storage) {
       return;
     }
     const keys = await this.storage.keys();

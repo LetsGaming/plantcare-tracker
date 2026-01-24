@@ -35,6 +35,7 @@ export default class SalesService extends BaseService {
         );
       },
       forceUpdate,
+      true, // keepOnClear
     );
   }
 
@@ -62,7 +63,6 @@ export default class SalesService extends BaseService {
                     isNew: !existingIds.has(sale.id),
                   };
 
-                  // Use Map for O(1) lookup instead of .find() O(n)
                   if (!accumulatedMap.has(sale.id)) {
                     accumulatedMap.set(sale.id, enhancedSale);
                     flaggedChunk.push(enhancedSale);
@@ -72,8 +72,7 @@ export default class SalesService extends BaseService {
                 if (flaggedChunk.length > 0) {
                   onUpdate?.(flaggedChunk);
 
-                  // Optimization: Only update price points here.
-                  // Delay full cache save until the end to avoid storage thrashing.
+                  // Update price points incrementally
                   for (const sale of flaggedChunk) {
                     await this.addPricePoint(sale);
                   }
@@ -90,13 +89,13 @@ export default class SalesService extends BaseService {
             async () => {
               stopFn?.();
               const finalData = Array.from(accumulatedMap.values());
-              // Final Save: Write once when the stream is done
+              // Final Save: keepOnClear is set to true
               await this.saveAndNotify(
                 CACHE_KEY,
                 SaleEvents.SALES_UPDATED,
                 finalData,
                 "data",
-                true,
+                true, // keepOnClear
               );
               resolve(finalData);
             },
@@ -139,7 +138,7 @@ export default class SalesService extends BaseService {
       SaleEvents.SALE_SEEN,
       updatedSales,
       "data",
-      true,
+      true, // keepOnClear
     );
   }
 
@@ -153,7 +152,6 @@ export default class SalesService extends BaseService {
     const existing = cached?.data?.find((x) => x.id === sale.id);
     const last = existing?.points?.[existing.points.length - 1];
 
-    // Only proceed if the price is actually different
     if (last && last.price === sale.price) return;
 
     const newPoints = [
@@ -161,7 +159,7 @@ export default class SalesService extends BaseService {
       { price: sale.price, timestamp: Date.now() },
     ].slice(-MAX_PRICE_POINTS);
 
-    // FIXED: Corrected the event key to PRICE_HISTORY_UPDATED
+    // Using upsertIntoListCache with keepOnClear set to true
     await this.upsertIntoListCache(
       PRICE_HISTORY_CACHE,
       SaleEvents.PRICE_HISTORY_UPDATED,
@@ -169,7 +167,7 @@ export default class SalesService extends BaseService {
         id: sale.id,
         points: newPoints,
       },
-      true,
+      true, // keepOnClear
     );
   }
 
@@ -180,7 +178,6 @@ export default class SalesService extends BaseService {
       data: {
         id: string;
         points: { price: number; timestamp: number }[];
-        keepOnClear?: boolean;
       }[];
       timestamp: number;
     }>(PRICE_HISTORY_CACHE);

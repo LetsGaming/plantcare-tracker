@@ -129,7 +129,7 @@ export default class WateringService extends BaseService {
    * Safely removes a specific plant's records from the dictionary cache.
    * This uses the standard "records" structure expected by BaseService.
    */
-  private static async invalidatePlantCache(plantId: number): Promise<void> {
+  static async invalidatePlantCache(plantId: number): Promise<void> {
     const cache = await storageService.get<{
       records: Record<string, WateringRecord[]>;
       timestamp: number;

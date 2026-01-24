@@ -37,6 +37,7 @@ export abstract class BaseService {
     cacheKey: string,
     fetcher: () => Promise<T>,
     forceUpdate: boolean = false,
+    keepOnClear: boolean = false,
   ): Promise<T> {
     // 1. Check if a request for this key is already flying
     if (this.ongoingRequests.has(cacheKey)) {
@@ -56,6 +57,7 @@ export abstract class BaseService {
         const freshData = await fetcher();
         await storageService.set(cacheKey, {
           data: freshData,
+          keepOnClear: keepOnClear,
           timestamp: Date.now(),
         });
         return freshData;
@@ -79,14 +81,17 @@ export abstract class BaseService {
     wrapInObjectKey: string = "data",
     keepOnClear: boolean = false,
   ): Promise<void> {
+    console.log(`Saving data to ${storageKey} and emitting ${eventKey}, keepOnClear: ${keepOnClear}`);
     const plainData = this.deepCopy(data);
 
     // Standardize storage format so StorageService.clear() always works
     const valueToStore = {
       [wrapInObjectKey]: plainData,
-      keepOnClear,
+      keepOnClear: keepOnClear,
       timestamp: Date.now(),
     };
+
+    console.log(`Data to store for ${storageKey}:`, valueToStore);
 
     await storageService.set(storageKey, valueToStore);
     this.emit(eventKey, data);
@@ -144,13 +149,13 @@ export abstract class BaseService {
     }
 
     // Save with the standardized format
-    await storageService.set(cacheKey, {
-      data: dataArray,
-      timestamp: Date.now(),
+    await this.saveAndNotify(
+      cacheKey,
+      eventKey,
+      dataArray,
+      "data",
       keepOnClear,
-    });
-
-    this.emit(eventKey, item);
+    );
   }
 
   /**
