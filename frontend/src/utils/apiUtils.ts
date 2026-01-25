@@ -77,6 +77,12 @@ class ApiError extends Error {
   }
 }
 
+const NO_REFRESH_ENDPOINTS = [
+  "/auth/refresh-token",
+  "/auth/login",
+  "/auth/logout",
+];
+
 /**
  * Processes the raw Fetch Response into a typed data object.
  * Optimized: Uses a fast-path for non-OK status codes before attempting JSON parsing.
@@ -190,10 +196,13 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
 
   let response = await requestFn();
 
-  // Retry logic for authentication failures, excluding auth-related endpoints to prevent loops
+  const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) =>
+    endpoint.startsWith(e),
+  );
+
   if (
     (response.status === 401 || response.status === 403) &&
-    !endpoint.includes("/auth/")
+    !shouldSkipRefresh
   ) {
     response = await handleNoAuth(requestFn);
   }
