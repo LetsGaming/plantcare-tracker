@@ -4,18 +4,21 @@ const { chromium } = require("playwright");
 const logger = require("../logger");
 const dns = require("node:dns");
 
-// Force Node to prefer IPv4 to avoid AggregateError (DNS resolution issues)
+// Prevents AggregateError by prioritizing IPv4
 dns.setDefaultResultOrder("ipv4first");
 
-const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 }); // 24h TTL
+const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
 
-// --- Chromium Browser Singleton ---
 let browserPromise = null;
 async function getBrowser() {
   if (!browserPromise) {
     browserPromise = chromium.launch({
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+      ],
     });
   }
   return browserPromise;
@@ -24,15 +27,23 @@ async function getBrowser() {
 async function fetchWithChromium(url) {
   const browser = await getBrowser();
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 720 },
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   });
   const page = await context.newPage();
 
   try {
-    // Increased timeout and better wait condition for scrapers
-    await page.goto(url, { waitUntil: "networkidle", timeout: 45000 });
+    // 1. Wait for basic HTML structure
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+    // 2. Generic "Smart Wait":
+    // We wait for either the network to actually go idle OR 3.5 seconds to pass.
+    // This catches fast sites immediately and prevents slow/chat-heavy sites from timing out.
+    await Promise.race([
+      page.waitForLoadState("networkidle").catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 3500)),
+    ]);
+
     return await page.content();
   } catch (err) {
     logger.error(`Chromium failed for ${url}: ${err.message}`);
@@ -43,7 +54,6 @@ async function fetchWithChromium(url) {
   }
 }
 
-// --- Axios Fetch with Retry Logic ---
 async function fetchWithAxios(
   url,
   method = "GET",
@@ -55,14 +65,11 @@ async function fetchWithAxios(
     url,
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      Accept: "text/html,application/xhtml+xml",
     },
-    timeout: 20000, // Increased to 20s
-    // This helps prevent AggregateError in some environments
-    family: 4,
+    timeout: 15000,
+    family: 4, // Force IPv4
   };
 
   if (payload) options.data = payload;
@@ -72,17 +79,15 @@ async function fetchWithAxios(
     const response = await axios(options);
     return response.data;
   } catch (err) {
-    if (retries > 0 && (!err.response || err.response.status >= 500)) {
-      logger.warn(`Retrying ${url}... Attempts left: ${retries}`);
-      await new Promise((res) => setTimeout(res, 2000)); // Wait 2s before retry
+    if (retries > 0) {
+      const waitTime = (3 - retries) * 2000;
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
       return fetchWithAxios(url, method, payload, retries - 1);
     }
-    // Throw a cleaner error for the wrapper to catch
-    throw new Error(err.code === "ECONNABORTED" ? "Timeout" : err.message);
+    throw err;
   }
 }
 
-// --- Main Fetch Wrapper ---
 const fetchData = async (
   url,
   extractFn,
@@ -108,15 +113,11 @@ const fetchData = async (
 
     return relevantData;
   } catch (err) {
-    // Log concisely to avoid massive PM2 logs
-    logger.error(
-      `Error fetching ${url} (${useChromium ? "chromium" : "axios"}): ${err.message}`,
-    );
+    logger.error(`Error fetching ${url}: ${err.message}`);
     return null;
   }
 };
 
-// --- Utility Functions ---
 const getCache = () => cache;
 
 const parsePrice = (input) => {
@@ -141,9 +142,7 @@ const resolveLink = (href, baseUrl) => {
   if (href.startsWith("http")) return href;
   try {
     const url = new URL(baseUrl);
-    return `${url.protocol}//${url.host}${
-      href.startsWith("/") ? "" : "/"
-    }${href}`;
+    return `${url.protocol}//${url.host}${href.startsWith("/") ? "" : "/"}${href}`;
   } catch (e) {
     return href;
   }
