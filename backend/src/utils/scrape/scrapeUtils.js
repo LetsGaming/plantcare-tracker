@@ -2,6 +2,10 @@ const axios = require("axios");
 const NodeCache = require("node-cache");
 const { chromium } = require("playwright");
 const logger = require("../logger");
+const dns = require("node:dns");
+
+// Force Node to prefer IPv4 to avoid AggregateError (DNS resolution issues)
+dns.setDefaultResultOrder("ipv4first");
 
 const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 }); // 24h TTL
 
@@ -9,7 +13,10 @@ const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 }); // 24h TTL
 let browserPromise = null;
 async function getBrowser() {
   if (!browserPromise) {
-    browserPromise = chromium.launch({ headless: true });
+    browserPromise = chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
   }
   return browserPromise;
 }
@@ -18,36 +25,61 @@ async function fetchWithChromium(url) {
   const browser = await getBrowser();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 720 },
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   });
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    // Increased timeout and better wait condition for scrapers
+    await page.goto(url, { waitUntil: "networkidle", timeout: 45000 });
     return await page.content();
+  } catch (err) {
+    logger.error(`Chromium failed for ${url}: ${err.message}`);
+    throw err;
   } finally {
     await page.close();
     await context.close();
   }
 }
 
-// --- Axios Fetch ---
-async function fetchWithAxios(url, method = "GET", payload = null) {
+// --- Axios Fetch with Retry Logic ---
+async function fetchWithAxios(
+  url,
+  method = "GET",
+  payload = null,
+  retries = 2,
+) {
   const options = {
     method,
     url,
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      Accept: "text/html,application/xhtml+xml",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
     },
-    timeout: 15000,
+    timeout: 20000, // Increased to 20s
+    // This helps prevent AggregateError in some environments
+    family: 4,
   };
 
   if (payload) options.data = payload;
   if (method === "POST") options.headers["Content-Type"] = "application/json";
 
-  const response = await axios(options);
-  return response.data;
+  try {
+    const response = await axios(options);
+    return response.data;
+  } catch (err) {
+    if (retries > 0 && (!err.response || err.response.status >= 500)) {
+      logger.warn(`Retrying ${url}... Attempts left: ${retries}`);
+      await new Promise((res) => setTimeout(res, 2000)); // Wait 2s before retry
+      return fetchWithAxios(url, method, payload, retries - 1);
+    }
+    // Throw a cleaner error for the wrapper to catch
+    throw new Error(err.code === "ECONNABORTED" ? "Timeout" : err.message);
+  }
 }
 
 // --- Main Fetch Wrapper ---
@@ -66,6 +98,8 @@ const fetchData = async (
       ? await fetchWithChromium(url)
       : await fetchWithAxios(url, method, payload);
 
+    if (!rawData) return null;
+
     const relevantData = extractFn(rawData);
 
     if (cacheKey && relevantData) {
@@ -74,9 +108,9 @@ const fetchData = async (
 
     return relevantData;
   } catch (err) {
+    // Log concisely to avoid massive PM2 logs
     logger.error(
-      `Error fetching ${url} (${useChromium ? "chromium" : "axios"}):`,
-      err,
+      `Error fetching ${url} (${useChromium ? "chromium" : "axios"}): ${err.message}`,
     );
     return null;
   }
@@ -105,10 +139,14 @@ const getText = (el, selector = null) => {
 const resolveLink = (href, baseUrl) => {
   if (!href) return null;
   if (href.startsWith("http")) return href;
-  const url = new URL(baseUrl);
-  return `${url.protocol}//${url.host}${
-    href.startsWith("/") ? "" : "/"
-  }${href}`;
+  try {
+    const url = new URL(baseUrl);
+    return `${url.protocol}//${url.host}${
+      href.startsWith("/") ? "" : "/"
+    }${href}`;
+  } catch (e) {
+    return href;
+  }
 };
 
 module.exports = {
