@@ -91,26 +91,32 @@ const NO_REFRESH_ENDPOINTS = [
  * @throws {ApiError} If the request fails or the API returns success: false.
  */
 const handleResponse = async (response: Response): Promise<any> => {
-  if (!response.ok) {
-    const text = await response.text().catch(() => "Unknown error");
-    throw new ApiError(response.status, text, `HTTP ${response.status}`);
-  }
-
   let responseData: ApiResponse;
+
+  // 1. Try to parse JSON regardless of the status code
   try {
     responseData = await response.json();
   } catch {
-    throw new ApiError(response.status, null, "Failed to parse response JSON.");
+    // Fallback if the body isn't JSON (e.g., a 502 Bad Gateway HTML page)
+    const rawText = await response.text().catch(() => "Unknown error");
+    throw new ApiError(
+      response.status,
+      { message: rawText },
+      "Failed to parse response JSON.",
+    );
   }
 
-  if (responseData?.success) {
+  // 2. If HTTP is 2xx AND the server says success is true, return the payload
+  if (response.ok && responseData?.success) {
     return responseData.data;
   }
 
+  // 3. Otherwise, treat it as a structured ApiError
+  // This keeps responseData as an OBJECT, allowing you to access .data.requirements
   throw new ApiError(
     response.status,
     responseData,
-    responseData?.error || responseData?.message || "An unknown error occurred",
+    responseData?.error || responseData?.message || `Error: ${response.status}`,
   );
 };
 

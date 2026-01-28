@@ -1,73 +1,127 @@
 <template>
-  <pull-to-refresh @refresh="onRefreshItems">
-    <template v-if="items.length">
-      <search-bar
-        @search="filterItems"
-        :placeholder="t('search.placeholder')"
-        class="align-middle"
+  <ion-content
+    ref="contentRef"
+    :scroll-events="true"
+    @ionScroll="handleScroll($event)"
+  >
+    <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
+      <ion-refresher-content
+        :pulling-icon="chevronDown"
+        :pulling-text="t('pullToRefresh.pull')"
+        refreshing-spinner="circles"
+        :refreshing-text="t('pullToRefresh.refreshing')"
       />
-      <ion-text class="align-middle" color="tertiary">{{ filteredItems.length }} {{ t('overview.items') }}</ion-text>
-    </template>
-    <template v-if="filteredItems.length">
-      <ion-grid class="item-grid">
-        <ion-row>
-          <ion-col
-            v-for="item in filteredItems"
-            :key="item.id"
-            size-sm="6"
-            size-md="4"
-            size-lg="3"
-            size-xl="4"
-            class="responsive-col"
-          >
-            <ion-card class="item-card" @click="navigateToItem(item.id)">
-              <ion-badge
-                v-if="item.isNew"
-                class="new-badge round-badge"
-                color="danger"
-              >
-                {{ t('label.new') }}
-              </ion-badge>
-              <div :class="['item-image-wrapper', { 'image-only': imageOnly }]">
-                <ion-img
-                  :src="item.imageUrl || '/no-image.png'"
-                  :alt="t('image.alt', { name: item.name })"
-                  @ion-error="($event) => ($event.target.src = '/no-image.png')"
-                />
-              </div>
+    </ion-refresher>
 
-              <ion-card-content v-if="!imageOnly" class="item-content">
-                <ion-card-title class="item-title">
-                  {{ item.name }}
-                </ion-card-title>
+    <ion-fab
+      v-if="showScrollTop"
+      vertical="bottom"
+      horizontal="end"
+      slot="fixed"
+      class="scroll-top-fab"
+    >
+      <ion-fab-button size="small" @click="scrollToTop">
+        <ion-icon :icon="arrowUp" />
+      </ion-fab-button>
+    </ion-fab>
 
-                <ion-card-subtitle
-                  v-if="item.description"
-                  class="item-description"
+    <div class="refresh-button-container">
+      <ion-button
+        size="small"
+        fill="clear"
+        @click="manualRefresh"
+        :disabled="isRefreshing"
+      >
+        <template v-if="isRefreshing">
+          <ion-spinner name="dots" />
+          {{ t("pullToRefresh.loading") }}
+        </template>
+        <template v-else>
+          <ion-icon :icon="refreshIcon" />
+        </template>
+      </ion-button>
+    </div>
+
+    <div class="content-container">
+      <template v-if="items.length">
+        <div class="header-actions align-middle">
+          <search-bar
+            @search="filterItems"
+            :placeholder="t('search.placeholder')"
+            class="search-bar-flex"
+          />
+        </div>
+
+        <ion-text class="align-middle" color="tertiary">
+          {{ filteredItems.length }} {{ t("overview.items") }}
+        </ion-text>
+      </template>
+
+      <template v-if="filteredItems.length">
+        <ion-grid class="item-grid">
+          <ion-row>
+            <ion-col
+              v-for="item in filteredItems"
+              :key="item.id"
+              size-sm="6"
+              size-md="4"
+              size-lg="3"
+              size-xl="4"
+              class="responsive-col"
+            >
+              <ion-card class="item-card" @click="navigateToItem(item.id)">
+                <ion-badge
+                  v-if="item.isNew"
+                  class="new-badge round-badge"
+                  color="danger"
                 >
-                  {{ item.description }}
-                </ion-card-subtitle>
+                  {{ t("label.new") }}
+                </ion-badge>
+                <div
+                  :class="['item-image-wrapper', { 'image-only': imageOnly }]"
+                >
+                  <ion-img
+                    :src="item.imageUrl || '/no-image.png'"
+                    :alt="t('image.alt', { name: item.name })"
+                    @ion-error="
+                      ($event) => ($event.target.src = '/no-image.png')
+                    "
+                  />
+                </div>
 
-                <ion-text color="medium" class="more-details">
-                  {{ t('overview.more_details') }}
-                </ion-text>
-              </ion-card-content>
-            </ion-card>
-          </ion-col>
-        </ion-row>
-      </ion-grid>
-    </template>
+                <ion-card-content v-if="!imageOnly" class="item-content">
+                  <ion-card-title class="item-title">
+                    {{ item.name }}
+                  </ion-card-title>
 
-    <template v-else>
-      <ion-text color="secondary" class="align-middle align-horizontal">
-        {{ t('overview.no_entries') }}
-      </ion-text>
-    </template>
-  </pull-to-refresh>
+                  <ion-card-subtitle
+                    v-if="item.description"
+                    class="item-description"
+                  >
+                    {{ item.description }}
+                  </ion-card-subtitle>
+
+                  <ion-text color="medium" class="more-details">
+                    {{ t("overview.more_details") }}
+                  </ion-text>
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
+          </ion-row>
+        </ion-grid>
+      </template>
+
+      <template v-else>
+        <ion-text color="secondary" class="align-middle align-horizontal">
+          {{ t("overview.no_entries") }}
+        </ion-text>
+      </template>
+    </div>
+  </ion-content>
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType } from "vue";
+import { defineComponent, PropType, ref } from "vue";
 import {
   IonGrid,
   IonRow,
@@ -79,12 +133,28 @@ import {
   IonText,
   IonImg,
   IonBadge,
+  IonContent,
+  IonRefresher,
+  IonRefresherContent,
+  IonButton,
+  IonIcon,
+  IonSpinner,
+  IonFab,
+  IonFabButton,
 } from "@ionic/vue";
+import { chevronDownCircleOutline, reload, arrowUp } from "ionicons/icons";
 
 import SearchBar from "@/components/SearchBar.vue";
-import PullToRefresh from "@/components/PullToRefresh.vue";
 import Utils from "@/utils/utils";
-import localizationService from '@/services/general/LocalizationService';
+import localizationService from "@/services/general/LocalizationService";
+
+export interface OverviewItem {
+  id: string | number;
+  name: string;
+  imageUrl?: string;
+  description?: string;
+  isNew?: boolean;
+}
 
 export default defineComponent({
   name: "ItemsOverview",
@@ -100,12 +170,18 @@ export default defineComponent({
     IonImg,
     IonBadge,
     SearchBar,
-    PullToRefresh,
+    IonContent,
+    IonRefresher,
+    IonRefresherContent,
+    IonButton,
+    IonIcon,
+    IonSpinner,
+    IonFab,
+    IonFabButton,
   },
   props: {
     items: {
-      type: Array as PropType<OverviewItem[]
-      >,
+      type: Array as PropType<OverviewItem[]>,
       required: true,
     },
     imageOnly: {
@@ -121,15 +197,47 @@ export default defineComponent({
       required: true,
     },
   },
+  setup() {
+    const contentRef = ref<InstanceType<typeof IonContent> | null>(null);
+    return { contentRef };
+  },
   data() {
     return {
       currentSearch: "",
       filteredItems: [] as OverviewItem[],
+      chevronDown: chevronDownCircleOutline,
+      refreshIcon: reload,
+      arrowUp: arrowUp,
+      isRefreshing: false,
+      showScrollTop: false,
     };
   },
   methods: {
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+      return localizationService.t(key, vars, fallback || key);
+    },
+    handleScroll(event: CustomEvent) {
+      // Show button if user scrolled down more than 300px
+      this.showScrollTop = event.detail.scrollTop > 300;
+    },
+    async scrollToTop() {
+      if (this.contentRef) {
+        // Use the native scrollToTop method
+        await this.contentRef.$el.scrollToTop(500); // 500ms duration
+      }
+    },
+    handleRefresh(event: any) {
+      this.isRefreshing = true;
+      this.onRefreshItems().finally(() => {
+        event.target.complete();
+        this.isRefreshing = false;
+      });
+    },
+    manualRefresh() {
+      this.isRefreshing = true;
+      this.onRefreshItems().finally(() => {
+        this.isRefreshing = false;
+      });
     },
     filterItems(query: string) {
       this.currentSearch = query;
@@ -138,11 +246,8 @@ export default defineComponent({
     },
     sortItems(items: OverviewItem[]) {
       return [...items].sort((a, b) => {
-        // 1. Sort by isNew status (true before false)
         if (a.isNew && !b.isNew) return -1;
         if (!a.isNew && b.isNew) return 1;
-
-        // 2. If both have the same isNew status, sort by name
         return a.name.localeCompare(b.name);
       });
     },
@@ -153,9 +258,6 @@ export default defineComponent({
       }
       this.onItemClick(id);
     },
-  },
-  mounted() {
-    this.filteredItems = this.sortItems(this.items);
   },
   watch: {
     items: {
@@ -173,6 +275,60 @@ export default defineComponent({
 </script>
 
 <style scoped>
+/* SCROLL TOP STYLES */
+.scroll-top-fab {
+  margin-bottom: 10vh;
+}
+
+.scroll-top-fab ion-fab-button {
+  --box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  --background: var(--ion-color-tertiary);
+  --color: white;
+  transition: background-color 0.3s ease;
+}
+
+/* REFRESHER & LAYOUT STYLES */
+.refresh-button-container {
+  position: absolute;
+  right: 95%;
+  padding: 8px 16px;
+  z-index: 10;
+}
+
+.content-container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.search-bar-flex {
+  flex: 1;
+}
+
+.extra-filters-wrapper {
+  flex-shrink: 0;
+}
+
+ion-refresher {
+  --background: #f0f0f0;
+  --pulling-icon-color: #3880ff;
+  --refreshing-icon-color: #3880ff;
+}
+
+ion-content {
+  --padding-top: 0;
+  --padding-bottom: 0;
+}
+
+/* YOUR ORIGINAL STYLING RESTORED EXACTLY */
 ion-col {
   flex-basis: auto !important;
 }
@@ -182,17 +338,17 @@ ion-col {
   padding: 20px;
 }
 
-/* CARD BASE */
 .item-card {
   position: relative;
-  /* Important: Ensure overflow is visible so the badge can hang outside */
   overflow: visible;
   height: 90%;
   display: flex;
   flex-direction: column;
   cursor: pointer;
   border-radius: 15px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .item-card:hover {
@@ -202,24 +358,20 @@ ion-col {
 
 .new-badge {
   position: absolute;
-  /* Adjust these negative values to move the badge further outside or inside */
   top: 8px;
   right: 8px;
-
-  z-index: 20; /* Higher than images */
-
+  z-index: 20;
   font-size: 0.7rem;
   font-weight: bold;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  border: 2px solid white; /* Adds a clean separation from the card */
+  border: 2px solid white;
 }
 
-/* IMAGE */
 .item-image-wrapper {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  border-radius: 15px 15px 0 0; /* Match card top radius */
+  border-radius: 15px 15px 0 0;
 }
 
 .image-only {
@@ -239,7 +391,6 @@ ion-col {
   object-fit: cover;
 }
 
-/* CONTENT */
 .item-title {
   font-size: 1.1rem;
   font-weight: 600;
@@ -272,7 +423,7 @@ ion-col {
     height: 100%;
     aspect-ratio: unset;
     flex-shrink: 0;
-    border-radius: 15px 0 0 15px; /* Adjust radius for horizontal layout */
+    border-radius: 15px 0 0 15px;
   }
 
   .item-content {
@@ -286,6 +437,18 @@ ion-col {
     flex: 0 0 calc(calc(3 / 12) * 100%) !important;
     width: calc(calc(3 / 12) * 100%) !important;
     max-width: calc(calc(3 / 12) * 100%) !important;
+  }
+}
+
+@media (max-width: 1440px) and (min-width: 769px) {
+  .refresh-button-container {
+    right: 90%;
+  }
+}
+
+@media (max-width: 768px) {
+  .refresh-button-container {
+    display: none;
   }
 }
 </style>

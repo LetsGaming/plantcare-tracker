@@ -26,6 +26,8 @@ const ComponentDetails = () =>
 const SalesOverview = () => import("@/views/sales/SalesOverview.vue");
 const SalesDetails = () => import("@/views/sales/SalesDetails.vue");
 
+const Debug = () => import("@/views/Debug.vue");
+
 const authMeta = { requiresAuth: true };
 
 const routes: Array<RouteRecordRaw> = [
@@ -58,6 +60,12 @@ const routes: Array<RouteRecordRaw> = [
     name: "tabs",
     redirect: "/tabs/plants",
     children: [
+      {
+        name: "debug",
+        path: "debug",
+        meta: authMeta,
+        component: Debug,
+      },
       {
         name: "plant-overview",
         path: "plants",

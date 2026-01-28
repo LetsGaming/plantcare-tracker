@@ -175,7 +175,8 @@ export abstract class BaseService {
     try {
       return await request;
     } catch (error: any) {
-      if (error?.name === "RefreshError" || error?.status === 401) throw error;
+      if (error?.name === "RefreshError" || error?.name === "RegisterError")
+        throw error;
 
       ToastService.showError({
         key: actionKey,

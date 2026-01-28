@@ -72,6 +72,7 @@ export default {
   "tabs.plants": "Plants",
   "tabs.substrates": "Substrates",
   "tabs.components": "Components",
+  "tabs.debug": "Debug",
 
   /* Segments */
   "segment.all": "All",

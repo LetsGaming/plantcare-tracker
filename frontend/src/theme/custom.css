@@ -46,6 +46,10 @@ ion-toolbar {
   text-align: center;
 }
 
+ion-toast {
+  --white-space: pre-wrap;
+}
+
 .modal-card-container {
   display: flex;
   justify-content: center;

@@ -108,7 +108,6 @@ class ToastService {
         positionAnchor: positionAnchor || undefined,
         color,
         buttons,
-        // Performance optimization: cssClass can be used for hardware acceleration if needed
         cssClass: "toast-custom-class",
       });
 
@@ -160,7 +159,7 @@ class ToastService {
    */
   static showError(
     message: string | LocalizedMessage,
-    duration?: number,
+    duration: number = 4000,
     position?: ToastPosition,
     positionAnchor?: string,
   ): void {

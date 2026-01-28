@@ -18,6 +18,11 @@
           <ion-icon :icon="grid" />
           <ion-label>{{ t("tabs.components") }}</ion-label>
         </ion-tab-button>
+
+        <ion-tab-button tab="tab4" href="/tabs/debug" v-if="isDev">
+          <ion-icon :icon="bug" />
+          <ion-label>{{ t("tabs.debug") }}</ion-label>
+        </ion-tab-button>
       </ion-tab-bar>
     </ion-tabs>
 
@@ -50,7 +55,7 @@ import {
   IonFabButton,
   IonBadge,
 } from "@ionic/vue";
-import { cube, grid, leaf, pricetag } from "ionicons/icons";
+import { cube, grid, leaf, pricetag, bug } from "ionicons/icons";
 import localizationService from "@/services/general/LocalizationService";
 import SalesService, { SaleEvents } from "@/services/SalesServices";
 
@@ -72,6 +77,8 @@ const loadNewSalesCount = async () => {
 const handleSaleSeenEvent = () => {
   loadNewSalesCount();
 };
+
+const isDev = process.env.NODE_ENV !== "production";
 
 onMounted(() => {
   loadNewSalesCount();

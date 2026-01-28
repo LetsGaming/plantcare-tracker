@@ -27,7 +27,7 @@ const authenticateToken = (req, res, next) => {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return errorResponse(res, "Invalid or expired token", 403, err);
+      return errorResponse(res, "Invalid or expired token", 403);
     }
 
     const currentRefreshTokens = authStore.getRefreshTokens(user.id);

@@ -144,6 +144,7 @@ import {
 import UserService from "@/services/UserService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import ApiUtils from "@/utils/apiUtils";
 
 export default defineComponent({
   name: "Login",
@@ -281,7 +282,7 @@ export default defineComponent({
 
       this.loading = true;
       try {
-        await UserService.register({
+        const result = await UserService.register({
           username: this.username,
           password: this.password,
         });
@@ -297,7 +298,25 @@ export default defineComponent({
         );
 
         this.isRegisterMode = false;
-      } catch {
+      } catch (error) {
+        if (ApiUtils.isApiError(error)) {
+          const message = error.data?.message;
+          const requirements = error.data?.data?.requirements;
+
+          let errorMessage = message;
+
+          if (Array.isArray(requirements)) {
+            errorMessage += requirements.map((r) => `• ${r}`).join("\n");
+            ToastService.showError(
+              errorMessage,
+              undefined,
+              "top",
+              "auth-button",
+            );
+            return;
+          }
+        }
+        // Fallback for other errors
         this.showAuthError({
           key: "auth.register_failed",
           fallback: "Registration failed. Please try again.",
