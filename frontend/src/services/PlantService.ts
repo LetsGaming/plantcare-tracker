@@ -92,6 +92,38 @@ export default class PlantService extends BaseService {
      Fetching
      ========================================================================= */
 
+  private static async fetchFromApi(id?: number): Promise<Plant[]> {
+    try {
+      const response = await ApiUtils.get<APIPlant[]>(BASE_ENDPOINT);
+      const allPlants = PlantMapper.convertToPlants(response);
+
+      if (id) {
+        // Find the specific plant if an ID was provided
+        const plant = allPlants.find((p) => p.id === id);
+
+        if (plant) {
+          await this.upsertIntoListCache(
+            CACHE_KEY_ALL,
+            PlantEvents.PLANTS_UPDATED,
+            plant, // Passing a single Plant object
+          );
+          // Return as array to satisfy Promise<Plant[]>
+          return [plant];
+        }
+        return [];
+      } else {
+        // Handle the bulk case
+        await this.savePlants(allPlants);
+        return allPlants;
+      }
+    } catch (error: any) {
+      if (ApiUtils.isApiError(error) && error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
   /**
    * Fetches all plants the current user is allowed to see.
    *
@@ -103,16 +135,8 @@ export default class PlantService extends BaseService {
   static async getAllPlants(forceUpdate: boolean = false): Promise<Plant[]> {
     const result = await this.getCachedData(
       CACHE_KEY_ALL,
-      () =>
-        this.handleRequest(
-          ApiUtils.get<APIPlant[]>(BASE_ENDPOINT).then((res) => {
-            const plants = PlantMapper.convertToPlants(res);
-            this.savePlants(plants);
-            return plants;
-          }),
-          RESOURCE_KEY
-        ),
-      forceUpdate
+      () => this.handleRequest(this.fetchFromApi(), RESOURCE_KEY),
+      forceUpdate,
     );
     return result || [];
   }
@@ -130,27 +154,25 @@ export default class PlantService extends BaseService {
    */
   static async getPlantById(
     plantId: number,
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Plant> {
     const plants = await this.getAllPlants(false);
     const cached = plants.find((p) => p.id === plantId);
 
     if (cached && !forceUpdate) return cached;
 
-    const plant = await this.handleRequest(
-      ApiUtils.get<APIPlant>(`${BASE_ENDPOINT}/plant/${plantId}`).then(
-        (res) => PlantMapper.convertToPlants(res)[0]
-      ),
-      RESOURCE_KEY
+    // fetchFromApi returns Plant[]
+    const results = await this.handleRequest(
+      this.fetchFromApi(plantId),
+      RESOURCE_KEY,
     );
 
-    await this.upsertIntoListCache(
-      CACHE_KEY_ALL,
-      PlantEvents.PLANTS_UPDATED,
-      plant
-    );
+    // Check if we got the plant and return the first element
+    if (!results || results.length === 0) {
+      throw new Error(`Plant with ID ${plantId} not found.`);
+    }
 
-    return plant;
+    return results[0];
   }
 
   /* =========================================================================
@@ -180,7 +202,7 @@ export default class PlantService extends BaseService {
    * @returns All plants owned by the user
    */
   static async getPersonalPlants(
-    forceUpdate: boolean = false
+    forceUpdate: boolean = false,
   ): Promise<Plant[]> {
     const plants = await this.getAllPlants(forceUpdate);
     const userId = await UserService.getUserId();
@@ -204,7 +226,7 @@ export default class PlantService extends BaseService {
     const response = await this.handleRequest(
       ApiUtils.post(BASE_ENDPOINT, plantToAdd),
       RESOURCE_KEY,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidatePlantCache();
@@ -223,12 +245,12 @@ export default class PlantService extends BaseService {
    */
   static async editPlant(
     plantId: number,
-    updatedPlantData: EditPlant
+    updatedPlantData: EditPlant,
   ): Promise<any> {
     const response = await this.handleRequest(
       ApiUtils.patch(`${BASE_ENDPOINT}/${plantId}`, updatedPlantData),
       RESOURCE_KEY,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidatePlantCache(plantId);
@@ -247,7 +269,7 @@ export default class PlantService extends BaseService {
     const response = await this.handleRequest(
       ApiUtils.delete(`${BASE_ENDPOINT}/${plantId}`),
       RESOURCE_KEY,
-      "error.action_failed"
+      "error.action_failed",
     );
 
     await this.invalidatePlantCache(plantId);
@@ -268,13 +290,13 @@ export default class PlantService extends BaseService {
   static async uploadPlantImage(
     plantId: number,
     image: File,
-    date?: string | Date
+    date?: string | Date,
   ): Promise<any> {
     const response = await ImageService.uploadImage(
       image,
       "plant",
       plantId,
-      date
+      date,
     );
 
     await this.invalidatePlantCache(plantId);

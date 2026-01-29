@@ -15,8 +15,8 @@ export enum SubstrateEvents {
 
 export default class SubstrateService extends BaseService {
   /* =========================================================================
-     Cache helpers
-     ========================================================================= */
+      Cache helpers
+      ========================================================================= */
 
   /**
    * Persist the full substrate list into storage and notify listeners
@@ -52,8 +52,45 @@ export default class SubstrateService extends BaseService {
   }
 
   /* =========================================================================
-     Fetching
-     ========================================================================= */
+      Fetching
+      ========================================================================= */
+
+  /**
+   * Internal fetcher that handles API calls and cache upserting.
+   * Always returns an array to keep the type signature consistent.
+   */
+  private static async fetchFromApi(id?: number): Promise<Substrate[]> {
+    try {
+      // If an ID is provided, we use the specific detail endpoint, otherwise the list endpoint
+      const endpoint = id ? `${BASE_ENDPOINT}/substrate/${id}` : BASE_ENDPOINT;
+      const response = await ApiUtils.get<APISubstrate | APISubstrate[]>(
+        endpoint,
+      );
+
+      const substrates = SubstrateMapper.convertToSubstrates(response);
+
+      if (id) {
+        const substrate = substrates[0];
+        if (substrate) {
+          await this.upsertIntoListCache(
+            CACHE_KEY_ALL,
+            SubstrateEvents.SUBSTRATES_UPDATED,
+            substrate,
+          );
+          return [substrate];
+        }
+        return [];
+      } else {
+        await this.saveSubstrates(substrates);
+        return substrates;
+      }
+    } catch (error: any) {
+      if (ApiUtils.isApiError(error) && error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }
 
   /**
    * Fetch all substrates (public + private) and update the single cache.
@@ -65,15 +102,7 @@ export default class SubstrateService extends BaseService {
   ): Promise<Substrate[]> {
     const result = await this.getCachedData(
       CACHE_KEY_ALL,
-      () =>
-        this.handleRequest(
-          ApiUtils.get<APISubstrate[]>(BASE_ENDPOINT).then((res) => {
-            const substrates = SubstrateMapper.convertToSubstrates(res);
-            this.saveSubstrates(substrates);
-            return substrates;
-          }),
-          RESOURCE_KEY,
-        ),
+      () => this.handleRequest(this.fetchFromApi(), RESOURCE_KEY),
       forceUpdate,
     );
 
@@ -95,24 +124,21 @@ export default class SubstrateService extends BaseService {
 
     if (cached && !forceUpdate) return cached;
 
-    const substrate = await this.handleRequest(
-      ApiUtils.get<APISubstrate>(
-        `${BASE_ENDPOINT}/substrate/${substrateId}`,
-      ).then((res) => SubstrateMapper.convertToSubstrates(res)[0]),
+    const results = await this.handleRequest(
+      this.fetchFromApi(substrateId),
       RESOURCE_KEY,
     );
 
-    await this.upsertIntoListCache(
-      CACHE_KEY_ALL,
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      substrate,
-    );
-    return substrate;
+    if (!results || results.length === 0) {
+      throw new Error(`Substrate with ID ${substrateId} not found.`);
+    }
+
+    return results[0];
   }
 
   /* =========================================================================
-     Derived views
-     ========================================================================= */
+      Derived views
+      ========================================================================= */
 
   /**
    * Returns only public substrates
@@ -140,8 +166,8 @@ export default class SubstrateService extends BaseService {
   }
 
   /* =========================================================================
-     Mutations
-     ========================================================================= */
+      Mutations
+      ========================================================================= */
 
   /**
    * Add a new substrate
@@ -173,10 +199,9 @@ export default class SubstrateService extends BaseService {
     const substrateId = (substrateResponse as { substrateId: number })
       .substrateId;
 
-    let componentsResponse;
     if (componentsData?.components?.length) {
       componentsData.substrateId = substrateId;
-      componentsResponse = await this.handleRequest<SubstrateComponent[]>(
+      await this.handleRequest<SubstrateComponent[]>(
         ApiUtils.post(
           `${BASE_ENDPOINT}/components/${substrateId}`,
           componentsData,
@@ -259,10 +284,6 @@ export default class SubstrateService extends BaseService {
     date?: string | Date,
     doInvalidate: boolean = true,
   ): Promise<any> {
-    const formData = new FormData();
-    formData.append("image", image);
-    if (date) formData.append("date", date.toString());
-
     const response = await ImageService.uploadImage(
       image,
       "substrate",

@@ -282,6 +282,20 @@ const ApiUtils = {
   },
 
   /**
+   * Uploads files using a multipart/form-data PATCH request.
+   * @param {string} endpoint - The target API path.
+   * @param {FormData} data - The form data containing files.
+   */
+  patchFile<R>(endpoint: string, data: FormData): Promise<R> {
+    return performRequest<R>({
+      method: "PATCH",
+      endpoint,
+      data,
+      isFileUpload: true,
+    });
+  },
+
+  /**
    * Performs a PUT request.
    * @param {string} endpoint - The target API path.
    * @param {any} data - The JSON payload.
