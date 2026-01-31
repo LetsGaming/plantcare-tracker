@@ -2,66 +2,184 @@
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>Debug</ion-title>
+        <ion-title>System Debug</ion-title>
+        <ion-buttons slot="end">
+          <ion-button color="danger" @click="clearLogs">
+            <ion-icon slot="icon-only" :icon="trashOutline"></ion-icon>
+          </ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="ion-padding">
-      <div class="controls">
-        <ion-button expand="block" @click="showToastSuccess"
-          >Toast: Success</ion-button
-        >
-        <ion-button expand="block" color="danger" @click="showToastError"
-          >Toast: Error</ion-button
-        >
+      <div class="debug-section-title">UI & Feedback</div>
+      <ion-grid class="ion-no-padding">
+        <ion-row>
+          <ion-col size="6">
+            <ion-button
+              expand="block"
+              fill="outline"
+              color="success"
+              @click="showToastSuccess"
+            >
+              <ion-icon slot="start" :icon="checkmarkCircleOutline"></ion-icon>
+              Success
+            </ion-button>
+          </ion-col>
+          <ion-col size="6">
+            <ion-button
+              expand="block"
+              fill="outline"
+              color="danger"
+              @click="showToastError"
+            >
+              <ion-icon slot="start" :icon="alertCircleOutline"></ion-icon>
+              Error
+            </ion-button>
+          </ion-col>
+          <ion-col size="6">
+            <ion-button
+              expand="block"
+              fill="outline"
+              @click="showToastLineBreak"
+            >
+              <ion-icon slot="start" :icon="checkmarkCircleOutline"></ion-icon>
+              Toast w/ Multi-line
+            </ion-button>
+          </ion-col>
+          <ion-col size="6">
+            <ion-button
+              expand="block"
+              fill="outline"
+              color="medium"
+              @click="dismissToast"
+            >
+              <ion-icon slot="start" :icon="trashOutline"></ion-icon>
+              Dismiss All Toasts
+            </ion-button>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
 
-        <ion-button expand="block" @click="loginSample"
-          >Auth: Login (sample)</ion-button
-        >
-        <ion-button expand="block" color="medium" @click="logout"
-          >Auth: Logout</ion-button
-        >
+      <div class="debug-section-title">Authentication</div>
+      <ion-card class="ion-no-margin ion-margin-bottom">
+        <ion-card-content>
+          <ion-row>
+            <ion-col size="6">
+              <ion-button expand="block" @click="loginSample">
+                <ion-icon slot="start" :icon="logInOutline"></ion-icon>
+                Login
+              </ion-button>
+            </ion-col>
+            <ion-col size="6">
+              <ion-button expand="block" color="medium" @click="logout">
+                <ion-icon slot="start" :icon="logOutOutline"></ion-icon>
+                Logout
+              </ion-button>
+            </ion-col>
+          </ion-row>
+        </ion-card-content>
+      </ion-card>
 
-        <ion-button expand="block" @click="getPlants"
-          >API: Get Plants</ion-button
-        >
-        <ion-button expand="block" color="tertiary" @click="createPlant"
-          >API: Create Plant</ion-button
-        >
-        <ion-button expand="block" color="warning" @click="triggerApiError"
-          >API: Trigger Error</ion-button
-        >
+      <div class="debug-section-title">API & Data Operations</div>
+      <ion-grid class="ion-no-padding ion-margin-bottom">
+        <ion-row>
+          <ion-col size="6">
+            <ion-button expand="block" color="secondary" @click="getPlants">
+              <ion-icon slot="start" :icon="leafOutline"></ion-icon>
+              Get Plants
+            </ion-button>
+          </ion-col>
+          <ion-col size="6">
+            <ion-button expand="block" color="tertiary" @click="createPlant">
+              <ion-icon slot="start" :icon="addOutline"></ion-icon>
+              Create
+            </ion-button>
+          </ion-col>
+          <ion-col size="6">
+            <ion-button expand="block" color="warning" @click="triggerApiError">
+              <ion-icon slot="start" :icon="bugOutline"></ion-icon>
+              Trigger Error
+            </ion-button>
+          </ion-col>
+          <ion-col size="6">
+            <ion-button
+              expand="block"
+              color="light"
+              @click="simulateOfflineSave"
+            >
+              <ion-icon slot="start" :icon="saveOutline"></ion-icon>
+              Save Offline
+            </ion-button>
+          </ion-col>
+          <ion-col size="12">
+            <ion-button expand="block" color="dark" @click="checkStorageSize">
+              <ion-icon slot="start" :icon="folderOpenOutline"></ion-icon>
+              Check Storage Footprint
+            </ion-button>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
 
-        <div class="file-row">
-          <input ref="fileInput" type="file" @change="onFileChange" />
-          <ion-button :disabled="!selectedFile" @click="uploadImage"
-            >Upload Image</ion-button
+      <div class="debug-section-title">Media & Clipboard</div>
+      <ion-card class="ion-no-margin ion-margin-bottom">
+        <ion-card-content>
+          <div class="file-upload-container">
+            <input
+              ref="fileInput"
+              type="file"
+              @change="onFileChange"
+              id="file-id"
+              class="hidden-input"
+            />
+            <label for="file-id" class="custom-file-label">
+              {{ selectedFile ? selectedFile.name : "Select Image..." }}
+            </label>
+            <ion-button
+              :disabled="!selectedFile"
+              @click="uploadImage"
+              size="small"
+            >
+              <ion-icon slot="icon-only" :icon="cloudUploadOutline"></ion-icon>
+            </ion-button>
+          </div>
+          <ion-button
+            expand="block"
+            fill="clear"
+            size="small"
+            @click="copyClipboard"
           >
-        </div>
+            <ion-icon slot="start" :icon="copyOutline"></ion-icon>
+            Copy Sample Text
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
 
-        <ion-button expand="block" @click="copyClipboard"
-          >Clipboard: Copy sample text</ion-button
+      <div class="debug-section-title">Console Logs ({{ logs.length }})</div>
+      <ion-list v-if="logs.length > 0" class="log-list">
+        <ion-button expand="block" fill="clear" size="small" @click="clearLogs">
+          <ion-icon slot="start" :icon="trashOutline"></ion-icon>
+          Clear Logs
+        </ion-button>
+        <ion-item
+          v-for="(l, idx) in logs"
+          :key="idx"
+          lines="full"
+          class="log-item"
         >
-        <ion-button expand="block" color="light" @click="simulateOfflineSave"
-          >Simulate Offline Save</ion-button
-        >
-
-        <ion-button expand="block" color="danger" @click="clearLogs"
-          >Clear Logs</ion-button
-        >
-      </div>
-
-      <ion-list>
-        <ion-list-header>
-          <ion-label>Debug Logs</ion-label>
-        </ion-list-header>
-        <ion-item v-for="(l, idx) in logs" :key="idx">
           <ion-label>
-            <h3>{{ l.title }}</h3>
-            <p class="mono">{{ l.payload }}</p>
+            <div class="log-header">
+              <span class="log-timestamp">{{ l.timestamp }}</span>
+              <strong class="log-title">{{ l.title }}</strong>
+            </div>
+            <pre class="mono">{{ l.payload }}</pre>
           </ion-label>
         </ion-item>
       </ion-list>
+      <div v-else class="empty-state">
+        <ion-icon :icon="terminalOutline"></ion-icon>
+        <p>No logs recorded yet</p>
+      </div>
     </ion-content>
   </ion-page>
 </template>
@@ -76,16 +194,37 @@ import {
   IonContent,
   IonButton,
   IonList,
-  IonListHeader,
   IonItem,
   IonLabel,
+  IonIcon,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonCard,
+  IonCardContent,
+  IonButtons,
 } from "@ionic/vue";
+import {
+  trashOutline,
+  checkmarkCircleOutline,
+  alertCircleOutline,
+  logInOutline,
+  logOutOutline,
+  leafOutline,
+  addOutline,
+  bugOutline,
+  saveOutline,
+  cloudUploadOutline,
+  copyOutline,
+  terminalOutline,
+  folderOpenOutline,
+} from "ionicons/icons";
 
 import ToastService from "@/services/general/ToastService";
 import UserService from "@/services/UserService";
 import PlantService from "@/services/PlantService";
-import ImageService from "@/services/ImageService";
 import ApiUtils from "@/utils/apiUtils";
+import StorageService from "@/services/general/StorageService";
 
 export default defineComponent({
   name: "DebugView",
@@ -97,13 +236,36 @@ export default defineComponent({
     IonContent,
     IonButton,
     IonList,
-    IonListHeader,
     IonItem,
     IonLabel,
+    IonIcon,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonCard,
+    IonCardContent,
+    IonButtons,
+  },
+  setup() {
+    return {
+      trashOutline,
+      checkmarkCircleOutline,
+      alertCircleOutline,
+      logInOutline,
+      logOutOutline,
+      leafOutline,
+      addOutline,
+      bugOutline,
+      saveOutline,
+      cloudUploadOutline,
+      copyOutline,
+      terminalOutline,
+      folderOpenOutline,
+    };
   },
   data() {
     return {
-      logs: [] as Array<{ title: string; payload: string }>,
+      logs: [] as Array<{ title: string; payload: string; timestamp: string }>,
       selectedFile: null as File | null,
     };
   },
@@ -113,25 +275,63 @@ export default defineComponent({
         typeof payload === "string"
           ? payload
           : JSON.stringify(payload, null, 2);
-      this.logs.unshift({ title, payload: p });
+      this.logs.unshift({
+        title,
+        payload: p,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+    },
+
+    /**
+     * Helper to format bytes into readable string
+     */
+    formatBytes(bytes: number, decimals = 2) {
+      if (bytes === 0) return "0 Bytes";
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ["Bytes", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+    },
+
+    async checkStorageSize() {
+      try {
+        const bytes = await StorageService.getSizeInBytes();
+        const readable = this.formatBytes(bytes);
+        this.pushLog("Storage Footprint", {
+          totalBytes: bytes,
+          readableSize: readable,
+        });
+        ToastService.addToast({
+          message: `Storage use: ${readable}`,
+          color: "dark",
+        });
+      } catch (err) {
+        this.pushLog("Storage Error", err);
+      }
+    },
+
+    async dismissToast() {
+      ToastService.dismissAllToasts();
+      this.pushLog("Toast", "dismissed all");
+    },
+
+    async showToastLineBreak() {
+      ToastService.showSuccess(
+        "Line 1. Some super long and interesting text. Lorem ipsum dolor sit amet. \nLine 2 Lorem ipsum dolor sit amet. \nLine 3 Another line of text.",
+        3000,
+      );
+      this.pushLog("Toast", "line break shown");
     },
 
     async showToastSuccess() {
-      try {
-        ToastService.showSuccess("Test success", 2000);
-        this.pushLog("Toast", "success shown");
-      } catch (err) {
-        this.pushLog("Toast Error", err);
-      }
+      ToastService.showSuccess("Test success", 2000);
+      this.pushLog("Toast", "success shown");
     },
 
     async showToastError() {
-      try {
-        ToastService.showError("Test error: This is the longest error message for testing purposes. \n Lorem ipsum dolor sit amet, consectetur adipiscing elit. \n Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit. ", 99999999);
-        this.pushLog("Toast", "error shown");
-      } catch (err) {
-        this.pushLog("Toast Error", err);
-      }
+      ToastService.showError("Test error: We ran into an issue.", 4000);
+      this.pushLog("Toast", "error shown");
     },
 
     async loginSample() {
@@ -142,7 +342,7 @@ export default defineComponent({
         ToastService.showSuccess("Logged in (debug)");
       } catch (err) {
         this.pushLog("Auth Login Error", err);
-        ToastService.showError("Login failed (debug)");
+        ToastService.showError("Login failed");
       }
     },
 
@@ -166,23 +366,13 @@ export default defineComponent({
     },
 
     async createPlant() {
-      try {
-        const sample = {
-          name: "Debug Plant",
-          scientificName: "Debugus plantus",
-          notes: "Created from Debug page",
-        };
-        // const res = await PlantService.addPlant(sample);
-        this.pushLog("Create Plant", sample);
-      } catch (err) {
-        this.pushLog("Create Plant Error", err);
-      }
+      const sample = { name: "Debug Plant", scientificName: "Debugus plantus" };
+      this.pushLog("Create Plant (Simulated)", sample);
     },
 
     async triggerApiError() {
       try {
-        const res = await ApiUtils.get("/api/debug/trigger-error");
-        this.pushLog("Trigger API Error", res);
+        await ApiUtils.get("/api/debug/trigger-error");
       } catch (err) {
         this.pushLog("API Error (expected)", err);
         ToastService.showError("API error triggered");
@@ -191,7 +381,7 @@ export default defineComponent({
 
     onFileChange(e: Event) {
       const target = e.target as HTMLInputElement;
-      if (target.files && target.files[0]) {
+      if (target.files?.[0]) {
         this.selectedFile = target.files[0];
         this.pushLog("File Selected", {
           name: this.selectedFile.name,
@@ -201,82 +391,119 @@ export default defineComponent({
     },
 
     async uploadImage() {
-      if (!this.selectedFile) return this.pushLog("Upload", "no file selected");
-      try {
-        const form = new FormData();
-        form.append("file", this.selectedFile);
-
-        this.pushLog("Upload Image", {
-          name: this.selectedFile.name,
-          size: this.selectedFile.size,
-        });
-        ToastService.showSuccess("Image uploaded (debug)");
-
-        const fileInput = this.$refs.fileInput as HTMLInputElement;
-        if (fileInput) {
-          fileInput.value = "";
-        }
-        this.selectedFile = null;
-      } catch (err) {
-        this.pushLog("Upload Error", err);
-        ToastService.showError("Upload failed");
-      }
+      if (!this.selectedFile) return;
+      this.pushLog("Upload Image", { name: this.selectedFile.name });
+      ToastService.showSuccess("Image uploaded (debug)");
+      this.selectedFile = null;
+      if (this.$refs.fileInput)
+        (this.$refs.fileInput as HTMLInputElement).value = "";
     },
 
     async copyClipboard() {
-      try {
-        await navigator.clipboard.writeText("PlantCare Debug sample text");
-        this.pushLog("Clipboard", "copied");
-        ToastService.addToast({
-          message: "Copied to clipboard",
-          color: "primary",
-        });
-      } catch (err) {
-        this.pushLog("Clipboard Error", err);
-      }
+      await navigator.clipboard.writeText("PlantCare Debug sample text");
+      this.pushLog("Clipboard", "copied");
+      ToastService.addToast({ message: "Copied", color: "primary" });
     },
 
     simulateOfflineSave() {
-      try {
-        const key = "debug-offline";
-        const payload = {
-          ts: new Date().toISOString(),
-          note: "offline sample",
-        };
-        localStorage.setItem(key, JSON.stringify(payload));
-        this.pushLog("Offline Save", payload);
-        ToastService.addToast({
-          message: "Saved to localStorage",
-          color: "tertiary",
-        });
-      } catch (err) {
-        this.pushLog("Offline Save Error", err);
-      }
+      const payload = { ts: new Date().toISOString(), note: "offline sample" };
+      localStorage.setItem("debug-offline", JSON.stringify(payload));
+      this.pushLog("Offline Save", payload);
+      ToastService.addToast({ message: "Saved to storage", color: "tertiary" });
     },
 
     clearLogs() {
       this.logs = [];
-      ToastService.addToast({ message: "Logs cleared", color: "medium" });
     },
   },
 });
 </script>
 
 <style scoped>
-.controls {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 16px;
+.debug-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  letter-spacing: 0.5px;
+  margin: 16px 4px 8px 4px;
 }
-.file-row {
+
+.file-upload-container {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 10px;
+  background: var(--ion-color-light);
+  padding: 8px;
+  border-radius: 8px;
+  margin-bottom: 8px;
 }
+
+.hidden-input {
+  display: none;
+}
+
+.custom-file-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ion-color-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 8px;
+}
+
+.log-list {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.log-item {
+  --padding-start: 12px;
+  --inner-padding-end: 12px;
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.log-timestamp {
+  font-size: 10px;
+  color: var(--ion-color-medium);
+  font-family: monospace;
+}
+
+.log-title {
+  font-size: 13px;
+  color: var(--ion-color-primary);
+}
+
 .mono {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  font-family: ui-monospace, "Courier New", monospace;
   white-space: pre-wrap;
-  font-size: 12px;
+  font-size: 11px;
+  background: #1e1e1e;
+  color: #00ff41;
+  padding: 10px;
+  border-radius: 6px;
+  margin: 4px 0;
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid #333;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--ion-color-medium);
+  margin-top: 40px;
+}
+
+.empty-state ion-icon {
+  font-size: 48px;
+  opacity: 0.3;
 }
 </style>

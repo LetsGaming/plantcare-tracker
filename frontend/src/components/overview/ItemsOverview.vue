@@ -13,19 +13,10 @@
       />
     </ion-refresher>
 
-    <ion-fab
-      v-if="showScrollTop"
-      vertical="bottom"
-      horizontal="end"
-      slot="fixed"
-      class="scroll-top-fab"
+    <div
+      class="refresh-button-container"
+      :style="isRefreshing ? 'right: 93.5%;' : ''"
     >
-      <ion-fab-button size="small" @click="scrollToTop">
-        <ion-icon :icon="arrowUp" />
-      </ion-fab-button>
-    </ion-fab>
-
-    <div class="refresh-button-container">
       <ion-button
         size="small"
         fill="clear"
@@ -41,6 +32,18 @@
         </template>
       </ion-button>
     </div>
+
+    <ion-fab
+      v-if="showScrollTop"
+      vertical="bottom"
+      horizontal="end"
+      slot="fixed"
+      class="scroll-top-fab"
+    >
+      <ion-fab-button size="small" @click="scrollToTop">
+        <ion-icon :icon="arrowUp" />
+      </ion-fab-button>
+    </ion-fab>
 
     <div class="content-container">
       <template v-if="items.length">
@@ -437,6 +440,16 @@ ion-col {
     flex: 0 0 calc(calc(3 / 12) * 100%) !important;
     width: calc(calc(3 / 12) * 100%) !important;
     max-width: calc(calc(3 / 12) * 100%) !important;
+  }
+}
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  .item-title {
+    max-width: 100%;
+  }
+
+  .item-image-wrapper {
+    height: 200px;
   }
 }
 
