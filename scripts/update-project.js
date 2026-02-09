@@ -4,8 +4,9 @@ import path from "path";
 
 /**
  * CONFIGURATION
+ * Author: { name: "LetsGamingDE", id: 272402865874534400n}
  */
-const TARGETS = ["../frontend", "../backend"];
+const TARGETS = ["./frontend", "./backend"];
 const DEV_CHECK_DURATION = 10000;
 const COLORS = {
   reset: "\x1b[0m",
@@ -30,9 +31,6 @@ const log = {
     ),
 };
 
-/**
- * Helper to check actual vulnerability count via JSON
- */
 function getVulnerabilityCount(cwd) {
   try {
     const result = spawnSync("npm", ["audit", "--json"], {
@@ -40,15 +38,13 @@ function getVulnerabilityCount(cwd) {
       encoding: "utf8",
     });
     const auditData = JSON.parse(result.stdout || "{}");
-
-    // npm v7+ structure
     if (auditData.metadata && auditData.metadata.vulnerabilities) {
       const v = auditData.metadata.vulnerabilities;
       return v.low + v.moderate + v.high + v.critical;
     }
     return 0;
   } catch (e) {
-    return 0; // If audit fails to run, we don't want to loop infinitely
+    return 0;
   }
 }
 
@@ -160,9 +156,9 @@ async function updateProject(targetPath) {
   guard.backup();
 
   try {
-    // 1. Version Updates
-    log.info("Checking for dependency updates...");
-    if (!runSync("npx npm-check-updates -u", fullPath)) {
+    // 1. Version Updates (Added --peer to respect peer dependencies)
+    log.info("Checking for dependency updates (respecting peers)...");
+    if (!runSync("npx npm-check-updates -u --peer", fullPath)) {
       throw new Error("NCU failed.");
     }
 
@@ -170,10 +166,11 @@ async function updateProject(targetPath) {
     let installSuccess = false;
     const strategies = [
       { name: "Standard Install", cmd: "npm install" },
+      { name: "Legacy Peer Install", cmd: "npm install --legacy-peer-deps" },
       { name: "Security Patching", cmd: "npm audit fix" },
       {
         name: "Clean Install & Audit",
-        cmd: "npm install && npm audit fix",
+        cmd: "npm install --legacy-peer-deps && npm audit fix",
         pre: (p) => {
           const nm = path.join(p, "node_modules");
           const pl = path.join(p, "package-lock.json");
@@ -200,8 +197,6 @@ async function updateProject(targetPath) {
       }
     }
 
-    // If we finished the loop and still don't have success, but we at least have an install
-    // we decide if we proceed or fail. Here we proceed if at least Standard Install worked.
     if (!installSuccess) {
       log.warn(
         "Could not reach 0 vulnerabilities, but proceeding to smoke test with current state.",
@@ -219,9 +214,6 @@ async function updateProject(targetPath) {
   }
 }
 
-/**
- * MAIN
- */
 (async () => {
   process.on("SIGINT", () => {
     log.warn("\nInterrupted. Exiting...");
