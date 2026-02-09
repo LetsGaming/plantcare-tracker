@@ -83,12 +83,9 @@
                 <div
                   :class="['item-image-wrapper', { 'image-only': imageOnly }]"
                 >
-                  <ion-img
-                    :src="item.imageUrl || '/no-image.png'"
+                  <ProgressiveImage
+                    :src="item.imageUrl"
                     :alt="t('image.alt', { name: item.name })"
-                    @ion-error="
-                      ($event) => ($event.target.src = '/no-image.png')
-                    "
                   />
                 </div>
 
@@ -150,6 +147,7 @@ import { chevronDownCircleOutline, reload, arrowUp } from "ionicons/icons";
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
 import localizationService from "@/services/general/LocalizationService";
+import ProgressiveImage from "@/components/ProgressiveImage.vue";
 
 export interface OverviewItem {
   id: string | number;
@@ -181,6 +179,7 @@ export default defineComponent({
     IonSpinner,
     IonFab,
     IonFabButton,
+    ProgressiveImage,
   },
   props: {
     items: {
@@ -383,17 +382,6 @@ ion-col {
   border-radius: 15px !important;
 }
 
-.item-image-wrapper ion-img {
-  width: 100%;
-  height: 100%;
-}
-
-.item-image-wrapper ion-img::part(image) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .item-title {
   font-size: 1.1rem;
   font-weight: 600;
@@ -444,10 +432,6 @@ ion-col {
 }
 
 @media (max-width: 1024px) and (min-width: 769px) {
-  .item-title {
-    max-width: 100%;
-  }
-
   .item-image-wrapper {
     height: 200px;
   }
@@ -456,6 +440,12 @@ ion-col {
 @media (max-width: 1440px) and (min-width: 769px) {
   .refresh-button-container {
     right: 90%;
+  }
+}
+
+@media (max-width: 1024px) {
+  .item-title {
+    max-width: 100%;
   }
 }
 

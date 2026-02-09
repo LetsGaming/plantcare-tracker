@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs").promises;
+const sharp = require("sharp");
 const logger = require("../utils/logger");
 const {
   insertImage,
@@ -17,9 +18,8 @@ const { formatToDBDate } = require("../utils/generalUtils.js");
 const { getPublicImagePath } = require("../utils/imageUtils.js");
 
 const allowedMimeTypes = ["image/png", "image/jpeg", "image/jpg"];
-const NAS_PATH = process.env.NAS_PATH || null;
-const uploadDir = NAS_PATH || "/uploads";
-const uploadPath = NAS_PATH || path.resolve(__dirname, "../../uploads");
+const NAS_PATH =
+  process.env.NAS_PATH || path.resolve(__dirname, "../../uploads");
 
 const uploadImage = async (req, res) => {
   try {
@@ -27,32 +27,11 @@ const uploadImage = async (req, res) => {
     const { entityType, entityId } = req.params;
 
     if (!imageFile) {
-      return errorResponse(
-        res,
-        "No file was uploaded or 'image' field is missing.",
-        400
-      );
-    }
-
-    if (!entityType || !entityId) {
-      return errorResponse(
-        res,
-        "Both entityType and entityId are required.",
-        400
-      );
-    }
-
-    if (!allowedMimeTypes.includes(imageFile.mimetype)) {
-      return errorResponse(
-        res,
-        "Invalid image format. Only PNG, JPEG, and JPG files are allowed.",
-        400
-      );
+      return errorResponse(res, "No file uploaded.", 400);
     }
 
     const { date = Date.now() } = req.body;
     const parsedDate = formatToDBDate(date);
-
     const filePath = getPublicImagePath(req, entityType, imageFile.filename);
 
     await insertImage(entityType, entityId, filePath, parsedDate);
@@ -60,16 +39,11 @@ const uploadImage = async (req, res) => {
     successResponse(
       res,
       { path: filePath, date: parsedDate },
-      "Image uploaded successfully.",
-      201
+      "Image uploaded.",
+      201,
     );
   } catch (err) {
-    errorResponse(
-      res,
-      "An error occurred while uploading the image.",
-      500,
-      err
-    );
+    errorResponse(res, "Upload failed.", 500, err);
   }
 };
 
@@ -79,208 +53,124 @@ const updateSpecificImage = async (req, res) => {
     const { id, entityType } = req.params;
     const { date } = req.body;
 
-    if (!id) {
-      return errorResponse(res, "Image ID is required to update the image.");
-    }
-
-    if (!date && !imageFile) {
-      return errorResponse(
-        res,
-        "At least one of 'date' or 'image' fields is required to update the image."
-      );
-    }
-
-    if (imageFile && !allowedMimeTypes.includes(imageFile.mimetype)) {
-      return validationErrorResponse(
-        res,
-        "Invalid image format. Only PNG, JPEG, and JPG files are allowed."
-      );
-    }
-
     let parsedDate = date ? formatToDBDate(date) : undefined;
     let filePath = imageFile
       ? getPublicImagePath(req, entityType, imageFile.filename)
       : undefined;
 
     await updateImage(id, { date: parsedDate, filePath });
-
-    successResponse(res, { path: filePath }, "Image updated successfully.");
+    successResponse(res, { path: filePath }, "Image updated.");
   } catch (err) {
-    errorResponse(
-      res,
-      "An error occurred while uploading the image.",
-      500,
-      err
-    );
+    errorResponse(res, "Update failed.", 500, err);
   }
 };
 
 const getImages = async (req, res) => {
   try {
-    // Optional query parameters for filtering images
-    const { entityType, entityId } = req.query;
+    const { entityType } = req.params;
+    const { entityId } = req.query;
     const [images] = await selectImages({
       entity_type: entityType,
       entity_id: entityId,
     });
     successResponse(res, images);
   } catch (err) {
-    errorResponse(res, "Internal Server Error while getting images", 500, err);
+    errorResponse(res, "Error fetching images", 500, err);
   }
 };
 
+/**
+ * Handles fetching the physical image file with optional resizing via ?size=
+ */
 const getImage = async (req, res) => {
-  const { entityType, entityId } = req.query;
+  const { entityType, entityId } = req.params;
+  const { size } = req.query;
+
   try {
-    // Retrieve a single image based on the provided entity details
     const [results] = await selectImages({
       entity_type: entityType,
       entity_id: entityId,
     });
+
     const image = results[0];
-    if (!image) {
-      return notFoundResponse(res, "Image not found");
+    if (!image) return notFoundResponse(res, "Image not found");
+
+    // Convert URL/DB path to local filesystem path
+    const filename = path.basename(image.image_url);
+    const localPath = path.join(NAS_PATH, entityType, filename);
+
+    // Check if file exists
+    await fs.access(localPath);
+
+    let transform = sharp(localPath);
+
+    // Apply resizing if size param is provided
+    if (size) {
+      const width = parseInt(size);
+      if (!isNaN(width) && width > 0) {
+        transform = transform.resize({ width, withoutEnlargement: true });
+      }
     }
-    successResponse(res, image);
+
+    const buffer = await transform.toFormat("webp").toBuffer();
+
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
+    return res.send(buffer);
   } catch (err) {
-    logger.error(err);
-    errorResponse(res, "Internal Server Error while getting image");
+    logger.error("getImage Error:", err);
+    if (err.code === "ENOENT") return notFoundResponse(res, "File not on disk");
+    errorResponse(res, "Internal Server Error");
   }
 };
 
 const deleteSpecificImage = async (req, res, deleteFromDb = true) => {
   const { entityType, id } = req.params;
-
-  if (!id) {
-    if (deleteFromDb) {
-      return validationErrorResponse(
-        res,
-        "Image ID is required to delete the image."
-      );
-    }
-    return false;
-  }
-
-  if (!entityType) {
-    if (deleteFromDb) {
-      return validationErrorResponse(
-        res,
-        "Entity type is required to delete the image."
-      );
-    }
-    return false;
-  }
-
   try {
-    // Retrieve the image details before deleting
     const [imageResults] = await selectImages({ id });
-    if (!imageResults.length) {
-      if (deleteFromDb)
-        return notFoundResponse(res, "Image not found or already deleted");
-      return false;
-    }
+    if (!imageResults.length)
+      return deleteFromDb ? notFoundResponse(res, "Not found") : false;
 
     let imagePath = imageResults[0].image_url;
-    // If the image URL is a full URL, convert it to an absolute file path
-    if (imagePath.startsWith("http")) {
-      const filename = path.basename(imagePath); // Extract just the filename
-      const basePath = path.join(uploadPath, entityType);
-      imagePath = path.join(basePath, filename); // Construct the local file path
-    }
+    const filename = path.basename(imagePath);
+    const fullPath = path.join(NAS_PATH, entityType, filename);
 
-    // Check if file exists before trying to delete
-    await deleteImageOnSystem(imagePath);
+    await deleteImageOnSystem(fullPath);
 
-    // Delete the image record from the database
     if (deleteFromDb) {
-      const result = await deleteImage(id);
-
-      if (result.affectedRows === 0) {
-        return notFoundResponse(
-          res,
-          "Image not found or not authorized to delete"
-        );
-      }
-      successResponse(res, { deleted: true }, "Image deleted successfully");
+      await deleteImage(id);
+      successResponse(res, { deleted: true }, "Deleted.");
     } else {
       return true;
     }
   } catch (err) {
-    logger.error("Error deleting image:", err);
-    if (deleteFromDb)
-      return errorResponse(res, "Internal Server Error while deleting image");
-    return false;
+    logger.error("Delete Error:", err);
+    return deleteFromDb ? errorResponse(res, "Delete failed") : false;
   }
 };
 
 const deleteImagesByEntityHandler = async (req, res) => {
   const { entityType, entityId } = req.params;
+  const [imageResults] = await selectImages({
+    entity_type: entityType,
+    entity_id: entityId,
+  });
 
-  const result = await deleteImagesByEntity(entityType, entityId);
-
-  if (!result.success) {
-    return errorResponse(res, result.message);
+  for (const image of imageResults) {
+    const filename = path.basename(image.image_url);
+    const fullPath = path.join(NAS_PATH, entityType, filename);
+    await deleteImageOnSystem(fullPath);
+    await deleteImage(image.image_id);
   }
-
-  successResponse(res, { deleted: true }, result.message);
-};
-
-/**
- * Deletes all images for a given entityType and entityId.
- * @param {string} entityType - The type of entity (e.g., "plant", "substrate", "component").
- * @param {number} entityId - The ID of the entity.
- * @returns {Promise<{ success: boolean, message: string }>} - Operation result.
- */
-const deleteImagesByEntity = async (entityType, entityId) => {
-  try {
-    const [imageResults] = await selectImages({
-      entity_type: entityType,
-      entity_id: entityId,
-    });
-
-    if (!imageResults.length) {
-      return {
-        success: false,
-        message: "No images found for the given entity.",
-      };
-    }
-
-    for (const image of imageResults) {
-      let imagePath = image.image_url;
-
-      // If the image URL is a full URL, convert it to an absolute file path
-      if (imagePath.startsWith("http")) {
-        const filename = path.basename(imagePath); // Extract just the filename
-        imagePath = path.join(uploadPath, filename); // Construct the local file path
-      }
-
-      // Try deleting the image file from disk/NAS
-      await deleteImageOnSystem(imagePath);
-
-      // Delete the image record from the database
-      await deleteImage(image.image_id);
-    }
-
-    return { success: true, message: "Images deleted successfully." };
-  } catch (err) {
-    logger.error("Error deleting images:", err.message);
-    return {
-      success: false,
-      message: "Internal Server Error while deleting images.",
-    };
-  }
+  successResponse(res, { deleted: true }, "Entity images cleared.");
 };
 
 const deleteImageOnSystem = async (imagePath) => {
   try {
-    await fs.access(imagePath); // Verify file existence
-    await fs.unlink(imagePath); // Delete the file
-    logger.info(`Deleted image file: ${imagePath}`);
-  } catch (fileError) {
-    logger.warn(
-      `File not found or could not be deleted: ${imagePath} \n`,
-      fileError
-    );
+    await fs.unlink(imagePath);
+    logger.info(`Deleted: ${imagePath}`);
+  } catch (e) {
+    logger.warn(`Unlink failed: ${imagePath}`);
   }
 };
 
@@ -291,5 +181,4 @@ module.exports = {
   updateSpecificImage,
   deleteSpecificImage,
   deleteImagesByEntityHandler,
-  deleteImagesByEntity,
 };

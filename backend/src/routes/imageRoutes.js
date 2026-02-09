@@ -97,39 +97,26 @@ async function extractImageDate(fileBuffer) {
   }
 }
 
-/**
- * Anonymizes an image filename, removes PII, and ensures the length
- * stays within safe limits.
- * * @param {string} fileName - The original filename.
- * @param {Object} options - Configuration for anonymization.
- * @param {string[]} options.contextKeywords - Words to prioritize.
- * @param {number} options.maxLength - Maximum length of the final string (default 50).
- * @returns {string} The anonymized, length-controlled filename.
- */
 function anonymizeImageName(
   fileName,
-  { contextKeywords = [], maxLength = 50 } = {}
+  { contextKeywords = [], maxLength = 50 } = {},
 ) {
   if (!fileName || typeof fileName !== "string") return "img.jpg";
 
-  // 1. Separate extension and name
   const lastDotIndex = fileName.lastIndexOf(".");
   const extension =
     lastDotIndex !== -1 ? fileName.slice(lastDotIndex).toLowerCase() : ".jpg";
-  const extensionLength = extension.length;
 
-  // 2. Clean the name part
   let namePart =
     lastDotIndex !== -1 ? fileName.slice(0, lastDotIndex) : fileName;
   let cleanName = namePart
-    .replace(/([a-z])([A-Z])/g, "$1 $2") // Split camelCase
-    .replace(/[_-]+/g, " ") // Treat underscores and hyphens as spaces
-    .replace(/[^a-zA-Z0-9 ]/g, "") // Remove remaining special chars but keep spaces
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-zA-Z0-9 ]/g, "")
     .toLowerCase();
 
   const tokens = cleanName.split(/\s+/);
 
-  // 3. Filter tokens (Remove PII and meaningless numbers)
   const piiRedlist = [
     "admin",
     "user",
@@ -148,23 +135,15 @@ function anonymizeImageName(
     return isKeyword || (!isPii && !isTooShort && !isNumeric);
   });
 
-  // 4. Build base string
   let baseName = filteredTokens.length > 0 ? filteredTokens.join("-") : "image";
+  const hash = Math.random().toString(36).substring(2, 6);
+  const suffix = `-${hash}${extension}`;
 
-  // 5. Short Hash (to prevent collisions)
-  const hash = Math.random().toString(36).substring(2, 6); // 4 chars
-  const suffix = `-${hash}${extension}`; // e.g., "-a2b3.jpg" (9 chars approx)
-
-  // 6. Enforce Max Length
-  // We need to truncate the baseName so that: baseName + suffix <= maxLength
   const maxBaseLength = maxLength - suffix.length;
 
   if (baseName.length > maxBaseLength) {
-    // Truncate at the last whole word if possible
     let truncated = baseName.substring(0, maxBaseLength);
     const lastDash = truncated.lastIndexOf("-");
-
-    // If there's a dash within the last 10 chars, cut there for cleaner look
     if (lastDash > maxBaseLength - 10) {
       baseName = truncated.substring(0, lastDash);
     } else {
@@ -190,39 +169,31 @@ const processAndStoreImage = (options = { requireEntityType: false }) => {
         ? path.join(NAS_PATH, entityType)
         : NAS_PATH;
 
-      // 1. Create directory (Async/Non-blocking)
       await fs.mkdir(uploadPath, { recursive: true });
 
-      // 2. Anonymize the name
-      // Note: Passing maxLength 30 because we are adding a timestamp prefix later
       const baseAnonymizedName = anonymizeImageName(req.file.originalname, {
         contextKeywords: [entityType],
         maxLength: 30,
-      }).replace(/\.[^/.]+$/, ""); // Strip whatever extension the function gave back
+      }).replace(/\.[^/.]+$/, "");
 
-      // 3. Construct final name (Date + Anonymized Part + WebP)
       const uniqueFilename = `${Date.now()}-${baseAnonymizedName}.webp`;
       const outputPath = path.join(uploadPath, uniqueFilename);
 
-      // 4. Extract EXIF data
       const imageBuffer = req.file.buffer;
       const extractedDate = await extractImageDate(imageBuffer);
       if (extractedDate) {
-        // Storing as ISO string or timestamp is usually better for DBs
         req.body.date = extractedDate.getTime();
       }
 
-      // 5. Process Image
       await sharp(imageBuffer)
         .resize({
           width: 1024,
-          withoutEnlargement: true, // Prevents blurring small images by stretching them
+          withoutEnlargement: true,
         })
         .toFormat("webp")
         .webp({ quality: 70, nearLossless: true })
         .toFile(outputPath);
 
-      // 6. Update req object for the next controller
       req.file.path = outputPath;
       req.file.filename = uniqueFilename;
 
@@ -239,18 +210,16 @@ router.post(
   authenticateToken,
   upload.single("image"),
   processAndStoreImage({ requireEntityType: true }),
-  uploadImage
+  uploadImage,
 );
 
-// Get all images (authenticated)
 router.get("/:entityType", imageGetLimiter, authenticateToken, getImages);
 
-// Get a specific image for a specific entity
 router.get(
   "/:entityType/:entityId",
   imageGetLimiter,
   authenticateToken,
-  getImage
+  getImage,
 );
 
 router.patch(
@@ -275,17 +244,15 @@ router.patch(
     }
   },
   processAndStoreImage({ requireEntityType: true }),
-  updateSpecificImage
+  updateSpecificImage,
 );
 
-// Delete a specific image by its ID
 router.delete("/image/:entityType/:id", authenticateToken, deleteSpecificImage);
 
-// Delete all images associated with a specific entity
 router.delete(
   "/:entityType/:entityId",
   authenticateToken,
-  deleteImagesByEntityHandler
+  deleteImagesByEntityHandler,
 );
 
 module.exports = router;
