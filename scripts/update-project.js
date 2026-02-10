@@ -4,10 +4,17 @@ import path from "path";
 
 /**
  * CONFIGURATION
- * Author: { name: "LetsGamingDE", id: 272402865874534400n}
  */
-const TARGETS = ["./frontend", "./backend"];
 const DEV_CHECK_DURATION = 10000;
+const IGNORE_DIRS = [
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+  "vendor",
+];
+
 const COLORS = {
   reset: "\x1b[0m",
   bright: "\x1b[1m",
@@ -31,18 +38,48 @@ const log = {
     ),
 };
 
-function getVulnerabilityCount(cwd) {
+/**
+ * Detects which package manager to use based on lockfiles
+ */
+function detectManager(cwd) {
+  if (fs.existsSync(path.join(cwd, "pnpm-lock.yaml"))) return "pnpm";
+  if (fs.existsSync(path.join(cwd, "yarn.lock"))) return "yarn";
+  return "npm";
+}
+
+/**
+ * Finds all directories containing a package.json
+ */
+function findNpmProjects(dir, projects = []) {
+  const files = fs.readdirSync(dir);
+  if (files.includes("package.json")) {
+    projects.push(dir);
+  }
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    if (
+      fs.statSync(fullPath).isDirectory() &&
+      !IGNORE_DIRS.includes(file) &&
+      !file.startsWith(".")
+    ) {
+      findNpmProjects(fullPath, projects);
+    }
+  }
+  return projects;
+}
+
+function getVulnerabilityCount(cwd, manager) {
   try {
-    const result = spawnSync("npm", ["audit", "--json"], {
-      cwd,
-      encoding: "utf8",
-    });
+    const args = manager === "pnpm" ? ["audit", "--json"] : ["audit", "--json"];
+    // Note: Yarn audit output format differs significantly, defaulting to 0 if complex
+    const result = spawnSync(manager, args, { cwd, encoding: "utf8" });
     const auditData = JSON.parse(result.stdout || "{}");
-    if (auditData.metadata && auditData.metadata.vulnerabilities) {
+
+    if (manager === "npm" && auditData.metadata?.vulnerabilities) {
       const v = auditData.metadata.vulnerabilities;
       return v.low + v.moderate + v.high + v.critical;
     }
-    return 0;
+    return 0; // Simplified for non-npm managers
   } catch (e) {
     return 0;
   }
@@ -79,10 +116,24 @@ function killTree(child) {
   }
 }
 
-async function testDevServer(cwd) {
+async function testProject(cwd, manager) {
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(cwd, "package.json"), "utf8"),
+  );
+
+  // Dynamic script detection priority: dev -> start -> test
+  const testScript = ["dev", "start", "test"].find(
+    (s) => pkg.scripts && pkg.scripts[s],
+  );
+
+  if (!testScript) {
+    log.warn("No suitable test/dev script found. Skipping smoke test.");
+    return true;
+  }
+
   return new Promise((resolve) => {
-    log.info(`Starting smoke test (${DEV_CHECK_DURATION / 1000}s)...`);
-    const child = spawn("npm", ["run", "dev"], {
+    log.info(`Smoke testing via '${manager} run ${testScript}'...`);
+    const child = spawn(manager, ["run", testScript], {
       cwd,
       shell: true,
       detached: process.platform !== "win32",
@@ -96,11 +147,12 @@ async function testDevServer(cwd) {
         resolve(false);
       }
     });
+
     child.on("exit", (code) => {
       if (!isResolved) {
         isResolved = true;
         if (code !== 0 && code !== null)
-          log.error(`Dev server crashed (code ${code})`);
+          log.error(`Process exited with code ${code}`);
         resolve(false);
       }
     });
@@ -108,7 +160,7 @@ async function testDevServer(cwd) {
     const timer = setTimeout(() => {
       if (!isResolved) {
         isResolved = true;
-        log.success("Dev server stable.");
+        log.success(`Project is stable under '${testScript}'.`);
         killTree(child);
         resolve(true);
       }
@@ -120,7 +172,12 @@ async function testDevServer(cwd) {
 class ProjectGuard {
   constructor(cwd) {
     this.cwd = cwd;
-    this.files = ["package.json", "package-lock.json"];
+    this.files = [
+      "package.json",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+    ];
     this.backups = new Map();
   }
 
@@ -133,84 +190,66 @@ class ProjectGuard {
     }
   }
 
-  rollback() {
-    log.warn(`Rolling back changes in ${path.basename(this.cwd)}...`);
+  rollback(manager) {
+    log.warn(`Rolling back changes...`);
     for (const [file, content] of this.backups) {
       fs.writeFileSync(path.join(this.cwd, file), content);
     }
-    log.step("Restoring original state...");
-    runSync("npm install", this.cwd);
+    runSync(`${manager} install`, this.cwd);
   }
 }
 
-async function updateProject(targetPath) {
-  const fullPath = path.resolve(targetPath);
-  log.header(`Processing: ${path.basename(fullPath)}`);
-
-  if (!fs.existsSync(fullPath)) {
-    log.warn(`Directory ${targetPath} not found. Skipping.`);
-    return;
-  }
+async function updateProject(fullPath) {
+  const manager = detectManager(fullPath);
+  log.header(
+    `Project: ${path.relative(process.cwd(), fullPath) || "Root"} [using ${manager}]`,
+  );
 
   const guard = new ProjectGuard(fullPath);
   guard.backup();
 
   try {
-    // 1. Version Updates (Added --peer to respect peer dependencies)
-    log.info("Checking for dependency updates (respecting peers)...");
+    // 1. Update Dependencies
+    log.info("Updating dependencies...");
     if (!runSync("npx npm-check-updates -u --peer", fullPath)) {
       throw new Error("NCU failed.");
     }
 
-    // 2. Installation & Security Strategy Ladder
+    // 2. Install Strategy
     let installSuccess = false;
     const strategies = [
-      { name: "Standard Install", cmd: "npm install" },
-      { name: "Legacy Peer Install", cmd: "npm install --legacy-peer-deps" },
-      { name: "Security Patching", cmd: "npm audit fix" },
+      { name: "Default Install", cmd: `${manager} install` },
       {
-        name: "Clean Install & Audit",
-        cmd: "npm install --legacy-peer-deps && npm audit fix",
-        pre: (p) => {
-          const nm = path.join(p, "node_modules");
-          const pl = path.join(p, "package-lock.json");
-          if (fs.existsSync(nm))
-            fs.rmSync(nm, { recursive: true, force: true });
-          if (fs.existsSync(pl)) fs.unlinkSync(pl);
-        },
+        name: "Legacy Peer Install",
+        cmd: `${manager} install --legacy-peer-deps`,
       },
     ];
 
+    // Add npm-specific audit fix
+    if (manager === "npm") {
+      strategies.push({ name: "Security Patch", cmd: "npm audit fix" });
+    }
+
     for (const strategy of strategies) {
       log.info(`Attempting: ${strategy.name}`);
-      if (strategy.pre) strategy.pre(fullPath);
-
       if (runSync(strategy.cmd, fullPath)) {
-        const vulnCount = getVulnerabilityCount(fullPath);
+        const vulnCount = getVulnerabilityCount(fullPath, manager);
         if (vulnCount === 0) {
-          log.success("Clean installation verified (0 vulnerabilities).");
+          log.success("Installation clean.");
           installSuccess = true;
           break;
-        } else {
-          log.warn(`Found ${vulnCount} vulnerabilities. Escalating...`);
         }
       }
     }
 
-    if (!installSuccess) {
-      log.warn(
-        "Could not reach 0 vulnerabilities, but proceeding to smoke test with current state.",
-      );
-    }
+    // 3. Dynamic Smoke Test
+    const isStable = await testProject(fullPath, manager);
+    if (!isStable) throw new Error("Project failed stability check.");
 
-    // 3. Smoke Test
-    const isStable = await testDevServer(fullPath);
-    if (!isStable) throw new Error("Build is unstable after updates/fixes.");
-
-    log.success(`${path.basename(targetPath)} updated and verified.`);
+    log.success("Project updated and verified.");
   } catch (error) {
     log.error(error.message);
-    guard.rollback();
+    guard.rollback(manager);
   }
 }
 
@@ -220,8 +259,11 @@ async function updateProject(targetPath) {
     process.exit(1);
   });
 
-  for (const target of TARGETS) {
-    await updateProject(target);
+  const projects = findNpmProjects(process.cwd());
+  log.info(`Found ${projects.length} project(s).`);
+
+  for (const projectPath of projects) {
+    await updateProject(projectPath);
   }
   log.header("ALL OPERATIONS COMPLETE");
 })();

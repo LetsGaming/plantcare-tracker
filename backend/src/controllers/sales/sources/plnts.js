@@ -5,7 +5,7 @@ module.exports = createScraper({
   seller: "PLNTS",
   baseUrl: "https://plnts.com/de/shop/sale",
   pagePattern: "?page={{page}}",
-  maxPages: 2,
+  maxPages: 4,
   options: { useChromium: true },
   selectors: {
     container: ".group\\/product-card",

@@ -3,8 +3,8 @@ const createScraper = require("../../../utils/scrape/scraperFactory");
 module.exports = createScraper({
   key: "plantcircle",
   seller: "Plant Circle",
-  baseUrl: "https://plantcircle.com/de/collections/houseplant-sale",
-  pagePattern: "?page={{page}}",
+  baseUrl: "https://plantcircle.com/de/collections/houseplant-sale?sort_by=best-selling&filter.v.availability=1",
+  pagePattern: "&page={{page}}",
   maxPages: 2,
   selectors: {
     container: ".card--product",
