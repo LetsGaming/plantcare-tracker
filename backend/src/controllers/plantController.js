@@ -6,7 +6,7 @@ const {
   updatePlant,
   deletePlant,
 } = require("../models/plantModel");
-const { deleteImagesByEntity } = require("../controllers/imageController");
+const { deleteImagesByEntityHandler } = require("../controllers/imageController");
 const {
   errorResponse,
   successResponse,
@@ -147,7 +147,7 @@ const deleteSpecificPlant = async (req, res) => {
       );
     }
 
-    await deleteImagesByEntity("plant", id);
+    await deleteImagesByEntityHandler("plant", id);
 
     successResponse(res, { deleted: true }, "Plant deleted successfully");
   } catch (err) {

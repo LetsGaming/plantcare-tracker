@@ -10,7 +10,7 @@ const {
   deleteSubstrate,
 } = require("../models/substrateModel");
 
-const { deleteImagesByEntity } = require("../controllers/imageController");
+const { deleteImagesByEntityHandler } = require("../controllers/imageController");
 const {
   errorResponse,
   successResponse,
@@ -275,7 +275,7 @@ const deleteSpecificSubstrate = async (req, res) => {
       );
     }
 
-    await deleteImagesByEntity("substrate", id);
+    await deleteImagesByEntityHandler("substrate", id);
 
     successResponse(res, { deleted: true }, "Substrate deleted successfully");
   } catch (err) {
