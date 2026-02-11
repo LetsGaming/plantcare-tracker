@@ -37,8 +37,7 @@ const formatItem = (item, scraper) => {
   if (!item?.link || !item?.newPrice) return null;
   return {
     sale_id: generateSaleId(scraper.seller, item.link),
-    sale_name: (item.name ?? "Unnamed").slice(0, 45),
-    sale_name_full: item.name ?? "Unnamed",
+    sale_name: item.name ?? "Unnamed",
     sale_seller: scraper.seller,
     sale_link: item.link,
     sale_image_url: item.img ?? null,

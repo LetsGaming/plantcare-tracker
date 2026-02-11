@@ -3,8 +3,8 @@ export default class SaleMapper {
   static mapSale(sale: APISale): Sale {
     return {
       id: sale.sale_id,
-      name: sale.sale_name,
-      nameFull: sale.sale_name_full,
+      name: sale.sale_name.slice(0, 45),
+      nameFull: sale.sale_name,
       seller: sale.sale_seller,
       price: sale.sale_new_price,
       oldPrice: sale.sale_old_price,
