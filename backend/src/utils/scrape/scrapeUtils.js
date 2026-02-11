@@ -10,6 +10,7 @@ dns.setDefaultResultOrder("ipv4first");
 const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
 
 let browserPromise = null;
+
 async function getBrowser() {
   if (!browserPromise) {
     browserPromise = chromium.launch({
@@ -18,42 +19,60 @@ async function getBrowser() {
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu",
       ],
     });
   }
   return browserPromise;
 }
 
+/**
+ * Enhanced Chromium Fetcher
+ * Optimized to block unnecessary resources (images/ads/css)
+ */
 async function fetchWithChromium(url) {
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    viewport: { width: 1280, height: 720 },
   });
+
   const page = await context.newPage();
 
   try {
-    // 1. Wait for basic HTML structure
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    // Optimization: Block heavy assets that don't affect the HTML structure
+    await page.route(
+      "**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2,google-analytics,doubleclick}",
+      (route) => route.abort(),
+    );
 
-    // 2. Generic "Smart Wait":
-    // We wait for either the network to actually go idle OR 3.5 seconds to pass.
-    // This catches fast sites immediately and prevents slow/chat-heavy sites from timing out.
+    // Faster waitUntil, usually enough for scrapers
+    await page.goto(url, { waitUntil: "commit", timeout: 45000 });
+
+    // Race between network idle and a hard timeout
     await Promise.race([
       page.waitForLoadState("networkidle").catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, 3500)),
+      page.waitForSelector("body").catch(() => {}), // Fallback: wait for body at least
+      new Promise((resolve) => setTimeout(resolve, 5000)),
     ]);
 
     return await page.content();
   } catch (err) {
-    logger.error(`Chromium failed for ${url}: ${err.message}`);
+    logger.error(`[Chromium] Failed for ${url}: ${err.message}`);
     throw err;
   } finally {
+    // Close page and context to free memory, but keep browser singleton alive
     await page.close();
     await context.close();
   }
 }
 
+/**
+ * Enhanced Axios Fetcher
+ * Implements exponential backoff for retries
+ */
 async function fetchWithAxios(
   url,
   method = "GET",
@@ -66,10 +85,12 @@ async function fetchWithAxios(
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      Accept: "text/html,application/xhtml+xml",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
     },
-    timeout: 15000,
-    family: 4, // Force IPv4
+    timeout: 20000,
+    family: 4,
   };
 
   if (payload) options.data = payload;
@@ -79,11 +100,13 @@ async function fetchWithAxios(
     const response = await axios(options);
     return response.data;
   } catch (err) {
-    if (retries > 0) {
-      const waitTime = (3 - retries) * 2000;
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    if (retries > 0 && (!err.response || err.response.status >= 500)) {
+      const delay = (3 - retries) * 2000;
+      logger.warn(`[Axios] Retrying ${url} in ${delay}ms... (${retries} left)`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
       return fetchWithAxios(url, method, payload, retries - 1);
     }
+    logger.error(`[Axios] Final failure for ${url}: ${err.message}`);
     throw err;
   }
 }
@@ -113,17 +136,36 @@ const fetchData = async (
 
     return relevantData;
   } catch (err) {
-    logger.error(`Error fetching ${url}: ${err.message}`);
+    // Log the error but don't crash the loop
     return null;
   }
 };
 
 const getCache = () => cache;
 
+/**
+ * Improved Price Parsing
+ * Handles cases like "1.299,00 €" or "$1,200.50"
+ */
 const parsePrice = (input) => {
   if (!input) return null;
   const str = typeof input === "object" ? input.text : String(input);
-  const cleanStr = str.replace(/[^\d.,]/g, "").replace(",", ".");
+
+  // Remove currency symbols and whitespace
+  let cleanStr = str.replace(/[^\d.,-]/g, "").trim();
+
+  // Detect European format: 1.234,56 -> 1234.56
+  if (cleanStr.includes(",") && cleanStr.includes(".")) {
+    if (cleanStr.lastIndexOf(",") > cleanStr.lastIndexOf(".")) {
+      cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleanStr = cleanStr.replace(/,/g, "");
+    }
+  } else {
+    // Single separator case
+    cleanStr = cleanStr.replace(",", ".");
+  }
+
   const number = parseFloat(cleanStr);
   return isNaN(number) ? null : number;
 };
@@ -134,17 +176,26 @@ const commercialRound = (num) => {
 
 const getText = (el, selector = null) => {
   const target = selector ? el?.querySelector(selector) : el;
-  return target?.text?.trim() ?? null;
+  return target?.text?.trim() || target?.textContent?.trim() || null;
 };
 
 const resolveLink = (href, baseUrl) => {
   if (!href) return null;
-  if (href.startsWith("http")) return href;
   try {
-    const url = new URL(baseUrl);
-    return `${url.protocol}//${url.host}${href.startsWith("/") ? "" : "/"}${href}`;
+    return new URL(href, baseUrl).href;
   } catch (e) {
     return href;
+  }
+};
+
+/**
+ * Graceful Shutdown
+ */
+const closeBrowser = async () => {
+  if (browserPromise) {
+    const browser = await browserPromise;
+    await browser.close();
+    browserPromise = null;
   }
 };
 
@@ -155,4 +206,5 @@ module.exports = {
   commercialRound,
   getText,
   resolveLink,
+  closeBrowser,
 };

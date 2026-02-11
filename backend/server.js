@@ -18,6 +18,7 @@ const moreInfoRoutes = require("./src/routes/moreInfoRoutes");
 const salesRoutes = require("./src/routes/salesRoutes");
 const imageProxy = require("./src/routes/proxyRoutes");
 const logger = require("./src/utils/logger");
+const { closeBrowser } = require("./src/utils/scrape/scrapeUtils"); 
 
 // Import middlewares
 const { limiter } = require("./src/middlewares/rateLimiter");
@@ -132,6 +133,40 @@ function initializeServer(app) {
 initializeServer(app);
 
 // Start the server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
+
+/**
+ * --- Graceful Shutdown Logic ---
+ * Listens for system signals to close database connections,
+ * stop the server, and kill the scraper browser process.
+ */
+async function handleShutdown(signal) {
+  logger.info(`${signal} received: closing HTTP server and resources...`);
+
+  server.close(async () => {
+    logger.info("HTTP server closed.");
+
+    try {
+      // Close the Chromium browser instance from scrapeUtils
+      await closeBrowser();
+      logger.info("Scraper browser closed successfully.");
+    } catch (err) {
+      logger.error(`Error during browser cleanup: ${err.message}`);
+    }
+
+    logger.info("Graceful shutdown complete.");
+    process.exit(0);
+  });
+
+  // Force shutdown if cleanup takes too long (10s)
+  setTimeout(() => {
+    logger.error("Could not close resources in time, forcefully shutting down.");
+    process.exit(1);
+  }, 10000);
+}
+
+// Listen for termination signals
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+process.on("SIGINT", () => handleShutdown("SIGINT"));
