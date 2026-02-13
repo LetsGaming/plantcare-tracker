@@ -82,25 +82,22 @@ const getSalesData = async (req, res) => {
   const sse = setupSSE(res);
   let isAborted = false;
 
-  // Handle client disconnect
   req.on("close", () => {
     isAborted = true;
-    logger.info("Client disconnected, stopping scrape tasks...");
   });
 
-  /**
-   * Internal worker function for a single page
-   */
   const scrapeWorker = async (scraper, page) => {
     if (isAborted) return;
 
     try {
       const url = buildUrl(scraper, page);
 
+      // CRITICAL: We must await the fetchData execution
       await fetchData(
         url,
-        (html) => {
-          if (!html) return [];
+        async (html) => {
+          // Make this async if needed
+          if (!html || isAborted) return;
 
           let root = parse(html);
           try {
@@ -112,10 +109,10 @@ const getSalesData = async (req, res) => {
               .filter(Boolean);
 
             if (formattedItems.length > 0) {
-              sse.sendUnique(formattedItems, "sale_id");
+              // Await the send to ensure it's written to the buffer
+              await sse.sendUnique(formattedItems, "sale_id");
             }
           } finally {
-            // Explicitly help GC with large DOM trees
             root = null;
           }
         },
@@ -131,8 +128,6 @@ const getSalesData = async (req, res) => {
     }
   };
 
-  // 1. Prepare and Sort Jobs
-  // We sort by priority so the limiter processes high-priority sites first
   const sortedScrapers = [...SCRAPERS].sort(
     (a, b) => (a.priority ?? 99) - (b.priority ?? 99),
   );
@@ -142,18 +137,17 @@ const getSalesData = async (req, res) => {
       const page = i + 1;
       const runner = scraper.options?.useChromium ? chromiumLimit : axiosLimit;
 
-      // Wrap the worker in the limiter
+      // Ensure the runner itself is awaited inside the Promise.all logic
       return runner(() => scrapeWorker(scraper, page));
     }),
   );
 
-  // 2. Execute all tasks
-  // Promise.allSettled ensures one scraper failing doesn't stop the others
+  // Wait for all workers to complete their execution blocks
   await Promise.allSettled(jobs);
-
-  // 3. Finalize
+  // 3. Finalize: Add a small delay or check for drain if necessary
   if (!isAborted) {
-    sse.end();
+    // Ensure all data is flushed before closing
+    await sse.end();
   }
 };
 

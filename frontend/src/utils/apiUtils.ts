@@ -29,6 +29,7 @@ type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
 /**
  * Custom Error class for API-level failures.
  * Extends the native Error to include HTTP status codes and structured response data.
+ * * @author { name: "LetsGamingDE", id: 272402865874534400n }
  */
 class ApiError extends Error {
   /**
@@ -46,11 +47,13 @@ class ApiError extends Error {
     this.name = "ApiError";
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ApiError);
+    // We cast to 'any' to prevent TypeScript from complaining about non-standard V8 methods
+    if ((Error as any).captureStackTrace) {
+      (Error as any).captureStackTrace(this, ApiError);
     }
 
     // Explicitly set the prototype to fix 'instanceof' checks in compiled code
+    // Essential when targeting ES5 or earlier
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 
@@ -324,7 +327,6 @@ const ApiUtils = {
   /**
    * Initializes a Server-Sent Events (SSE) stream.
    * Optimized: Uses a ticket-based authentication flow for EventSource.
-   * @template T
    * @param {string} endpoint - The streaming endpoint.
    * @param {StreamCallback<T>} onMessage - Success callback for each event.
    * @param {(err: any) => void} [onError] - Error callback.
@@ -333,7 +335,7 @@ const ApiUtils = {
    */
   async stream<T = any>(
     endpoint: string,
-    onMessage: StreamCallback<T>,
+    onMessage: (data: { data: T }) => void,
     onError?: (err: any) => void,
     onDone?: () => void,
   ): Promise<() => void> {
@@ -349,25 +351,42 @@ const ApiUtils = {
       const url = `${API_BASE_URL}${endpoint}?ticket=${encodeURIComponent(ticket)}`;
       const eventSource = new EventSource(url, { withCredentials: true });
 
+      const cleanup = () => {
+        if (eventSource.readyState !== eventSource.CLOSED) {
+          eventSource.close();
+        }
+      };
+
       eventSource.onmessage = (e) => {
         try {
+          // SSE sometimes sends empty heartbeat lines; skip if no data
+          if (!e.data) return;
           onMessage({ data: JSON.parse(e.data) });
         } catch (err) {
+          console.error("SSE Parse Error:", err);
           onError?.(err);
         }
       };
 
+      // Listen for the custom "done" event from server
       eventSource.addEventListener("done", () => {
         onDone?.();
-        eventSource.close();
+        cleanup(); // Close immediately so 'onerror' doesn't fire due to server-side closure
       });
 
       eventSource.onerror = (err) => {
+        // EventSource.onerror doesn't provide much detail, but we check if it's actually an error
+        // or just the server closing the connection gracefully.
+        if (eventSource.readyState === eventSource.CLOSED) {
+          // If it's already closed, it might have been intentional
+          return;
+        }
+
         onError?.(err);
-        eventSource.close();
+        cleanup();
       };
 
-      return () => eventSource.close();
+      return cleanup;
     } catch (err) {
       onError?.(err);
       return () => {}; // Return no-op if initialization fails

@@ -49,7 +49,7 @@ async function fetchWithChromium(url) {
     );
 
     // Faster waitUntil, usually enough for scrapers
-    await page.goto(url, { waitUntil: "commit", timeout: 45000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
 
     // Race between network idle and a hard timeout
     await Promise.race([

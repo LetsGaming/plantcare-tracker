@@ -26,7 +26,7 @@ const successResponse = (
   res,
   data,
   message = "Operation successful",
-  statusCode = 200
+  statusCode = 200,
 ) => {
   const response = createResponseObject(true, message, data);
   res.status(statusCode).json(response);
@@ -40,7 +40,13 @@ const successResponse = (
  * @param {Error} [errObj] - Optional error object to log.
  * @param {boolean} [doLogMsg=isDev] - Whether to log the error message.
  */
-const errorResponse = (res, errorMsg, statusCode = 500, errObj = null, doLogMsg = isDev) => {
+const errorResponse = (
+  res,
+  errorMsg,
+  statusCode = 500,
+  errObj = null,
+  doLogMsg = isDev,
+) => {
   if (errObj) {
     // Log the error object with a stack trace or as a JSON string
     if (errObj instanceof Error) {
@@ -76,7 +82,6 @@ const notFoundResponse = (res, message = "Resource not found") => {
  */
 class SSEManager {
   constructor(res, maxChunkSize = 16384) {
-    // Default 16KB
     this.res = res;
     this.sentIds = new Set();
     this.totalSent = 0;
@@ -86,18 +91,18 @@ class SSEManager {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
+      "X-Accel-Buffering": "no", // Disables Nginx buffering
     });
 
     this.heartbeat = setInterval(() => {
-      res.write(": heartbeat\n\n");
+      if (!res.writableEnded) {
+        res.write(": heartbeat\n\n");
+      }
     }, 20000);
   }
 
-  /**
-   * Sends unique items in chunks to respect size limits.
-   */
-  sendUnique(items, idKey = "id") {
+  // Changed to async to support backpressure/drain if needed
+  async sendUnique(items, idKey = "id") {
     const unique = items.filter((item) => {
       const id = item[idKey];
       if (id && !this.sentIds.has(id)) {
@@ -109,14 +114,11 @@ class SSEManager {
 
     if (unique.length > 0) {
       this.totalSent += unique.length;
-      this._chunkAndSend(unique);
+      await this._chunkAndSend(unique);
     }
   }
 
-  /**
-   * Internal helper to split large arrays into smaller SSE messages.
-   */
-  _chunkAndSend(dataArray) {
+  async _chunkAndSend(dataArray) {
     let currentBatch = [];
     let currentBatchSize = 0;
 
@@ -124,12 +126,11 @@ class SSEManager {
       const itemString = JSON.stringify(item);
       const itemSize = Buffer.byteLength(itemString, "utf8");
 
-      // If adding this item exceeds the limit, send the current batch first
       if (
         currentBatchSize + itemSize > this.maxChunkSize &&
         currentBatch.length > 0
       ) {
-        this._emit(currentBatch);
+        await this._emit(currentBatch);
         currentBatch = [];
         currentBatchSize = 0;
       }
@@ -138,22 +139,37 @@ class SSEManager {
       currentBatchSize += itemSize;
     }
 
-    // Send the remaining items
     if (currentBatch.length > 0) {
-      this._emit(currentBatch);
+      await this._emit(currentBatch);
     }
   }
 
   _emit(data) {
-    this.res.write(`data: ${JSON.stringify(data)}\n\n`);
-    this.res.flush?.();
+    return new Promise((resolve) => {
+      const canWrite = this.res.write(`data: ${JSON.stringify(data)}\n\n`);
+      this.res.flush?.(); // For compression middleware like 'compression'
+
+      if (!canWrite) {
+        this.res.once("drain", resolve);
+      } else {
+        process.nextTick(resolve);
+      }
+    });
   }
 
-  end(finalMessage) {
+  async end(finalMessage) {
     const stats = finalMessage || { total: this.totalSent };
     clearInterval(this.heartbeat);
+
+    // Final data push
     this.res.write(`event: done\ndata: ${JSON.stringify(stats)}\n\n`);
-    this.res.end();
+
+    // Wait for the next tick to ensure 'done' is sent before termination
+    return new Promise((resolve) => {
+      this.res.end(() => {
+        resolve();
+      });
+    });
   }
 }
 
