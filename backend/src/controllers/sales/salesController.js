@@ -64,17 +64,27 @@ const buildUrl = (scraper, page) => {
   const pattern = scraper.pagePattern?.replace(/\{\{page\}\}/g, page);
   if (!pattern) return scraper.baseUrl;
 
+  // Case A: Pattern is a Query Parameter (starts with ? or &)
   if (pattern.startsWith("?") || pattern.startsWith("&")) {
-    const separator = scraper.baseUrl.includes("?") ? "&" : "?";
-    // Avoid double question marks if pattern already includes it
-    const cleanPattern = pattern.startsWith("?")
-      ? pattern.substring(1)
-      : pattern;
-    return `${scraper.baseUrl}${separator}${cleanPattern}`;
+    const base = scraper.baseUrl;
+    const hasQuery = base.includes("?");
+
+    // Determine the correct connector
+    const connector = hasQuery ? "&" : "?";
+
+    // Clean base: remove trailing ? or &
+    const cleanBase = base.replace(/[?&]$/, "");
+
+    // Clean pattern: remove leading ? or &
+    const cleanPattern = pattern.replace(/^[?&]/, "");
+
+    return `${cleanBase}${connector}${cleanPattern}`;
   }
 
+  // Case B: Pattern is a Path Segment
   const base = scraper.baseUrl.replace(/\/$/, "");
-  return `${base}/${pattern.replace(/^\//, "")}`;
+  const cleanPath = pattern.replace(/^\//, "");
+  return `${base}/${cleanPath}`;
 };
 
 // --- Main Handler ---
@@ -92,28 +102,21 @@ const getSalesData = async (req, res) => {
     try {
       const url = buildUrl(scraper, page);
 
-      // CRITICAL: We must await the fetchData execution
-      await fetchData(
+      // 1. Get the items (This will now correctly SET the cache because we return the data)
+      const rawItems = await fetchData(
         url,
-        async (html) => {
-          // Make this async if needed
-          if (!html || isAborted) return;
-
-          let root = parse(html);
+        (html) => {
+          if (!html) return [];
+          const root = parse(html);
           try {
-            const rawItems = scraper.parseFn(root);
-            if (!Array.isArray(rawItems)) return;
-
-            const formattedItems = rawItems
-              .map((item) => formatItem(item, scraper))
-              .filter(Boolean);
-
-            if (formattedItems.length > 0) {
-              // Await the send to ensure it's written to the buffer
-              await sse.sendUnique(formattedItems, "sale_id");
-            }
-          } finally {
-            root = null;
+            const parsed = scraper.parseFn(root);
+            // CRITICAL: We return the parsed data so fetchData can cache it
+            return Array.isArray(parsed) ? parsed : [];
+          } catch (err) {
+            logger.error(
+              `[Scraper: ${scraper.key}] Parse function failed for ${url}: ${err.message}`,
+            );
+            return [];
           }
         },
         {
@@ -121,6 +124,18 @@ const getSalesData = async (req, res) => {
           cacheKey: `${scraper.key}_${page}`,
         },
       );
+
+      // 2. Stream the items to the client (Works for both Cache Hits and fresh Fetches)
+      if (rawItems && rawItems.length > 0 && !isAborted) {
+        const formattedItems = rawItems
+          .map((item) => formatItem(item, scraper))
+          .filter(Boolean);
+
+        if (formattedItems.length > 0) {
+          // Await the send to respect backpressure
+          await sse.sendUnique(formattedItems, "sale_id");
+        }
+      }
     } catch (err) {
       logger.error(
         `[Scraper: ${scraper.key}] Page ${page} failed: ${err.message}`,

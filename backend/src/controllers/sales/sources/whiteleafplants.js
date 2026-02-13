@@ -3,7 +3,7 @@ const createScraper = require("../../../utils/scrape/scraperFactory");
 module.exports = createScraper({
   key: "whiteleafplants",
   seller: "White Leaf Plants",
-  baseUrl: "https://whiteleafplants.com/collections/alle-sort?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual",
+  baseUrl: "https://whiteleafplants.com/collections/alle-sort?filter.v.availability=1&sort_by=manual",
   pagePattern: "&page={{page}}",
   maxPages: 5,
   priority: 2,

@@ -4,66 +4,85 @@ const { chromium } = require("playwright");
 const logger = require("../logger");
 const dns = require("node:dns");
 
-// Prevents AggregateError by prioritizing IPv4
 dns.setDefaultResultOrder("ipv4first");
 
 const cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
-
 let browserPromise = null;
 
 async function getBrowser() {
   if (!browserPromise) {
-    browserPromise = chromium.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--disable-gpu",
-      ],
-    });
+    browserPromise = chromium
+      .launch({
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+        ],
+      })
+      .then((b) => {
+        b.once("disconnected", () => {
+          browserPromise = null;
+        });
+        return b;
+      });
   }
   return browserPromise;
 }
 
-/**
- * Enhanced Chromium Fetcher
- * Optimized to block unnecessary resources (images/ads/css)
- */
+// --- Utilities used by Scrapers ---
+
+const parsePrice = (input) => {
+  if (!input) return null;
+  const str = typeof input === "object" ? input.text : String(input);
+  let cleanStr = str.replace(/[^\d.,-]/g, "").trim();
+
+  if (cleanStr.includes(",") && cleanStr.includes(".")) {
+    if (cleanStr.lastIndexOf(",") > cleanStr.lastIndexOf(".")) {
+      cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleanStr = cleanStr.replace(/,/g, "");
+    }
+  } else {
+    cleanStr = cleanStr.replace(",", ".");
+  }
+
+  const number = parseFloat(cleanStr);
+  return isNaN(number) ? null : number;
+};
+
+const getText = (el, selector = null) => {
+  const target = selector ? el?.querySelector(selector) : el;
+  return target?.text?.trim() || target?.textContent?.trim() || null;
+};
+
+const resolveLink = (href, baseUrl) => {
+  if (!href) return null;
+  try {
+    return new URL(href, baseUrl).href;
+  } catch (e) {
+    return href;
+  }
+};
+
+const commercialRound = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
+
+// --- Main Fetchers ---
+
 async function fetchWithChromium(url) {
   const browser = await getBrowser();
-  const context = await browser.newContext({
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    viewport: { width: 1280, height: 720 },
-  });
-
+  const context = await browser.newContext();
   const page = await context.newPage();
-
   try {
-    // Optimization: Block heavy assets that don't affect the HTML structure
-    await page.route(
-      "**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2,google-analytics,doubleclick}",
-      (route) => route.abort(),
-    );
-
-    // Faster waitUntil, usually enough for scrapers
+    await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,css,js}", (route) => {
+      // Block images/css but let essential scripts run if needed for some scrapers
+      const type = route.request().resourceType();
+      if (["image", "stylesheet", "font"].includes(type)) return route.abort();
+      route.continue();
+    });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-
-    // Race between network idle and a hard timeout
-    await Promise.race([
-      page.waitForLoadState("networkidle").catch(() => {}),
-      page.waitForSelector("body").catch(() => {}), // Fallback: wait for body at least
-      new Promise((resolve) => setTimeout(resolve, 5000)),
-    ]);
-
     return await page.content();
-  } catch (err) {
-    logger.error(`[Chromium] Failed for ${url}: ${err.message}`);
-    throw err;
   } finally {
-    // Close page and context to free memory, but keep browser singleton alive
     await page.close();
     await context.close();
   }
@@ -116,9 +135,12 @@ const fetchData = async (
   extractFn,
   { method = "GET", payload = null, cacheKey = null, useChromium = false } = {},
 ) => {
+  // 1. CACHE CHECK
   if (cacheKey) {
     const cached = cache.get(cacheKey);
-    if (cached) return cached;
+    if (cached !== undefined) {
+      return cached;
+    }
   }
 
   try {
@@ -126,85 +148,46 @@ const fetchData = async (
       ? await fetchWithChromium(url)
       : await fetchWithAxios(url, method, payload);
 
-    if (!rawData) return null;
+    if (!rawData) {
+      logger.warn(`[Fetch] No raw data for ${url}`);
+      return null;
+    }
 
-    const relevantData = extractFn(rawData);
+    // 2. Process data (MUST AWAIT in case extractFn is async)
+    const relevantData = await extractFn(rawData);
 
-    if (cacheKey && relevantData) {
-      cache.set(cacheKey, relevantData);
+    // 3. CACHE SET
+    if (cacheKey) {
+      if (!relevantData) {
+      } else if (Array.isArray(relevantData)) {
+        if (relevantData.length > 0) {
+          cache.set(cacheKey, relevantData);
+        }
+      } else {
+        // Not an array, just set it
+        cache.set(cacheKey, relevantData);
+      }
     }
 
     return relevantData;
   } catch (err) {
-    // Log the error but don't crash the loop
+    logger.error(`FetchData error for ${url}: ${err.message}`);
     return null;
-  }
-};
-
-const getCache = () => cache;
-
-/**
- * Improved Price Parsing
- * Handles cases like "1.299,00 €" or "$1,200.50"
- */
-const parsePrice = (input) => {
-  if (!input) return null;
-  const str = typeof input === "object" ? input.text : String(input);
-
-  // Remove currency symbols and whitespace
-  let cleanStr = str.replace(/[^\d.,-]/g, "").trim();
-
-  // Detect European format: 1.234,56 -> 1234.56
-  if (cleanStr.includes(",") && cleanStr.includes(".")) {
-    if (cleanStr.lastIndexOf(",") > cleanStr.lastIndexOf(".")) {
-      cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
-    } else {
-      cleanStr = cleanStr.replace(/,/g, "");
-    }
-  } else {
-    // Single separator case
-    cleanStr = cleanStr.replace(",", ".");
-  }
-
-  const number = parseFloat(cleanStr);
-  return isNaN(number) ? null : number;
-};
-
-const commercialRound = (num) => {
-  return Math.round((num + Number.EPSILON) * 100) / 100;
-};
-
-const getText = (el, selector = null) => {
-  const target = selector ? el?.querySelector(selector) : el;
-  return target?.text?.trim() || target?.textContent?.trim() || null;
-};
-
-const resolveLink = (href, baseUrl) => {
-  if (!href) return null;
-  try {
-    return new URL(href, baseUrl).href;
-  } catch (e) {
-    return href;
-  }
-};
-
-/**
- * Graceful Shutdown
- */
-const closeBrowser = async () => {
-  if (browserPromise) {
-    const browser = await browserPromise;
-    await browser.close();
-    browserPromise = null;
   }
 };
 
 module.exports = {
   fetchData,
-  getCache,
   parsePrice,
-  commercialRound,
   getText,
   resolveLink,
-  closeBrowser,
+  commercialRound,
+  getCache: () => cache,
+  closeBrowser: async () => {
+    if (browserPromise) {
+      const browser = await browserPromise;
+      await browser.close();
+      browserPromise = null;
+    }
+  },
 };
