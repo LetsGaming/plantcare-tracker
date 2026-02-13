@@ -29,7 +29,6 @@ type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
 /**
  * Custom Error class for API-level failures.
  * Extends the native Error to include HTTP status codes and structured response data.
- * * @author { name: "LetsGamingDE", id: 272402865874534400n }
  */
 class ApiError extends Error {
   /**

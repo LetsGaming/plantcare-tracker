@@ -9,12 +9,6 @@ const logger = require("../utils/logger");
  */
 const imageResizer = (baseUploadPath) => async (req, res, next) => {
   const { size } = req.query;
-  console.log(
-    "Image Resizer Middleware Invoked with size:",
-    size,
-    "for path:",
-    req.path,
-  );
   // If no size is requested, let express.static or the next handler take over
   if (!size) {
     return next();
@@ -42,7 +36,6 @@ const imageResizer = (baseUploadPath) => async (req, res, next) => {
 
     res.set("Content-Type", "image/webp");
     res.set("Cache-Control", "public, max-age=86400"); // 24h cache
-    console.log(`Resized image served for ${req.path} at width ${width}px`);
     return res.send(buffer);
   } catch (err) {
     if (err.code === "ENOENT") {

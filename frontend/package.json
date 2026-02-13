@@ -3,7 +3,7 @@
   "private": true,
   "version": "3.1.0",
   "type": "module",
-  "description": "An Ionic project",
+  "description": "Frontend for Plant Care Tracker Webapp",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",
@@ -15,11 +15,11 @@
     "bump-version:major": "node scripts/bump-version.js major"
   },
   "dependencies": {
-    "@capacitor/app": "^8.0.0",
-    "@capacitor/core": "^8.0.2",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/core": "^8.1.0",
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/keyboard": "^8.0.0",
-    "@capacitor/status-bar": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.1",
     "@ionic/storage": "^4.0.0",
     "@ionic/vue": "^8.7.17",
     "@ionic/vue-router": "^8.7.17",
@@ -31,7 +31,7 @@
     "vue-router": "^5.0.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.0.2",
+    "@capacitor/cli": "^8.1.0",
     "@types/luxon": "^3.7.1",
     "@vitejs/plugin-legacy": "^7.2.1",
     "@vitejs/plugin-vue": "^6.0.4",
@@ -49,5 +49,12 @@
   },
   "overrides": {
     "tar": "^7.5.3"
+  },
+  "pnpm": {
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "vue-router": "5"
+      }
+    }
   }
 }
