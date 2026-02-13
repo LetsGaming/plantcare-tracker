@@ -19,7 +19,6 @@ export default defineComponent({
     IonImg,
   },
   props: {
-    // We allow String, Null, or Undefined to handle any raw API data
     src: {
       type: String,
       default: null,
@@ -30,7 +29,7 @@ export default defineComponent({
     },
     lowResSize: {
       type: [String, Number],
-      default: 128, // Default low-res size in pixels
+      default: 128,
     },
   },
   data() {
@@ -38,10 +37,11 @@ export default defineComponent({
       currentSrc: "/no-image.png",
       isLoading: false,
       fallbackUrl: "/no-image.png",
+      // Reference to the current loading high-res image to allow cancellation
+      highResLoader: null as HTMLImageElement | null,
     };
   },
   watch: {
-    // Watch the src prop and re-run logic if it changes
     src: {
       immediate: true,
       handler(newVal) {
@@ -51,39 +51,73 @@ export default defineComponent({
   },
   methods: {
     processImage(url: string | null) {
-      // 1. Internal check for null/empty source
       if (!url) {
         this.handleError();
         return;
       }
 
+      // Cancel any existing background loads if the src changes mid-flight
+      if (this.highResLoader) {
+        this.highResLoader.onload = null;
+        this.highResLoader.onerror = null;
+        this.highResLoader = null;
+      }
+
       this.isLoading = true;
 
-      // 2. Construct the low-res URL
-      // Logic: checks for existing query params to avoid breaking the URL
       const separator = url.includes("?") ? "&" : "?";
       const lowResUrl = `${url}${separator}size=${this.lowResSize}`;
 
-      // 3. Set the low-res version immediately to give quick feedback
-      this.currentSrc = lowResUrl;
+      // 1. Create a loader for the low-res version first
+      const lowResImg = new Image();
+      lowResImg.src = lowResUrl;
 
-      // 4. Background high-res fetch
+      lowResImg.onload = () => {
+        // 2. Only show the low-res once it's actually ready
+        this.currentSrc = lowResUrl;
+
+        // 3. Now that the low-res is visible, start fetching the high-res in the background
+        this.fetchHighRes(url);
+      };
+
+      lowResImg.onerror = () => {
+        // If low-res fails, try to jump straight to high-res
+        this.fetchHighRes(url);
+      };
+    },
+
+    fetchHighRes(url: string) {
       const img = new Image();
+      this.highResLoader = img;
       img.src = url;
 
       img.onload = () => {
         this.currentSrc = url;
         this.isLoading = false;
+        this.highResLoader = null;
       };
 
       img.onerror = () => {
-        this.handleError();
+        // If we haven't even managed to show the low-res yet, show fallback
+        if (this.currentSrc === this.fallbackUrl) {
+          this.handleError();
+        }
+        this.isLoading = false;
+        this.highResLoader = null;
       };
     },
+
     handleError() {
       this.currentSrc = this.fallbackUrl;
       this.isLoading = false;
     },
+  },
+  beforeUnmount() {
+    // Cleanup to prevent memory leaks or state updates on unmounted components
+    if (this.highResLoader) {
+      this.highResLoader.onload = null;
+      this.highResLoader.onerror = null;
+    }
   },
 });
 </script>
@@ -103,14 +137,7 @@ ion-img {
   width: 100%;
   height: 100%;
   display: block;
-  transition:
-    filter 0.4s ease-in-out,
-    transform 0.4s ease-in-out;
-}
-
-.progressive-img-container ion-img {
-  width: 100%;
-  height: 100%;
+  transition: filter 0.5s ease-in-out;
 }
 
 .progressive-img-container ion-img::part(image) {
@@ -121,6 +148,7 @@ ion-img {
 
 .is-loading {
   filter: blur(10px);
-  transform: scale(1.05); /* Prevents blur bleed on the edges */
+  /* Removed transform scale because it can cause layout shifts in some Ion-Grid setups, 
+     but add it back if you see white edges during the blur */
 }
 </style>

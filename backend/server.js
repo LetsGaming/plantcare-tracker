@@ -18,7 +18,7 @@ const moreInfoRoutes = require("./src/routes/moreInfoRoutes");
 const salesRoutes = require("./src/routes/salesRoutes");
 const imageProxy = require("./src/routes/proxyRoutes");
 const logger = require("./src/utils/logger");
-const { closeBrowser } = require("./src/utils/scrape/scrapeUtils"); 
+const { closeBrowser } = require("./src/utils/scrape/scrapeUtils");
 
 // Import middlewares
 const { limiter } = require("./src/middlewares/rateLimiter");
@@ -27,6 +27,7 @@ const {
   globalErrorHandler,
 } = require("./src/middlewares/errorHandler");
 const { checkGuestPermission } = require("./src/middlewares/authMiddleware");
+const imageResizer = require("./src/middlewares/imageResizer");
 
 // Get API version from package.json
 const { versionPath } = require("./package.json");
@@ -48,7 +49,7 @@ const corsOptions = {
     let isLocalhost = false;
     if (isDev) {
       isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(
-        origin || ""
+        origin || "",
       );
     }
 
@@ -80,7 +81,7 @@ function setupMiddleware(app) {
 }
 
 /**
- * Set up static file serving or proxy for uploads.
+ * Set up static file serving or proxy for uploads with ?size support.
  */
 function setupUploads(app) {
   const NAS_PATH = process.env.NAS_PATH || null;
@@ -88,11 +89,14 @@ function setupUploads(app) {
     ? path.resolve(NAS_PATH)
     : path.resolve(__dirname, "./uploads");
 
+  // 1. Attach the resizing middleware first
+  // It only acts if req.query.size is present
+  app.use("/uploads", imageResizer(uploadDir));
+
+  // 2. Fallback to normal serving if size is missing or resizer skips
   if (NAS_PATH) {
-    // Use proxy route for uploads if NAS path is defined
     app.use(`/uploads`, imageProxy);
   } else {
-    // Serve static files from the uploads directory
     app.use("/uploads", express.static(uploadDir));
   }
 }
@@ -162,7 +166,9 @@ async function handleShutdown(signal) {
 
   // Force shutdown if cleanup takes too long (10s)
   setTimeout(() => {
-    logger.error("Could not close resources in time, forcefully shutting down.");
+    logger.error(
+      "Could not close resources in time, forcefully shutting down.",
+    );
     process.exit(1);
   }, 10000);
 }
