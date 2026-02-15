@@ -12,7 +12,7 @@
       </div>
 
       <div v-else-if="notFound" class="info-not-found">
-        <ion-label>{{ t("moreinfo.not_found") }}</ion-label>
+        <ion-label>{{ t("moreinfo.no_info") }}</ion-label>
       </div>
 
       <div
@@ -74,7 +74,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, onUnmounted } from "vue";
+import { defineComponent } from "vue";
 import {
   IonCard,
   IonCardHeader,
@@ -120,7 +120,6 @@ export default defineComponent({
       infos: [] as MoreInfo[],
       loading: true,
       notFound: false,
-      streamCleanup: null as (() => void) | null,
     };
   },
   setup() {
@@ -131,12 +130,6 @@ export default defineComponent({
   async mounted() {
     await this.getLinks();
   },
-  beforeUnmount() {
-    // Crucial: Stop the SSE connection if the user navigates away
-    if (this.streamCleanup) {
-      this.streamCleanup();
-    }
-  },
   methods: {
     t(key: string) {
       return localizationService.t(key, undefined, key);
@@ -144,37 +137,30 @@ export default defineComponent({
     async getLinks() {
       this.loading = true;
       this.notFound = false;
-      this.infos = []; // Clear previous data
+      this.infos = [];
 
       try {
-        // Start the stream
-        this.streamCleanup = await MoreInfoService.streamMoreInfo(
-          this.plantName,
-          (updatedInfo: MoreInfo) => {
-            // Update the UI in real-time
-            this.infos = [updatedInfo];
-
-            // If we have data, we are definitely not "not found"
-            if (this.notFound) this.notFound = false;
+        /**
+         * UPDATED: Using getMoreInfo which matches SalesService logic.
+         * The stream is handled internally by the service.
+         */
+        this.infos = await MoreInfoService.getMoreInfo(this.plantName, {
+          forceUpdate: false,
+          onUpdate: (updatedInfos: MoreInfo[]) => {
+            // Update the UI in real-time as chunks arrive
+            this.infos = updatedInfos;
+            this.notFound = false;
           },
-          (error) => {
-            console.error("Stream error:", error);
-            if (this.infos.length === 0) {
-              this.notFound = true;
-            }
-          },
-        );
+        });
 
-        // Optional: Set a timeout if NO data arrives at all after 15s
-        setTimeout(() => {
-          if (this.infos.length === 0 && this.loading) {
-            this.notFound = true;
-            this.loading = false;
-          }
-        }, 15000);
-      } catch (error) {
-        console.error("Failed to initialize stream:", error);
+        // If after the stream finishes we still have nothing
+        if (this.infos.length === 0) {
+          this.notFound = true;
+        }
+      } catch (error: any) {
+        console.error("Failed to fetch more info:", error);
         this.notFound = true;
+      } finally {
         this.loading = false;
       }
     },
