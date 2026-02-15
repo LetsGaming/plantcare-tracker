@@ -326,10 +326,11 @@ const ApiUtils = {
   /**
    * Initializes a Server-Sent Events (SSE) stream.
    * Optimized: Uses a ticket-based authentication flow for EventSource.
-   * @param {string} endpoint - The streaming endpoint.
+   * Handles dynamic query parameter joining.
+   * * @param {string} endpoint - The streaming endpoint.
    * @param {StreamCallback<T>} onMessage - Success callback for each event.
    * @param {(err: any) => void} [onError] - Error callback.
-   * @param {() => void} [onDone] - Completion callback (triggered by 'done' event).
+   * @param {() => void} [onDone] - Completion callback.
    * @returns {Promise<() => void>} A function to close the stream.
    */
   async stream<T = any>(
@@ -347,7 +348,14 @@ const ApiUtils = {
 
       if (!ticket) throw new Error("SSE Ticket Missing");
 
-      const url = `${API_BASE_URL}${endpoint}?ticket=${encodeURIComponent(ticket)}`;
+      /**
+       * FIX: Logic to handle multiple query parameters.
+       * If the endpoint already contains a '?', we use '&' to append the ticket.
+       * Otherwise, we use '?'.
+       */
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const url = `${API_BASE_URL}${endpoint}${separator}ticket=${encodeURIComponent(ticket)}`;
+
       const eventSource = new EventSource(url, { withCredentials: true });
 
       const cleanup = () => {
@@ -358,7 +366,6 @@ const ApiUtils = {
 
       eventSource.onmessage = (e) => {
         try {
-          // SSE sometimes sends empty heartbeat lines; skip if no data
           if (!e.data) return;
           onMessage({ data: JSON.parse(e.data) });
         } catch (err) {
@@ -370,25 +377,22 @@ const ApiUtils = {
       // Listen for the custom "done" event from server
       eventSource.addEventListener("done", () => {
         onDone?.();
-        cleanup(); // Close immediately so 'onerror' doesn't fire due to server-side closure
+        cleanup();
       });
 
       eventSource.onerror = (err) => {
-        // EventSource.onerror doesn't provide much detail, but we check if it's actually an error
-        // or just the server closing the connection gracefully.
         if (eventSource.readyState === eventSource.CLOSED) {
-          // If it's already closed, it might have been intentional
           return;
         }
-
         onError?.(err);
         cleanup();
       };
 
       return cleanup;
     } catch (err) {
+      console.error("SSE Initialization Error:", err);
       onError?.(err);
-      return () => {}; // Return no-op if initialization fails
+      return () => {};
     }
   },
 };
