@@ -26,15 +26,16 @@ export default class MoreInfoService extends BaseService {
   ): Promise<MoreInfo[]> {
     const forceUpdate = options?.forceUpdate ?? false;
 
-    // Use getFromDictionaryCache to handle the per-plantName keying
     return await this.getFromDictionaryCache(
       CACHE_KEY,
       plantName,
       async () => {
-        return this.handleRequest(
+        // We wrap the stream in handleRequest
+        const result = await this.handleRequest(
           this.streamMoreInfo(plantName, options?.onUpdate),
           RESOURCE_KEY,
         );
+        return result;
       },
       forceUpdate,
     );
