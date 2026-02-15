@@ -10,7 +10,6 @@ const PLANT_SOURCES = {
     filter: (href) => !href.includes("author"),
     options: { useChromium: true },
   }),
-
   harmonyPlants: createSearcher({
     key: "harmonyPlants",
     baseUrl: "https://www.harmony-plants.com",
@@ -18,14 +17,12 @@ const PLANT_SOURCES = {
       `https://www.harmony-plants.com/search?type=product&q=${q}`,
     selector: ".card-information__text",
   }),
-
   foliageDreams: createSearcher({
     key: "foliageDreams",
     baseUrl: "https://www.foliagedreams.com",
     searchUrl: (q) => `https://www.foliagedreams.com/search?q=${q}`,
     selector: ".grid-product__link",
   }),
-
   whiteLeafPlants: createSearcher({
     key: "whiteLeafPlants",
     baseUrl: "https://www.whiteleafplants.com",
@@ -33,7 +30,6 @@ const PLANT_SOURCES = {
     selector: ".card-title",
     filter: (href) => !href.includes("author"),
   }),
-
   wikipedia: createSearcher({
     key: "wikipedia",
     isApi: true,
@@ -42,12 +38,11 @@ const PLANT_SOURCES = {
     handleApi: (data, query, matchFn) => {
       if (!data?.query?.search?.length) return null;
       const links = data.query.search.map(
-        (r) => `https://en.wikipedia.org/wiki/${r.title.replace(/ /g, "_")}`
+        (r) => `https://en.wikipedia.org/wiki/${r.title.replace(/ /g, "_")}`,
       );
       return matchFn(query, links);
     },
   }),
-
   gbif: createSearcher({
     key: "gbif",
     isApi: true,
@@ -56,7 +51,7 @@ const PLANT_SOURCES = {
       if (!data?.results?.length) return null;
       const bestName = matchFn(
         query,
-        data.results.map((r) => r.species)
+        data.results.map((r) => r.species),
       );
       const result = data.results.find((r) => r.species === bestName);
       return result?.nubKey
@@ -64,13 +59,11 @@ const PLANT_SOURCES = {
         : null;
     },
   }),
-
   rhs: createSearcher({
     key: "rhs",
     isApi: true,
     searchUrl: () =>
       "https://lwapp-uks-prod-psearch-01.azurewebsites.net/api/v1/plants/search/advanced",
-    // We pass a function here to generate the unique payload per request
     options: (plantName) => ({
       method: "POST",
       payload: {
@@ -88,37 +81,45 @@ const PLANT_SOURCES = {
       }));
       const bestName = matchFn(
         query,
-        plantLinks.map((p) => p.name)
+        plantLinks.map((p) => p.name),
       );
       const bestPlant = plantLinks.find((p) => p.name === bestName);
       return bestPlant
-        ? `https://www.rhs.org.uk/plants/${bestPlant.id}/${bestPlant.name
-            .replace(/ /g, "-")
-            .toLowerCase()}/details`
+        ? `https://www.rhs.org.uk/plants/${bestPlant.id}/${bestPlant.name.replace(/ /g, "-").toLowerCase()}/details`
         : null;
     },
   }),
 };
 
-const generateLinks = async (plantName) => {
+/**
+ * Executes searchers and emits links via callback as they arrive.
+ */
+const generateLinksStream = async (plantName, onLinkFound) => {
   if (!plantName) return [];
 
   const cache = getCache();
-  const cacheKey = `links_${plantName
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "_")}`;
-
+  const cacheKey = `links_${plantName.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
   const cached = cache.get(cacheKey);
-  if (cached) return cached;
 
-  // Execute all searchers defined in PLANT_SOURCES
-  const results = await Promise.all(
-    Object.values(PLANT_SOURCES).map((searcher) => searcher(plantName))
+  if (cached) {
+    cached.forEach((link) => onLinkFound(link));
+    return cached;
+  }
+
+  const allLinks = [];
+  // Run all in parallel, but handle each result as it finishes
+  await Promise.all(
+    Object.values(PLANT_SOURCES).map(async (searcher) => {
+      const result = await searcher(plantName);
+      if (result) {
+        allLinks.push(result);
+        onLinkFound(result);
+      }
+    }),
   );
 
-  const filtered = results.filter(Boolean);
-  cache.set(cacheKey, filtered);
-  return filtered;
+  cache.set(cacheKey, allLinks);
+  return allLinks;
 };
 
-module.exports = { generateLinks };
+module.exports = { generateLinksStream };

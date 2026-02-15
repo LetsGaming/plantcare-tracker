@@ -1,65 +1,70 @@
 <template>
   <ion-card class="info-card sidenote">
     <ion-card-header>
-        <ion-toolbar>
-        <ion-title>{{ t('moreinfo.title') }}</ion-title>
+      <ion-toolbar>
+        <ion-title>{{ t("moreinfo.title") }}</ion-title>
       </ion-toolbar>
     </ion-card-header>
     <ion-card-content>
-      <div v-if="loading" class="info-loading">
-        <ion-label>{{ t('moreinfo.loading') }}</ion-label>
+      <div v-if="loading && infos.length === 0" class="info-loading">
+        <ion-label>{{ t("moreinfo.loading") }}</ion-label>
         <ion-spinner style="padding-left: 15px" />
       </div>
+
       <div v-else-if="notFound" class="info-not-found">
-        <ion-label>{{ t('moreinfo.not_found') }}</ion-label>
+        <ion-label>{{ t("moreinfo.not_found") }}</ion-label>
       </div>
+
       <div
         v-else
         v-for="(info, index) in infos"
         :key="index"
         class="info-links"
       >
-        <ion-accordion-group>
-          <ion-accordion v-if="info.links.length > 0">
-              <ion-item slot="header" class="component-header">
-              <ion-label>{{ t('moreinfo.links') }}</ion-label>
+        <ion-accordion-group :multiple="true" :value="['links', 'ai']">
+          <ion-accordion value="links" v-if="info.links.length > 0">
+            <ion-item slot="header" class="component-header">
+              <ion-label>{{ t("moreinfo.links") }}</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper">
-              <template v-if="info.links.length > 0">
-                <InfoNote
-                  class="disclaimer"
-                  :note="t('moreinfo.disclaimer_links')"
-                />
-                <a
-                  v-for="(link, index) in info.links"
-                  :key="index"
-                  :href="link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style="width: 100%; font-size: 20px"
-                >
-                  <ion-item class="info-link">
-                    <ion-label>{{ link }}</ion-label>
-                    <ion-icon :icon="openOutline" slot="end" />
-                  </ion-item>
-                </a>
-              </template>
+              <InfoNote
+                class="disclaimer"
+                :note="t('moreinfo.disclaimer_links')"
+              />
+              <a
+                v-for="(link, lIndex) in info.links"
+                :key="lIndex"
+                :href="link"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="width: 100%; font-size: 20px"
+              >
+                <ion-item class="info-link">
+                  <ion-label>{{ link }}</ion-label>
+                  <ion-icon :icon="openOutline" slot="end" />
+                </ion-item>
+              </a>
             </div>
           </ion-accordion>
-          <ion-accordion v-if="info.ai">
+
+          <ion-accordion value="ai" v-if="info.ai">
             <ion-item slot="header" class="component-header">
-              <ion-label>{{ t('moreinfo.ai_title') }}</ion-label>
+              <ion-label>{{ t("moreinfo.ai_title") }}</ion-label>
+              <ion-spinner
+                v-if="loading"
+                name="dots"
+                slot="end"
+                style="width: 20px"
+              />
             </ion-item>
             <div slot="content" class="component-wrapper">
-              <template v-if="info.ai.length > 0">
-                <InfoNote
-                  class="disclaimer"
-                  :note="t('moreinfo.disclaimer_ai')"
-                />
-                <ion-item class="info-content">
-                  <div v-html="addClassesToHtml(info.ai)" class="info-text" />
-                </ion-item>
-              </template>
+              <InfoNote
+                class="disclaimer"
+                :note="t('moreinfo.disclaimer_ai')"
+              />
+              <ion-item class="info-content">
+                <div v-html="addClassesToHtml(info.ai)" class="info-text" />
+              </ion-item>
             </div>
           </ion-accordion>
         </ion-accordion-group>
@@ -69,7 +74,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, onUnmounted } from "vue";
 import {
   IonCard,
   IonCardHeader,
@@ -86,7 +91,7 @@ import {
 import InfoNote from "@/components/InfoNote.vue";
 import MoreInfoService from "@/services/MoreInfoService";
 import { openOutline } from "ionicons/icons";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "MoreInfo",
@@ -115,6 +120,7 @@ export default defineComponent({
       infos: [] as MoreInfo[],
       loading: true,
       notFound: false,
+      streamCleanup: null as (() => void) | null,
     };
   },
   setup() {
@@ -125,56 +131,55 @@ export default defineComponent({
   async mounted() {
     await this.getLinks();
   },
+  beforeUnmount() {
+    // Crucial: Stop the SSE connection if the user navigates away
+    if (this.streamCleanup) {
+      this.streamCleanup();
+    }
+  },
   methods: {
     t(key: string) {
       return localizationService.t(key, undefined, key);
     },
     async getLinks() {
       this.loading = true;
-      this.notFound = false; // reset at the start
-
-      let timeoutReached = false;
-
-      // Timeout to mark "not found" after 10s if no data
-      const timeout = setTimeout(() => {
-        timeoutReached = true;
-
-        // If infos is empty or null, mark notFound
-        if (!this.infos || this.infos.length === 0) {
-          this.notFound = true;
-          return;
-        }
-
-        // Check if any info actually contains links or AI data
-        const hasData = this.infos.some(
-          (info) => (info.links?.length || 0) > 0 || (info.ai?.length || 0) > 0
-        );
-
-        this.notFound = !hasData;
-      }, 10000);
+      this.notFound = false;
+      this.infos = []; // Clear previous data
 
       try {
-        const data = await MoreInfoService.getMoreInfo(this.plantName);
+        // Start the stream
+        this.streamCleanup = await MoreInfoService.streamMoreInfo(
+          this.plantName,
+          (updatedInfo: MoreInfo) => {
+            // Update the UI in real-time
+            this.infos = [updatedInfo];
 
-        // Ensure data is always an array
-        this.infos = Array.isArray(data) ? data : [];
-
-        // Immediately check if we actually got any data
-        const hasData = this.infos.some(
-          (info) => (info.links?.length || 0) > 0 || (info.ai?.length || 0) > 0
+            // If we have data, we are definitely not "not found"
+            if (this.notFound) this.notFound = false;
+          },
+          (error) => {
+            console.error("Stream error:", error);
+            if (this.infos.length === 0) {
+              this.notFound = true;
+            }
+          },
         );
 
-        this.notFound = !hasData;
+        // Optional: Set a timeout if NO data arrives at all after 15s
+        setTimeout(() => {
+          if (this.infos.length === 0 && this.loading) {
+            this.notFound = true;
+            this.loading = false;
+          }
+        }, 15000);
       } catch (error) {
-        console.error("Error fetching more info:", error);
-        this.infos = [];
-        this.notFound = true; // mark notFound on error
-      } finally {
-        clearTimeout(timeout);
+        console.error("Failed to initialize stream:", error);
+        this.notFound = true;
         this.loading = false;
       }
     },
     addClassesToHtml(content: string): string {
+      if (!content) return "";
       const div = document.createElement("div");
       div.innerHTML = content;
 
@@ -183,13 +188,12 @@ export default defineComponent({
       div
         .querySelectorAll("p")
         .forEach((p) => p.classList.add("info-text-paragraph"));
-
-      div.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((h) => {
-        h.classList.add("info-header");
-      });
+      div
+        .querySelectorAll("h1, h2, h3, h4, h5, h6")
+        .forEach((h) => h.classList.add("info-header"));
       div
         .querySelectorAll("strong")
-        .forEach((strong) => strong.classList.add("info-strong"));
+        .forEach((s) => s.classList.add("info-strong"));
       div.querySelectorAll("em").forEach((em) => em.classList.add("info-em"));
 
       return div.innerHTML;
@@ -197,119 +201,3 @@ export default defineComponent({
   },
 });
 </script>
-
-<style>
-/* Header styling */
-.info-header {
-  color: var(--ion-color-primary);
-}
-
-h1.info-header {
-  font-size: 1.5em;
-  font-weight: bold;
-}
-
-.info-header strong {
-  color: inherit; /* Ensure the strong element inherits the color from its parent */
-}
-
-/* Emphasized text styling */
-.info-em {
-  color: var(--ion-color-tertiary);
-}
-
-/* Item styling */
-.info-item .info-strong {
-  color: var(
-    --ion-color-primary-tint
-  ) !important; /* Ensures this is not overridden */
-}
-
-/* Strong element styling */
-.info-strong {
-  color: var(--ion-color-dark-tint);
-}
-
-.info-text-paragraph {
-  margin-left: 15px !important;
-  padding: 0;
-  font-size: 0.9em !important;
-}
-</style>
-
-<style scoped>
-/* General card styling */
-.disclaimer {
-  padding-left: 15px;
-}
-
-.card-title {
-  font-size: 1.2em;
-  font-weight: bold;
-  color: var(--ion-text-color);
-  margin: 0;
-  padding-bottom: 8px;
-}
-
-/* Links and icon styling */
-.info-loading,
-.info-not-found {
-  text-align: center;
-  font-size: 1.1rem;
-  padding: 10px;
-}
-
-.info-links {
-  margin-top: 8px;
-}
-
-.info-item {
-  margin-bottom: 6px;
-}
-
-.info-link {
-  display: flex;
-  align-items: center;
-  padding: 5px 8px;
-  font-size: 0.85em;
-  --color: var(--ion-text-color);
-}
-
-.info-link ion-icon {
-  margin-left: 8px;
-  font-size: 1.1em;
-}
-
-.component-header {
-  font-weight: bold;
-  font-size: 1.1rem;
-}
-
-.info-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.info-text {
-  margin-bottom: 8px;
-}
-.info-list {
-  padding-left: 16px;
-  list-style-type: disc;
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .card-title {
-    color: var(--ion-text-color);
-  }
-
-  .info-link {
-    --color: var(--ion-text-color);
-  }
-
-  .info-link ion-icon {
-    color: var(--ion-text-color);
-  }
-}
-</style>
