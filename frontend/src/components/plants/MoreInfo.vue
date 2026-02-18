@@ -21,7 +21,7 @@
         :key="index"
         class="info-links"
       >
-        <ion-accordion-group :multiple="true" :value="['links', 'ai']">
+        <ion-accordion-group :multiple="true">
           <ion-accordion value="links" v-if="info.links.length > 0">
             <ion-item slot="header" class="component-header">
               <ion-label>{{ t("moreinfo.links") }}</ion-label>
@@ -63,7 +63,7 @@
                 :note="t('moreinfo.disclaimer_ai')"
               />
               <ion-item class="info-content">
-                <div v-html="addClassesToHtml(info.ai)" class="info-text" />
+                <div v-html="formatStreamingHtml(info.ai)" class="info-text" />
               </ion-item>
             </div>
           </ion-accordion>
@@ -93,6 +93,10 @@ import MoreInfoService from "@/services/MoreInfoService";
 import { openOutline } from "ionicons/icons";
 import localizationService from "@/services/general/LocalizationService";
 
+/**
+ * Authors: { name: "LetsGamingDE", id: 272402865874534400n}
+ */
+
 export default defineComponent({
   name: "MoreInfo",
   components: {
@@ -117,7 +121,7 @@ export default defineComponent({
   },
   data() {
     return {
-      infos: [] as MoreInfo[],
+      infos: [] as any[],
       loading: true,
       notFound: false,
     };
@@ -140,20 +144,15 @@ export default defineComponent({
       this.infos = [];
 
       try {
-        /**
-         * UPDATED: Using getMoreInfo which matches SalesService logic.
-         * The stream is handled internally by the service.
-         */
         this.infos = await MoreInfoService.getMoreInfo(this.plantName, {
           forceUpdate: false,
-          onUpdate: (updatedInfos: MoreInfo[]) => {
-            // Update the UI in real-time as chunks arrive
+          onUpdate: (updatedInfos: any[]) => {
+            // Update the data silently in the background
             this.infos = updatedInfos;
             this.notFound = false;
           },
         });
 
-        // If after the stream finishes we still have nothing
         if (this.infos.length === 0) {
           this.notFound = true;
         }
@@ -164,26 +163,113 @@ export default defineComponent({
         this.loading = false;
       }
     },
-    addClassesToHtml(content: string): string {
+    /**
+     * Fixes formatting by ensuring all parsed elements receive the correct classes.
+     * Updated to handle the nested structure of the new service parser.
+     */
+    formatStreamingHtml(content: string): string {
       if (!content) return "";
-      const div = document.createElement("div");
-      div.innerHTML = content;
 
-      div.querySelectorAll("ul").forEach((ul) => ul.classList.add("info-list"));
-      div.querySelectorAll("li").forEach((li) => li.classList.add("info-item"));
-      div
-        .querySelectorAll("p")
-        .forEach((p) => p.classList.add("info-text-paragraph"));
-      div
-        .querySelectorAll("h1, h2, h3, h4, h5, h6")
-        .forEach((h) => h.classList.add("info-header"));
-      div
-        .querySelectorAll("strong")
-        .forEach((s) => s.classList.add("info-strong"));
-      div.querySelectorAll("em").forEach((em) => em.classList.add("info-em"));
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(content, "text/html");
 
-      return div.innerHTML;
+      const mapping = [
+        { sel: "ul", cls: "info-list" },
+        { sel: "li", cls: "info-item" },
+        { sel: "p", cls: "info-text-paragraph" },
+        { sel: "h1, h2, h3, h4, h5, h6", cls: "info-header" },
+        { sel: "strong", cls: "info-strong" },
+        { sel: "em", cls: "info-em" },
+      ];
+
+      mapping.forEach(({ sel, cls }) => {
+        // Look through the whole document for these tags
+        doc.querySelectorAll(sel).forEach((el) => {
+          el.classList.add(cls);
+        });
+      });
+
+      return doc.body.innerHTML;
     },
   },
 });
 </script>
+
+<style scoped>
+.info-text {
+  width: 100%;
+  /* Fix for ionic items padding issues with v-html content */
+  --inner-padding-end: 0;
+  --padding-start: 0;
+}
+
+.info-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+</style>
+
+<style>
+/**
+ * Authors: { name: "LetsGamingDE", id: 272402865874534400n}
+ */
+
+/* Header styling */
+.info-header {
+  color: var(--ion-color-primary);
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+h1.info-header {
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+/* Ensure strong elements inside headers don't change color */
+.info-header strong,
+.info-header .info-strong {
+  color: inherit !important;
+}
+
+/* Emphasized text styling (Italics) */
+.info-em {
+  color: var(--ion-color-tertiary);
+  font-style: italic;
+}
+
+/* Strong element styling (General/Values) */
+.info-strong {
+  color: var(--ion-color-dark-tint);
+}
+
+/* Item styling - First strong element (The Label) */
+.info-item .info-strong:first-of-type {
+  color: var(--ion-color-primary-tint) !important;
+  font-weight: 700;
+}
+
+/* Paragraph styling */
+.info-text-paragraph {
+  margin-left: 15px !important;
+  padding: 0;
+  font-size: 0.9em !important;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+/* List container adjustments to align with the paragraph margin */
+.info-list {
+  margin-left: 15px !important;
+  padding-left: 1rem;
+  list-style-type: disc;
+}
+
+.info-item {
+  margin-bottom: 6px;
+  font-size: 0.9em;
+}
+
+</style>

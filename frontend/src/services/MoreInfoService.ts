@@ -12,10 +12,10 @@ export enum MoreInfoEvents {
   MORE_INFO_UPDATED = "more-info-updated",
 }
 
+/**
+ * Authors: { name: "LetsGamingDE", id: 272402865874534400n}
+ */
 export default class MoreInfoService extends BaseService {
-  /**
-   * Public accessor: Fetches more info for a specific plant using keyed caching.
-   */
   static async getMoreInfo(
     plantName: string,
     options?: {
@@ -29,20 +29,15 @@ export default class MoreInfoService extends BaseService {
       CACHE_KEY,
       plantName,
       async () => {
-        const result = await this.handleRequest(
+        return await this.handleRequest(
           this.streamMoreInfo(plantName, options?.onUpdate),
           RESOURCE_KEY,
         );
-        return result;
       },
       forceUpdate,
     );
   }
 
-  /**
-   * Internal Stream method: Accumulates AI chunks and links.
-   * Resolves with the final mapped array when the stream closes.
-   */
   private static streamMoreInfo(
     plantName: string,
     onUpdate?: (info: any[]) => void,
@@ -60,28 +55,28 @@ export default class MoreInfoService extends BaseService {
           const lang = localizationService.getLocale();
           const params = new URLSearchParams({
             plantName,
-            htmlFormatting: "false", // Request raw markdown to handle formatting here
+            htmlFormatting: "false", // We handle formatting here
             lang,
           });
 
-          const endpoint = `${BASE_ENDPOINT}?${params.toString()}`;
-
           stopFn = await ApiUtils.stream<any>(
-            endpoint,
+            `${BASE_ENDPOINT}?${params.toString()}`,
             (event) => {
               try {
-                const payload = event.data[0];
+                // event.data is an array because of backend SSEManager._emit
+                const payloadArray = event.data;
 
-                if (payload.type === "link") {
-                  accumulatedRaw.links.push(payload.value);
-                } else if (payload.type === "ai_chunk") {
-                  accumulatedRaw.ai += payload.value;
-                }
+                payloadArray.forEach((payload: any) => {
+                  if (payload.type === "link") {
+                    accumulatedRaw.links.push(payload.value);
+                  } else if (payload.type === "ai_chunk") {
+                    accumulatedRaw.ai += payload.value;
+                  }
+                });
 
-                // Apply HTML formatting to the current state of accumulated text
-                const formattedAI = this.formatToHTML(accumulatedRaw.ai);
+                // Generate HTML from the current raw buffer
+                const formattedAI = this.parseMarkdown(accumulatedRaw.ai);
 
-                // Create a display-ready object for the mapper
                 const mapped = MoreInfoMapper.convertToMoreInfo({
                   ...accumulatedRaw,
                   ai: formattedAI,
@@ -101,14 +96,11 @@ export default class MoreInfoService extends BaseService {
             },
             async () => {
               stopFn?.();
-
-              // Final format and save
-              const finalHTML = this.formatToHTML(accumulatedRaw.ai);
+              const finalHTML = this.parseMarkdown(accumulatedRaw.ai);
               const finalData = MoreInfoMapper.convertToMoreInfo({
                 ...accumulatedRaw,
                 ai: finalHTML,
               });
-
               await this.updateDictionaryCache(plantName, finalData);
               resolve(finalData);
             },
@@ -121,55 +113,74 @@ export default class MoreInfoService extends BaseService {
   }
 
   /**
-   * Frontend-side HTML Formatter
+   * Internal Markdown Parser (Zero Dependencies)
+   * Designed to handle streaming fragments by looking at the full buffer.
    */
-  private static formatToHTML(text: string): string {
-    if (!text) return "";
+  private static parseMarkdown(markdown: string): string {
+    if (!markdown) return "";
 
-    let formattedText = text.trim();
+    // 1. Pre-process: Handle the "mashing" by ensuring certain keywords start on new lines
+    // and ensuring double newlines for paragraph separation.
+    let text = markdown
+      .replace(/([a-z0-9])(###|##|#)/g, "$1\n\n$2") // Force break before headers
+      .replace(/(\n- )/g, "\n\n- "); // Ensure lists have air
 
-    // 1. Headings
-    formattedText = formattedText.replace(/^###### (.*)$/gm, "<h6>$1</h6>");
-    formattedText = formattedText.replace(/^##### (.*)$/gm, "<h5>$1</h5>");
-    formattedText = formattedText.replace(/^#### (.*)$/gm, "<h4>$1</h4>");
-    formattedText = formattedText.replace(/^### (.*)$/gm, "<h3>$1</h3>");
-    formattedText = formattedText.replace(/^## (.*)$/gm, "<h2>$1</h2>");
-    formattedText = formattedText.replace(/^# (.*)$/gm, "<h1>$1</h1>");
+    // 2. Block processing
+    const blocks = text.split(/\n\n+/);
+    let html = "";
 
-    // 2. Bold and Italics
-    formattedText = formattedText.replace(
-      /\*\*(.*?)\*\*/g,
-      "<strong>$1</strong>",
-    );
-    formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
+    blocks.forEach((block) => {
+      let trimmed = block.trim();
+      if (!trimmed) return;
 
-    // 3. Lists
-    // Identify lines starting with - or * or 1. and wrap in <li>
-    formattedText = formattedText.replace(/^[-\*]\s+(.*)$/gm, "<li>$1</li>");
-    formattedText = formattedText.replace(/^\d+\.\s+(.*)$/gm, "<li>$1</li>");
+      // HEADINGS
+      if (trimmed.startsWith("#")) {
+        const match = trimmed.match(/^(#+)\s*(.*)/);
+        if (match) {
+          const level = match[1].length;
+          const content = this.parseInlines(match[2]);
+          html += `<h${level} class="info-header">${content}</h${level}>`;
+          return;
+        }
+      }
 
-    // 4. Line Breaks & Paragraphs
-    // Split by lines to wrap non-tag lines in <p>
-    const lines = formattedText.split("\n");
-    const processedLines = lines.map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return "";
-      // If it's already a tag (h1-h6, li), leave it
-      if (/^<(h[1-6]|li)/i.test(trimmed)) return trimmed;
-      return `<p>${trimmed}</p>`;
+      // LISTS
+      if (
+        trimmed.startsWith("- ") ||
+        trimmed.startsWith("* ") ||
+        /^\d+\./.test(trimmed)
+      ) {
+        const items = trimmed.split(/\n/);
+        html += '<ul class="info-list">';
+        items.forEach((item) => {
+          const content = item.replace(/^([-\*]|\d+\.)\s*/, "");
+          html += `<li class="info-item">${this.parseInlines(content)}</li>`;
+        });
+        html += "</ul>";
+        return;
+      }
+
+      // PARAGRAPHS (Default)
+      html += `<p class="info-text-paragraph">${this.parseInlines(trimmed)}</p>`;
     });
 
-    formattedText = processedLines.join("");
-
-    // 5. Basic List Wrapping (Wrap contiguous <li> tags in <ul>)
-    formattedText = formattedText.replace(/(<li>.*?<\/li>)+/g, "<ul>$&</ul>");
-
-    return `<div>${formattedText}</div>`;
+    return `<div>${html}</div>`;
   }
 
   /**
-   * Helper to persist data to the dictionary-style cache.
+   * Helper to handle Bold and Italics within a block
    */
+  private static parseInlines(text: string): string {
+    return (
+      text
+        .replace(/\*\*\*(.*?)\*\*\*/g, "<strong><em>$1</em></strong>")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        // Handle "Key: Value" mashing within paragraphs
+        .replace(/^([\w\s\/]+):/gm, "<strong>$1:</strong>")
+    );
+  }
+
   private static async updateDictionaryCache(
     plantName: string,
     data: any[],
@@ -178,42 +189,28 @@ export default class MoreInfoService extends BaseService {
       records: Record<string, any[]>;
       timestamp: number;
     }>(CACHE_KEY);
-
     const records = cached?.records ? { ...cached.records } : {};
     records[plantName] = data;
-
-    await storageService.set(CACHE_KEY, {
-      records,
-      timestamp: Date.now(),
-    });
-
+    await storageService.set(CACHE_KEY, { records, timestamp: Date.now() });
     this.emit(MoreInfoEvents.MORE_INFO_UPDATED, records);
   }
 
-  /**
-   * Removes a specific plant's records from the local cache.
-   */
   static async invalidateInfoCache(plantName?: string): Promise<void> {
     if (!plantName) {
       await storageService.remove(CACHE_KEY);
       return;
     }
-
     const cached = await storageService.get<{
       records: Record<string, any>;
       timestamp: number;
     }>(CACHE_KEY);
-
     if (!cached?.records) return;
-
     const updatedRecords = { ...cached.records };
     delete updatedRecords[plantName];
-
     await storageService.set(CACHE_KEY, {
       records: updatedRecords,
       timestamp: Date.now(),
     });
-
     this.emit(MoreInfoEvents.MORE_INFO_UPDATED, updatedRecords);
   }
 
