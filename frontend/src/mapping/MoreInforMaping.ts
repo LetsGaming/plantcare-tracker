@@ -1,18 +1,32 @@
 export default class MoreInfoMapper {
-  // Helper function to map a single watering record
+  /**
+   * Maps a raw API data structure to the application's MoreInfo model.
+   * Defensive against nulls and non-array links during streaming.
+   */
   static mapMoreInfo(moreInfo: APIMoreInfo): MoreInfo {
     return {
-      links: moreInfo.links,
-      ai: moreInfo.ai,
+      links: Array.isArray(moreInfo?.links) ? [...moreInfo.links] : [],
+      ai: moreInfo?.ai || "",
     };
   }
 
-  // Convert API response to an array of WateringRecords
-  static convertToMoreInfo(response: APIMoreInfo | APIMoreInfo[]): MoreInfo[] {
-    if (Array.isArray(response)) {
-      return response.map(this.mapMoreInfo);
-    } else {
-      return [this.mapMoreInfo(response)];
+  /**
+   * Converts the response to an array of MoreInfo objects.
+   * This is compatible with the cumulative object built in MoreInfoService.
+   */
+  static convertToMoreInfo(
+    response: APIMoreInfo | APIMoreInfo[] | null | undefined,
+  ): MoreInfo[] {
+    if (!response) {
+      return [];
     }
+
+    // If it's already an array (like when loading from storage), map each item
+    if (Array.isArray(response)) {
+      return response.map((item) => this.mapMoreInfo(item));
+    }
+
+    // If it's the cumulative object from the stream, wrap it in an array for the UI loop
+    return [this.mapMoreInfo(response)];
   }
 }

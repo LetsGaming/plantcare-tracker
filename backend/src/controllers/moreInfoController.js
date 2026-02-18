@@ -39,7 +39,6 @@ const getMoreInfo = async (req, res) => {
             {
               type: "ai_chunk",
               value: chunk,
-              author: { name: "LetsGamingDE", id: 272402865874534400n },
             },
           ],
           "value",
