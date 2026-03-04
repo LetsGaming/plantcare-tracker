@@ -1,0 +1,50 @@
+{
+    "name": "plantcare-backend",
+    "version": "1.4.0",
+    "versionPath": "v1",
+    "description": "Backend for Plant Care Tracker Webapp",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "nodemon server.js",
+        "dev:v2": "nodemon --exec tsx server-v2.ts",
+        "build:v2": "tsc -p tsconfig.v2.json",
+        "start:v2": "node dist-v2/server-v2.js",
+        "typecheck": "tsc -p tsconfig.v2.json --noEmit"
+    },
+    "dependencies": {
+        "axios": "^1.13.5",
+        "bcryptjs": "^3.0.3",
+        "cookie-parser": "^1.4.7",
+        "cors": "^2.8.6",
+        "dotenv": "^17.3.1",
+        "exif-parser": "^0.1.12",
+        "express": "^5.2.1",
+        "express-async-handler": "^1.2.0",
+        "express-rate-limit": "^8.2.1",
+        "jsonwebtoken": "^9.0.3",
+        "multer": "^2.0.2",
+        "mysql2": "^3.17.1",
+        "node-cache": "^5.1.2",
+        "node-html-parser": "^7.0.2",
+        "openai": "^6.21.0",
+        "playwright": "^1.58.2",
+        "sharp": "^0.34.5",
+        "winston": "^3.19.0",
+        "zod": "^3.22.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.11",
+        "typescript": "^5.4.0",
+        "tsx": "^4.7.0",
+        "@types/node": "^20.0.0",
+        "@types/express": "^5.0.0",
+        "@types/bcryptjs": "^2.4.6",
+        "@types/jsonwebtoken": "^9.0.6",
+        "@types/cookie-parser": "^1.4.7",
+        "@types/cors": "^2.8.17",
+        "@types/multer": "^1.4.11"
+    },
+    "author": "Domenic",
+    "license": "MIT"
+}
