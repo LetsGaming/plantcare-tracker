@@ -6,7 +6,7 @@
  */
 
 import type { Pool, RowDataPacket } from 'mysql2/promise';
-import type { SubstrateRepository, SubstrateData, ComponentRef, ImageRef } from '../domain/Substrate';
+import type { SubstrateRepository, SubstrateData, ImageRef } from '../domain/Substrate';
 
 interface SubstrateRow extends RowDataPacket {
   substrate_id: number;

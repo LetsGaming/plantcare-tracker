@@ -5,15 +5,17 @@
  * Now uses typed Request extensions instead of casting.
  */
 
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError, ForbiddenError } from '../errors';
+import crypto from 'crypto';
+
 // ── JWT config ────────────────────────────────────────────────────────────────
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'changeme';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'changeme_refresh';
-const JWT_EXPIRATION = process.env.JWT_EXPIRATION ?? '15m';
-const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION ?? '7d';
+const JWT_SECRET: Secret = process.env.JWT_SECRET ?? 'changeme';
+const JWT_REFRESH_SECRET: Secret = process.env.JWT_REFRESH_SECRET ?? 'changeme_refresh';
+const JWT_EXPIRATION = (process.env.JWT_EXPIRATION ?? '15m') as string;
+const JWT_REFRESH_EXPIRATION = (process.env.JWT_REFRESH_EXPIRATION ?? '7d') as string;
 
 export const jwtConfig = { JWT_SECRET, JWT_REFRESH_SECRET, JWT_EXPIRATION, JWT_REFRESH_EXPIRATION };
 
@@ -49,7 +51,6 @@ export const sessionStore = {
 
 // ── One-time ticket store (V1 ticketStore.js) ─────────────────────────────────
 
-import crypto from 'crypto';
 const tickets = new Map<string, { userId: number; expires: number }>();
 
 export const ticketStore = {
@@ -77,8 +78,13 @@ export interface JwtPayload {
 
 export const generateTokens = (user: JwtPayload) => {
   const payload = { id: user.id, username: user.username, role: user.role };
-  const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
-  const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRATION });
+  
+  const accessOptions: SignOptions = { expiresIn: JWT_EXPIRATION as any };
+  const refreshOptions: SignOptions = { expiresIn: JWT_REFRESH_EXPIRATION as any };
+
+  const accessToken = jwt.sign(payload, JWT_SECRET, accessOptions);
+  const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, refreshOptions);
+  
   return { accessToken, refreshToken };
 };
 
@@ -100,11 +106,12 @@ export const authenticateToken = (req: Request, _res: Response, next: NextFuncti
 
   const authHeader = req.headers['authorization'];
   if (authHeader?.startsWith('Bearer ')) token = authHeader.split(' ')[1];
-  if (!token && req.cookies?.accessToken) token = req.cookies.accessToken;
+  // Check for cookies (ensure cookie-parser is used in app.ts)
+  if (!token && (req as any).cookies?.accessToken) token = (req as any).cookies.accessToken;
 
   if (!token) return next(new UnauthorizedError('Missing authentication token'));
 
-  jwt.verify(token, JWT_SECRET, (err: Error | null, decoded: unknown) => {
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return next(new ForbiddenError('Invalid or expired token'));
 
     const user = decoded as JwtPayload;
@@ -117,7 +124,7 @@ export const authenticateToken = (req: Request, _res: Response, next: NextFuncti
 };
 
 // ── SSE ticket auth (needs pool to look up user) ─────────────────────────────
-// Exported factory used in moreInfoRoutes and salesRoutes if needed.
+
 export const makeAuthenticateSSE =
   (pool: import('mysql2/promise').Pool) =>
   async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
@@ -143,7 +150,6 @@ export const makeAuthenticateSSE =
     }
   };
 
-// Fallback for routes that don't have pool access (legacy compat)
 export const authenticateSSE = (req: Request, _res: Response, next: NextFunction): void => {
   const { ticket } = req.query as { ticket?: string };
   if (!ticket) return next(new UnauthorizedError('No authentication ticket provided'));
@@ -151,7 +157,6 @@ export const authenticateSSE = (req: Request, _res: Response, next: NextFunction
   const userId = ticketStore.validateAndBurn(ticket);
   if (!userId) return next(new ForbiddenError('Invalid or expired ticket'));
 
-  // Minimal payload — use makeAuthenticateSSE(pool) for full user data
   req.user = { id: userId, username: '', role: 'user' };
   next();
 };

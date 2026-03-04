@@ -71,7 +71,7 @@ app.use(`${V}/watering`,   createWateringRouter(pool));
 app.use(`${V}/substrates`, createSubstrateRouter(pool));
 app.use(`${V}/components`, createComponentRouter(pool));
 app.use(`${V}/images`,     createImageRouter(pool));
-app.use(`${V}/more-info`,  createMoreInfoRouter());
+app.use(`${V}/more-info`,  createMoreInfoRouter(pool));
 
 app.get('/health', async (_req, res) => {
   try {

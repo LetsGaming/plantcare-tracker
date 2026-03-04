@@ -3,7 +3,7 @@
  */
 
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 import type { UserRepository } from '../domain/User';
 import { ValidationError, UnauthorizedError, NotFoundError, ConflictError, ForbiddenError } from '../../../core/errors';
@@ -74,13 +74,21 @@ export class RefreshTokenUseCase {
     if (!userId) throw new ForbiddenError('Invalid refresh token');
 
     try {
-      const decoded = jwt.verify(refreshToken, jwtConfig.JWT_REFRESH_SECRET) as { id: number; username: string; role: string };
+      // Use the secret from config, cast to Secret type
+      const decoded = jwt.verify(refreshToken, jwtConfig.JWT_REFRESH_SECRET as Secret) as { 
+        id: number; 
+        username: string; 
+        role: string 
+      };
+
       if (decoded.id !== userId) throw new ForbiddenError('Invalid refresh token');
-      return jwt.sign(
-        { id: decoded.id, username: decoded.username, role: decoded.role },
-        jwtConfig.JWT_SECRET,
-        { expiresIn: jwtConfig.JWT_EXPIRATION },
-      );
+
+      const payload = { id: decoded.id, username: decoded.username, role: decoded.role };
+      const signOptions: SignOptions = { 
+        expiresIn: jwtConfig.JWT_EXPIRATION as any // Casting as any handles the StringValue mismatch
+      };
+
+      return jwt.sign(payload, jwtConfig.JWT_SECRET as Secret, signOptions);
     } catch {
       throw new ForbiddenError('Invalid refresh token');
     }

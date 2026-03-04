@@ -101,7 +101,7 @@ const processAndStoreImage = (requireEntityType = false) =>
   async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     if (!req.file) return next(new ValidationError('No image file provided.'));
 
-    const entityType = req.params.entityType ?? 'generic';
+    const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : (req.params.entityType ?? 'generic');
     const uploadPath = requireEntityType ? path.join(NAS_PATH, entityType) : NAS_PATH;
 
     try {
@@ -192,7 +192,8 @@ export const createImageRouter = (pool: Pool): Router => {
       const images = await repo.findByEntity(req.params.entityType as EntityType, Number(req.params.entityId));
       if (!images.length) return next(new NotFoundError('Image'));
 
-      const localPath = resolveLocalPath(images[0].image_url, req.params.entityType);
+      const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
+      const localPath = resolveLocalPath(images[0].image_url, entityType);
       await fs.access(localPath);
 
       let transform = sharp(localPath);
@@ -226,7 +227,8 @@ export const createImageRouter = (pool: Pool): Router => {
       if (req.file) {
         const existing = await repo.findById(Number(req.params.id));
         if (existing) {
-          await deleteFromDisk(resolveLocalPath(existing.image_url, req.params.entityType));
+          const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
+          await deleteFromDisk(resolveLocalPath(existing.image_url, entityType));
         }
       }
       next();
@@ -256,7 +258,8 @@ export const createImageRouter = (pool: Pool): Router => {
       const image = await repo.findById(Number(req.params.id));
       if (!image) return next(new NotFoundError('Image'));
 
-      await deleteFromDisk(resolveLocalPath(image.image_url, req.params.entityType));
+      const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
+      await deleteFromDisk(resolveLocalPath(image.image_url, entityType));
       await repo.delete(Number(req.params.id));
       res.json({ success: true, data: { deleted: true } });
     } catch (err) { next(err); }
@@ -269,7 +272,8 @@ export const createImageRouter = (pool: Pool): Router => {
         req.params.entityType as EntityType,
         Number(req.params.entityId),
       );
-      await Promise.all(images.map((img) => deleteFromDisk(resolveLocalPath(img.image_url, req.params.entityType))));
+      const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
+      await Promise.all(images.map((img) => deleteFromDisk(resolveLocalPath(img.image_url, entityType))));
       res.json({ success: true, data: { deleted: true } });
     } catch (err) { next(err); }
   });
