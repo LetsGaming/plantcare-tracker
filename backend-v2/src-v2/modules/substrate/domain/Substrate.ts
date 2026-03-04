@@ -29,7 +29,7 @@ export interface SubstrateData {
 export interface SubstrateRepository {
   findAllPublic(): Promise<SubstrateData[]>;
   findAllByUser(userId: number): Promise<SubstrateData[]>;
-  findById(id: number, includeImages?: boolean): Promise<SubstrateData | null>;
+  findById(id: number): Promise<SubstrateData | null>;
   create(name: string, userId: number, isPublic: boolean): Promise<number>;
   update(id: number, userId: number, fields: { name?: string; isPublic?: boolean }): Promise<boolean>;
   addComponents(substrateId: number, components: { componentId: number; parts: number }[]): Promise<void>;

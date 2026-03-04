@@ -34,7 +34,10 @@ export class MySQLUserRepository implements UserRepository {
   }
 
   async update(userId: number, fields: Partial<Record<string, unknown>>): Promise<boolean> {
-    const keys = Object.keys(fields).filter((k) => k !== 'passwordConfirmation');
+    const ALLOWED_COLUMNS = new Set(['username', 'password']);
+    const keys = Object.keys(fields).filter(
+      (k) => k !== 'passwordConfirmation' && ALLOWED_COLUMNS.has(k),
+    );
     if (!keys.length) return false;
     const setClause = keys.map((k) => `${k} = ?`).join(', ');
     const values = [...keys.map((k) => fields[k]), userId];

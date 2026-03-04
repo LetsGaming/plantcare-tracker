@@ -116,6 +116,34 @@ export const authenticateToken = (req: Request, _res: Response, next: NextFuncti
   });
 };
 
+// ── SSE ticket auth (needs pool to look up user) ─────────────────────────────
+// Exported factory used in moreInfoRoutes and salesRoutes if needed.
+export const makeAuthenticateSSE =
+  (pool: import('mysql2/promise').Pool) =>
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    const { ticket } = req.query as { ticket?: string };
+    if (!ticket) return next(new UnauthorizedError('No authentication ticket provided'));
+
+    const userId = ticketStore.validateAndBurn(ticket);
+    if (!userId) return next(new ForbiddenError('Invalid or expired ticket'));
+
+    try {
+      const [rows] = await pool.query<import('mysql2/promise').RowDataPacket[]>(
+        `SELECT users.id, username, roles.name AS role
+         FROM users LEFT JOIN roles ON users.role_id = roles.id
+         WHERE users.id = ?`,
+        [userId],
+      );
+      const user = rows[0];
+      if (!user) return next(new ForbiddenError('User not found'));
+      req.user = { id: user['id'] as number, username: user['username'] as string, role: user['role'] as string };
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+
+// Fallback for routes that don't have pool access (legacy compat)
 export const authenticateSSE = (req: Request, _res: Response, next: NextFunction): void => {
   const { ticket } = req.query as { ticket?: string };
   if (!ticket) return next(new UnauthorizedError('No authentication ticket provided'));
@@ -123,6 +151,7 @@ export const authenticateSSE = (req: Request, _res: Response, next: NextFunction
   const userId = ticketStore.validateAndBurn(ticket);
   if (!userId) return next(new ForbiddenError('Invalid or expired ticket'));
 
+  // Minimal payload — use makeAuthenticateSSE(pool) for full user data
   req.user = { id: userId, username: '', role: 'user' };
   next();
 };

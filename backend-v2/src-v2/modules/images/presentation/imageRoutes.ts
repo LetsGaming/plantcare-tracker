@@ -231,7 +231,11 @@ export const createImageRouter = (pool: Pool): Router => {
       }
       next();
     },
-    processAndStoreImage(true),
+    // Only run Sharp processing if a new file was actually uploaded
+    (req: Request, res: Response, next: NextFunction): void => {
+      if (!req.file) return next();
+      processAndStoreImage(true)(req, res, next);
+    },
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const { id, entityType } = req.params;

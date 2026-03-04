@@ -3,6 +3,7 @@ export { globalErrorHandler, notFoundHandler } from './errorHandler';
 export {
   authenticateToken,
   authenticateSSE,
+  makeAuthenticateSSE,
   isAdmin,
   checkGuestPermission,
   sessionStore,

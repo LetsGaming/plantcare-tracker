@@ -3,10 +3,11 @@
  */
 
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import type { UserRepository } from '../domain/User';
 import { ValidationError, UnauthorizedError, NotFoundError, ConflictError, ForbiddenError } from '../../../core/errors';
-import { generateTokens, sessionStore, ticketStore } from '../../../core/middleware/auth';
+import { generateTokens, sessionStore, ticketStore, jwtConfig } from '../../../core/middleware/auth';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -71,10 +72,6 @@ export class RefreshTokenUseCase {
 
     const userId = sessionStore.findUser(refreshToken);
     if (!userId) throw new ForbiddenError('Invalid refresh token');
-
-    // Re-use generateTokens with only access token needed
-    const jwt = require('jsonwebtoken');
-    const { jwtConfig } = require('../../../core/middleware/auth');
 
     try {
       const decoded = jwt.verify(refreshToken, jwtConfig.JWT_REFRESH_SECRET) as { id: number; username: string; role: string };

@@ -9,16 +9,19 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { NodeCacheAdapter } from '../../../core/cache';
-import { authenticateSSE } from '../../../core/middleware';
+import { makeAuthenticateSSE } from '../../../core/middleware';
 import { OpenAIPlantClient } from '../infrastructure/OpenAIClient';
 import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
 import { SseManager } from '../../sales/presentation/SseManager';
 import { createModuleLogger } from '../../../core/logging';
 
+import type { Pool } from 'mysql2/promise';
+
 const log = createModuleLogger('MoreInfoRoutes');
 
-export const createMoreInfoRouter = (): Router => {
+export const createMoreInfoRouter = (pool: Pool): Router => {
   const router = Router();
+  const authenticateSSE = makeAuthenticateSSE(pool);
 
   // Shared cache: 12h TTL for AI responses (same as V1)
   const cache = new NodeCacheAdapter(43_200);

@@ -51,7 +51,7 @@ export class OpenAIPlantClient {
     const cacheKey = `ai_${language}_${plantName.toLowerCase()}`;
     const cached = this.cache.get<string>(cacheKey);
     if (cached) {
-      await onChunk(cached);
+      await onChunk(formatToHTML(cached, htmlFormatting));
       return;
     }
 
@@ -101,7 +101,8 @@ export class OpenAIPlantClient {
 
       if (buffer.length > 0) await onChunk(buffer);
 
-      this.cache.set(cacheKey, formatToHTML(fullText, htmlFormatting));
+      // Cache raw markdown — formatting is applied per-request on cache read
+      this.cache.set(cacheKey, fullText);
     } catch (err: unknown) {
       log.error(`OpenAI stream failed: ${(err as Error).message}`);
     }

@@ -50,7 +50,7 @@ export class MySQLPlantRepository implements PlantRepository {
       p.created_at    AS plant_created_at,
       s.id            AS substrate_id,
       s.name          AS substrate_name,
-      i.id            AS image_id,
+      img.id          AS image_id,
       REPLACE(REPLACE(img.image_url, '\\\\', '/'), '://', '://')
                       AS image_url,
       img.upload_date

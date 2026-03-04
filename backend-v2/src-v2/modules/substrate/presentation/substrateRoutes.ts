@@ -90,7 +90,7 @@ export const createSubstrateRouter = (pool: Pool): Router => {
         return next(new ValidationError('At least one field must be provided for update'));
       }
 
-      const existing = await repo.findById(Number(req.params.id), false);
+      const existing = await repo.findById(Number(req.params.id));
       if (!existing) return next(new NotFoundError('Substrate'));
       if (existing.substrate_user_id !== req.user!.id) return next(new ForbiddenError('Unauthorized to update this substrate'));
 
@@ -122,7 +122,7 @@ export const createSubstrateRouter = (pool: Pool): Router => {
       const parsed = ComponentsSchema.safeParse(components);
       if (!parsed.success) return next(new ValidationError('Components array is required'));
 
-      const existing = await repo.findById(Number(req.params.id), false);
+      const existing = await repo.findById(Number(req.params.id));
       if (!existing) return next(new NotFoundError('Substrate'));
       if (existing.substrate_user_id !== req.user!.id) return next(new ForbiddenError('Unauthorized to edit this substrate'));
 

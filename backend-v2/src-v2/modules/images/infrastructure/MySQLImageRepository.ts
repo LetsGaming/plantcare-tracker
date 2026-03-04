@@ -76,12 +76,7 @@ export class MySQLImageRepository {
   }
 
   async delete(imageId: number): Promise<void> {
-    // Join tables cascade on DELETE — only need to delete from images
-    await Promise.all(
-      Object.values(JOIN_TABLE).map((t) =>
-        this.pool.execute(`DELETE FROM ${t} WHERE image_id = ?`, [imageId]),
-      ),
-    );
+    // ON DELETE CASCADE in join tables handles plant_images / substrate_images / component_images
     await this.pool.execute('DELETE FROM images WHERE id = ?', [imageId]);
   }
 

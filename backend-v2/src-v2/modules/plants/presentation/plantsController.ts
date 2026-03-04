@@ -26,7 +26,7 @@ export const createPlantsController = (repo: PlantRepository) => {
   return {
     getAllPlants: async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const userId = (req as Request & { user?: { id: number } }).user?.id ?? null;
+        const userId = req.user?.id ?? null;
         const plants = await getAll.execute(userId);
         res.json({ success: true, data: plants.map((p) => p.toJSON()) });
       } catch (err) { next(err); }
@@ -41,7 +41,7 @@ export const createPlantsController = (repo: PlantRepository) => {
 
     addPlant: async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const userId = (req as Request & { user: { id: number } }).user.id;
+        const userId = req.user!.id;
         const plantId = await create.execute(req.body, userId);
         res.status(201).json({ success: true, data: { plantId } });
       } catch (err) { next(err); }
@@ -49,7 +49,7 @@ export const createPlantsController = (repo: PlantRepository) => {
 
     editPlant: async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const userId = (req as Request & { user: { id: number } }).user.id;
+        const userId = req.user!.id;
         await update.execute(Number(req.params.id), userId, req.body);
         res.json({ success: true, data: { updated: true } });
       } catch (err) { next(err); }
@@ -57,7 +57,7 @@ export const createPlantsController = (repo: PlantRepository) => {
 
     deletePlant: async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const userId = (req as Request & { user: { id: number } }).user.id;
+        const userId = req.user!.id;
         await remove.execute(Number(req.params.id), userId);
         res.json({ success: true, data: { deleted: true } });
       } catch (err) { next(err); }

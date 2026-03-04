@@ -55,11 +55,11 @@ export class MySQLWateringRepository implements WateringRepository {
     const updates: string[] = [];
     const params: unknown[] = [];
 
-    if (dto.date) { updates.push('date = ?'); params.push(dto.date); }
+    if (dto.date !== undefined) { updates.push('date = ?'); params.push(dto.date); }
     if (dto.usedFertilizer !== undefined) { updates.push('used_fertilizer = ?'); params.push(dto.usedFertilizer); }
-    if (dto.fertilizerTypeId !== undefined && dto.fertilizerTypeId !== -1) {
+    if (dto.fertilizerTypeId !== undefined) {
       updates.push('fertilizer_type_id = ?');
-      params.push(dto.fertilizerTypeId);
+      params.push(dto.fertilizerTypeId); // null is valid (removes fertilizer)
     }
 
     if (!updates.length) return false;
