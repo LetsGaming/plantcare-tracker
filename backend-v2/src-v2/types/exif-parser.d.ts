@@ -1,21 +1,20 @@
 declare module 'exif-parser' {
-  export interface ExifTags {
-    DateTimeOriginal?: number;
-    CreateDate?: number;
-    ModifyDate?: number;
-    GPSDateStamp?: string;
-    [key: string]: any;
+  interface ExifTags {
+    DateTimeOriginal?: number | string;
+    CreateDate?: number | string;
+    ModifyDate?: number | string;
+    GPSDateStamp?: number | string;
+    [key: string]: unknown;
   }
 
-  export interface ExifResult {
+  interface ExifResult {
     tags: ExifTags;
-    imageSize?: { width: number; height: number };
-    thumbnail?: Buffer;
   }
 
-  export interface Parser {
+  interface ExifParser {
     parse(): ExifResult;
   }
 
-  export function create(buffer: Buffer): Parser;
+  function create(buffer: Buffer): ExifParser;
+  export = create;
 }

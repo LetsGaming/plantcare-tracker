@@ -21,7 +21,8 @@
     "paths": {
       "@core/*": ["src-v2/core/*"],
       "@modules/*": ["src-v2/modules/*"]
-    }
+    },
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": ["src-v2/**/*", "server-v2.ts"],
   "exclude": ["node_modules", "dist-v2", "src/**/*"]
