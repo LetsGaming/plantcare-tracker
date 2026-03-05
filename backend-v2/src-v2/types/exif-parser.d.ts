@@ -15,6 +15,5 @@ declare module 'exif-parser' {
     parse(): ExifResult;
   }
 
-  function create(buffer: Buffer): ExifParser;
-  export = create;
+  export function create(buffer: Buffer | ArrayBuffer): ExifParser;
 }

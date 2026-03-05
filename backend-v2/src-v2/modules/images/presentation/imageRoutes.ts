@@ -219,7 +219,7 @@ export const createImageRouter = (pool: Pool): Router => {
     authenticateToken,
     validateEntityType,
     upload.single('image'),
-    async (req: Request, res: Response, next: NextFunction) => {
+    async (req: Request, _res: Response, next: NextFunction) => {
       if (!req.file && !req.body.date) {
         return next(new ValidationError('No file or date provided for update.'));
       }
