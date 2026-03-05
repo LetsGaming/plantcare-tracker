@@ -182,19 +182,3 @@ ALTER TABLE watering_records ADD INDEX idx_wr_date     (date);
 -- users: role_id für rollenbasierte Queries
 ALTER TABLE users ADD INDEX idx_users_role_id (role_id);
 
-
--- =============================================================================
--- ROLLBACK (bei Bedarf ausführen)
--- =============================================================================
--- ALTER TABLE plants               DROP INDEX idx_plants_user_id;
--- ALTER TABLE plants               DROP INDEX idx_plants_is_public;
--- ALTER TABLE plants               DROP INDEX idx_plants_substrate;
--- ALTER TABLE substrates           DROP INDEX idx_substrates_user_id;
--- ALTER TABLE substrates           DROP INDEX idx_substrates_is_public;
--- ALTER TABLE substrate_components DROP INDEX idx_sc_component_id;
--- ALTER TABLE plant_images         DROP INDEX idx_pi_image_id;
--- ALTER TABLE substrate_images     DROP INDEX idx_si_image_id;
--- ALTER TABLE component_images     DROP INDEX idx_ci_image_id;
--- ALTER TABLE watering_records     DROP INDEX idx_wr_plant_id;
--- ALTER TABLE watering_records     DROP INDEX idx_wr_date;
--- ALTER TABLE users                DROP INDEX idx_users_role_id;
