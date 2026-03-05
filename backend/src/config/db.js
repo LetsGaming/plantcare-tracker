@@ -5,7 +5,7 @@ const logger = require('../utils/logger.js');
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 requiredEnvVars.forEach((key) => {
   if (!process.env[key]) {
-    logger.error(`Environment variable ${key} is missing.`);
+    logger.error(`Database environment variable ${key} is missing.`);
     process.exit(1);
   }
 });

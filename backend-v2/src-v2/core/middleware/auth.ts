@@ -12,12 +12,29 @@ import crypto from 'crypto';
 
 // ── JWT config ────────────────────────────────────────────────────────────────
 
-const JWT_SECRET: Secret = process.env.JWT_SECRET ?? 'changeme';
-const JWT_REFRESH_SECRET: Secret = process.env.JWT_REFRESH_SECRET ?? 'changeme_refresh';
+const getRequiredEnv = (key: string): string => {
+  const value = process.env[key];
+  if (!value) {
+    console.error(`FATAL ERROR: Environment variable ${key} is not set.`);
+    process.exit(1);
+  }
+  return value;
+};
+
+// Required Secrets (Will exit process if missing)
+const JWT_SECRET: Secret = getRequiredEnv('JWT_SECRET');
+const JWT_REFRESH_SECRET: Secret = getRequiredEnv('JWT_REFRESH_SECRET');
+
+// Optional Settings (With sensible defaults)
 const JWT_EXPIRATION = (process.env.JWT_EXPIRATION ?? '15m') as string;
 const JWT_REFRESH_EXPIRATION = (process.env.JWT_REFRESH_EXPIRATION ?? '7d') as string;
 
-export const jwtConfig = { JWT_SECRET, JWT_REFRESH_SECRET, JWT_EXPIRATION, JWT_REFRESH_EXPIRATION };
+export const jwtConfig = {
+  JWT_SECRET,
+  JWT_REFRESH_SECRET,
+  JWT_EXPIRATION,
+  JWT_REFRESH_EXPIRATION,
+};
 
 // ── Session store (in-memory, same as V1 authStore.js) ───────────────────────
 
