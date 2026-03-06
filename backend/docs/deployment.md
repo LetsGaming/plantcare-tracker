@@ -2,14 +2,14 @@
 
 ## Production Build
 
-TypeScript is compiled to JavaScript before deployment. The output goes to `./dist-v2/`.
+TypeScript is compiled to JavaScript before deployment. The output goes to `./dist/`.
 
 ```bash
-pnpm run build:v2
-# → dist-v2/server-v2.js + type declarations + source maps
+pnpm run build
+# → dist/server.js + type declarations + source maps
 
-pnpm run start:v2
-# → node dist-v2/server-v2.js
+pnpm run start
+# → node dist/server.js (via scripts/start.js)
 ```
 
 Set `NODE_ENV=production` before starting. This disables debug logging, removes stack traces from error responses, and enables production CORS enforcement.
@@ -25,7 +25,7 @@ Go through this before every production deployment:
 - [ ] `ALLOWED_ORIGINS` — restricted to your actual frontend domain(s)
 - [ ] `NAS_PATH` — points to persistent storage, not ephemeral container filesystem
 - [ ] `OPENAI_API_KEY` — set if the `/more-info` endpoint is needed
-- [ ] DB indexes applied — run `database/migration_v2_indexes.sql` if upgrading from V1
+- [ ] DB indexes applied — run `database/migration_v2_indexes.sql` if upgrading from an older installation
 - [ ] Playwright Chromium installed — run `pnpm exec playwright install chromium` if using the sales scraper
 
 Generate secrets:
@@ -42,8 +42,8 @@ PM2 keeps the process alive and restarts it on crash:
 # Install globally
 npm install -g pm2
 
-# Start V2
-pm2 start dist-v2/server-v2.js --name plantcare-v2
+# Start server
+pm2 start dist/server.js --name plantcare
 
 # Save process list (survives reboots)
 pm2 save
@@ -52,16 +52,16 @@ pm2 save
 pm2 startup
 
 # View logs
-pm2 logs plantcare-v2
+pm2 logs plantcare
 
 # Reload without downtime (re-reads env variables)
-pm2 reload plantcare-v2
+pm2 reload plantcare
 ```
 
 For a zero-downtime deployment with environment variables:
 
 ```bash
-pm2 reload plantcare-v2 --update-env
+pm2 reload plantcare --update-env
 ```
 
 ## Health Checks
@@ -135,20 +135,14 @@ This offloads static file serving from Node.js and enables kernel-level sendfile
 
 ## Reverse Proxy (nginx)
 
-Example nginx config for running V1 and V2 side by side:
+Example nginx config:
 
 ```nginx
 server {
     listen 443 ssl;
     server_name api.yourapp.com;
 
-    location /api/v1 {
-        proxy_pass http://localhost:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /api/v2 {
+    location /api {
         proxy_pass http://localhost:5000;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;

@@ -8,29 +8,7 @@ The `sessionStore` and `ticketStore` live in process memory. All active sessions
 
 **Impact:** Low for personal/hobby use. High for any multi-instance or frequently-restarted deployment.
 
-**Fix:** Replace with Redis. The `CacheService` interface (`src/core/cache/CacheService.ts`) is already abstracted. Add a `RedisAdapter` that implements the same `get / set / delete / flush` methods and swap it in `server-v2.ts`.
-
----
-
-### No Rate Limiting on Auth Endpoints
-
-`POST /auth/register` and `POST /auth/login` have no rate limiting, making brute-force attacks straightforward.
-
-**Fix:** Add `express-rate-limit` as middleware on these two routes:
-
-```typescript
-import rateLimit from 'express-rate-limit';
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-router.post('/login', authLimiter, async (req, res, next) => { ... });
-router.post('/register', authLimiter, async (req, res, next) => { ... });
-```
+**Fix:** Replace with Redis. The `CacheService` interface (`src/core/cache/CacheService.ts`) is already abstracted. Add a `RedisAdapter` that implements the same `get / set / delete / flush` methods and swap it in `server.ts`.
 
 ---
 
@@ -72,7 +50,7 @@ app.use(express.json({ limit: '1mb' }));
 
 ### Redis-Backed Sessions
 
-Replace the in-memory session store with Redis for persistence across restarts and horizontal scaling. The `CacheService` abstraction is already in place — only `server-v2.ts` needs to change:
+Replace the in-memory session store with Redis for persistence across restarts and horizontal scaling. The `CacheService` abstraction is already in place — only `server.ts` needs to change:
 
 ```typescript
 // Replace:

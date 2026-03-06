@@ -28,13 +28,19 @@ const BASE_QUERY = `
 export class MySQLWateringRepository implements WateringRepository {
   constructor(private readonly pool: Pool) {}
 
-  async findByPlant(plantId: number): Promise<WateringRecordData[]> {
-    const [rows] = await this.pool.query<WateringRow[]>(`${BASE_QUERY} WHERE wr.plant_id = ?`, [plantId]);
+  async findByPlant(plantId: number, userId: number): Promise<WateringRecordData[]> {
+    const [rows] = await this.pool.query<WateringRow[]>(
+      `${BASE_QUERY} WHERE wr.plant_id = ? AND p.user_id = ?`,
+      [plantId, userId],
+    );
     return rows.map(this.mapRow);
   }
 
-  async findById(recordId: number): Promise<WateringRecordData | null> {
-    const [rows] = await this.pool.query<WateringRow[]>(`${BASE_QUERY} WHERE wr.id = ?`, [recordId]);
+  async findById(recordId: number, userId: number): Promise<WateringRecordData | null> {
+    const [rows] = await this.pool.query<WateringRow[]>(
+      `${BASE_QUERY} WHERE wr.id = ? AND p.user_id = ?`,
+      [recordId, userId],
+    );
     return rows[0] ? this.mapRow(rows[0]) : null;
   }
 
@@ -43,12 +49,17 @@ export class MySQLWateringRepository implements WateringRepository {
     return rows.map((r) => ({ fertilizer_id: r['id'] as number, fertilizer_name: r['name'] as string }));
   }
 
-  async create(dto: CreateWateringDTO): Promise<number> {
+  async create(dto: CreateWateringDTO, userId: number): Promise<number> {
     const [result] = await this.pool.execute(
-      'INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id) VALUES (?, ?, ?, ?)',
-      [dto.plantId, dto.date, dto.usedFertilizer, dto.fertilizerTypeId],
+      `INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)
+       SELECT ?, ?, ?, ? FROM plants WHERE id = ? AND user_id = ?`,
+      [dto.plantId, dto.date, dto.usedFertilizer, dto.fertilizerTypeId, dto.plantId, userId],
     );
-    return (result as { insertId: number }).insertId;
+    const { insertId, affectedRows } = result as { insertId: number; affectedRows: number };
+    if (affectedRows === 0) {
+      return 0;
+    }
+    return insertId;
   }
 
   async update(recordId: number, userId: number, dto: UpdateWateringDTO): Promise<boolean> {

@@ -1,6 +1,6 @@
 # Overview
 
-The Plantcare Tracker Backend V2 is a Node.js/Express REST API that serves the Plantcare Tracker web application. V2 runs **in parallel with V1** on the `/api/v2/` path prefix and can be adopted incrementally — the frontend switches by changing a single base URL constant.
+The Plantcare Tracker Backend is a Node.js/Express REST API built with clean architecture principles. V2 is a **full replacement for V1** — V1 has been removed in favour of this rewrite.
 
 ## What's New in V2
 
@@ -18,17 +18,15 @@ The Plantcare Tracker Backend V2 is a Node.js/Express REST API that serves the P
 ## V2 at a Glance
 
 ```
-server-v2.ts  →  /api/v2/auth
-              →  /api/v2/plants
-              →  /api/v2/watering
-              →  /api/v2/substrates
-              →  /api/v2/components
-              →  /api/v2/images
-              →  /api/v2/sales       (SSE)
-              →  /api/v2/more-info   (SSE)
+server.ts  →  /api/v2/auth
+           →  /api/v2/plants
+           →  /api/v2/watering
+           →  /api/v2/substrates
+           →  /api/v2/components
+           →  /api/v2/images
+           →  /api/v2/sales       (SSE)
+           →  /api/v2/more-info   (SSE)
 ```
-
-V1 continues to run on `/api/v1/` — there is no forced migration.
 
 ## Technology Stack
 
@@ -50,9 +48,9 @@ V1 continues to run on `/api/v1/` — there is no forced migration.
 ## Project Structure
 
 ```
-backend-v2/
-├── server-v2.ts               # Entry point, composition root
-├── tsconfig.v2.json           # TypeScript config
+backend/
+├── server.ts                  # Entry point, composition root
+├── tsconfig.json              # TypeScript config
 ├── vitest.config.ts           # Test runner config
 │
 ├── src/

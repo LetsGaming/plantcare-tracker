@@ -40,14 +40,14 @@ export const createWateringRouter = (pool: Pool): Router => {
 
   router.get('/plant/:plantId', authenticateToken, async (req, res, next) => {
     try {
-      const records = await repo.findByPlant(Number(req.params.plantId));
+      const records = await repo.findByPlant(Number(req.params.plantId), req.user!.id);
       res.json({ success: true, data: records });
     } catch (err) { next(err); }
   });
 
   router.get('/:id', authenticateToken, async (req, res, next) => {
     try {
-      const record = await repo.findById(Number(req.params.id));
+      const record = await repo.findById(Number(req.params.id), req.user!.id);
       if (!record) return next(new NotFoundError('Watering record'));
       res.json({ success: true, data: record });
     } catch (err) { next(err); }
@@ -64,7 +64,8 @@ export const createWateringRouter = (pool: Pool): Router => {
         date: formatToDBDate(date),
         usedFertilizer,
         fertilizerTypeId: fertilizerTypeId ?? null,
-      });
+      }, req.user!.id);
+      if (!recordId) return next(new NotFoundError('Plant'));
       res.status(201).json({ success: true, data: { waterRecordId: recordId } });
     } catch (err) { next(err); }
   });

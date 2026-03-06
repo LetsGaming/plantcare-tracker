@@ -1,7 +1,7 @@
-# Plantcare Tracker — Backend V2
+# Plantcare Tracker — Backend
 
 > REST API built with Node.js, Express, and TypeScript following Clean Architecture principles.
-> Runs alongside V1 on `/api/v2/` — no forced migration, no downtime.
+> V2 is a full replacement for V1.
 
 ---
 
@@ -10,7 +10,6 @@
 ```bash
 # Install
 pnpm install
-pnpm add -D vitest @vitest/coverage-v8 supertest @types/supertest
 
 # Configure
 cp .env.example .env        # fill in DB credentials and JWT secrets
@@ -19,13 +18,13 @@ cp .env.example .env        # fill in DB credentials and JWT secrets
 mysql -u your_user -p your_db < database/database-v2.sql
 
 # Develop
-pnpm run dev:v2             # hot reload via tsx
+pnpm run dev             # hot reload via tsx
 
 # Test
 pnpm run test
 
 # Build & run
-pnpm run build:v2 && pnpm run start:v2
+pnpm run build && pnpm run start
 ```
 
 ---
@@ -56,7 +55,7 @@ pnpm run build:v2 && pnpm run start:v2
 |--|--|
 | [Testing](./testing.md) | Running tests, coverage, writing unit and integration tests |
 | [Deployment](./deployment.md) | Production build, PM2, nginx, health checks, logging |
-| [Migration from V1](./migration.md) | Zero-downtime switch, what changes, rollback procedure |
+| [Migration from V1](./migration.md) | What changed, how to switch from V1 |
 | [Roadmap](./roadmap.md) | Known limitations, planned improvements |
 
 ---

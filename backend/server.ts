@@ -1,18 +1,19 @@
 /**
- * server-v2.ts
+ * server.ts
  *
- * V2 entry point. Runs alongside V1's server.js on /api/v2/.
- * Start: `pnpm run dev:v2`  or  `pnpm run build:v2 && pnpm run start:v2`
+ * Backend entry point. Replaces V1 (server.js).
+ * Start: `pnpm run dev`  or  `pnpm run build && pnpm run start`
  */
 
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+import fs from "fs";
 import path from "path";
 import mysql from "mysql2/promise";
 
-dotenv.config({ path: path.resolve(__dirname, ".env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 import {
   requestIdMiddleware,
@@ -70,8 +71,21 @@ const uploadDir = process.env.NAS_PATH
   : path.resolve(process.cwd(), "uploads");
 app.use("/uploads", express.static(uploadDir));
 
-// get version from package.json for /api/vX prefix
-import { versionPath } from "./package.json";
+// get version for /api/vX prefix from env or package.json ("versionPath" field)
+function getVersionPath(): string {
+  if (process.env.API_VERSION_PATH) return process.env.API_VERSION_PATH;
+  try {
+    const raw = fs.readFileSync(
+      path.resolve(process.cwd(), "package.json"),
+      "utf-8",
+    );
+    const pkg = JSON.parse(raw) as { versionPath?: string };
+    return pkg.versionPath ?? "v2";
+  } catch {
+    return "v2";
+  }
+}
+const versionPath = getVersionPath();
 const V = `/api/${versionPath}`;
 
 app.use(`${V}/auth`, createAuthRouter(pool));

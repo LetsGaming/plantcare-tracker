@@ -5,12 +5,36 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { Pool } from 'mysql2/promise';
+import rateLimit from 'express-rate-limit';
 import { MySQLUserRepository } from '../infrastructure/MySQLUserRepository';
 import {
   RegisterUseCase, LoginUseCase, GuestLoginUseCase, RefreshTokenUseCase,
   LogoutUseCase, RequestTicketUseCase, UpdateProfileUseCase, DeleteProfileUseCase,
 } from '../application/AuthUseCases';
 import { authenticateToken, isAdmin } from '../../../core/middleware';
+
+const authIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const body = req.body as Record<string, unknown> | undefined;
+    return (
+      (typeof body?.email === 'string' ? body.email : undefined) ??
+      (typeof body?.username === 'string' ? body.username : undefined) ??
+      req.ip ??
+      'unknown'
+    );
+  },
+});
 
 export const createAuthRouter = (pool: Pool): Router => {
   const router = Router();
@@ -29,7 +53,7 @@ export const createAuthRouter = (pool: Pool): Router => {
   const refreshCookiePath = '/api/v2/auth/refresh-token';
 
   // POST /register
-  router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/register', authIpLimiter, authAccountLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await register.execute(req.body);
       res.status(201).json({ success: true, data: user });
@@ -37,7 +61,7 @@ export const createAuthRouter = (pool: Pool): Router => {
   });
 
   // POST /login
-  router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/login', authIpLimiter, authAccountLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { accessToken, refreshToken } = await login.execute(req.body);
       const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
