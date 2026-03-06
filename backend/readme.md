@@ -1,68 +1,38 @@
-# PlantCare Tracker - Backend
+# Backend V2 — Setup
 
-## Overview
-The backend of the **PlantCare Tracker** project is responsible for managing user authentication, plant data, and plant care schedules. It provides a RESTful API for the frontend to interact with plant and user data.
+## 1. Neue Dependencies installieren
 
-## Features
-- User Authentication (Register, Login)
-- CRUD operations for plants, substrates, components and images (Create, Read, Update, Delete)
+```bash
+# Im backend-Ordner:
+pnpm add zod
+pnpm add -D typescript tsx @types/node @types/express @types/bcryptjs @types/jsonwebtoken @types/cookie-parser @types/cors @types/multer
+```
 
-## Technology Stack
-- **Node.js** with **Express.js**
-- **MySQL** for database
-- **JWT** for user authentication
-- **Postman** for API testing
+## 2. Starten
 
-## Project Setup
+**Entwicklung** (kein Build nötig, empfohlen):
+```bash
+pnpm run dev
+```
 
-### Prerequisites
-- Node.js
-- MySQL
+**Produktion:**
+```bash
+pnpm run build
+pnpm run start
+```
 
-### Installation
+**Typecheck only:**
+```bash
+pnpm run typecheck
+```
 
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/LetsGaming/plantcare-tracker.git
-    cd plantcare-tracker/backend
-    ```
+## 3. DB-Migration ausführen
 
-2. Install dependencies:
-    ```bash
-    npm install
-    ```
+```bash
+mysql -u <user> -p <database> < database/migration_v2_indexes.sql
+```
 
-3. Create a `.env` file with the following variables:
-    ```bash
-    PORT=5000
-    ALLOWED_ORIGINS=http://example1.com,http://example2.com,http://example3.com
-    
-    # MySQL Database configuration
-    DB_HOST=localhost
-    DB_USER=plantcare-db-admin
-    DB_PASSWORD=your_password
-    DB_NAME=your_db_name
-    DB_CONNECTION_LIMIT=OPTIONAL
-    DB_QUEUE_LIMIT=OPTIONAL
-    
-    # JWT configuration
-    JWT_SECRET=your_jwt_secret 
-    JWT_REFRESH_SECRET=your_jwt_refresh_secret
+## Hinweis
 
-    # OpenAI configuration
-    # Leave blank if you dont want AI functionality
-    OPENAI_API_KEY=YOUR_API_KEY 
-    ```
-
-4. Start the server:
-    ```bash
-    npm start
-    ```
-
-The server will run at `http://localhost:5000`.
-
-## API Documentation
-WiP
-
-## Contributing
-Feel free to open issues or contribute via pull requests. 
+V2 ist der vollständige Ersatz für V1. V1 (`server.js`) wird nicht mehr benötigt.  
+V2 läuft auf `/api/v2/` — implementiert: `/auth`, `/sales`, `/plants`, `/watering`, `/substrates`, `/components`, `/images`, `/more-info`.
