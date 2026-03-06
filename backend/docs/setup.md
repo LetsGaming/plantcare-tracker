@@ -13,13 +13,7 @@
 # 1. Install all dependencies
 pnpm install
 
-# 2. Add V2-specific runtime packages (if starting from V1's package.json)
-pnpm add zod openai
-
-# 3. Add test dependencies
-pnpm add -D vitest @vitest/coverage-v8 supertest @types/supertest
-
-# 4. Install Playwright browsers (skip if you don't need the sales scraper)
+# 2. Install Playwright browsers (skip if you don't need the sales scraper)
 pnpm exec playwright install chromium
 ```
 
@@ -68,14 +62,6 @@ mysql -u your_user -p your_database < database/database-v2.sql
 
 This creates all tables, inserts seed data (roles, guest user, fertilizer types, fineness levels), and applies all 12 performance indexes.
 
-### Existing V1 Installation
-
-The schema is identical between V1 and V2. Only indexes need to be added:
-
-```bash
-mysql -u your_user -p your_database < database/migration_v2_indexes.sql
-```
-
 See [Database](./database.md) for full schema reference.
 
 ## Running the Server
@@ -85,20 +71,20 @@ See [Database](./database.md) for full schema reference.
 Uses `tsx` for direct TypeScript execution with hot reload via `nodemon`:
 
 ```bash
-pnpm run dev:v2
+pnpm run dev
 ```
 
-The server starts on `PORT` (default: 5000). V1 continues running on the same process if `server.js` is started separately.
+The server starts on `PORT` (default: 5000).
 
 ### Production
 
 ```bash
 # Build TypeScript → JavaScript
-pnpm run build:v2
-# Output: ./dist-v2/
+pnpm run build
+# Output: ./dist/
 
 # Start compiled server
-pnpm run start:v2
+pnpm run start
 ```
 
 ### TypeScript Type Check (no build)
@@ -111,17 +97,17 @@ pnpm run typecheck
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `dev:v2` | `nodemon --exec tsx server-v2.ts` | Development server with hot reload |
-| `build:v2` | `tsc -p tsconfig.v2.json` | Compile to `./dist-v2/` |
-| `start:v2` | `node dist-v2/server-v2.js` | Run compiled server |
-| `typecheck` | `tsc -p tsconfig.v2.json --noEmit` | Type check without output |
+| `dev` | `nodemon --exec tsx server.ts` | Development server with hot reload |
+| `build` | `tsc -p tsconfig.json` | Compile to `./dist/` |
+| `start` | `node scripts/start.js` | Build if needed, then run compiled server |
+| `typecheck` | `tsc -p tsconfig.json --noEmit` | Type check without output |
 | `test` | `vitest run` | Run all tests once |
 | `test:watch` | `vitest` | Watch mode |
 | `test:coverage` | `vitest run --coverage` | With coverage report |
 
 ## TypeScript Configuration
 
-`tsconfig.v2.json` key settings:
+`tsconfig.json` key settings:
 
 ```json
 {
@@ -137,7 +123,7 @@ pnpm run typecheck
       "@modules/*": ["src/modules/*"]
     }
   },
-  "include": ["src/**/*", "server-v2.ts"]
+  "include": ["src/**/*", "server.ts"]
 }
 ```
 

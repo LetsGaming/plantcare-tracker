@@ -1,10 +1,10 @@
 # Migration from V1
 
-V2 is designed for a **zero-risk, incremental migration**. V1 keeps running untouched. There is no hard cutover and no downtime.
+V2 is a **complete replacement** for V1. V1 (`server.js`) has been removed. This document covers what changed and how to update client code accordingly.
 
 ## What Changes
 
-The only breaking change between V1 and V2 is the API base path:
+The only breaking change for API clients is the base path:
 
 ```
 /api/v1/  →  /api/v2/
@@ -26,39 +26,17 @@ const API_BASE = '/api/v2';
 
 No component changes, no type changes, no auth logic changes are needed.
 
-## Backend Migration Steps
-
-V1 and V2 are served by the same Express app on the same port, registered on different path prefixes. There is no separate process to manage.
-
-```typescript
-// server.js (V1 — untouched)
-app.use('/api/v1/auth',   authRouter);
-app.use('/api/v1/plants', plantsRouter);
-
-// server-v2.ts (V2 — added alongside)
-app.use('/api/v2/auth',   createAuthRouter(pool));
-app.use('/api/v2/plants', createPlantsRouter(pool));
-```
-
-### Recommended Rollout
-
-1. **Deploy V2 code** — both `/api/v1` and `/api/v2` are now live
-2. **Switch frontend** to `API_BASE = '/api/v2'` in a staging environment
-3. **Run your test suite** against the staging environment
-4. **Ship to production** — V1 still runs as a fallback
-5. **Monitor** V2 logs (`logs/combined.log`) for errors for a week or two
-6. **Decommission V1** — remove V1 routes and files once confidence is high
-
 ## Database Migration
 
 V2 uses the **same schema** as V1. The only addition is 12 performance indexes.
 
+If upgrading from a V1 database:
+
 ```bash
-# On your existing V1 database — no data migration needed
 mysql -u your_user -p your_database < database/migration_v2_indexes.sql
 ```
 
-This is a non-destructive, backwards-compatible change. V1 will benefit from the indexes too.
+This is a non-destructive, backwards-compatible change.
 
 ### Verify Index Application
 
@@ -71,11 +49,9 @@ SHOW INDEX FROM watering_records;
 
 ## Session Compatibility
 
-V1 and V2 have **separate session stores**. A token issued by V1's login endpoint will not be recognized by V2's `authenticateToken` middleware, and vice versa.
+V1 and V2 have **separate session stores**. A token issued by V1's login endpoint will not be recognized by V2's `authenticateToken` middleware.
 
-Users will need to log in again after switching to V2. This is expected behavior — present it as "you've been signed out due to an update."
-
-If you want to avoid forced re-login, temporarily accept tokens from both stores during the transition window by checking both session maps in `authenticateToken`.
+Users will need to log in again after switching to V2. Present this as "you've been signed out due to an update."
 
 ## Known Breaking Changes from Draft V2
 
@@ -88,12 +64,12 @@ DROP TABLE IF EXISTS entity_images;
 
 The final V2 uses separate join tables: `plant_images`, `substrate_images`, `component_images`. These are created by `database-v2.sql`.
 
-## Rollback
+## Rolling Back to V1
 
-If something goes wrong with V2:
+If V1 source is still available:
 
-1. Switch the frontend back to `API_BASE = '/api/v1'`
-2. Deploy — V1 is still running and fully functional
+1. Restore the V1 `server.js` entry point
+2. Switch the frontend back to `API_BASE = '/api/v1'`
 3. No database rollback needed (indexes are additive and harmless)
 
 To remove the V2 indexes if desired:

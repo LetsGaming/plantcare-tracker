@@ -34,5 +34,5 @@ mysql -u <user> -p <database> < database/migration_v2_indexes.sql
 
 ## Hinweis
 
-V1 (`server.js` / `/api/v1/`) läuft parallel weiter.  
-V2 läuft auf `/api/v2/` — aktuell implementiert: `/sales`, `/plants`, `/health`.
+V2 ist der vollständige Ersatz für V1. V1 (`server.js`) wird nicht mehr benötigt.  
+V2 läuft auf `/api/v2/` — implementiert: `/auth`, `/sales`, `/plants`, `/watering`, `/substrates`, `/components`, `/images`, `/more-info`.
