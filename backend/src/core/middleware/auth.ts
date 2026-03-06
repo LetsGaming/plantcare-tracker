@@ -1,5 +1,5 @@
 /**
- * src-v2/core/middleware/auth.ts
+ * src/core/middleware/auth.ts
  *
  * JWT authentication middleware — ported from V1's authMiddleware.js.
  * Now uses typed Request extensions instead of casting.

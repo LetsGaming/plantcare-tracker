@@ -1,5 +1,5 @@
 /**
- * src-v2/core/utils/index.ts
+ * src/core/utils/index.ts
  * Shared pure utility functions used across modules.
  */
 

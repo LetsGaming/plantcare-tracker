@@ -55,7 +55,7 @@ backend-v2/
 ├── tsconfig.v2.json           # TypeScript config
 ├── vitest.config.ts           # Test runner config
 │
-├── src-v2/
+├── src/
 │   ├── core/                  # Shared infrastructure (no business logic)
 │   │   ├── cache/             # CacheService interface + NodeCacheAdapter
 │   │   ├── errors/            # AppError hierarchy (400–500)

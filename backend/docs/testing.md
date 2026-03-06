@@ -99,8 +99,8 @@ Coverage reports are written to `./coverage/` in `text`, `lcov`, and `html` form
 ```typescript
 // tests/unit/modules/myModule.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { MyUseCase } from '../../../src-v2/modules/myModule/application/MyUseCases';
-import { NotFoundError, ValidationError } from '../../../src-v2/core/errors';
+import { MyUseCase } from '../../../src/modules/myModule/application/MyUseCases';
+import { NotFoundError, ValidationError } from '../../../src/core/errors';
 
 // Create a minimal mock repo — only mock what the use case calls
 const makeMockRepo = () => ({

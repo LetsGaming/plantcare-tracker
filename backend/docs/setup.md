@@ -133,11 +133,11 @@ pnpm run typecheck
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "paths": {
-      "@core/*": ["src-v2/core/*"],
-      "@modules/*": ["src-v2/modules/*"]
+      "@core/*": ["src/core/*"],
+      "@modules/*": ["src/modules/*"]
     }
   },
-  "include": ["src-v2/**/*", "server-v2.ts"]
+  "include": ["src/**/*", "server-v2.ts"]
 }
 ```
 

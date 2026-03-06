@@ -18,18 +18,18 @@ import {
   requestIdMiddleware,
   globalErrorHandler,
   notFoundHandler,
-} from "./src-v2/core/middleware";
-import { logger } from "./src-v2/core/logging";
+} from "./src/core/middleware";
+import { logger } from "./src/core/logging";
 
-import { createAuthRouter } from "./src-v2/modules/auth/presentation/authRoutes";
-import { createSalesRouter } from "./src-v2/modules/sales/presentation/salesRoutes";
-import { createPlantsRouter } from "./src-v2/modules/plants/presentation/plantsRoutes";
-import { createWateringRouter } from "./src-v2/modules/watering/presentation/wateringRoutes";
-import { createSubstrateRouter } from "./src-v2/modules/substrate/presentation/substrateRoutes";
-import { createComponentRouter } from "./src-v2/modules/components/presentation/componentRoutes";
-import { createImageRouter } from "./src-v2/modules/images/presentation/imageRoutes";
-import { createMoreInfoRouter } from "./src-v2/modules/moreInfo/presentation/moreInfoRoutes";
-import { closeBrowser } from "./src-v2/modules/sales/infrastructure/HttpFetcher";
+import { createAuthRouter } from "./src/modules/auth/presentation/authRoutes";
+import { createSalesRouter } from "./src/modules/sales/presentation/salesRoutes";
+import { createPlantsRouter } from "./src/modules/plants/presentation/plantsRoutes";
+import { createWateringRouter } from "./src/modules/watering/presentation/wateringRoutes";
+import { createSubstrateRouter } from "./src/modules/substrate/presentation/substrateRoutes";
+import { createComponentRouter } from "./src/modules/components/presentation/componentRoutes";
+import { createImageRouter } from "./src/modules/images/presentation/imageRoutes";
+import { createMoreInfoRouter } from "./src/modules/moreInfo/presentation/moreInfoRoutes";
+import { closeBrowser } from "./src/modules/sales/infrastructure/HttpFetcher";
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST ?? "localhost",

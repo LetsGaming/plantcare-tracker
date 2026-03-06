@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Plantcare Tracker — Datenbankschema V2
--- Kompatibel mit: Backend V2 (src-v2/)
+-- Kompatibel mit: Backend V2 (src/)
 -- Zeichensatz: utf8mb4 (volle Unicode-Unterstützung inkl. Emoji)
 -- =============================================================================
 

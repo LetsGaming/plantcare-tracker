@@ -16,7 +16,7 @@ AppError
 └── InternalError      500  — unexpected server error (non-operational)
 ```
 
-All classes live in `src-v2/core/errors/AppError.ts` and are re-exported from `src-v2/core/errors/index.ts`.
+All classes live in `src/core/errors/AppError.ts` and are re-exported from `src/core/errors/index.ts`.
 
 ## Throwing Errors
 
@@ -42,7 +42,7 @@ throw new ConflictError('Username already exists');
 
 ## The Global Handler
 
-`src-v2/core/middleware/errorHandler.ts` — registered last in `server-v2.ts`:
+`src/core/middleware/errorHandler.ts` — registered last in `server-v2.ts`:
 
 ```typescript
 app.use(notFoundHandler);   // catches unmatched routes → 404
@@ -78,7 +78,7 @@ In **development** (`NODE_ENV !== 'production'`), the full stack trace is includ
 
 ## Adding a New Error Type
 
-1. Add a class to `src-v2/core/errors/AppError.ts`:
+1. Add a class to `src/core/errors/AppError.ts`:
 
 ```typescript
 export class PaymentRequiredError extends AppError {
@@ -88,7 +88,7 @@ export class PaymentRequiredError extends AppError {
 }
 ```
 
-2. Export it from `src-v2/core/errors/index.ts`.
+2. Export it from `src/core/errors/index.ts`.
 
 3. Throw it from any use case or middleware — the global handler picks it up automatically.
 

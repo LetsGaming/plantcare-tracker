@@ -105,7 +105,7 @@ Sessions are stored in a `Map<userId, refreshToken[]>` in memory.
 
 ## Middleware Reference
 
-All middleware lives in `src-v2/core/middleware/auth.ts`.
+All middleware lives in `src/core/middleware/auth.ts`.
 
 ### `authenticateToken`
 

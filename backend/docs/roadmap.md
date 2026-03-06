@@ -8,7 +8,7 @@ The `sessionStore` and `ticketStore` live in process memory. All active sessions
 
 **Impact:** Low for personal/hobby use. High for any multi-instance or frequently-restarted deployment.
 
-**Fix:** Replace with Redis. The `CacheService` interface (`src-v2/core/cache/CacheService.ts`) is already abstracted. Add a `RedisAdapter` that implements the same `get / set / delete / flush` methods and swap it in `server-v2.ts`.
+**Fix:** Replace with Redis. The `CacheService` interface (`src/core/cache/CacheService.ts`) is already abstracted. Add a `RedisAdapter` that implements the same `get / set / delete / flush` methods and swap it in `server-v2.ts`.
 
 ---
 
@@ -42,7 +42,7 @@ Account registration immediately grants access. There is no verification step, n
 
 ### Scraper Selector Fragility
 
-The sales scraper selectors in `src-v2/modules/sales/infrastructure/scrapers/index.ts` are CSS selectors tied to each shop's current HTML structure. Shops update their frontends periodically, which silently breaks scrapers (they return empty results rather than errors).
+The sales scraper selectors in `src/modules/sales/infrastructure/scrapers/index.ts` are CSS selectors tied to each shop's current HTML structure. Shops update their frontends periodically, which silently breaks scrapers (they return empty results rather than errors).
 
 **Mitigation:** The `FetchSalesOverview` use case is resilient — a failing scraper is caught and logged, other scrapers continue. Add monitoring on the `sale_seller` distribution in SSE responses to detect when a specific shop stops producing results.
 

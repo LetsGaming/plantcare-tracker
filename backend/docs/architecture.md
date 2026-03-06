@@ -30,7 +30,7 @@ V2 follows [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13
 ### Example: Plants Module
 
 ```
-src-v2/modules/plants/
+src/modules/plants/
 ├── domain/
 │   └── Plant.ts              # Plant entity + PlantRepository interface
 ├── application/
@@ -74,7 +74,7 @@ const useCase = new CreatePlantUseCase(repo);
 
 ## Core Layer
 
-`src-v2/core/` contains shared infrastructure used by all modules. It has no business logic.
+`src/core/` contains shared infrastructure used by all modules. It has no business logic.
 
 ### `core/errors/`
 
