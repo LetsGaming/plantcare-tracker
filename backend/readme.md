@@ -12,13 +12,13 @@ pnpm add -D typescript tsx @types/node @types/express @types/bcryptjs @types/jso
 
 **Entwicklung** (kein Build nötig, empfohlen):
 ```bash
-pnpm run dev:v2
+pnpm run dev
 ```
 
 **Produktion:**
 ```bash
-pnpm run build:v2
-pnpm run start:v2
+pnpm run build
+pnpm run start
 ```
 
 **Typecheck only:**

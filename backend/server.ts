@@ -12,7 +12,7 @@ import dotenv from "dotenv";
 import path from "path";
 import mysql from "mysql2/promise";
 
-dotenv.config({ path: path.resolve(__dirname, ".env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 import {
   requestIdMiddleware,
@@ -70,8 +70,8 @@ const uploadDir = process.env.NAS_PATH
   : path.resolve(process.cwd(), "uploads");
 app.use("/uploads", express.static(uploadDir));
 
-// get version from package.json for /api/vX prefix
-import { versionPath } from "./package.json";
+// get version for /api/vX prefix from env or default to "v2"
+const versionPath = process.env.API_VERSION_PATH ?? "v2";
 const V = `/api/${versionPath}`;
 
 app.use(`${V}/auth`, createAuthRouter(pool));

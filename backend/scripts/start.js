@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import fs from "fs";
-import path from "path";
-import { execSync, spawn } from "child_process";
+const fs = require("fs");
+const path = require("path");
+const { execSync, spawn } = require("child_process");
 
 const ROOT = process.cwd();
 const SRC_DIR = path.join(ROOT, "src");
+const SERVER_TS = path.join(ROOT, "server.ts");
 const BUILD_FILE = path.join(ROOT, "dist", "server.js");
 
 function getLatestMtime(dir) {
@@ -35,14 +36,25 @@ function buildNeeded() {
 
   const buildTime = fs.statSync(BUILD_FILE).mtimeMs;
   const srcTime = getLatestMtime(SRC_DIR);
+  const serverTsTime = fs.existsSync(SERVER_TS)
+    ? fs.statSync(SERVER_TS).mtimeMs
+    : 0;
 
-  return srcTime > buildTime;
+  return Math.max(srcTime, serverTsTime) > buildTime;
+}
+
+function getPackageManager() {
+  if (fs.existsSync(path.join(ROOT, "pnpm-lock.yaml"))) return "pnpm";
+  if (fs.existsSync(path.join(ROOT, "yarn.lock"))) return "yarn";
+  if (fs.existsSync(path.join(ROOT, "bun.lockb"))) return "bun";
+  return "npm";
 }
 
 try {
   if (buildNeeded()) {
     console.log("Build missing or outdated. Building...");
-    execSync("npm run build", { stdio: "inherit" });
+    const pm = getPackageManager();
+    execSync(`${pm} run build`, { stdio: "inherit" });
   } else {
     console.log("Build is up to date.");
   }

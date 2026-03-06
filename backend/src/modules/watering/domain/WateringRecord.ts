@@ -32,10 +32,10 @@ export interface UpdateWateringDTO {
 }
 
 export interface WateringRepository {
-  findByPlant(plantId: number): Promise<WateringRecordData[]>;
-  findById(recordId: number): Promise<WateringRecordData | null>;
+  findByPlant(plantId: number, userId: number): Promise<WateringRecordData[]>;
+  findById(recordId: number, userId: number): Promise<WateringRecordData | null>;
   findFertilizerTypes(): Promise<FertilizerType[]>;
-  create(dto: CreateWateringDTO): Promise<number>;
+  create(dto: CreateWateringDTO, userId: number): Promise<number>;
   update(recordId: number, userId: number, dto: UpdateWateringDTO): Promise<boolean>;
   delete(recordId: number, userId: number): Promise<boolean>;
 }
