@@ -96,9 +96,28 @@ export default class UserService extends BaseService {
           credentials: "include",
         });
 
-        if (!response.ok)
-          throw new this.RefreshError(`HTTP ${response.status}`);
+        // 401 means the refresh token itself is expired/invalid — stop retrying
+        if (response.status === 401) {
+          throw new this.RefreshError("Refresh token expired");
+        }
 
+        if (!response.ok) {
+          // V2 error envelope: { error: { message } } or plain text
+          let errMessage = `HTTP ${response.status}`;
+          try {
+            const errBody = await response.json();
+            errMessage =
+              errBody?.error?.message ||
+              (typeof errBody?.error === "string" ? errBody.error : undefined) ||
+              errBody?.message ||
+              errMessage;
+          } catch {
+            // Non-JSON body — keep the HTTP status message
+          }
+          throw new this.RefreshError(errMessage);
+        }
+
+        // V2 success envelope: { success: true, data: { accessToken } }
         const res = await response.json();
         const accessToken = res.data?.accessToken;
         if (!accessToken)
@@ -106,8 +125,13 @@ export default class UserService extends BaseService {
 
         await TokenUtils.setToken(accessToken);
         return accessToken;
-      } catch (error) {
-        if (attempt === retryCount) {
+      } catch (error: any) {
+        // Auth errors should not be retried
+        const isAuthError =
+          error instanceof this.RefreshError &&
+          (error.message.includes("expired") || error.message.includes("401"));
+
+        if (attempt === retryCount || isAuthError) {
           await this.handleRequest(
             Promise.reject(error),
             RESOURCE_KEY,

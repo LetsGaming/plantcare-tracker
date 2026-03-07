@@ -99,7 +99,8 @@ export default class WateringService extends BaseService {
       );
       return WateringMapper.convertToWateringRecords(response);
     } catch (error) {
-      // 404 indicates no history yet, return empty list instead of failing
+      // V2 returns [] for plants with no history (no 404 for empty lists).
+      // 404 guard retained here as a safety net for truly missing plant IDs.
       if (ApiUtils.isApiError(error) && error.status === 404) {
         return [];
       }

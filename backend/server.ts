@@ -125,9 +125,6 @@ app.use(globalErrorHandler);
 
 const server = app.listen(PORT, () => {
   logger.info(`V2 server running on port ${PORT}`);
-  logger.info(
-    `Routes: ${V}/{auth,sales,plants,watering,substrates,components,images,more-info}`,
-  );
 });
 
 const handleShutdown = async (signal: string): Promise<void> => {

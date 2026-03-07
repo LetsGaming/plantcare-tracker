@@ -1,3 +1,25 @@
+/**
+ * services/SubstrateService.ts
+ *
+ * Entity-centric service for managing substrate data.
+ *
+ * ## V2 API endpoints used
+ *
+ * | Method | Path                        | Purpose                              |
+ * |--------|-----------------------------|--------------------------------------|
+ * | GET    | /substrates                 | All public + own substrates (deduped)|
+ * | GET    | /substrates/substrate/:id   | Single substrate by ID               |
+ * | POST   | /substrates                 | Create a new substrate               |
+ * | PATCH  | /substrates/:id             | Update name / isPublic / remove comps|
+ * | POST   | /substrates/components/:id  | Add components to a substrate        |
+ * | PATCH  | /substrates/components/:id  | Upsert (replace) substrate components|
+ * | DELETE | /substrates/:id             | Delete a substrate                   |
+ *
+ * ## Cache invalidation
+ *
+ * - After create → full cache clear
+ * - After update / delete → targeted ID-based removal
+ */
 import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 import storageService from "@/services/general/StorageService";
@@ -9,32 +31,23 @@ const BASE_ENDPOINT = "/substrates";
 const RESOURCE_KEY = "substrate.title";
 const CACHE_KEY_ALL = "substrates_all";
 
+/** Events emitted when the substrate cache changes */
 export enum SubstrateEvents {
   SUBSTRATES_UPDATED = "substrates-updated",
 }
 
 export default class SubstrateService extends BaseService {
-  /* =========================================================================
-      Cache helpers
-      ========================================================================= */
+  // ── Cache helpers ────────────────────────────────────────────────────────────
 
-  /**
-   * Persist the full substrate list into storage and notify listeners
-   * @param substrates Array of substrate entities
-   */
   private static async saveSubstrates(substrates: Substrate[]): Promise<void> {
-    await this.saveAndNotify(
-      CACHE_KEY_ALL,
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      substrates,
-    );
+    await this.saveAndNotify(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED, substrates);
   }
 
   /**
-   * Invalidate the substrate cache.
-   * If substrateId is provided, removes only that substrate.
-   * Otherwise, clears the entire cache.
-   * @param substrateId Optional substrate ID to remove
+   * Invalidates the substrate cache.
+   *
+   * - Without `substrateId`: clears the entire substrate cache
+   * - With `substrateId`: removes only that substrate from the cached list
    */
   static async invalidateSubstrateCache(substrateId?: number): Promise<void> {
     if (!substrateId) {
@@ -42,137 +55,92 @@ export default class SubstrateService extends BaseService {
       return;
     }
 
-    const stored = await storageService.get<{ data: Substrate[] }>(
-      CACHE_KEY_ALL,
-    );
+    const stored = await storageService.get<{ data: Substrate[] }>(CACHE_KEY_ALL);
     if (!stored?.data) return;
 
     const updated = stored.data.filter((s) => s.id !== substrateId);
     await this.saveSubstrates(updated);
   }
 
-  /* =========================================================================
-      Fetching
-      ========================================================================= */
+  // ── Fetching ─────────────────────────────────────────────────────────────────
 
   /**
-   * Internal fetcher that handles API calls and cache upserting.
-   * Always returns an array to keep the type signature consistent.
+   * Internal API fetcher.
+   *
+   * - With `id`: calls GET /substrates/substrate/:id and upserts the result.
+   * - Without `id`: calls GET /substrates and replaces the full cache.
    */
   private static async fetchFromApi(id?: number): Promise<Substrate[]> {
-    try {
-      // If an ID is provided, we use the specific detail endpoint, otherwise the list endpoint
-      const endpoint = id ? `${BASE_ENDPOINT}/substrate/${id}` : BASE_ENDPOINT;
-      const response = await ApiUtils.get<APISubstrate | APISubstrate[]>(
-        endpoint,
-      );
-
-      const substrates = SubstrateMapper.convertToSubstrates(response);
-
-      if (id) {
-        const substrate = substrates[0];
-        if (substrate) {
-          await this.upsertIntoListCache(
-            CACHE_KEY_ALL,
-            SubstrateEvents.SUBSTRATES_UPDATED,
-            substrate,
-          );
-          return [substrate];
-        }
-        return [];
-      } else {
-        await this.saveSubstrates(substrates);
-        return substrates;
-      }
-    } catch (error: any) {
-      if (ApiUtils.isApiError(error) && error.status === 404) {
-        return [];
-      }
-      throw error;
+    if (id) {
+      const response = await ApiUtils.get<APISubstrate>(`${BASE_ENDPOINT}/substrate/${id}`);
+      const substrate = SubstrateMapper.mapSubstrate(response);
+      await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED, substrate);
+      return [substrate];
     }
+
+    const response = await ApiUtils.get<APISubstrate[]>(BASE_ENDPOINT);
+    const substrates = SubstrateMapper.convertToSubstrates(response);
+    await this.saveSubstrates(substrates);
+    return substrates;
   }
 
   /**
-   * Fetch all substrates (public + private) and update the single cache.
-   * @param forceUpdate If true, bypass cache and refetch from API
-   * @returns Array of all substrates
+   * Fetches all substrates (public + own) and updates the cache.
+   *
+   * The V2 backend merges public and private substrates in a single response
+   * and de-duplicates by substrate_id.
+   *
+   * @param forceUpdate Bypass cache and refetch from API
    */
-  static async getAllSubstrates(
-    forceUpdate: boolean = false,
-  ): Promise<Substrate[]> {
+  static async getAllSubstrates(forceUpdate = false): Promise<Substrate[]> {
     const result = await this.getCachedData(
       CACHE_KEY_ALL,
       () => this.handleRequest(this.fetchFromApi(), RESOURCE_KEY),
       forceUpdate,
     );
-
-    return result || [];
+    return result ?? [];
   }
 
   /**
-   * Fetch a single substrate by ID, updating the cache if necessary.
-   * @param substrateId ID of the substrate
-   * @param forceUpdate If true, always refetch from API
-   * @returns The substrate entity
+   * Fetches a single substrate by ID.
+   *
+   * Checks the list cache first. On a miss or when `forceUpdate` is true,
+   * calls GET /substrates/substrate/:id and upserts the result.
+   *
+   * @throws {Error} If the substrate cannot be found after fetching
    */
-  static async getSubstrateById(
-    substrateId: number,
-    forceUpdate: boolean = false,
-  ): Promise<Substrate> {
+  static async getSubstrateById(substrateId: number, forceUpdate = false): Promise<Substrate> {
     const substrates = await this.getAllSubstrates(false);
     const cached = substrates.find((s) => s.id === substrateId);
-
     if (cached && !forceUpdate) return cached;
 
-    const results = await this.handleRequest(
-      this.fetchFromApi(substrateId),
-      RESOURCE_KEY,
-    );
-
-    if (!results || results.length === 0) {
-      throw new Error(`Substrate with ID ${substrateId} not found.`);
-    }
-
+    const results = await this.handleRequest(this.fetchFromApi(substrateId), RESOURCE_KEY);
+    if (!results?.length) throw new Error(`Substrate ${substrateId} not found`);
     return results[0];
   }
 
-  /* =========================================================================
-      Derived views
-      ========================================================================= */
+  // ── Derived views ─────────────────────────────────────────────────────────────
 
-  /**
-   * Returns only public substrates
-   * @param forceUpdate If true, refetches entity cache
-   * @returns Array of public substrates
-   */
-  static async getPublicSubstrates(
-    forceUpdate: boolean = false,
-  ): Promise<Substrate[]> {
-    const all = await this.getAllSubstrates(forceUpdate);
-    return all.filter((s) => s.isPublic);
+  /** Returns only public substrates (derived from cache, no API call) */
+  static async getPublicSubstrates(forceUpdate = false): Promise<Substrate[]> {
+    return (await this.getAllSubstrates(forceUpdate)).filter((s) => s.isPublic);
   }
 
-  /**
-   * Returns only private substrates
-   * @param forceUpdate If true, refetches entity cache
-   * @returns Array of private substrates
-   */
-  static async getPrivateSubstrates(
-    forceUpdate: boolean = false,
-  ): Promise<Substrate[]> {
-    const all = await this.getAllSubstrates(forceUpdate);
-    const userId = await UserService.getUserId();
+  /** Returns only substrates owned by the current user (derived from cache) */
+  static async getPrivateSubstrates(forceUpdate = false): Promise<Substrate[]> {
+    const [all, userId] = await Promise.all([
+      this.getAllSubstrates(forceUpdate),
+      UserService.getUserId(),
+    ]);
     return all.filter((s) => s.userId === userId);
   }
 
-  /* =========================================================================
-      Mutations
-      ========================================================================= */
+  // ── Mutations ─────────────────────────────────────────────────────────────────
 
   /**
-   * Add a new substrate
-   * @param substrateData Substrate creation payload
-   * @returns API response
+   * Creates a new substrate via POST /substrates.
+   *
+   * Returns the API response containing `{ substrateId: number }`.
    */
   static async addSubstrate(substrateData: AddSubstrate): Promise<any> {
     const response = await this.handleRequest(
@@ -180,32 +148,33 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed",
     );
-
     await this.invalidateSubstrateCache();
     return response;
   }
 
   /**
-   * Add a substrate along with components
-   * @param substrateData Substrate creation payload
-   * @param componentsData Optional components data
-   * @returns ID of the created substrate
+   * Creates a new substrate and optionally adds components in one workflow.
+   *
+   * Calls POST /substrates to create the substrate, then POST /substrates/components/:id
+   * if `componentsData` is provided.
+   *
+   * Note: The V2 endpoint expects only `{ components: [...] }` in the body —
+   * the substrate ID is carried in the URL, not the request body.
+   *
+   * @returns The ID of the newly created substrate
    */
   static async addSubstrateWithComponents(
     substrateData: AddSubstrate,
     componentsData?: AddSubstrateComponents,
   ): Promise<number> {
     const substrateResponse = await this.addSubstrate(substrateData);
-    const substrateId = (substrateResponse as { substrateId: number })
-      .substrateId;
+    const substrateId = (substrateResponse as { substrateId: number }).substrateId;
 
     if (componentsData?.components?.length) {
-      componentsData.substrateId = substrateId;
-      await this.handleRequest<SubstrateComponent[]>(
-        ApiUtils.post(
-          `${BASE_ENDPOINT}/components/${substrateId}`,
-          componentsData,
-        ),
+      await this.handleRequest(
+        ApiUtils.post(`${BASE_ENDPOINT}/components/${substrateId}`, {
+          components: componentsData.components,
+        }),
         RESOURCE_KEY,
       );
     }
@@ -214,51 +183,44 @@ export default class SubstrateService extends BaseService {
   }
 
   /**
-   * Edit substrate metadata
-   * @param substrateId ID of the substrate
-   * @param data Substrate update payload
-   * @returns API response
+   * Updates substrate metadata via PATCH /substrates/:id.
+   *
+   * Accepts `name`, `isPublic`, and `removedComponents` in a single request.
+   * See V2 UpdateSubstrateSchema for validation rules.
    */
-  static async editSubstrate(
-    substrateId: number,
-    data: EditSubstrate,
-  ): Promise<any> {
+  static async editSubstrate(substrateId: number, data: EditSubstrate): Promise<any> {
     const response = await this.handleRequest(
       ApiUtils.patch(`${BASE_ENDPOINT}/${substrateId}`, data),
       RESOURCE_KEY,
       "error.action_failed",
     );
-
     await this.invalidateSubstrateCache(substrateId);
     return response;
   }
 
   /**
-   * Edit substrate components
-   * @param substrateId ID of the substrate
-   * @param components Array of updated components
-   * @returns API response
+   * Replaces the component mix for a substrate via PATCH /substrates/components/:id.
+   *
+   * The V2 endpoint uses "upsert" semantics — existing components are replaced,
+   * not appended to.
    */
   static async editSubstrateComponents(
     substrateId: number,
     components: EditSubstrateComponent[],
   ): Promise<any> {
     const response = await this.handleRequest(
-      ApiUtils.patch(`${BASE_ENDPOINT}/components/${substrateId}`, {
-        components,
-      }),
+      ApiUtils.patch(`${BASE_ENDPOINT}/components/${substrateId}`, { components }),
       RESOURCE_KEY,
       "substrate.components.edit.title",
     );
-
     await this.getSubstrateById(substrateId, true);
     return response;
   }
 
   /**
-   * Delete a substrate
-   * @param substrateId ID of the substrate
-   * @returns API response
+   * Deletes a substrate via DELETE /substrates/:id.
+   *
+   * Only the owner can delete their own substrate (enforced by V2 backend).
    */
   static async deleteSubstrate(substrateId: number): Promise<any> {
     const response = await this.handleRequest(
@@ -266,34 +228,24 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed",
     );
-
     await this.invalidateSubstrateCache(substrateId);
     return response;
   }
 
   /**
-   * Upload an image for a substrate
-   * @param substrateId ID of the substrate
-   * @param image File to upload
-   * @param date Optional date associated with image
-   * @returns API response
+   * Uploads an image for a substrate via POST /images/substrate/:id.
+   *
+   * Set `doInvalidate` to false when batching multiple uploads to avoid
+   * redundant cache refreshes.
    */
   static async uploadSubstrateImage(
     substrateId: number,
     image: File,
     date?: string | Date,
-    doInvalidate: boolean = true,
+    doInvalidate = true,
   ): Promise<any> {
-    const response = await ImageService.uploadImage(
-      image,
-      "substrate",
-      substrateId,
-      date,
-    );
-
-    if (doInvalidate) {
-      await this.invalidateSubstrateCache(substrateId);
-    }
+    const response = await ImageService.uploadImage(image, "substrate", substrateId, date);
+    if (doInvalidate) await this.invalidateSubstrateCache(substrateId);
     return response;
   }
 }

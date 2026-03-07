@@ -182,7 +182,6 @@ export default defineComponent({
               isPublic: payload.meta.isPublic,
             },
             {
-              substrateId: 0,
               components,
             },
           );
