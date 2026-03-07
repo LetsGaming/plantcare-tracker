@@ -100,14 +100,25 @@ app.use(`${V}/more-info`, createMoreInfoRouter(pool));
 app.get(`${V}/health`, async (_req, res) => {
   try {
     await pool.query("SELECT 1");
+    const uptimeSeconds = process.uptime();
+    const d = Math.floor(uptimeSeconds / 86400);
+    const h = Math.floor((uptimeSeconds % 86400) / 3600);
+    const m = Math.floor((uptimeSeconds % 3600) / 60);
+    const s = Math.floor(uptimeSeconds % 60);
+
     res.json({
       status: "ok",
-      uptime: process.uptime(),
+      uptime: `${d}d ${h}h ${m}m ${s}s`,
+      uptime_s: Math.floor(uptimeSeconds),
       db: "connected",
       version: versionPath,
     });
-  } catch {
-    res.status(503).json({ status: "error", db: "disconnected" });
+  } catch (err) {
+    logger.error("Health check failed", { err });
+    res.status(503).json({
+      status: "error",
+      db: "disconnected",
+    });
   }
 });
 
