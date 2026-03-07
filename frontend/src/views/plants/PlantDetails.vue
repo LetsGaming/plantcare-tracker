@@ -23,7 +23,7 @@
         />
 
         <section class="plant-info align-middle">
-          <substrate-container :substrate="plant.substrate" />
+          <substrate-container :substrate="fullSubstrate ?? undefined" />
           <watering-records
             :plantId="plant.id"
             :showAddButton="!isPublic"
@@ -121,6 +121,8 @@ export default defineComponent({
     return {
       plant: null as Plant | null,
       substrates: [] as Substrate[],
+      /** Full substrate object, fetched separately after plant loads (V2 only sends substrate ref) */
+      fullSubstrate: null as Substrate | null,
 
       showEditModal: false,
       showUploadModal: false,
@@ -159,8 +161,19 @@ export default defineComponent({
       try {
         const response = await PlantService.getPlantById(this.plantId);
         this.plant = response || null;
+
+        // V2 only sends a lightweight substrate reference { id, name } on the plant.
+        // We need to fetch the full substrate separately to get its components.
+        if (this.plant?.substrate?.id) {
+          this.fullSubstrate = await SubstrateService.getSubstrateById(
+            this.plant.substrate.id,
+          );
+        } else {
+          this.fullSubstrate = null;
+        }
       } catch (error) {
         this.plant = null;
+        this.fullSubstrate = null;
         console.error("Error fetching plant details:", error);
       } finally {
         this.isLoading = false;

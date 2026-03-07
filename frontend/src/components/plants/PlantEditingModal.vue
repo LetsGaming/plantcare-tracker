@@ -130,7 +130,7 @@ export default defineComponent({
       this.editPlantData = {
         name: this.plant.name,
         species: this.plant.species,
-        substrateId: this.plant.substrate.id,
+        substrateId: this.plant.substrate?.id ?? 0,
         isPublic: this.plant.isPublic
       };
     },
