@@ -164,10 +164,16 @@ export default defineComponent({
 
         // V2 only sends a lightweight substrate reference { id, name } on the plant.
         // We need to fetch the full substrate separately to get its components.
+        // This is best-effort: a substrate failure must not hide plant details.
         if (this.plant?.substrate?.id) {
-          this.fullSubstrate = await SubstrateService.getSubstrateById(
-            this.plant.substrate.id,
-          );
+          try {
+            this.fullSubstrate = await SubstrateService.getSubstrateById(
+              this.plant.substrate.id,
+            );
+          } catch (substrateError) {
+            this.fullSubstrate = null;
+            console.error("Error fetching substrate details:", substrateError);
+          }
         } else {
           this.fullSubstrate = null;
         }

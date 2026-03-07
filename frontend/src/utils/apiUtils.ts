@@ -108,27 +108,36 @@ const NO_REFRESH_ENDPOINTS = [
  * and the legacy V1 shape { error: string, message: string }.
  */
 const handleResponse = async (response: Response): Promise<any> => {
-  let responseData: ApiResponse;
+  // Read the body exactly once to avoid consuming the stream twice
+  const rawText = await response.text().catch(() => "");
 
+  let responseData: any;
   try {
-    responseData = await response.json();
+    responseData = JSON.parse(rawText);
   } catch {
-    const rawText = await response.text().catch(() => "Unknown error");
     throw new ApiError(
       response.status,
       { message: rawText },
-      "Failed to parse response JSON.",
+      rawText || "Failed to parse response.",
     );
   }
 
   // Success path: HTTP 2xx + success: true
-  if (response.ok && (responseData as ApiSuccessResponse).success === true) {
-    return (responseData as ApiSuccessResponse).data;
+  if (response.ok && responseData?.success === true) {
+    return responseData.data;
   }
 
-  // Error path: extract the best human-readable message from either shape
-  const errData = responseData as ApiErrorBody;
-  const message = errData.error?.message || `Error: ${response.status}`;
+  // Error path: extract the best human-readable message.
+  // Handles V2 { error: { message } }, V1 { error: "string" }, and { message }.
+  const errObj =
+    responseData.error && typeof responseData.error === "object"
+      ? responseData.error
+      : null;
+  const message =
+    errObj?.message ||
+    (typeof responseData.error === "string" ? responseData.error : undefined) ||
+    responseData.message ||
+    `Error: ${response.status}`;
 
   throw new ApiError(response.status, responseData, message);
 };
@@ -338,23 +347,26 @@ const ApiUtils = {
         cleanup();
       });
 
-      // V2 named "error" event from server (distinct from the EventSource connection error)
-      eventSource.addEventListener("error", (e: MessageEvent) => {
-        try {
-          const errData = e.data ? JSON.parse(e.data) : {};
-          onError?.(errData);
-        } catch {
+      // Single "error" listener that handles both server-sent "error" events
+      // (MessageEvent with data) and connection-level transport errors (Event).
+      // Using one handler prevents double-invocation since EventSource.onerror
+      // and addEventListener("error") both fire for the same connection failure.
+      eventSource.addEventListener("error", (e: Event) => {
+        if (e instanceof MessageEvent && e.data) {
+          // Server-sent named "error" event carrying a payload
+          try {
+            const errData = JSON.parse(e.data);
+            onError?.(errData);
+          } catch {
+            onError?.(e);
+          }
+          cleanup();
+        } else if (eventSource.readyState !== eventSource.CLOSED) {
+          // Connection-level transport error (network drop, server closed)
           onError?.(e);
+          cleanup();
         }
-        cleanup();
       });
-
-      // Connection-level error (network drop, server closed)
-      eventSource.onerror = (err) => {
-        if (eventSource.readyState === eventSource.CLOSED) return;
-        onError?.(err);
-        cleanup();
-      };
 
       return cleanup;
     } catch (err) {
