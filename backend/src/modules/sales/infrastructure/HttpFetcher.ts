@@ -6,14 +6,14 @@
  * controllers. Now it's a proper infrastructure service with typed interface.
  */
 
-import axios from 'axios';
-import { chromium, type Browser } from 'playwright';
-import dns from 'node:dns';
-import { createModuleLogger } from '../../../core/logging';
+import axios from "axios";
+import { chromium, type Browser } from "playwright";
+import dns from "node:dns";
+import { createModuleLogger } from "../../../core/logging";
 
-dns.setDefaultResultOrder('ipv4first');
+dns.setDefaultResultOrder("ipv4first");
 
-const log = createModuleLogger('HttpFetcher');
+const log = createModuleLogger("HttpFetcher");
 
 // ── Browser singleton ─────────────────────────────────────────────────────────
 
@@ -23,11 +23,18 @@ const getBrowser = async (): Promise<Browser> => {
   if (!browserPromise) {
     browserPromise = chromium
       .launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        // launch headless in prod but headed in dev for easier debugging
+        headless:
+          process.env.headless_browser === "true" ||
+          process.env.NODE_ENV === "production",
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+        ],
       })
       .then((b) => {
-        b.once('disconnected', () => {
+        b.once("disconnected", () => {
           browserPromise = null;
         });
         return b;
@@ -46,21 +53,28 @@ export const closeBrowser = async (): Promise<void> => {
 
 // ── Axios fetch with retry ────────────────────────────────────────────────────
 
-const fetchWithAxios = async (url: string, retries = 2): Promise<string | null> => {
+const fetchWithAxios = async (
+  url: string,
+  retries = 2,
+): Promise<string | null> => {
   try {
     const response = await axios.get<string>(url, {
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
       },
       timeout: 15_000,
     });
     return response.data;
   } catch (err: unknown) {
     const axiosErr = err as { response?: { status: number }; message: string };
-    if (retries > 0 && (!axiosErr.response || axiosErr.response.status >= 500)) {
+    if (
+      retries > 0 &&
+      (!axiosErr.response || axiosErr.response.status >= 500)
+    ) {
       const delay = (3 - retries) * 2000;
       log.warn(`Retrying ${url} in ${delay}ms... (${retries} left)`);
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -77,14 +91,24 @@ const fetchWithChromium = async (url: string): Promise<string | null> => {
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent:
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-    locale: 'de-DE',
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    locale: "de-DE",
   });
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2}", (route) => {
+      route.abort();
+    });
+
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
     await page.waitForTimeout(1500);
+
+    await page.evaluate(() =>
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }),
+    );
+    await page.waitForTimeout(1000);
+
     return await page.content();
   } catch (err: unknown) {
     log.error(`Chromium failed for ${url}: ${(err as Error).message}`);
@@ -96,6 +120,9 @@ const fetchWithChromium = async (url: string): Promise<string | null> => {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export const fetchHtml = async (url: string, useChromium: boolean): Promise<string | null> => {
+export const fetchHtml = async (
+  url: string,
+  useChromium: boolean,
+): Promise<string | null> => {
   return useChromium ? fetchWithChromium(url) : fetchWithAxios(url);
 };

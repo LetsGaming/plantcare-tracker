@@ -7,15 +7,33 @@ import UserService from "@/services/UserService";
 /** Pre-computed API URL to eliminate repeated string concatenation logic */
 const API_BASE_URL = Utils.getApiBaseUrl();
 
-/** * Standard API Response envelope structure.
- * @template T The type of the data payload returned.
+// ── V2 Response envelope ──────────────────────────────────────────────────────
+
+/**
+ * V2 success envelope: { success: true, data: T }
  */
-interface ApiResponse<T = any> {
-  success: boolean;
-  message?: string;
-  error?: string;
-  data?: T;
+interface ApiSuccessResponse<T = any> {
+  success: true;
+  data: T;
 }
+
+/**
+ * V2 error envelope: { error: { type, message, statusCode, fields? } }
+ */
+interface ApiErrorBody {
+  error?: {
+    type?: string;
+    message?: string;
+    statusCode?: number;
+    /** Present only on ValidationError (400) */
+    fields?: Record<string, string>;
+  };
+  success?: false;
+}
+
+type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorBody;
+
+// ── SSE types ─────────────────────────────────────────────────────────────────
 
 /** Structure for individual Server-Sent Events (SSE) */
 interface StreamEvent<T = any> {
@@ -26,58 +44,57 @@ interface StreamEvent<T = any> {
 /** Callback definition for processing stream events */
 type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
 
+// ── ApiError ──────────────────────────────────────────────────────────────────
+
 /**
  * Custom Error class for API-level failures.
- * Extends the native Error to include HTTP status codes and structured response data.
+ * Extends the native Error to include HTTP status codes, the V2 error type,
+ * and optional per-field validation details.
  */
 class ApiError extends Error {
-  /**
-   * @param {number} status - The HTTP status code (e.g., 404, 500).
-   * @param {any} data - The raw response data or error object from the server.
-   * @param {string} [message] - An optional descriptive error message.
-   */
+  /** V2 error type discriminator e.g. 'ValidationError', 'NotFoundError' */
+  public readonly errorType?: string;
+  /** Per-field validation errors from V2 ValidationError (400) responses */
+  public readonly fields?: Record<string, string>;
+
   constructor(
     public status: number,
     public data: any,
     message?: string,
   ) {
-    const finalMessage = message || data?.error || data?.message || "API error";
+    const errorObj = data?.error ?? null;
+    const finalMessage =
+      message || errorObj?.message || data?.message || "API error";
+
     super(finalMessage);
     this.name = "ApiError";
+    this.errorType = errorObj?.type;
+    this.fields = errorObj?.fields;
 
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
-    // We cast to 'any' to prevent TypeScript from complaining about non-standard V8 methods
     if ((Error as any).captureStackTrace) {
       (Error as any).captureStackTrace(this, ApiError);
     }
-
-    // Explicitly set the prototype to fix 'instanceof' checks in compiled code
-    // Essential when targeting ES5 or earlier
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 
-  /**
-   * Formats the error into a human-readable string.
-   * @returns {string}
-   */
   toString(): string {
     return `${this.name} (${this.status}): ${this.message}`;
   }
 
-  /**
-   * Prepares the error for JSON serialization.
-   * @returns {Record<string, any>}
-   */
   toJSON() {
     return {
       name: this.name,
       status: this.status,
+      errorType: this.errorType,
       message: this.message,
+      fields: this.fields,
       data: this.data,
       stack: this.stack,
     };
   }
 }
+
+// ── Response handler ──────────────────────────────────────────────────────────
 
 const NO_REFRESH_ENDPOINTS = [
   "/auth/refresh-token",
@@ -87,19 +104,15 @@ const NO_REFRESH_ENDPOINTS = [
 
 /**
  * Processes the raw Fetch Response into a typed data object.
- * Optimized: Uses a fast-path for non-OK status codes before attempting JSON parsing.
- * @param {Response} response - The raw Fetch API Response object.
- * @returns {Promise<any>} The extracted 'data' field from the ApiResponse.
- * @throws {ApiError} If the request fails or the API returns success: false.
+ * Supports both the V2 envelope { success, data } / { error: { type, message } }
+ * and the legacy V1 shape { error: string, message: string }.
  */
 const handleResponse = async (response: Response): Promise<any> => {
   let responseData: ApiResponse;
 
-  // 1. Try to parse JSON regardless of the status code
   try {
     responseData = await response.json();
   } catch {
-    // Fallback if the body isn't JSON (e.g., a 502 Bad Gateway HTML page)
     const rawText = await response.text().catch(() => "Unknown error");
     throw new ApiError(
       response.status,
@@ -108,26 +121,20 @@ const handleResponse = async (response: Response): Promise<any> => {
     );
   }
 
-  // 2. If HTTP is 2xx AND the server says success is true, return the payload
-  if (response.ok && responseData?.success) {
-    return responseData.data;
+  // Success path: HTTP 2xx + success: true
+  if (response.ok && (responseData as ApiSuccessResponse).success === true) {
+    return (responseData as ApiSuccessResponse).data;
   }
 
-  // 3. Otherwise, treat it as a structured ApiError
-  // This keeps responseData as an OBJECT, allowing you to access .data.requirements
-  throw new ApiError(
-    response.status,
-    responseData,
-    responseData?.error || responseData?.message || `Error: ${response.status}`,
-  );
+  // Error path: extract the best human-readable message from either shape
+  const errData = responseData as ApiErrorBody;
+  const message = errData.error?.message || `Error: ${response.status}`;
+
+  throw new ApiError(response.status, responseData, message);
 };
 
-/**
- * Generates headers for the outgoing request.
- * Optimized: Avoids unnecessary JSON content-type headers for file uploads.
- * @param {boolean} [isFileUpload=false] - Whether the body is FormData.
- * @returns {Promise<HeadersInit>}
- */
+// ── Headers ───────────────────────────────────────────────────────────────────
+
 const getHeaders = async (
   isFileUpload: boolean = false,
 ): Promise<HeadersInit> => {
@@ -145,12 +152,8 @@ const getHeaders = async (
   return headers;
 };
 
-/**
- * Orchestrates token refreshing upon receiving 401/403 status codes.
- * If refresh fails, triggers a global logout and notifies the user.
- * @param {() => Promise<Response>} requestFn - The original request function to retry.
- * @returns {Promise<Response>}
- */
+// ── Auth retry ────────────────────────────────────────────────────────────────
+
 const handleNoAuth = async (
   requestFn: () => Promise<Response>,
 ): Promise<Response> => {
@@ -169,7 +172,8 @@ const handleNoAuth = async (
   }
 };
 
-/** Configuration used internally to build the fetch request */
+// ── Request engine ────────────────────────────────────────────────────────────
+
 interface RequestConfig {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   endpoint: string;
@@ -178,13 +182,6 @@ interface RequestConfig {
   signal?: AbortSignal;
 }
 
-/**
- * The primary execution engine for all Fetch requests.
- * Optimized: Strips JSON whitespace to minimize outbound bandwidth.
- * @template T
- * @param {RequestConfig} config - The request parameters.
- * @returns {Promise<T>}
- */
 const performRequest = async <T>(config: RequestConfig): Promise<T> => {
   const { method, endpoint, data, isFileUpload, signal } = config;
 
@@ -197,8 +194,11 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
       headers,
       signal,
       credentials: "include",
-      // Optimized: Stringify without whitespace (null, 2) to reduce payload size
-      body: isFileUpload ? data : data ? JSON.stringify(data) : undefined,
+      body: isFileUpload
+        ? data
+        : data !== undefined
+          ? JSON.stringify(data)
+          : undefined,
     });
   };
 
@@ -218,35 +218,21 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
   return handleResponse(response);
 };
 
+// ── Public API ────────────────────────────────────────────────────────────────
+
 /**
- * Global API Utility Service
- * Provides a type-safe, optimized interface for RESTful communication and SSE streaming.
+ * Global API Utility Service.
+ * Provides a type-safe interface for RESTful communication and SSE streaming.
  */
 const ApiUtils = {
-  /**
-   * Type Guard to verify if an error is an instance of ApiError.
-   * @param {unknown} error
-   * @returns {error is ApiError}
-   */
   isApiError(error: unknown): error is ApiError {
     return error instanceof ApiError;
   },
 
-  /**
-   * Performs a GET request.
-   * @param {string} endpoint - The target API path.
-   * @param {AbortSignal} [signal] - Optional signal to cancel the request.
-   */
   get<T>(endpoint: string, signal?: AbortSignal): Promise<T> {
     return performRequest<T>({ method: "GET", endpoint, signal });
   },
 
-  /**
-   * Performs a GET request with query parameters.
-   * @param {string} endpoint - The target API path.
-   * @param {Record<string, any>} params - Key-value pairs to be converted to a query string.
-   * @param {AbortSignal} [signal] - Optional signal to cancel the request.
-   */
   getWithParams<T extends Record<string, any>, R>(
     endpoint: string,
     params: T,
@@ -260,20 +246,10 @@ const ApiUtils = {
     });
   },
 
-  /**
-   * Performs a POST request.
-   * @param {string} endpoint - The target API path.
-   * @param {any} data - The JSON payload.
-   */
-  post<T, R>(endpoint: string, data: T): Promise<R> {
+  post<T, R>(endpoint: string, data?: T): Promise<R> {
     return performRequest<R>({ method: "POST", endpoint, data });
   },
 
-  /**
-   * Uploads files using a multipart/form-data POST request.
-   * @param {string} endpoint - The target API path.
-   * @param {FormData} data - The form data containing files.
-   */
   upload<R>(endpoint: string, data: FormData): Promise<R> {
     return performRequest<R>({
       method: "POST",
@@ -283,11 +259,6 @@ const ApiUtils = {
     });
   },
 
-  /**
-   * Uploads files using a multipart/form-data PATCH request.
-   * @param {string} endpoint - The target API path.
-   * @param {FormData} data - The form data containing files.
-   */
   patchFile<R>(endpoint: string, data: FormData): Promise<R> {
     return performRequest<R>({
       method: "PATCH",
@@ -297,62 +268,43 @@ const ApiUtils = {
     });
   },
 
-  /**
-   * Performs a PUT request.
-   * @param {string} endpoint - The target API path.
-   * @param {any} data - The JSON payload.
-   */
   put<T, R>(endpoint: string, data: T): Promise<R> {
     return performRequest<R>({ method: "PUT", endpoint, data });
   },
 
-  /**
-   * Performs a PATCH request.
-   * @param {string} endpoint - The target API path.
-   * @param {any} data - The JSON payload.
-   */
   patch<T, R>(endpoint: string, data: T): Promise<R> {
     return performRequest<R>({ method: "PATCH", endpoint, data });
   },
 
-  /**
-   * Performs a DELETE request.
-   * @param {string} endpoint - The target API path.
-   */
   delete<R>(endpoint: string): Promise<R> {
     return performRequest<R>({ method: "DELETE", endpoint });
   },
 
   /**
    * Initializes a Server-Sent Events (SSE) stream.
-   * Optimized: Uses a ticket-based authentication flow for EventSource.
-   * Handles dynamic query parameter joining.
-   * * @param {string} endpoint - The streaming endpoint.
-   * @param {StreamCallback<T>} onMessage - Success callback for each event.
-   * @param {(err: any) => void} [onError] - Error callback.
-   * @param {() => void} [onDone] - Completion callback.
-   * @returns {Promise<() => void>} A function to close the stream.
+   * Obtains a one-time ticket via POST /auth/request-ticket (no body required in V2),
+   * then opens an EventSource with the ticket as a query parameter.
+   *
+   * @param endpoint     The streaming endpoint path (e.g. "/sales")
+   * @param onMessage    Called for every default `message` event
+   * @param onError      Called on stream errors
+   * @param onDone       Called when the server emits the "done" event
+   * @returns            A cleanup function that closes the EventSource
    */
   async stream<T = any>(
     endpoint: string,
     onMessage: (data: { data: T }) => void,
     onError?: (err: any) => void,
-    onDone?: () => void,
+    onDone?: (doneData?: { total?: number; status?: string }) => void,
   ): Promise<() => void> {
     try {
-      // 1. Obtain a short-lived ticket for the EventSource connection
-      const { ticket } = await this.post<any, { ticket: string }>(
+      // V2: POST /auth/request-ticket requires no request body
+      const { ticket } = await this.post<null, { ticket: string }>(
         "/auth/request-ticket",
-        { ticket: "" },
       );
 
       if (!ticket) throw new Error("SSE Ticket Missing");
 
-      /**
-       * FIX: Logic to handle multiple query parameters.
-       * If the endpoint already contains a '?', we use '&' to append the ticket.
-       * Otherwise, we use '?'.
-       */
       const separator = endpoint.includes("?") ? "&" : "?";
       const url = `${API_BASE_URL}${endpoint}${separator}ticket=${encodeURIComponent(ticket)}`;
 
@@ -374,16 +326,32 @@ const ApiUtils = {
         }
       };
 
-      // Listen for the custom "done" event from server
-      eventSource.addEventListener("done", () => {
-        onDone?.();
+      // V2 "done" event carries { total: number } (sales) or { status: "completed" } (more-info)
+      eventSource.addEventListener("done", (e: MessageEvent) => {
+        let doneData: { total?: number; status?: string } | undefined;
+        try {
+          doneData = e.data ? JSON.parse(e.data) : undefined;
+        } catch {
+          // Non-JSON done payload — ignore
+        }
+        onDone?.(doneData);
         cleanup();
       });
 
-      eventSource.onerror = (err) => {
-        if (eventSource.readyState === eventSource.CLOSED) {
-          return;
+      // V2 named "error" event from server (distinct from the EventSource connection error)
+      eventSource.addEventListener("error", (e: MessageEvent) => {
+        try {
+          const errData = e.data ? JSON.parse(e.data) : {};
+          onError?.(errData);
+        } catch {
+          onError?.(e);
         }
+        cleanup();
+      });
+
+      // Connection-level error (network drop, server closed)
+      eventSource.onerror = (err) => {
+        if (eventSource.readyState === eventSource.CLOSED) return;
         onError?.(err);
         cleanup();
       };
@@ -398,3 +366,4 @@ const ApiUtils = {
 };
 
 export default ApiUtils;
+export { ApiError };
