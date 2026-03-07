@@ -97,7 +97,7 @@ app.use(`${V}/components`, createComponentRouter(pool));
 app.use(`${V}/images`, createImageRouter(pool));
 app.use(`${V}/more-info`, createMoreInfoRouter(pool));
 
-app.get("/health", async (_req, res) => {
+app.get(`${V}/health`, async (_req, res) => {
   try {
     await pool.query("SELECT 1");
     res.json({
@@ -111,7 +111,7 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-app.get("/health/ready", async (_req, res) => {
+app.get(`${V}/health/ready`, async (_req, res) => {
   try {
     await pool.query("SELECT 1");
     res.json({ ready: true });
