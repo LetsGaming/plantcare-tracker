@@ -4,50 +4,32 @@
  * Unit tests for ApiUtils and ApiError.
  *
  * These tests verify:
- *   - handleResponse correctly extracts V2 success payloads
- *   - handleResponse correctly parses V2 error envelopes into ApiError
+ *   - ApiError correctly extracts V2 error envelope fields
+ *   - handleResponse correctly parses V2 success/error envelopes (via mocked fetch)
  *   - ApiError.errorType and ApiError.fields are populated
- *   - SSE ticket request sends no body (V2 requirement)
  *   - isApiError type guard works correctly
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ── Minimal test for ApiError shape ──────────────────────────────────────────
-// We test the error class directly by importing the named export.
+// ── Mock all dependencies of apiUtils.ts before importing it ─────────────────
+vi.mock("@/services/general/ToastService", () => ({
+  default: { showError: vi.fn(), showSuccess: vi.fn() },
+}));
+vi.mock("@/services/general/LocalizationService", () => ({
+  default: { t: (_k: string, _v?: any, fallback?: string) => fallback ?? _k },
+}));
+vi.mock("../utils/tokenUtils", () => ({
+  default: { getToken: vi.fn().mockResolvedValue(null) },
+}));
+vi.mock("../utils/utils", () => ({
+  default: { getApiBaseUrl: vi.fn().mockReturnValue("http://test") },
+}));
+vi.mock("@/services/UserService", () => ({
+  default: { refreshToken: vi.fn(), logout: vi.fn() },
+}));
 
-// Inline ApiError for isolated unit testing (avoids module boundary issues)
-class ApiError extends Error {
-  toJSON() {
-    return {
-      status: this.status,
-      errorType: this.errorType,
-      message: this.message,
-      fields: this.fields,
-    };
-  }
-  public readonly errorType?: string;
-  public readonly fields?: Record<string, string>;
-
-  constructor(
-    public status: number,
-    public data: any,
-    message?: string,
-  ) {
-    const errorObj = data?.error ?? null;
-    const finalMessage =
-      message ||
-      errorObj?.message ||
-      data?.message ||
-      "API error";
-
-    super(finalMessage);
-    this.name = "ApiError";
-    this.errorType = errorObj?.type;
-    this.fields = errorObj?.fields;
-    Object.setPrototypeOf(this, ApiError.prototype);
-  }
-}
+import ApiUtils, { ApiError } from "../utils/apiUtils";
 
 // ── ApiError unit tests ───────────────────────────────────────────────────────
 
@@ -139,65 +121,44 @@ describe("ApiError", () => {
   });
 });
 
-// ── handleResponse simulation ─────────────────────────────────────────────────
+// ── handleResponse (via mocked fetch + ApiUtils.get) ─────────────────────────
 
-describe("handleResponse (simulated)", () => {
-  /** Reproduce the exact handleResponse logic from apiUtils.ts */
-  const handleResponse = async (response: { ok: boolean; status: number; json(): Promise<any> }): Promise<any> => {
-    const responseData = await response.json();
+/** Helper: build a mock Response-like object */
+function mockResponse(status: number, body: any) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: () => Promise.resolve(typeof body === "string" ? body : JSON.stringify(body)),
+  } as unknown as Response;
+}
 
-    if (response.ok && responseData?.success === true) {
-      return responseData.data;
-    }
-
-    const errData = responseData;
-    const errObj = errData.error && typeof errData.error === "object" ? errData.error : null;
-    const message =
-      errObj?.message ||
-      (typeof errData.error === "string" ? errData.error : undefined) ||
-      errData.message ||
-      `Error: ${response.status}`;
-
-    throw new ApiError(response.status, responseData, message);
-  };
+describe("handleResponse (via ApiUtils.get)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
 
   it("returns data from V2 success envelope", async () => {
-    const response = {
-      ok: true,
-      status: 200,
-      json: async () => ({ success: true, data: { plant_id: 1 } }),
-    };
-    const result = await handleResponse(response);
+    (global.fetch as any).mockResolvedValue(mockResponse(200, { success: true, data: { plant_id: 1 } }));
+    const result = await ApiUtils.get("/test");
     expect(result).toEqual({ plant_id: 1 });
   });
 
   it("throws ApiError for V2 error envelope", async () => {
-    const response = {
-      ok: false,
-      status: 404,
-      json: async () => ({
-        error: { type: "NotFoundError", message: "Plant not found", statusCode: 404 },
-      }),
-    };
-    await expect(handleResponse(response)).rejects.toThrow("Plant not found");
+    (global.fetch as any).mockResolvedValue(
+      mockResponse(404, { error: { type: "NotFoundError", message: "Plant not found", statusCode: 404 } }),
+    );
+    await expect(ApiUtils.get("/test")).rejects.toThrow("Plant not found");
   });
 
-  it("throws ApiError with correct status for 400 ValidationError", async () => {
-    const response = {
-      ok: false,
-      status: 400,
-      json: async () => ({
-        error: {
-          type: "ValidationError",
-          message: "Species is required",
-          statusCode: 400,
-          fields: { species: "Required" },
-        },
+  it("throws ApiError with correct status and fields for 400 ValidationError", async () => {
+    (global.fetch as any).mockResolvedValue(
+      mockResponse(400, {
+        error: { type: "ValidationError", message: "Species is required", statusCode: 400, fields: { species: "Required" } },
       }),
-    };
+    );
     let caught: ApiError | undefined;
     try {
-      await handleResponse(response);
+      await ApiUtils.get("/test");
     } catch (e) {
       caught = e as ApiError;
     }
@@ -207,45 +168,64 @@ describe("handleResponse (simulated)", () => {
     expect(caught!.fields).toEqual({ species: "Required" });
   });
 
-  it("returns null data for empty 200 responses", async () => {
-    const response = {
-      ok: true,
-      status: 200,
-      json: async () => ({ success: true, data: null }),
-    };
-    const result = await handleResponse(response);
+  it("throws ApiError for V1 legacy string error envelope", async () => {
+    (global.fetch as any).mockResolvedValue(
+      mockResponse(400, { error: "Bad request" }),
+    );
+    await expect(ApiUtils.get("/test")).rejects.toThrow("Bad request");
+  });
+
+  it("throws ApiError using top-level message as fallback", async () => {
+    (global.fetch as any).mockResolvedValue(
+      mockResponse(500, { message: "Internal Server Error" }),
+    );
+    await expect(ApiUtils.get("/test")).rejects.toThrow("Internal Server Error");
+  });
+
+  it("throws ApiError with status fallback when no message field exists", async () => {
+    (global.fetch as any).mockResolvedValue(mockResponse(503, {}));
+    await expect(ApiUtils.get("/test")).rejects.toThrow("Error: 503");
+  });
+
+  it("returns null data for 200 with null data", async () => {
+    (global.fetch as any).mockResolvedValue(mockResponse(200, { success: true, data: null }));
+    const result = await ApiUtils.get("/test");
     expect(result).toBeNull();
   });
 
   it("returns empty array for 200 with [] data", async () => {
-    const response = {
-      ok: true,
-      status: 200,
-      json: async () => ({ success: true, data: [] }),
-    };
-    const result = await handleResponse(response);
+    (global.fetch as any).mockResolvedValue(mockResponse(200, { success: true, data: [] }));
+    const result = await ApiUtils.get("/test");
     expect(result).toEqual([]);
+  });
+
+  it("throws ApiError with raw text when JSON parsing fails", async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve("not json"),
+    });
+    await expect(ApiUtils.get("/test")).rejects.toThrow("not json");
   });
 });
 
 // ── isApiError type guard ─────────────────────────────────────────────────────
 
 describe("isApiError type guard", () => {
-  const isApiError = (error: unknown): error is ApiError => error instanceof ApiError;
-
   it("returns true for ApiError instances", () => {
-    expect(isApiError(new ApiError(400, {}))).toBe(true);
+    expect(ApiUtils.isApiError(new ApiError(400, {}))).toBe(true);
   });
 
   it("returns false for plain Error", () => {
-    expect(isApiError(new Error("nope"))).toBe(false);
+    expect(ApiUtils.isApiError(new Error("nope"))).toBe(false);
   });
 
   it("returns false for null", () => {
-    expect(isApiError(null)).toBe(false);
+    expect(ApiUtils.isApiError(null)).toBe(false);
   });
 
   it("returns false for plain objects", () => {
-    expect(isApiError({ status: 400 })).toBe(false);
+    expect(ApiUtils.isApiError({ status: 400 })).toBe(false);
   });
 });
+
