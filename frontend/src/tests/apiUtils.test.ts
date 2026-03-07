@@ -18,6 +18,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Inline ApiError for isolated unit testing (avoids module boundary issues)
 class ApiError extends Error {
+  toJSON() {
+    return {
+      status: this.status,
+      errorType: this.errorType,
+      message: this.message,
+      fields: this.fields,
+    };
+  }
   public readonly errorType?: string;
   public readonly fields?: Record<string, string>;
 

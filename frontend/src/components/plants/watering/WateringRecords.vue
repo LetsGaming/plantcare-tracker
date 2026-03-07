@@ -429,7 +429,7 @@ export default defineComponent({
       id?: number,
     ) {
       this.isLoading = true;
-      this.syncFertilizerUsage(record, record.fertilizerTypeId);
+      this.syncFertilizerUsage(record, record.fertilizerTypeId ?? undefined);
       try {
         if (mode === "add") {
           await WateringService.addWateringRecord(this.plantId, record);

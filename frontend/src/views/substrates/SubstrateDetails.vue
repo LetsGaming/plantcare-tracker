@@ -219,8 +219,7 @@ export default defineComponent({
         tasks.push(
           SubstrateService.editSubstrate(this.substrate?.id || -1, {
             name: meta.name,
-            isPublic: meta.isPublic,
-            image: meta.image || undefined,
+            isPublic: meta.isPublic
           }),
         );
       }

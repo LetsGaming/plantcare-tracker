@@ -9,7 +9,7 @@ type Environment = "development" | "production";
  * Pre-computing these at module load time avoids repeated lookups and logic
  * during the application's runtime hot-paths.
  */
-const ENV: Environment = (process.env.NODE_ENV as Environment) || "development";
+const ENV: Environment = (import.meta.env.MODE as Environment) || "development";
 const ACTIVE_CONFIG = config[ENV];
 
 /** Pre-computed API URL to avoid repeated string concatenation */
