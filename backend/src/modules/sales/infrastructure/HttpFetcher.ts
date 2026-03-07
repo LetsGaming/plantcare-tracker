@@ -18,7 +18,7 @@ const log = createModuleLogger("HttpFetcher");
 // ── Browser singleton ─────────────────────────────────────────────────────────
 
 let browserPromise: Promise<Browser> | null = null;
-
+console.log(process.env.headless_browser, process.env.NODE_ENV);
 const getBrowser = async (): Promise<Browser> => {
   if (!browserPromise) {
     browserPromise = chromium

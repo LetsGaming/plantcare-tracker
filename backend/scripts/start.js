@@ -2,46 +2,22 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { execSync, spawn } = require("child_process");
 
 const ROOT = process.cwd();
+
 const SRC_DIR = path.join(ROOT, "src");
 const SERVER_TS = path.join(ROOT, "server.ts");
-const BUILD_FILE = path.join(ROOT, "dist", "server.js");
 
-function getLatestMtime(dir) {
-  let latest = 0;
+const DIST_FILE = path.join(ROOT, "dist", "server.js");
+const CACHE_FILE = path.join(ROOT, ".buildcache.json");
 
-  const walk = (d) => {
-    for (const file of fs.readdirSync(d)) {
-      const full = path.join(d, file);
-      const stat = fs.statSync(full);
-
-      if (stat.isDirectory()) {
-        walk(full);
-      } else if (file.endsWith(".ts")) {
-        latest = Math.max(latest, stat.mtimeMs);
-      }
-    }
-  };
-
-  walk(dir);
-  return latest;
-}
-
-function buildNeeded() {
-  if (!fs.existsSync(BUILD_FILE)) {
-    return true;
-  }
-
-  const buildTime = fs.statSync(BUILD_FILE).mtimeMs;
-  const srcTime = getLatestMtime(SRC_DIR);
-  const serverTsTime = fs.existsSync(SERVER_TS)
-    ? fs.statSync(SERVER_TS).mtimeMs
-    : 0;
-
-  return Math.max(srcTime, serverTsTime) > buildTime;
-}
+const EXTRA_FILES = [
+  "package.json",
+  "tsconfig.json",
+  ".env"
+].map(f => path.join(ROOT, f));
 
 function getPackageManager() {
   if (fs.existsSync(path.join(ROOT, "pnpm-lock.yaml"))) return "pnpm";
@@ -50,20 +26,116 @@ function getPackageManager() {
   return "npm";
 }
 
-try {
-  if (buildNeeded()) {
-    console.log("Build missing or outdated. Building...");
-    const pm = getPackageManager();
-    execSync(`${pm} run build`, { stdio: "inherit" });
-  } else {
-    console.log("Build is up to date.");
+function hashFile(file) {
+  const data = fs.readFileSync(file);
+  return crypto.createHash("sha1").update(data).digest("hex");
+}
+
+function walk(dir, list = []) {
+  if (!fs.existsSync(dir)) return list;
+
+  for (const file of fs.readdirSync(dir)) {
+    const full = path.join(dir, file);
+    const stat = fs.statSync(full);
+
+    if (stat.isDirectory()) {
+      walk(full, list);
+    } else if (file.endsWith(".ts")) {
+      list.push(full);
+    }
   }
 
+  return list;
+}
+
+function getAllSourceFiles() {
+  const files = walk(SRC_DIR);
+
+  if (fs.existsSync(SERVER_TS)) {
+    files.push(SERVER_TS);
+  }
+
+  for (const extra of EXTRA_FILES) {
+    if (fs.existsSync(extra)) {
+      files.push(extra);
+    }
+  }
+
+  return files;
+}
+
+function calculateProjectHash() {
+  const files = getAllSourceFiles();
+
+  const hash = crypto.createHash("sha1");
+
+  for (const file of files.sort()) {
+    hash.update(file);
+    hash.update(hashFile(file));
+  }
+
+  return hash.digest("hex");
+}
+
+function readCache() {
+  if (!fs.existsSync(CACHE_FILE)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(hash) {
+  fs.writeFileSync(
+    CACHE_FILE,
+    JSON.stringify({ hash }, null, 2)
+  );
+}
+
+function buildNeeded() {
+  if (!fs.existsSync(DIST_FILE)) {
+    return true;
+  }
+
+  const cache = readCache();
+  const currentHash = calculateProjectHash();
+
+  if (!cache) {
+    writeCache(currentHash);
+    return true;
+  }
+
+  if (cache.hash !== currentHash) {
+    writeCache(currentHash);
+    return true;
+  }
+
+  return false;
+}
+
+function startServer() {
   const child = spawn("node", ["dist/server.js"], {
-    stdio: "inherit",
+    stdio: "inherit"
   });
 
-  child.on("exit", (code) => process.exit(code));
+  child.on("exit", code => process.exit(code));
+}
+
+try {
+  const pm = getPackageManager();
+
+  if (buildNeeded()) {
+    console.log("Sources changed. Building...");
+    execSync(`${pm} run build`, { stdio: "inherit" });
+  } else {
+    console.log("Build cache valid. Skipping build.");
+  }
+
+  startServer();
 } catch (err) {
   console.error("Failed to start server:", err);
   process.exit(1);

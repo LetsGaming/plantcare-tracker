@@ -118,7 +118,6 @@ export abstract class BaseScraper implements SalesSource {
       return [];
     }
 
-    console.log(`Fetched ${items.length} items from ${url}`);
     // Cache set (only non-empty results)
     if (items.length > 0) {
       this.cache.set(cacheKey, items);
