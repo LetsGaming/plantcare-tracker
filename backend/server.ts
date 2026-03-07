@@ -104,7 +104,7 @@ app.get(`${V}/health`, async (_req, res) => {
       status: "ok",
       uptime: process.uptime(),
       db: "connected",
-      version: "v2",
+      version: versionPath,
     });
   } catch {
     res.status(503).json({ status: "error", db: "disconnected" });
