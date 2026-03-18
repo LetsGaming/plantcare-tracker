@@ -12,6 +12,13 @@ export default defineConfig({
     // Use jsdom for any DOM-related tests (none currently, but future-proof)
     environment: 'node',
 
+    // Environment variables required for auth/JWT operations in tests.
+    // These are test-only secrets — never use these values in production.
+    env: {
+      JWT_SECRET: 'test-jwt-secret-do-not-use-in-production',
+      JWT_REFRESH_SECRET: 'test-jwt-refresh-secret-do-not-use-in-production',
+    },
+
     // Global test helpers (describe, it, expect) available without import
     globals: true,
 

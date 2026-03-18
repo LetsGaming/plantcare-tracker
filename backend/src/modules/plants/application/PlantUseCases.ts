@@ -78,7 +78,7 @@ export class CreatePlantUseCase {
     const result = CreatePlantSchema.safeParse(input);
     if (!result.success) {
       const fields = Object.fromEntries(
-        result.error.errors.map((e) => [e.path.join('.'), e.message]),
+        result.error.issues.map((e) => [e.path.join('.'), e.message]),
       );
       throw new ValidationError('Invalid plant data', fields);
     }
@@ -94,7 +94,7 @@ export class UpdatePlantUseCase {
     const result = UpdatePlantSchema.safeParse(input);
     if (!result.success) {
       const fields = Object.fromEntries(
-        result.error.errors.map((e) => [e.path.join('.'), e.message]),
+        result.error.issues.map((e) => [e.path.join('.'), e.message]),
       );
       throw new ValidationError('Invalid update data', fields);
     }

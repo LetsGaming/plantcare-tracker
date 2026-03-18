@@ -72,7 +72,7 @@ export const createSubstrateRouter = (pool: Pool): Router => {
     try {
       const parsed = CreateSubstrateSchema.safeParse(req.body);
       if (!parsed.success) {
-        return next(new ValidationError(parsed.error.errors[0].message));
+        return next(new ValidationError(parsed.error.issues[0].message));
       }
       const id = await repo.create(parsed.data.name, req.user!.id, parsed.data.isPublic);
       res.status(201).json({ success: true, data: { substrateId: id } });
@@ -83,7 +83,7 @@ export const createSubstrateRouter = (pool: Pool): Router => {
   router.patch('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = UpdateSubstrateSchema.safeParse(req.body);
-      if (!parsed.success) return next(new ValidationError(parsed.error.errors[0].message));
+      if (!parsed.success) return next(new ValidationError(parsed.error.issues[0].message));
 
       const { name, isPublic, removedComponents } = parsed.data;
       if (name === undefined && isPublic === undefined && !removedComponents?.length) {

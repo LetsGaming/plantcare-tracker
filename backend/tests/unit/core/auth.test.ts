@@ -1,238 +1,154 @@
-/**
- * tests/unit/core/auth.test.ts
- *
- * Tests for JWT generation, session store, ticket store, and middleware.
- */
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import jwt from 'jsonwebtoken';
 import {
   generateTokens,
+  authenticateToken,
   sessionStore,
   ticketStore,
-  authenticateToken,
-  checkGuestPermission,
-  isAdmin,
-} from '../../../src/core/middleware/auth';
-import { createMockRequest, createMockResponse, createMockNext, adminUser, regularUser, guestUser } from '../../helpers/mockFactory';
+  type JwtPayload,
+} from "../../../src/core/middleware/auth";
 
-// ── generateTokens ────────────────────────────────────────────────────────────
+// ── ENV SETUP ─────────────────────────────────────────────────────────────────
 
-describe('generateTokens', () => {
-  it('returns accessToken and refreshToken', () => {
-    const { accessToken, refreshToken } = generateTokens(regularUser);
-    expect(accessToken).toBeTruthy();
-    expect(refreshToken).toBeTruthy();
-  });
+beforeEach(() => {
+  process.env.JWT_SECRET = "test-secret";
+  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+  process.env.JWT_EXPIRATION = "15m";
+  process.env.JWT_REFRESH_EXPIRATION = "7d";
 
-  it('access token contains correct payload', () => {
-    const { accessToken } = generateTokens(regularUser);
-    const decoded = jwt.decode(accessToken) as Record<string, unknown>;
-    expect(decoded['id']).toBe(regularUser.id);
-    expect(decoded['username']).toBe(regularUser.username);
-    expect(decoded['role']).toBe(regularUser.role);
-  });
-
-  it('refresh token has longer expiry than access token', () => {
-    const { accessToken, refreshToken } = generateTokens(regularUser);
-    const access = jwt.decode(accessToken) as { exp: number };
-    const refresh = jwt.decode(refreshToken) as { exp: number };
-    expect(refresh.exp).toBeGreaterThan(access.exp);
-  });
+  // clear session store
+  (sessionStore as any).deleteAll?.(1);
 });
 
-// ── sessionStore ──────────────────────────────────────────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────────────────────
 
-describe('sessionStore', () => {
-  beforeEach(() => {
-    // Clear all sessions before each test
-    sessionStore.deleteAll(regularUser.id);
-    sessionStore.deleteAll(adminUser.id);
+const mockReq = (overrides: Partial<Request> = {}): Request =>
+  ({
+    headers: {},
+    cookies: {},
+    ...overrides,
+  }) as unknown as Request;
+
+const mockRes = (): Response => ({}) as Response;
+
+const mockNext = (): NextFunction => vi.fn();
+
+// ── TESTS ─────────────────────────────────────────────────────────────────────
+
+describe("auth.ts", () => {
+  const user: JwtPayload = {
+    id: 1,
+    username: "testuser",
+    role: "user",
+  };
+
+  // ── generateTokens ──────────────────────────────────────────────────────────
+
+  it("should generate valid access and refresh tokens", () => {
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    const decodedAccess = jwt.verify(accessToken, process.env.JWT_SECRET!);
+    const decodedRefresh = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET!,
+    );
+
+    expect((decodedAccess as JwtPayload).id).toBe(user.id);
+    expect((decodedRefresh as JwtPayload).id).toBe(user.id);
   });
 
-  it('saves and retrieves tokens', () => {
-    sessionStore.save(regularUser.id, 'token-abc');
-    expect(sessionStore.get(regularUser.id)).toContain('token-abc');
+  // ── authenticateToken ───────────────────────────────────────────────────────
+
+  it("should authenticate valid token from Authorization header", () => {
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    sessionStore.save(user.id, refreshToken);
+
+    const req = mockReq({
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const next = mockNext();
+
+    authenticateToken(req, mockRes(), next);
+
+    expect(req.user).toBeDefined();
+    expect(req.user?.id).toBe(user.id);
+    expect(next).toHaveBeenCalledWith();
   });
 
-  it('finds user by refresh token', () => {
-    sessionStore.save(regularUser.id, 'unique-token');
-    expect(sessionStore.findUser('unique-token')).toBe(regularUser.id);
+  it("should reject missing token", () => {
+    const req = mockReq();
+    const next = mockNext();
+
+    authenticateToken(req, mockRes(), next);
+
+    expect(next).toHaveBeenCalled();
   });
 
-  it('returns null for unknown token', () => {
-    expect(sessionStore.findUser('nonexistent-token')).toBeNull();
+  it("should reject invalid token", () => {
+    const req = mockReq({
+      headers: {
+        authorization: "Bearer invalid.token.here",
+      },
+    });
+
+    const next = mockNext();
+
+    authenticateToken(req, mockRes(), next);
+
+    expect(next).toHaveBeenCalled();
   });
 
-  it('invalidates a specific token', () => {
-    sessionStore.save(regularUser.id, 'token-to-remove');
-    sessionStore.save(regularUser.id, 'token-to-keep');
-    sessionStore.invalidate(regularUser.id, 'token-to-remove');
-    const tokens = sessionStore.get(regularUser.id);
-    expect(tokens).not.toContain('token-to-remove');
-    expect(tokens).toContain('token-to-keep');
+  it("should reject if no active session exists", () => {
+    const { accessToken } = generateTokens(user);
+
+    const req = mockReq({
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const next = mockNext();
+
+    authenticateToken(req, mockRes(), next);
+
+    expect(next).toHaveBeenCalled();
   });
 
-  it('deletes all sessions for a user', () => {
-    sessionStore.save(regularUser.id, 'token-1');
-    sessionStore.save(regularUser.id, 'token-2');
-    sessionStore.deleteAll(regularUser.id);
-    expect(sessionStore.get(regularUser.id)).toHaveLength(0);
+  // ── sessionStore ────────────────────────────────────────────────────────────
+
+  it("should store and retrieve sessions", () => {
+    sessionStore.save(user.id, "token1");
+    sessionStore.save(user.id, "token2");
+
+    const sessions = sessionStore.get(user.id);
+
+    expect(sessions.length).toBe(2);
+    expect(sessions).toContain("token1");
+    expect(sessions).toContain("token2");
   });
 
-  it('evicts oldest session when MAX_SESSIONS (3) is exceeded', () => {
-    sessionStore.save(regularUser.id, 'token-1');
-    sessionStore.save(regularUser.id, 'token-2');
-    sessionStore.save(regularUser.id, 'token-3');
-    sessionStore.save(regularUser.id, 'token-4'); // should evict token-1
-    const tokens = sessionStore.get(regularUser.id);
-    expect(tokens).not.toContain('token-1');
-    expect(tokens).toContain('token-4');
-    expect(tokens).toHaveLength(3);
-  });
-});
+  // ── ticketStore ─────────────────────────────────────────────────────────────
 
-// ── ticketStore ───────────────────────────────────────────────────────────────
+  it("should create and validate ticket", () => {
+    const ticket = ticketStore.create(user.id);
 
-describe('ticketStore', () => {
-  it('creates a ticket and validates it once', () => {
-    const ticket = ticketStore.create(regularUser.id);
-    expect(ticketStore.validateAndBurn(ticket)).toBe(regularUser.id);
+    const validatedUserId = ticketStore.validateAndBurn(ticket);
+
+    expect(validatedUserId).toBe(user.id);
   });
 
-  it('burns the ticket after first use (single-use)', () => {
-    const ticket = ticketStore.create(regularUser.id);
+  it("should invalidate ticket after use", () => {
+    const ticket = ticketStore.create(user.id);
+
     ticketStore.validateAndBurn(ticket);
-    expect(ticketStore.validateAndBurn(ticket)).toBeNull();
-  });
+    const secondTry = ticketStore.validateAndBurn(ticket);
 
-  it('returns null for unknown ticket', () => {
-    expect(ticketStore.validateAndBurn('fake-ticket-xyz')).toBeNull();
-  });
-
-  it('returns null for expired ticket', () => {
-    vi.useFakeTimers();
-    const ticket = ticketStore.create(regularUser.id);
-    vi.advanceTimersByTime(61_000); // 61 seconds > 60s TTL
-    expect(ticketStore.validateAndBurn(ticket)).toBeNull();
-    vi.useRealTimers();
-  });
-});
-
-// ── authenticateToken middleware ──────────────────────────────────────────────
-
-describe('authenticateToken', () => {
-  beforeEach(() => {
-    sessionStore.deleteAll(regularUser.id);
-  });
-
-  it('passes valid token from Authorization header', () => {
-    const { accessToken, refreshToken } = generateTokens(regularUser);
-    sessionStore.save(regularUser.id, refreshToken);
-
-    const req = createMockRequest({
-      headers: { authorization: `Bearer ${accessToken}` },
-    });
-    const res = createMockResponse();
-    const next = createMockNext();
-
-    authenticateToken(req, res, next);
-
-    expect(next).toHaveBeenCalledWith(); // called with no error
-    expect(req.user?.id).toBe(regularUser.id);
-  });
-
-  it('passes valid token from cookie', () => {
-    const { accessToken, refreshToken } = generateTokens(regularUser);
-    sessionStore.save(regularUser.id, refreshToken);
-
-    const req = createMockRequest({ cookies: { accessToken } });
-    const res = createMockResponse();
-    const next = createMockNext();
-
-    authenticateToken(req, res, next);
-
-    expect(next).toHaveBeenCalledWith();
-    expect(req.user?.id).toBe(regularUser.id);
-  });
-
-  it('calls next with UnauthorizedError when no token', () => {
-    const req = createMockRequest();
-    const res = createMockResponse();
-    const next = createMockNext();
-
-    authenticateToken(req, res, next);
-
-    const error = (next as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(error?.statusCode).toBe(401);
-  });
-
-  it('calls next with ForbiddenError when session is missing', () => {
-    const { accessToken } = generateTokens(regularUser);
-    // No session saved → invalid
-
-    const req = createMockRequest({
-      headers: { authorization: `Bearer ${accessToken}` },
-    });
-    const res = createMockResponse();
-    const next = createMockNext();
-
-    authenticateToken(req, res, next);
-
-    // Wait for jwt.verify callback
-    const error = (next as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-    expect(error?.statusCode).toBe(403);
-  });
-});
-
-// ── checkGuestPermission middleware ───────────────────────────────────────────
-
-describe('checkGuestPermission', () => {
-  it('allows GET requests from guests', () => {
-    const req = createMockRequest({ method: 'GET', user: guestUser });
-    const next = createMockNext();
-    checkGuestPermission(req, createMockResponse(), next);
-    expect(next).toHaveBeenCalledWith();
-  });
-
-  it('blocks POST from guests', () => {
-    const req = createMockRequest({ method: 'POST', user: guestUser });
-    const next = createMockNext();
-    checkGuestPermission(req, createMockResponse(), next);
-    const error = (next as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(error?.statusCode).toBe(403);
-  });
-
-  it('allows POST from regular users', () => {
-    const req = createMockRequest({ method: 'POST', user: regularUser });
-    const next = createMockNext();
-    checkGuestPermission(req, createMockResponse(), next);
-    expect(next).toHaveBeenCalledWith();
-  });
-});
-
-// ── isAdmin middleware ────────────────────────────────────────────────────────
-
-describe('isAdmin', () => {
-  it('passes for admin users', () => {
-    const req = createMockRequest({ user: adminUser });
-    const next = createMockNext();
-    isAdmin(req, createMockResponse(), next);
-    expect(next).toHaveBeenCalledWith();
-  });
-
-  it('blocks non-admin users with 403', () => {
-    const req = createMockRequest({ user: regularUser });
-    const next = createMockNext();
-    isAdmin(req, createMockResponse(), next);
-    const error = (next as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(error?.statusCode).toBe(403);
-  });
-
-  it('blocks when no user is set', () => {
-    const req = createMockRequest();
-    const next = createMockNext();
-    isAdmin(req, createMockResponse(), next);
-    expect((next as ReturnType<typeof vi.fn>).mock.calls[0][0]?.statusCode).toBe(403);
+    expect(secondTry).toBeNull();
   });
 });

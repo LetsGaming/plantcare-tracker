@@ -74,7 +74,7 @@ export const createWateringRouter = (pool: Pool): Router => {
     try {
       const parsed = UpdateWateringSchema.safeParse(req.body);
       if (!parsed.success) {
-        return next(new ValidationError(parsed.error.errors[0].message));
+        return next(new ValidationError(parsed.error.issues[0].message));
       }
       const { date, usedFertilizer, fertilizerTypeId } = parsed.data;
       const updated = await repo.update(Number(req.params.id), req.user!.id, {

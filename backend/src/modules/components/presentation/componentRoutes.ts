@@ -55,7 +55,7 @@ export const createComponentRouter = (pool: Pool): Router => {
     try {
       const parsed = CreateComponentSchema.safeParse(req.body);
       if (!parsed.success) {
-        return next(new ValidationError(parsed.error.errors[0].message));
+        return next(new ValidationError(parsed.error.issues[0].message));
       }
       const id = await repo.create(parsed.data.name, parsed.data.fineness);
       res.status(201).json({ success: true, data: { id } });
@@ -66,7 +66,7 @@ export const createComponentRouter = (pool: Pool): Router => {
   router.put('/admin/:id', authenticateToken, isAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = UpdateComponentSchema.safeParse(req.body);
-      if (!parsed.success) return next(new ValidationError(parsed.error.errors[0].message));
+      if (!parsed.success) return next(new ValidationError(parsed.error.issues[0].message));
       const updated = await repo.update(Number(req.params.id), parsed.data);
       if (!updated) return next(new NotFoundError('Component'));
       res.json({ success: true, data: { updated: true } });
