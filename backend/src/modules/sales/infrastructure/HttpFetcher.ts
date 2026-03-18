@@ -96,16 +96,21 @@ const fetchWithChromium = async (url: string): Promise<string | null> => {
   const page = await context.newPage();
 
   try {
-    await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2}", (route) => {
-      route.abort();
-    });
+    await page.route(
+      "**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2}",
+      (route) => {
+        route.abort();
+      },
+    );
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
     await page.waitForTimeout(1500);
 
-    await page.evaluate(() =>
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }),
+    // Passed as a string to avoid TS "Cannot find name 'window'" errors in Node environment
+    await page.evaluate(
+      'window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })',
     );
+
     await page.waitForTimeout(1000);
 
     return await page.content();
