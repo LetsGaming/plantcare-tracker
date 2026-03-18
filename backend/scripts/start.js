@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { execSync, spawn } = require("child_process");
+const { execSync } = require("child_process");
 
 const ROOT = process.cwd();
 
@@ -13,11 +13,9 @@ const SERVER_TS = path.join(ROOT, "server.ts");
 const DIST_FILE = path.join(ROOT, "dist", "server.js");
 const CACHE_FILE = path.join(ROOT, ".buildcache.json");
 
-const EXTRA_FILES = [
-  "package.json",
-  "tsconfig.json",
-  ".env"
-].map(f => path.join(ROOT, f));
+const EXTRA_FILES = ["package.json", "tsconfig.json", ".env"].map((f) =>
+  path.join(ROOT, f),
+);
 
 function getPackageManager() {
   if (fs.existsSync(path.join(ROOT, "pnpm-lock.yaml"))) return "pnpm";
@@ -90,10 +88,7 @@ function readCache() {
 }
 
 function writeCache(hash) {
-  fs.writeFileSync(
-    CACHE_FILE,
-    JSON.stringify({ hash }, null, 2)
-  );
+  fs.writeFileSync(CACHE_FILE, JSON.stringify({ hash }, null, 2));
 }
 
 function buildNeeded() {
@@ -117,15 +112,7 @@ function buildNeeded() {
   return false;
 }
 
-function startServer() {
-  const child = spawn("node", ["dist/server.js"], {
-    stdio: "inherit"
-  });
-
-  child.on("exit", code => process.exit(code));
-}
-
-try {
+function ensureBuild() {
   const pm = getPackageManager();
 
   if (buildNeeded()) {
@@ -135,8 +122,27 @@ try {
     console.log("Build cache valid. Skipping build.");
   }
 
-  startServer();
+  if (!fs.existsSync(DIST_FILE)) {
+    console.error("Build failed: dist/server.js not found");
+    process.exit(1);
+  }
+}
+
+function startServerInline() {
+  const serverPath = path.join(ROOT, "dist", "server.js");
+
+  try {
+    require(serverPath);
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+try {
+  ensureBuild();
+  startServerInline();
 } catch (err) {
-  console.error("Failed to start server:", err);
+  console.error("Fatal startup error:", err);
   process.exit(1);
 }
