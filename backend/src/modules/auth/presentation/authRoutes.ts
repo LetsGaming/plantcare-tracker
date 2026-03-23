@@ -4,9 +4,8 @@
 
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { Pool } from "mysql2/promise";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import { MySQLUserRepository } from "../infrastructure/MySQLUserRepository";
+import { SQLiteUserRepository } from "../infrastructure/SQLiteUserRepository";
 import {
   RegisterUseCase,
   LoginUseCase,
@@ -41,9 +40,9 @@ const authAccountLimiter = rateLimit({
   },
 });
 
-export const createAuthRouter = (pool: Pool): Router => {
+export const createAuthRouter = (_pool?: unknown): Router => {
   const router = Router();
-  const repo = new MySQLUserRepository(pool);
+  const repo = new SQLiteUserRepository();
 
   const register = new RegisterUseCase(repo);
   const login = new LoginUseCase(repo);

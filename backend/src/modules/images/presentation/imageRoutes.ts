@@ -14,8 +14,7 @@ import fs from 'fs/promises';
 import multer from 'multer';
 import sharp from 'sharp';
 import ExifParser from 'exif-parser';
-import type { Pool } from 'mysql2/promise';
-import { MySQLImageRepository, type EntityType } from '../infrastructure/MySQLImageRepository';
+import { SQLiteImageRepository, type EntityType } from '../infrastructure/SQLiteImageRepository';
 import { NotFoundError, ValidationError } from '../../../core/errors';
 import { authenticateToken } from '../../../core/middleware';
 import { formatToDBDate } from '../../../core/utils';
@@ -147,9 +146,9 @@ const resolveLocalPath = (imageUrl: string, entityType: string): string => {
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
-export const createImageRouter = (pool: Pool): Router => {
+export const createImageRouter = (_pool?: unknown): Router => {
   const router = Router();
-  const repo = new MySQLImageRepository(pool);
+  const repo = new SQLiteImageRepository();
 
   const validateEntityType = (req: Request, _res: Response, next: NextFunction): void => {
     if (!ENTITY_TYPES.includes(req.params.entityType as EntityType)) {

@@ -165,10 +165,12 @@ export const authenticateToken = (
   });
 };
 
-// ── SSE ticket auth (DB-backed) ───────────────────────────────────────────────
+// ── SSE ticket auth (DB-backed, SQLite) ──────────────────────────────────────
 
 export const makeAuthenticateSSE =
-  (pool: import("mysql2/promise").Pool) =>
+  // The `pool` parameter is kept for API compatibility with callers that pass
+  // a pool object, but is ignored — the SQLite helper reads from the singleton db.
+  (_pool?: unknown) =>
   async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const { ticket } = req.query as { ticket?: string };
 
@@ -179,7 +181,8 @@ export const makeAuthenticateSSE =
     if (!userId) return next(new ForbiddenError("Invalid or expired ticket"));
 
     try {
-      const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>(
+      const { query } = await import('../database/db');
+      const rows = query<{ id: number; username: string; role: string }>(
         `SELECT users.id, username, roles.name AS role
          FROM users LEFT JOIN roles ON users.role_id = roles.id
          WHERE users.id = ?`,
@@ -189,12 +192,7 @@ export const makeAuthenticateSSE =
       const user = rows[0];
       if (!user) return next(new ForbiddenError("User not found"));
 
-      req.user = {
-        id: user["id"] as number,
-        username: user["username"] as string,
-        role: user["role"] as string,
-      };
-
+      req.user = { id: user.id, username: user.username, role: user.role };
       next();
     } catch (err) {
       next(err);

@@ -4,9 +4,8 @@
 
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
-import { MySQLComponentRepository } from '../infrastructure/MySQLComponentRepository';
+import { SQLiteComponentRepository } from '../infrastructure/SQLiteComponentRepository';
 import { NotFoundError, ValidationError } from '../../../core/errors';
 import { authenticateToken, isAdmin } from '../../../core/middleware';
 
@@ -23,9 +22,9 @@ const UpdateComponentSchema = z.object({
   { message: 'At least one of name or fineness must be provided for update' },
 );
 
-export const createComponentRouter = (pool: Pool): Router => {
+export const createComponentRouter = (_pool?: unknown): Router => {
   const router = Router();
-  const repo = new MySQLComponentRepository(pool);
+  const repo = new SQLiteComponentRepository();
 
   // GET / — all components
   router.get('/', authenticateToken, async (_req, res, next) => {

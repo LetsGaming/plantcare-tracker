@@ -4,9 +4,8 @@
 
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
-import { MySQLSubstrateRepository } from '../infrastructure/MySQLSubstrateRepository';
+import { SQLiteSubstrateRepository } from '../infrastructure/SQLiteSubstrateRepository';
 import { NotFoundError, ValidationError, ForbiddenError } from '../../../core/errors';
 import { authenticateToken } from '../../../core/middleware';
 import { filterDuplicatesById, ensureArray } from '../../../core/utils';
@@ -27,9 +26,9 @@ const ComponentsSchema = z.array(z.object({
   parts: z.number().positive(),
 })).min(1, 'Components array is required');
 
-export const createSubstrateRouter = (pool: Pool): Router => {
+export const createSubstrateRouter = (_pool?: unknown): Router => {
   const router = Router();
-  const repo = new MySQLSubstrateRepository(pool);
+  const repo = new SQLiteSubstrateRepository();
 
   // GET / — all public + private for the logged-in user, deduped
   router.get('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {

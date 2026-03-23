@@ -4,9 +4,8 @@
 
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
-import { MySQLWateringRepository } from '../infrastructure/MySQLWateringRepository';
+import { SQLiteWateringRepository } from '../infrastructure/SQLiteWateringRepository';
 import { NotFoundError, ValidationError } from '../../../core/errors';
 import { authenticateToken } from '../../../core/middleware';
 import { formatToDBDate } from '../../../core/utils';
@@ -26,9 +25,9 @@ const UpdateWateringSchema = z.object({
   { message: 'At least one field must be provided for update' },
 );
 
-export const createWateringRouter = (pool: Pool): Router => {
+export const createWateringRouter = (_pool?: unknown): Router => {
   const router = Router();
-  const repo = new MySQLWateringRepository(pool);
+  const repo = new SQLiteWateringRepository();
 
   router.get('/fertilizer-types', authenticateToken, async (_req, res, next) => {
     try {

@@ -15,13 +15,12 @@ import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
 import { SseManager } from '../../sales/presentation/SseManager';
 import { createModuleLogger } from '../../../core/logging';
 
-import type { Pool } from 'mysql2/promise';
 
 const log = createModuleLogger('MoreInfoRoutes');
 
-export const createMoreInfoRouter = (pool: Pool): Router => {
+export const createMoreInfoRouter = (_pool?: unknown): Router => {
   const router = Router();
-  const authenticateSSE = makeAuthenticateSSE(pool);
+  const authenticateSSE = makeAuthenticateSSE();
 
   // Shared cache: 12h TTL for AI responses (same as V1)
   const cache = new NodeCacheAdapter(43_200);

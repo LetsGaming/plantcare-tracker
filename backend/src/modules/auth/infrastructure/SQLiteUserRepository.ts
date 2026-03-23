@@ -1,22 +1,20 @@
 /**
- * modules/auth/infrastructure/MySQLUserRepository.ts
+ * modules/auth/infrastructure/SQLiteUserRepository.ts
  */
 
-import type { Pool, RowDataPacket } from 'mysql2/promise';
+import { query, execute } from '../../../core/database/db';
 import type { UserRepository, UserData } from '../domain/User';
 
-interface UserRow extends RowDataPacket {
+interface UserRow {
   id: number;
   username: string;
   password: string;
   role: string;
 }
 
-export class MySQLUserRepository implements UserRepository {
-  constructor(private readonly pool: Pool) {}
-
+export class SQLiteUserRepository implements UserRepository {
   async findByUsername(username: string): Promise<UserData | null> {
-    const [rows] = await this.pool.query<UserRow[]>(
+    const rows = query<UserRow>(
       `SELECT users.id, username, password, roles.name AS role
        FROM users LEFT JOIN roles ON users.role_id = roles.id
        WHERE username = ?`,
@@ -26,11 +24,11 @@ export class MySQLUserRepository implements UserRepository {
   }
 
   async create(username: string, hashedPassword: string): Promise<{ id: number; username: string }> {
-    const [result] = await this.pool.execute(
+    const result = execute(
       'INSERT INTO users (username, password) VALUES (?, ?)',
       [username, hashedPassword],
     );
-    return { id: (result as { insertId: number }).insertId, username };
+    return { id: result.insertId, username };
   }
 
   async update(userId: number, fields: Partial<Record<string, unknown>>): Promise<boolean> {
@@ -39,17 +37,18 @@ export class MySQLUserRepository implements UserRepository {
       (k) => k !== 'passwordConfirmation' && ALLOWED_COLUMNS.has(k),
     );
     if (!keys.length) return false;
+
     const setClause = keys.map((k) => `${k} = ?`).join(', ');
-    const values = [...keys.map((k) => fields[k]), userId];
-    const [result] = await this.pool.execute(
+    const values = [...keys.map((k) => fields[k] as string | number | boolean | null), userId];
+    const result = execute(
       `UPDATE users SET ${setClause} WHERE id = ?`,
-      values as (string | number | boolean | null)[],
+      values,
     );
-    return (result as { affectedRows: number }).affectedRows > 0;
+    return result.affectedRows > 0;
   }
 
   async delete(userId: number): Promise<boolean> {
-    const [result] = await this.pool.execute('DELETE FROM users WHERE id = ?', [userId]);
-    return (result as { affectedRows: number }).affectedRows > 0;
+    const result = execute('DELETE FROM users WHERE id = ?', [userId]);
+    return result.affectedRows > 0;
   }
 }
