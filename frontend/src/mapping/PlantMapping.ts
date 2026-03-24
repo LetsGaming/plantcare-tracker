@@ -33,7 +33,7 @@ export default class PlantMapper {
       species: plant.plant_species,
       description: plant.plant_species,
       isPublic: plant.is_public,
-      created_at: Utils.convertDateString(plant.plant_created_at),
+      created_at: Utils.convertDateMillis(plant.plant_created_at),
       imageUrl: plant.image_url ?? undefined,
       substrate: plant.substrate
         ? { id: plant.substrate.substrate_id, name: plant.substrate.substrate_name }

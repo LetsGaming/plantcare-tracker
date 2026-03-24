@@ -59,7 +59,7 @@ interface APIWateringRecord {
   /** Included in V2 to enable calendar rendering without additional plant lookups */
   plant_name: string;
   /** MySQL DATETIME string */
-  watering_date: string;
+  watering_date: number;
   used_fertilizer: boolean;
   fertilizer_type_id: number | null;
   /** Resolved name from fertilizer_types table, null if no fertilizer used */

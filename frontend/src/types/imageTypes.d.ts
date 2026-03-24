@@ -20,5 +20,5 @@ interface EditImage {
 interface APIImage {
   id: number;
   url: string;
-  date: string;
+  date: number;
 }

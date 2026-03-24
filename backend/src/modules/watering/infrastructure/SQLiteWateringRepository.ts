@@ -24,17 +24,12 @@ interface WateringRow {
   used_fertilizer: number;
   fertilizer_type_id: number | null;
   fertilizer_type: string | null;
-  plant_id: number;
-  plant_name: string;
-  owner_id: number;
 }
 
 const BASE_QUERY = `
   SELECT wr.id AS record_id, wr.date AS watering_date, wr.used_fertilizer,
     ft.id AS fertilizer_type_id, ft.name AS fertilizer_type,
-    p.id AS plant_id, p.name AS plant_name, p.user_id AS owner_id
   FROM watering_records wr
-  LEFT JOIN plants p           ON wr.plant_id = p.id
   LEFT JOIN fertilizer_types ft ON wr.fertilizer_type_id = ft.id
 `;
 

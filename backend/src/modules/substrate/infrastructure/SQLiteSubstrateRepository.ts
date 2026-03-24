@@ -154,7 +154,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
           substrate_user_id: row.substrate_user_id,
           substrate_name: row.substrate_name,
           is_public: Boolean(row.is_public),
-          substrate_created_at: row.substrate_created_at.toString(),
+          substrate_created_at: row.substrate_created_at,
           image_url: null,
           images: [],
           components: [],

@@ -15,7 +15,7 @@ interface PlantRow {
   plant_user_id: number;
   plant_name: string;
   plant_species_id: number | null;
-  plant_species_name?: string | null; // optional if you join species
+  plant_species_name: string | null;
   is_public: number;
   plant_created_at: number;
   substrate_id: number | null;
@@ -34,12 +34,14 @@ const BASE_QUERY = `
     p.species_id    AS plant_species_id,
     p.created_at    AS plant_created_at,
     p.is_public     AS is_public,
+    species.name    AS plant_species_name,
     s.id            AS substrate_id,
     s.name          AS substrate_name,
     img.id          AS image_id,
     REPLACE(img.image_url, '\\', '/') AS image_url,
     img.upload_date
   FROM plants p
+  LEFT JOIN species           ON p.species_id = species.id
   LEFT JOIN substrates s      ON p.substrate_id = s.id
   LEFT JOIN images img        ON img.entity_type = 'plant' AND img.entity_id = p.id
 `;
@@ -140,7 +142,7 @@ export class SQLitePlantRepository implements PlantRepository {
         map.get(row.plant_id)!.images.push({
           id: row.image_id,
           url: row.image_url,
-          date: row.upload_date?.toString() ?? "",
+          date: row.upload_date ?? 0,
         });
       }
     }
@@ -162,7 +164,7 @@ export class SQLitePlantRepository implements PlantRepository {
         plant_name: data.plant_name,
         plant_species: data.plant_species_name ?? "Unknown",
         is_public: Boolean(data.is_public),
-        plant_created_at: data.plant_created_at.toString(),
+        plant_created_at: data.plant_created_at,
         image_url: latestImage,
         substrate,
         images,

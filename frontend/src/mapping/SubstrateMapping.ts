@@ -22,7 +22,7 @@ export default class SubstrateMapper {
       userId: substrate.substrate_user_id,
       name: substrate.substrate_name,
       isPublic: substrate.is_public,
-      created_at: Utils.convertDateString(substrate.substrate_created_at),
+      created_at: Utils.convertDateMillis(substrate.substrate_created_at),
       imageUrl: substrate.image_url ?? undefined,
       images: ImageMapper.convertToImages(substrate.images ?? []),
       components: ComponentMapper.convertToSubstrateComponents(substrate.components ?? []),

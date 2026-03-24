@@ -8,9 +8,6 @@ export interface WateringRecordData {
   used_fertilizer: boolean;
   fertilizer_type_id: number | null;
   fertilizer_type: string | null;
-  plant_id: number;
-  plant_name: string;
-  owner_id: number;
 }
 
 export interface FertilizerType {

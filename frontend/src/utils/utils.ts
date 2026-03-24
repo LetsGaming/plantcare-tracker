@@ -74,15 +74,6 @@ const Utils = {
   },
 
   /**
-   * Converts an ISO date string to epoch milliseconds in local time.
-   * @param {string} dateString - ISO 8601 string.
-   * @returns {number}
-   */
-  convertToMillis(dateString: string): number {
-    return getLocalDate(dateString).toMillis();
-  },
-
-  /**
    * High-performance array filter for search queries.
    * Optimized: Replaced Object.values() with for...in to eliminate
    * unnecessary array allocations during the filtering loop.
@@ -114,21 +105,35 @@ const Utils = {
   },
 
   /**
-   * Converts a date string to a localized, human-readable format.
-   * Returns original string if the format is invalid.
-   * @param {string} dateString - ISO 8601 string.
-   * @returns {string} Formatted date (e.g., "Monday, Jan 24, 2026").
+   * Converts epoch time to a human-readable local format.
+   * Handles both seconds and milliseconds automatically.
+   * @param {number} epoch - Epoch time to convert.
+   * @returns {string} Formatted date (e.g., "Tuesday, March 24, 2026").
    */
-  convertDateString(dateString: string): string {
-    // Quick-check regex avoids Luxon overhead for clearly non-ISO strings
-    if (!/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
-      return dateString;
+  convertDateMillis(epoch: number): string {
+    if (typeof epoch !== "number" || isNaN(epoch)) {
+      return String(epoch);
     }
 
-    const localDate = getLocalDate(dateString);
+    // Heuristic: If the number is too small to be ms in the modern era,
+    // it is likely seconds. (1e12 is approx Sept 2001)
+    const isSeconds = epoch < 1000000000000;
+    const dateMillis = isSeconds ? epoch * 1000 : epoch;
+
+    const localDate = DateTime.fromMillis(dateMillis);
+
     return localDate.isValid
-      ? localDate.toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY)
-      : dateString;
+      ? localDate.toLocaleString(DateTime.DATE_HUGE)
+      : String(epoch);
+  },
+
+  /**
+   * Converts an ISO date string to epoch milliseconds in local time.
+   * @param {string} dateString - ISO 8601 string.
+   * @returns {number}
+   */
+  convertToMillis(dateString: string): number {
+    return getLocalDate(dateString).toMillis();
   },
 
   /**

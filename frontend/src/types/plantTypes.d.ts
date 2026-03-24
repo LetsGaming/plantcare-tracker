@@ -69,7 +69,7 @@ interface APIPlant {
   plant_species: string;
   /** V2 returns boolean (not 0/1) */
   is_public: boolean;
-  plant_created_at: string;
+  plant_created_at: number;
   image_url: string | null;
   /** Lightweight reference — not a full SubstrateData; null if unassigned */
   substrate: APISubstrateRef | null;
