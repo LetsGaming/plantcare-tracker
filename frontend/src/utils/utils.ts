@@ -128,12 +128,39 @@ const Utils = {
   },
 
   /**
-   * Converts an ISO date string to epoch milliseconds in local time.
-   * @param {string} dateString - ISO 8601 string.
-   * @returns {number}
+   * Converts various date formats to epoch milliseconds in local time.
+   * Handles ISO strings, Date objects, and numbers (auto-detecting s vs. ms).
+   * @param {string | number | Date} input - The date representation to convert.
+   * @returns {number} Epoch milliseconds.
    */
-  convertToMillis(dateString: string): number {
-    return getLocalDate(dateString).toMillis();
+  convertToMillis(input: string | number | Date): number {
+    // 1. Handle Date Objects
+    if (input instanceof Date) {
+      return input.getTime();
+    }
+
+    // 2. Handle Numbers (Epochs)
+    if (typeof input === "number") {
+      if (isNaN(input)) return 0;
+
+      // Heuristic: If the number is too small (< 1e12), it's likely seconds.
+      // 1,000,000,000,000 ms is approx Sept 2001.
+      return input < 1000000000000 ? input * 1000 : input;
+    }
+
+    // 3. Handle Strings (ISO or Numeric Strings)
+    if (typeof input === "string") {
+      // Check if the string is just a number (e.g., "1711280332")
+      if (/^\d+$/.test(input)) {
+        return this.convertToMillis(Number(input));
+      }
+
+      // Use Luxon (getLocalDate) for ISO strings
+      const dt = getLocalDate(input);
+      return dt.isValid ? dt.toMillis() : 0;
+    }
+
+    return 0;
   },
 
   /**

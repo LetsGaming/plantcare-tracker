@@ -13,9 +13,6 @@
 /** Frontend model for a single watering event */
 interface WateringRecord {
   id: number;
-  plantId: number;
-  /** Plant name — included in V2 responses, avoids extra lookups in CalendarView */
-  plantName: string;
   /** Human-readable local date string */
   date: string;
   /** Epoch milliseconds for sorting and calendar rendering */

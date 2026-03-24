@@ -1,20 +1,11 @@
-/**
- * modules/watering/infrastructure/SQLiteWateringRepository.ts
- *
- * SQLite-specific note:
- *  • The MySQL INSERT … SELECT pattern (ownership check in the same statement)
- *    is preserved unchanged — SQLite supports it.
- *  • used_fertilizer is stored as INTEGER 0/1 and coerced to boolean in mapRow().
- */
-
-import { query, execute } from '../../../core/database/db';
+import { query, execute } from "../../../core/database/db";
 import type {
   WateringRepository,
   WateringRecordData,
   FertilizerType,
   CreateWateringDTO,
   UpdateWateringDTO,
-} from '../domain/WateringRecord';
+} from "../domain/WateringRecord";
 
 type SqlParam = string | number | boolean | null;
 
@@ -26,15 +17,20 @@ interface WateringRow {
   fertilizer_type: string | null;
 }
 
+// Added JOIN plants p to allow filtering by user_id
 const BASE_QUERY = `
   SELECT wr.id AS record_id, wr.date AS watering_date, wr.used_fertilizer,
-    ft.id AS fertilizer_type_id, ft.name AS fertilizer_type,
+    ft.id AS fertilizer_type_id, ft.name AS fertilizer_type
   FROM watering_records wr
+  JOIN plants p ON wr.plant_id = p.id
   LEFT JOIN fertilizer_types ft ON wr.fertilizer_type_id = ft.id
 `;
 
 export class SQLiteWateringRepository implements WateringRepository {
-  async findByPlant(plantId: number, userId: number): Promise<WateringRecordData[]> {
+  async findByPlant(
+    plantId: number,
+    userId: number,
+  ): Promise<WateringRecordData[]> {
     const rows = query<WateringRow>(
       `${BASE_QUERY} WHERE wr.plant_id = ? AND p.user_id = ?`,
       [plantId, userId],
@@ -42,7 +38,10 @@ export class SQLiteWateringRepository implements WateringRepository {
     return rows.map(mapRow);
   }
 
-  async findById(recordId: number, userId: number): Promise<WateringRecordData | null> {
+  async findById(
+    recordId: number,
+    userId: number,
+  ): Promise<WateringRecordData | null> {
     const rows = query<WateringRow>(
       `${BASE_QUERY} WHERE wr.id = ? AND p.user_id = ?`,
       [recordId, userId],
@@ -51,36 +50,58 @@ export class SQLiteWateringRepository implements WateringRepository {
   }
 
   async findFertilizerTypes(): Promise<FertilizerType[]> {
-    const rows = query<{ id: number; name: string }>('SELECT id, name FROM fertilizer_types');
+    const rows = query<{ id: number; name: string }>(
+      "SELECT id, name FROM fertilizer_types",
+    );
     return rows.map((r) => ({ fertilizer_id: r.id, fertilizer_name: r.name }));
   }
 
   async create(dto: CreateWateringDTO, userId: number): Promise<number> {
-    // INSERT … SELECT ensures the plant belongs to the authenticated user
-    // in a single atomic statement — no separate ownership query needed.
     const result = execute(
       `INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)
        SELECT ?, ?, ?, ? WHERE EXISTS (
          SELECT 1 FROM plants WHERE id = ? AND user_id = ?
        )`,
-      [dto.plantId, dto.date, dto.usedFertilizer ? 1 : 0, dto.fertilizerTypeId ?? null, dto.plantId, userId],
+      [
+        dto.plantId,
+        dto.date,
+        dto.usedFertilizer ? 1 : 0,
+        dto.fertilizerTypeId ?? null,
+        dto.plantId,
+        userId,
+      ],
     );
     return result.affectedRows === 0 ? 0 : result.insertId;
   }
 
-  async update(recordId: number, userId: number, dto: UpdateWateringDTO): Promise<boolean> {
+  async update(
+    recordId: number,
+    userId: number,
+    dto: UpdateWateringDTO,
+  ): Promise<boolean> {
     const updates: string[] = [];
     const params: SqlParam[] = [];
 
-    if (dto.date !== undefined)            { updates.push('date = ?');              params.push(dto.date); }
-    if (dto.usedFertilizer !== undefined)  { updates.push('used_fertilizer = ?');   params.push(dto.usedFertilizer ? 1 : 0); }
-    if (dto.fertilizerTypeId !== undefined){ updates.push('fertilizer_type_id = ?'); params.push(dto.fertilizerTypeId); }
+    if (dto.date !== undefined) {
+      updates.push("date = ?");
+      params.push(dto.date);
+    }
+    if (dto.usedFertilizer !== undefined) {
+      updates.push("used_fertilizer = ?");
+      params.push(dto.usedFertilizer ? 1 : 0);
+    }
+    if (dto.fertilizerTypeId !== undefined) {
+      updates.push("fertilizer_type_id = ?");
+      params.push(dto.fertilizerTypeId);
+    }
 
     if (!updates.length) return false;
+
+    // Order of params: updates..., recordId, userId
     params.push(recordId, userId);
 
     const result = execute(
-      `UPDATE watering_records SET ${updates.join(', ')}
+      `UPDATE watering_records SET ${updates.join(", ")}
        WHERE id = ? AND plant_id IN (SELECT id FROM plants WHERE user_id = ?)`,
       params,
     );
@@ -98,5 +119,11 @@ export class SQLiteWateringRepository implements WateringRepository {
 }
 
 function mapRow(row: WateringRow): WateringRecordData {
-  return { ...row, used_fertilizer: Boolean(row.used_fertilizer) };
+  return {
+    record_id: row.record_id,
+    watering_date: row.watering_date,
+    used_fertilizer: Boolean(row.used_fertilizer),
+    fertilizer_type_id: row.fertilizer_type_id,
+    fertilizer_type: row.fertilizer_type,
+  };
 }
