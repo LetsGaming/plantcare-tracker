@@ -83,7 +83,7 @@ export function getDb(): BetterSqlite3DB {
  * Idempotent — all CREATE TABLE statements use IF NOT EXISTS.
  */
 function initSchema(db: BetterSqlite3DB): void {
-  const schemaPath = path.resolve(process.cwd(), 'database', 'database-v2-sqlite.sql');
+  const schemaPath = path.resolve(process.cwd(), 'database', 'database-v3-sqlite.sql');
   if (!fs.existsSync(schemaPath)) {
     logger.warn(`Schema file not found at ${schemaPath} — skipping auto-init`);
     return;

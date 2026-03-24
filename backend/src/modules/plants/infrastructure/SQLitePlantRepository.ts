@@ -1,63 +1,50 @@
-/**
- * modules/plants/infrastructure/SQLitePlantRepository.ts
- *
- * Key V2 improvement preserved from MySQL version:
- * A single JOIN query fetches plant + substrate + images in one trip,
- * avoiding the N+1 problem of the V1 implementation.
- *
- * SQLite-specific notes:
- *  • is_public is stored as INTEGER (0/1); coerced to boolean in groupRows().
- *  • REPLACE() path-normalisation kept (uploaded paths may use backslashes
- *    on Windows hosts).
- *  • better-sqlite3 is synchronous; the async wrappers are kept so the
- *    domain layer stays driver-agnostic.
- */
-
-import { query, execute } from '../../../core/database/db';
-import type { PlantRepository, CreatePlantDTO, UpdatePlantDTO } from '../domain/Plant';
-import { Plant } from '../domain/Plant';
-import type { SubstrateRef, ImageRef } from '../domain/Plant';
+import { query, execute } from "../../../core/database/db";
+import type {
+  PlantRepository,
+  CreatePlantDTO,
+  UpdatePlantDTO,
+} from "../domain/Plant";
+import { Plant } from "../domain/Plant";
+import type { SubstrateRef, ImageRef } from "../domain/Plant";
 
 type SqlParam = string | number | boolean | null;
 
 // ── Raw DB row ────────────────────────────────────────────────────────────────
-
 interface PlantRow {
   plant_id: number;
   plant_user_id: number;
   plant_name: string;
-  plant_species: string;
+  plant_species_id: number | null;
+  plant_species_name?: string | null; // optional if you join species
   is_public: number;
-  plant_created_at: string;
+  plant_created_at: number;
   substrate_id: number | null;
   substrate_name: string | null;
   image_id: number | null;
   image_url: string | null;
-  upload_date: string | null;
+  upload_date: number | null;
 }
 
-// ── Repository ────────────────────────────────────────────────────────────────
-
+// ── Base query using consolidated images ───────────────────────────────────────
 const BASE_QUERY = `
   SELECT
     p.id            AS plant_id,
     p.user_id       AS plant_user_id,
     p.name          AS plant_name,
-    p.species       AS plant_species,
-    p.is_public,
+    p.species_id    AS plant_species_id,
     p.created_at    AS plant_created_at,
+    p.is_public     AS is_public,
     s.id            AS substrate_id,
     s.name          AS substrate_name,
     img.id          AS image_id,
-    REPLACE(img.image_url, '\\', '/')
-                    AS image_url,
+    REPLACE(img.image_url, '\\', '/') AS image_url,
     img.upload_date
   FROM plants p
-  LEFT JOIN substrates s    ON p.substrate_id = s.id
-  LEFT JOIN plant_images pi  ON pi.plant_id = p.id
-  LEFT JOIN images img       ON img.id = pi.image_id
+  LEFT JOIN substrates s      ON p.substrate_id = s.id
+  LEFT JOIN images img        ON img.entity_type = 'plant' AND img.entity_id = p.id
 `;
 
+// ── Repository ───────────────────────────────────────────────────────────────
 export class SQLitePlantRepository implements PlantRepository {
   async findAllPublic(): Promise<Plant[]> {
     const rows = query<PlantRow>(
@@ -82,41 +69,66 @@ export class SQLitePlantRepository implements PlantRepository {
 
   async create(dto: CreatePlantDTO): Promise<number> {
     const result = execute(
-      'INSERT INTO plants (name, species, substrate_id, is_public, user_id) VALUES (?, ?, ?, ?, ?)',
-      [dto.name, dto.species, dto.substrateId, dto.isPublic ? 1 : 0, dto.userId],
+      `INSERT INTO plants (name, species_id, substrate_id, is_public, user_id, created_at)
+       VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'))`,
+      [
+        dto.name,
+        dto.species ?? null,
+        dto.substrateId ?? null,
+        dto.isPublic ? 1 : 0,
+        dto.userId,
+      ],
     );
-    return result.insertId;
+
+    return result.insertId as number;
   }
 
-  async update(id: number, userId: number, dto: UpdatePlantDTO): Promise<boolean> {
+  async update(
+    id: number,
+    userId: number,
+    dto: UpdatePlantDTO,
+  ): Promise<boolean> {
     const updates: string[] = [];
     const params: SqlParam[] = [];
 
-    if (dto.name !== undefined)       { updates.push('name = ?');         params.push(dto.name); }
-    if (dto.species !== undefined)    { updates.push('species = ?');      params.push(dto.species); }
-    if (dto.substrateId !== undefined){ updates.push('substrate_id = ?'); params.push(dto.substrateId); }
-    if (dto.isPublic !== undefined)   { updates.push('is_public = ?');    params.push(dto.isPublic ? 1 : 0); }
+    if (dto.name !== undefined) {
+      updates.push("name = ?");
+      params.push(dto.name);
+    }
+    if (dto.species !== undefined) {
+      updates.push("species_id = ?");
+      params.push(dto.species);
+    }
+    if (dto.substrateId !== undefined) {
+      updates.push("substrate_id = ?");
+      params.push(dto.substrateId);
+    }
+    if (dto.isPublic !== undefined) {
+      updates.push("is_public = ?");
+      params.push(dto.isPublic ? 1 : 0);
+    }
 
     if (updates.length === 0) return false;
 
     params.push(id, userId);
+
     const result = execute(
-      `UPDATE plants SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
+      `UPDATE plants SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
       params,
     );
+
     return result.affectedRows > 0;
   }
 
   async delete(id: number, userId: number): Promise<boolean> {
-    const result = execute(
-      'DELETE FROM plants WHERE id = ? AND user_id = ?',
-      [id, userId],
-    );
+    const result = execute("DELETE FROM plants WHERE id = ? AND user_id = ?", [
+      id,
+      userId,
+    ]);
     return result.affectedRows > 0;
   }
 
   // ── Collapse JOIN rows into Plant entities ────────────────────────────────
-
   private groupRows(rows: PlantRow[]): Plant[] {
     const map = new Map<number, { data: PlantRow; images: ImageRef[] }>();
 
@@ -128,25 +140,29 @@ export class SQLitePlantRepository implements PlantRepository {
         map.get(row.plant_id)!.images.push({
           id: row.image_id,
           url: row.image_url,
-          date: row.upload_date ?? '',
+          date: row.upload_date?.toString() ?? "",
         });
       }
     }
 
     return Array.from(map.values()).map(({ data, images }) => {
       const substrate: SubstrateRef | null = data.substrate_id
-        ? { substrate_id: data.substrate_id, substrate_name: data.substrate_name ?? '' }
+        ? {
+            substrate_id: data.substrate_id,
+            substrate_name: data.substrate_name ?? "",
+          }
         : null;
 
-      const latestImage = images.length > 0 ? images[images.length - 1].url : null;
+      const latestImage =
+        images.length > 0 ? images[images.length - 1].url : null;
 
       return new Plant({
         plant_id: data.plant_id,
         plant_user_id: data.plant_user_id,
         plant_name: data.plant_name,
-        plant_species: data.plant_species,
+        plant_species: data.plant_species_name ?? "Unknown",
         is_public: Boolean(data.is_public),
-        plant_created_at: data.plant_created_at,
+        plant_created_at: data.plant_created_at.toString(),
         image_url: latestImage,
         substrate,
         images,

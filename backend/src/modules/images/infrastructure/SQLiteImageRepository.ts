@@ -1,104 +1,122 @@
 /**
  * modules/images/infrastructure/SQLiteImageRepository.ts
  *
- * SQLite-specific note:
- *  • All three join tables (plant_images / substrate_images / component_images)
- *    have ON DELETE CASCADE on the FK to images, so deleting from images
- *    automatically cleans up the join rows.
- *  • create() uses a transaction to insert into images then the join table
- *    atomically, avoiding orphaned rows if the second insert fails.
+ * Handles images in the new schema:
+ *  • Single table `images` with columns: id, image_url, entity_type, entity_id, upload_date
+ *  • All operations are straightforward, no join tables needed
  */
 
-import { query, execute, transaction } from '../../../core/database/db';
+import { query, execute, transaction } from "../../../core/database/db";
 
-export type EntityType = 'plant' | 'substrate' | 'component';
+export type EntityType = "plant" | "substrate" | "component";
 
 export interface ImageRecord {
   image_id: number;
   image_url: string;
-  upload_date: string;
+  upload_date: number; // timestamp in seconds
 }
-
-const JOIN_TABLE: Record<EntityType, string> = {
-  plant: 'plant_images',
-  substrate: 'substrate_images',
-  component: 'component_images',
-};
 
 type SqlParam = string | number | boolean | null;
 
 interface ImageRow {
   image_id: number;
   image_url: string;
-  upload_date: string;
+  upload_date: number;
 }
 
 export class SQLiteImageRepository {
-  async findByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
-    const table = JOIN_TABLE[entityType];
+  /**
+   * Fetch all images for a given entity
+   */
+  async findByEntity(
+    entityType: EntityType,
+    entityId: number,
+  ): Promise<ImageRecord[]> {
     return query<ImageRow>(
-      `SELECT images.id AS image_id, images.image_url, images.upload_date
+      `SELECT id AS image_id, image_url, upload_date
        FROM images
-       JOIN ${table} ON images.id = ${table}.image_id
-       WHERE ${table}.${entityType}_id = ?`,
-      [entityId],
+       WHERE entity_type = ? AND entity_id = ?
+       ORDER BY upload_date ASC`,
+      [entityType, entityId],
     );
   }
 
+  /**
+   * Fetch a single image by ID
+   */
   async findById(imageId: number): Promise<ImageRecord | null> {
     const rows = query<ImageRow>(
-      'SELECT id AS image_id, image_url, upload_date FROM images WHERE id = ?',
+      `SELECT id AS image_id, image_url, upload_date
+       FROM images
+       WHERE id = ?`,
       [imageId],
     );
     return rows[0] ?? null;
   }
 
+  /**
+   * Insert a new image
+   */
   async create(
     entityType: EntityType,
     entityId: number,
     imageUrl: string,
-    uploadDate: string,
+    uploadDate?: number,
   ): Promise<number> {
-    const table = JOIN_TABLE[entityType];
-
-    // Wrap both inserts in a transaction so we never get an orphaned images row
     return transaction(({ execute: exec }) => {
-      const imgResult = exec(
-        'INSERT INTO images (image_url, upload_date) VALUES (?, ?)',
-        [imageUrl, uploadDate],
+      const result = exec(
+        `INSERT INTO images (image_url, entity_type, entity_id, upload_date)
+         VALUES (?, ?, ?, COALESCE(?, strftime('%s','now')))`,
+        [imageUrl, entityType, entityId, uploadDate ?? null],
       );
-      const imageId = imgResult.insertId;
-      exec(
-        `INSERT INTO ${table} (${entityType}_id, image_id) VALUES (?, ?)`,
-        [entityId, imageId],
-      );
-      return imageId;
+      return result.insertId as number;
     });
   }
 
-  async update(imageId: number, fields: { date?: string; imageUrl?: string }): Promise<void> {
+  /**
+   * Update image URL and/or upload date
+   */
+  async update(
+    imageId: number,
+    fields: { imageUrl?: string; uploadDate?: number },
+  ): Promise<void> {
     const updates: string[] = [];
     const params: SqlParam[] = [];
-    if (fields.date)     { updates.push('upload_date = ?'); params.push(fields.date); }
-    if (fields.imageUrl) { updates.push('image_url = ?');   params.push(fields.imageUrl); }
+    if (fields.imageUrl !== undefined) {
+      updates.push("image_url = ?");
+      params.push(fields.imageUrl);
+    }
+    if (fields.uploadDate !== undefined) {
+      updates.push("upload_date = ?");
+      params.push(fields.uploadDate);
+    }
     if (!updates.length) return;
     params.push(imageId);
-    execute(`UPDATE images SET ${updates.join(', ')} WHERE id = ?`, params);
+    execute(`UPDATE images SET ${updates.join(", ")} WHERE id = ?`, params);
   }
 
+  /**
+   * Delete a single image
+   */
   async delete(imageId: number): Promise<void> {
-    // ON DELETE CASCADE in join tables cleans up plant_images / substrate_images / component_images
-    execute('DELETE FROM images WHERE id = ?', [imageId]);
+    execute(`DELETE FROM images WHERE id = ?`, [imageId]);
   }
 
-  async deleteByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
+  /**
+   * Delete all images linked to a specific entity
+   */
+  async deleteByEntity(
+    entityType: EntityType,
+    entityId: number,
+  ): Promise<ImageRecord[]> {
     const images = await this.findByEntity(entityType, entityId);
-    // Batch delete in a single transaction
+
     transaction(({ execute: exec }) => {
       for (const img of images) {
-        exec('DELETE FROM images WHERE id = ?', [img.image_id]);
+        exec(`DELETE FROM images WHERE id = ?`, [img.image_id]);
       }
     });
+
     return images;
   }
 }
