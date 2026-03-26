@@ -45,6 +45,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
   : [];
 
+app.set("trust proxy", true); // if behind a proxy (e.g. nginx), trust X-Forwarded-* headers for correct client IP and protocol detection
+
 app.use(
   cors({
     origin: (origin, cb) => {
