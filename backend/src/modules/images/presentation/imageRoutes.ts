@@ -169,8 +169,9 @@ export const createImageRouter = (_pool?: unknown): Router => {
         const { entityType, entityId } = req.params;
         const filePath = `${req.protocol}://${req.get('host')}/uploads/${entityType}/${req.file!.filename}`;
         const dateStr = formatToDBDate(req.body.date ?? Date.now());
+        const uploadTimestamp = req.body.date ? Math.floor(new Date(req.body.date).getTime() / 1000) : Math.floor(Date.now() / 1000);
 
-        await repo.create(entityType as EntityType, Number(entityId), filePath, dateStr);
+        await repo.create(entityType as EntityType, Number(entityId), filePath, uploadTimestamp);
         res.status(201).json({ success: true, data: { path: filePath, date: dateStr } });
       } catch (err) { next(err); }
     },
@@ -243,9 +244,9 @@ export const createImageRouter = (_pool?: unknown): Router => {
         const filePath = req.file
           ? `${req.protocol}://${req.get('host')}/uploads/${entityType}/${req.file.filename}`
           : undefined;
-        const dateStr = req.body.date ? formatToDBDate(req.body.date) : undefined;
 
-        await repo.update(Number(id), { date: dateStr, imageUrl: filePath });
+        const uploadDate = req.body.date ? Math.floor(new Date(req.body.date).getTime() / 1000) : undefined;
+        await repo.update(Number(id), { uploadDate, imageUrl: filePath });
         res.json({ success: true, data: { path: filePath } });
       } catch (err) { next(err); }
     },

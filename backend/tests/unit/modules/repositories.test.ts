@@ -187,17 +187,19 @@ describe('SQLiteImageRepository', () => {
     expect(sql).toContain('DELETE FROM images');
   });
 
-  it('findByEntity uses correct join table for plant', async () => {
+  it('findByEntity queries the images table with entity_type for plant', async () => {
     mockQuery.mockReturnValue([]);
     await new SQLiteImageRepository().findByEntity('plant', 1);
     const sql = mockQuery.mock.calls[0][0] as string;
-    expect(sql).toContain('plant_images');
+    expect(sql).toContain('FROM images');
+    expect(sql).toContain('entity_type');
   });
 
-  it('findByEntity uses substrate_images for substrate type', async () => {
+  it('findByEntity queries the images table with entity_type for substrate', async () => {
     mockQuery.mockReturnValue([]);
     await new SQLiteImageRepository().findByEntity('substrate', 1);
     const sql = mockQuery.mock.calls[0][0] as string;
-    expect(sql).toContain('substrate_images');
+    expect(sql).toContain('FROM images');
+    expect(sql).toContain('entity_type');
   });
 });
