@@ -1,7 +1,9 @@
 /**
  * server.ts
  *
- * Backend entry point. Replaces V1 (server.js).
+ * Backend entry point — SQLite edition.
+ * Replaces the mysql2 pool with the better-sqlite3 singleton from src/core/database/db.ts.
+ *
  * Start: `pnpm run dev`  or  `pnpm run build && pnpm run start`
  */
 
@@ -11,9 +13,12 @@ import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
-import mysql from "mysql2/promise";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
+// Open (and initialise) the SQLite database before anything else imports it.
+import { getDb, closeDb } from "./src/core/database/db";
+const db = getDb(); // singleton — schema auto-applied on first run
 
 import {
   requestIdMiddleware,
@@ -22,24 +27,15 @@ import {
 } from "./src/core/middleware";
 import { logger } from "./src/core/logging";
 
-import { createAuthRouter } from "./src/modules/auth/presentation/authRoutes";
-import { createSalesRouter } from "./src/modules/sales/presentation/salesRoutes";
-import { createPlantsRouter } from "./src/modules/plants/presentation/plantsRoutes";
-import { createWateringRouter } from "./src/modules/watering/presentation/wateringRoutes";
+import { createAuthRouter }      from "./src/modules/auth/presentation/authRoutes";
+import { createSalesRouter }     from "./src/modules/sales/presentation/salesRoutes";
+import { createPlantsRouter }    from "./src/modules/plants/presentation/plantsRoutes";
+import { createWateringRouter }  from "./src/modules/watering/presentation/wateringRoutes";
 import { createSubstrateRouter } from "./src/modules/substrate/presentation/substrateRoutes";
 import { createComponentRouter } from "./src/modules/components/presentation/componentRoutes";
-import { createImageRouter } from "./src/modules/images/presentation/imageRoutes";
-import { createMoreInfoRouter } from "./src/modules/moreInfo/presentation/moreInfoRoutes";
-import { closeBrowser } from "./src/modules/sales/infrastructure/HttpFetcher";
-
-const pool = mysql.createPool({
-  host: process.env.DB_HOST ?? "localhost",
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-});
+import { createImageRouter }     from "./src/modules/images/presentation/imageRoutes";
+import { createMoreInfoRouter }  from "./src/modules/moreInfo/presentation/moreInfoRoutes";
+import { closeBrowser }          from "./src/modules/sales/infrastructure/HttpFetcher";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 5000);
@@ -48,6 +44,10 @@ const isDev = process.env.NODE_ENV !== "production";
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
   : [];
+
+app.set("trust proxy", 1); // trust exactly one upstream proxy (e.g. nginx);
+                           // "true" would trust all hops and let clients spoof X-Forwarded-For,
+                           // bypassing IP-based rate limiting
 
 app.use(
   cors({
@@ -88,18 +88,20 @@ function getVersionPath(): string {
 const versionPath = getVersionPath();
 const V = `/api/${versionPath}`;
 
-app.use(`${V}/auth`, createAuthRouter(pool));
-app.use(`${V}/sales`, createSalesRouter());
-app.use(`${V}/plants`, createPlantsRouter(pool));
-app.use(`${V}/watering`, createWateringRouter(pool));
-app.use(`${V}/substrates`, createSubstrateRouter(pool));
-app.use(`${V}/components`, createComponentRouter(pool));
-app.use(`${V}/images`, createImageRouter(pool));
-app.use(`${V}/more-info`, createMoreInfoRouter(pool));
+// Routes — no pool argument needed; repositories use the db singleton
+app.use(`${V}/auth`,       createAuthRouter());
+app.use(`${V}/sales`,      createSalesRouter());
+app.use(`${V}/plants`,     createPlantsRouter());
+app.use(`${V}/watering`,   createWateringRouter());
+app.use(`${V}/substrates`, createSubstrateRouter());
+app.use(`${V}/components`, createComponentRouter());
+app.use(`${V}/images`,     createImageRouter());
+app.use(`${V}/more-info`,  createMoreInfoRouter());
 
-app.get(`${V}/health`, async (_req, res) => {
+app.get(`${V}/health`, (_req, res) => {
   try {
-    await pool.query("SELECT 1");
+    // Synchronous ping — better-sqlite3 throws immediately if the DB is closed
+    db.prepare("SELECT 1").get();
     const uptimeSeconds = process.uptime();
     const d = Math.floor(uptimeSeconds / 86400);
     const h = Math.floor((uptimeSeconds % 86400) / 3600);
@@ -115,16 +117,13 @@ app.get(`${V}/health`, async (_req, res) => {
     });
   } catch (err) {
     logger.error("Health check failed", { err });
-    res.status(503).json({
-      status: "error",
-      db: "disconnected",
-    });
+    res.status(503).json({ status: "error", db: "disconnected" });
   }
 });
 
-app.get(`${V}/health/ready`, async (_req, res) => {
+app.get(`${V}/health/ready`, (_req, res) => {
   try {
-    await pool.query("SELECT 1");
+    db.prepare("SELECT 1").get();
     res.json({ ready: true });
   } catch {
     res.status(503).json({ ready: false });
@@ -135,16 +134,16 @@ app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
 const server = app.listen(PORT, () => {
-  logger.info(`V2 server running on port ${PORT}`);
+  logger.info(`V2 server running on port ${PORT}`);  // stays info — visible in both dev and prod on startup
 });
 
 const handleShutdown = async (signal: string): Promise<void> => {
-  logger.info(`${signal} — shutting down gracefully...`);
+  logger.debug(`${signal} — shutting down gracefully...`);
   server.close(async () => {
     try {
       await closeBrowser();
-      await pool.end();
-      logger.info("Shutdown complete.");
+      closeDb();          // flushes WAL checkpoint and closes the SQLite file
+      logger.debug("Shutdown complete.");
     } catch (err) {
       logger.error("Error during shutdown", { err });
     }
@@ -155,6 +154,24 @@ const handleShutdown = async (signal: string): Promise<void> => {
     process.exit(1);
   }, 10_000);
 };
+
+
+// ── Process-level error guards ────────────────────────────────────────────────
+// Catches unhandled promise rejections (e.g. the express-rate-limit
+// ValidationError about trust proxy) and unexpected thrown exceptions,
+// routing them through the structured logger instead of dumping raw
+// stack traces to stderr.
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection", {
+    err: reason instanceof Error ? reason : undefined,
+    reason: reason instanceof Error ? undefined : String(reason),
+  });
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception — shutting down", { err });
+  process.exit(1);
+});
 
 process.on("SIGTERM", () => handleShutdown("SIGTERM"));
 process.on("SIGINT", () => handleShutdown("SIGINT"));

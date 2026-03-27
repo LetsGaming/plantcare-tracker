@@ -4,12 +4,12 @@
 
 export interface WateringRecordData {
   record_id: number;
-  watering_date: string;
+  plant_id: number;
+  plant_name: string;
+  watering_date: number; // Unix epoch seconds
   used_fertilizer: boolean;
   fertilizer_type_id: number | null;
   fertilizer_type: string | null;
-  plant_id: number;
-  plant_name: string;
   owner_id: number;
 }
 
@@ -20,13 +20,13 @@ export interface FertilizerType {
 
 export interface CreateWateringDTO {
   plantId: number;
-  date: string;
+  date: number; // Unix epoch seconds
   usedFertilizer: boolean;
   fertilizerTypeId: number | null;
 }
 
 export interface UpdateWateringDTO {
-  date?: string | null;
+  date?: number | null; // Unix epoch seconds
   usedFertilizer?: boolean;
   fertilizerTypeId?: number | null;
 }

@@ -117,7 +117,7 @@ export default class UserService extends BaseService {
           throw new this.RefreshError(errMessage);
         }
 
-        // V2 success envelope: { success: true, data: { accessToken } }
+        // Response envelope: { data: { accessToken } }
         const res = await response.json();
         const accessToken = res.data?.accessToken;
         if (!accessToken)
@@ -147,7 +147,7 @@ export default class UserService extends BaseService {
 
   static async editProfile(data: EditProfile) {
     return this.handleRequest(
-      ApiUtils.put(`${BASE_ENDPOINT}/update`, data),
+      ApiUtils.patch(`${BASE_ENDPOINT}/me`, data),
       "profile.title",
       "profile.update_failed",
     );
@@ -156,7 +156,7 @@ export default class UserService extends BaseService {
   static async deleteProfile() {
     try {
       const res = await this.handleRequest(
-        ApiUtils.delete(`${BASE_ENDPOINT}/delete`),
+        ApiUtils.delete(`${BASE_ENDPOINT}/me`),
         "profile.title",
         "profile.delete_failed",
       );

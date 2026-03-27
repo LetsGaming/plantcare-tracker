@@ -6,7 +6,7 @@ export default class ImageMapper {
     return {
       id: image.id,
       url: image.url,
-      date: Utils.convertDateString(image.date),
+      date: Utils.convertDateMillis(image.date),
       date_millis: Utils.convertToMillis(image.date),
     };
   }

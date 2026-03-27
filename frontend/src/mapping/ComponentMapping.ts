@@ -19,6 +19,7 @@ export default class ComponentMapper {
     return {
       id: component.component_id,
       name: component.component_name,
+      finenessId: component.fineness_id,
       fineness: component.component_fineness,
       imageUrl: component.image_url ?? undefined,
     };

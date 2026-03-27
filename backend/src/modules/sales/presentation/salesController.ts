@@ -43,7 +43,7 @@ export const createSalesController = (sources: SalesSource[]) => {
         await sse.end();
       }
     } catch (err: unknown) {
-      log.error(`SSE stream error: ${(err as Error).message}`);
+      log.error('SSE stream error', { err });
       if (!res.writableEnded) {
         res.write(
           `event: error\ndata: ${JSON.stringify({ message: 'Stream interrupted' })}\n\n`,

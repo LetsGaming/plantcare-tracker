@@ -6,6 +6,7 @@ import ImageService from "./ImageService";
 
 const ENDPOINT = "/components";
 const CACHE_KEY_ALL = "components_all";
+const CACHE_KEY_FINENESS = "components_fineness_levels";
 const RESOURCE_NAME = "components.title";
 
 /**
@@ -98,7 +99,7 @@ export default class ComponentService extends BaseService {
     if (cached && !forceUpdate) return cached;
 
     const component = await this.handleRequest(
-      ApiUtils.get<APIComponent>(`${ENDPOINT}/component/${componentId}`).then(
+      ApiUtils.get<APIComponent>(`${ENDPOINT}/${componentId}`).then(
         (res) => ComponentMapper.convertToComponents(res)[0],
       ),
       RESOURCE_NAME,
@@ -112,6 +113,27 @@ export default class ComponentService extends BaseService {
     return component;
   }
 
+  /**
+   * Fetch all fineness levels from GET /components/fineness-levels.
+   * Cached indefinitely — these change only when the backend schema changes.
+   * @param forceUpdate If true, bypass cache and refetch
+   * @returns Array of fineness levels
+   */
+  static async getFinenessLevels(
+    forceUpdate: boolean = false,
+  ): Promise<APIFinenessLevel[]> {
+    const result = await this.getCachedData(
+      CACHE_KEY_FINENESS,
+      () =>
+        this.handleRequest(
+          ApiUtils.get<APIFinenessLevel[]>(`${ENDPOINT}/fineness-levels`),
+          RESOURCE_NAME,
+        ),
+      forceUpdate,
+    );
+    return result || [];
+  }
+
   /* =========================================================================
      Admin mutations
      ========================================================================= */
@@ -123,7 +145,7 @@ export default class ComponentService extends BaseService {
    */
   static async addComponent(data: AddComponent): Promise<any> {
     const response = await this.handleRequest(
-      ApiUtils.post(`${ENDPOINT}/admin`, data),
+      ApiUtils.post(ENDPOINT, data),
       RESOURCE_NAME,
       "error.action_failed",
     );
@@ -142,7 +164,7 @@ export default class ComponentService extends BaseService {
     data: EditComponent,
   ): Promise<any> {
     const response = await this.handleRequest(
-      ApiUtils.put(`${ENDPOINT}/admin/${componentId}`, data),
+      ApiUtils.put(`${ENDPOINT}/${componentId}`, data),
       RESOURCE_NAME,
       "error.action_failed",
     );
@@ -158,7 +180,7 @@ export default class ComponentService extends BaseService {
    */
   static async deleteComponent(componentId: number): Promise<any> {
     const response = await this.handleRequest(
-      ApiUtils.delete(`${ENDPOINT}/admin/${componentId}`),
+      ApiUtils.delete(`${ENDPOINT}/${componentId}`),
       RESOURCE_NAME,
       "error.action_failed",
     );

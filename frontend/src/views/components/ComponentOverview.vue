@@ -122,7 +122,7 @@ export default defineComponent({
         if (!response) return;
         if (componentData.image) {
           await ComponentService.uploadComponentImage(
-            response.id,
+            response.component_id,
             componentData.image
           );
         }

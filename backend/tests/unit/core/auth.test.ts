@@ -7,14 +7,17 @@ import {
   authenticateToken,
   sessionStore,
   ticketStore,
+  jwtConfig,
   type JwtPayload,
 } from "../../../src/core/middleware/auth";
 
 // ── ENV SETUP ─────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  process.env.JWT_SECRET = "test-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+  // JWT_SECRET and JWT_REFRESH_SECRET are set by vitest.config.ts and loaded
+  // eagerly into jwtConfig at module-import time. Do NOT override them here
+  // with different values — that would cause jwt.verify() in the test to use
+  // a different secret than the one jwtConfig used to sign the token.
   process.env.JWT_EXPIRATION = "15m";
   process.env.JWT_REFRESH_EXPIRATION = "7d";
 
@@ -49,10 +52,10 @@ describe("auth.ts", () => {
   it("should generate valid access and refresh tokens", () => {
     const { accessToken, refreshToken } = generateTokens(user);
 
-    const decodedAccess = jwt.verify(accessToken, process.env.JWT_SECRET!);
+    const decodedAccess = jwt.verify(accessToken, jwtConfig.JWT_SECRET);
     const decodedRefresh = jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET!,
+      jwtConfig.JWT_REFRESH_SECRET,
     );
 
     expect((decodedAccess as JwtPayload).id).toBe(user.id);

@@ -137,8 +137,8 @@ describe("handleResponse (via ApiUtils.get)", () => {
     vi.stubGlobal("fetch", vi.fn());
   });
 
-  it("returns data from V2 success envelope", async () => {
-    (global.fetch as any).mockResolvedValue(mockResponse(200, { success: true, data: { plant_id: 1 } }));
+  it("returns data from success envelope", async () => {
+    (global.fetch as any).mockResolvedValue(mockResponse(200, { data: { plant_id: 1 } }));
     const result = await ApiUtils.get("/test");
     expect(result).toEqual({ plant_id: 1 });
   });
@@ -187,16 +187,22 @@ describe("handleResponse (via ApiUtils.get)", () => {
     await expect(ApiUtils.get("/test")).rejects.toThrow("Error: 503");
   });
 
-  it("returns null data for 200 with null data", async () => {
-    (global.fetch as any).mockResolvedValue(mockResponse(200, { success: true, data: null }));
+  it("returns null data for 200 with null data field", async () => {
+    (global.fetch as any).mockResolvedValue(mockResponse(200, { data: null }));
     const result = await ApiUtils.get("/test");
     expect(result).toBeNull();
   });
 
-  it("returns empty array for 200 with [] data", async () => {
-    (global.fetch as any).mockResolvedValue(mockResponse(200, { success: true, data: [] }));
+  it("returns empty array for 200 with [] data field", async () => {
+    (global.fetch as any).mockResolvedValue(mockResponse(200, { data: [] }));
     const result = await ApiUtils.get("/test");
     expect(result).toEqual([]);
+  });
+
+  it("returns null for 204 No Content", async () => {
+    (global.fetch as any).mockResolvedValue({ ok: true, status: 204, text: () => Promise.resolve("") });
+    const result = await ApiUtils.get("/test");
+    expect(result).toBeNull();
   });
 
   it("throws ApiError with raw text when JSON parsing fails", async () => {

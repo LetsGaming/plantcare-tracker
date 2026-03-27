@@ -84,9 +84,7 @@ export class RefreshTokenUseCase {
       if (decoded.id !== userId) throw new ForbiddenError('Invalid refresh token');
 
       const payload = { id: decoded.id, username: decoded.username, role: decoded.role };
-      const signOptions: SignOptions = { 
-        expiresIn: jwtConfig.JWT_EXPIRATION as any // Casting as any handles the StringValue mismatch
-      };
+      const signOptions: SignOptions = { expiresIn: jwtConfig.JWT_EXPIRATION as SignOptions['expiresIn'] };
 
       return jwt.sign(payload, jwtConfig.JWT_SECRET as Secret, signOptions);
     } catch {

@@ -94,7 +94,7 @@ const htmlSearcher = (config: {
       config.cache.set(cacheKey, result ?? '', 86_400);
       return result;
     } catch (err: unknown) {
-      log.warn(`[${config.key}] search failed: ${(err as Error).message}`);
+      log.warn(`[${config.key}] search failed`, { err });
       return null;
     }
   };

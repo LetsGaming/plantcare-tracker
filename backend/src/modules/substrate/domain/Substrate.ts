@@ -12,7 +12,7 @@ export interface ComponentRef {
 export interface ImageRef {
   id: number;
   url: string;
-  date: string;
+  date: number; // Unix epoch seconds
 }
 
 export interface SubstrateData {
@@ -20,7 +20,7 @@ export interface SubstrateData {
   substrate_user_id: number;
   substrate_name: string;
   is_public: boolean;
-  substrate_created_at: string;
+  substrate_created_at: number;
   image_url: string | null;
   images: ImageRef[];
   components: ComponentRef[];

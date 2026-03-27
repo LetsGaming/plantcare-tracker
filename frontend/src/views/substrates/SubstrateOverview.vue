@@ -172,7 +172,7 @@ export default defineComponent({
       try {
         const components = payload.componentIds.map((id) => ({
           componentId: id,
-          parts: payload.parts[id] || 1,
+          parts: parseFloat(String(payload.parts[id])) || 1,
         }));
 
         const newSubstrateId =

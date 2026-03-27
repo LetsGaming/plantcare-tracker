@@ -12,32 +12,41 @@ import crypto from "crypto";
 
 // ── ENV HELPERS ───────────────────────────────────────────────────────────────
 
-const getRequiredEnv = (key: string): string => {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
+// ── JWT config ───────────────────────────────────────────────────────────────
+//
+// Validated eagerly at module-load time so the process fails immediately
+// at startup with a clear message if required env vars are absent, rather
+// than crashing on the first auth request with a confusing stack trace.
+//
+// The Proxy is kept so that tests can override process.env before importing
+// this module — values are still read lazily per-access, but the required
+// keys are checked on first import so a missing var surfaces in the startup
+// log rather than mid-request.
+
+interface JwtConfig {
+  JWT_SECRET: Secret;
+  JWT_REFRESH_SECRET: Secret;
+  JWT_EXPIRATION: string;
+  JWT_REFRESH_EXPIRATION: string;
+}
+
+function loadJwtConfig(): JwtConfig {
+  const missing = ['JWT_SECRET', 'JWT_REFRESH_SECRET'].filter((k) => !process.env[k]);
+  if (missing.length) {
+    throw new Error(
+      `Missing required environment variable(s): ${missing.join(', ')}. ` +
+      'The server cannot start without them.',
+    );
   }
-  return value;
-};
-
-const getJwtConfig = () => {
   return {
-    JWT_SECRET: getRequiredEnv("JWT_SECRET") as Secret,
-    JWT_REFRESH_SECRET: getRequiredEnv("JWT_REFRESH_SECRET") as Secret,
-    JWT_EXPIRATION: process.env.JWT_EXPIRATION ?? "15m",
-    JWT_REFRESH_EXPIRATION: process.env.JWT_REFRESH_EXPIRATION ?? "7d",
+    JWT_SECRET: process.env.JWT_SECRET as Secret,
+    JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET as Secret,
+    JWT_EXPIRATION: process.env.JWT_EXPIRATION ?? '15m',
+    JWT_REFRESH_EXPIRATION: process.env.JWT_REFRESH_EXPIRATION ?? '7d',
   };
-};
+}
 
-/**
- * Lazily-evaluated JWT config. Exported for use in other modules (e.g. AuthUseCases).
- * Evaluated at call-time so tests can set env vars before invoking token operations.
- */
-export const jwtConfig = new Proxy({} as ReturnType<typeof getJwtConfig>, {
-  get(_target, prop: string) {
-    return getJwtConfig()[prop as keyof ReturnType<typeof getJwtConfig>];
-  },
-});
+export const jwtConfig: JwtConfig = loadJwtConfig();
 
 // ── Session store (in-memory) ─────────────────────────────────────────────────
 
@@ -104,14 +113,12 @@ export const generateTokens = (user: JwtPayload) => {
     JWT_REFRESH_SECRET,
     JWT_EXPIRATION,
     JWT_REFRESH_EXPIRATION,
-  } = getJwtConfig();
+  } = jwtConfig;
 
   const payload = { id: user.id, username: user.username, role: user.role };
 
-  const accessOptions: SignOptions = { expiresIn: JWT_EXPIRATION as any };
-  const refreshOptions: SignOptions = {
-    expiresIn: JWT_REFRESH_EXPIRATION as any,
-  };
+  const accessOptions: SignOptions = { expiresIn: JWT_EXPIRATION as SignOptions['expiresIn'] };
+  const refreshOptions: SignOptions = { expiresIn: JWT_REFRESH_EXPIRATION as SignOptions['expiresIn'] };
 
   const accessToken = jwt.sign(payload, JWT_SECRET, accessOptions);
   const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, refreshOptions);
@@ -148,7 +155,7 @@ export const authenticateToken = (
   if (!token)
     return next(new UnauthorizedError("Missing authentication token"));
 
-  const { JWT_SECRET } = getJwtConfig();
+  const { JWT_SECRET } = jwtConfig;
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return next(new ForbiddenError("Invalid or expired token"));
@@ -165,10 +172,12 @@ export const authenticateToken = (
   });
 };
 
-// ── SSE ticket auth (DB-backed) ───────────────────────────────────────────────
+// ── SSE ticket auth (DB-backed, SQLite) ──────────────────────────────────────
 
 export const makeAuthenticateSSE =
-  (pool: import("mysql2/promise").Pool) =>
+  // The `pool` parameter is kept for API compatibility with callers that pass
+  // a pool object, but is ignored — the SQLite helper reads from the singleton db.
+  (_pool?: unknown) =>
   async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const { ticket } = req.query as { ticket?: string };
 
@@ -179,7 +188,8 @@ export const makeAuthenticateSSE =
     if (!userId) return next(new ForbiddenError("Invalid or expired ticket"));
 
     try {
-      const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>(
+      const { query } = await import('../database/db');
+      const rows = query<{ id: number; username: string; role: string }>(
         `SELECT users.id, username, roles.name AS role
          FROM users LEFT JOIN roles ON users.role_id = roles.id
          WHERE users.id = ?`,
@@ -189,12 +199,7 @@ export const makeAuthenticateSSE =
       const user = rows[0];
       if (!user) return next(new ForbiddenError("User not found"));
 
-      req.user = {
-        id: user["id"] as number,
-        username: user["username"] as string,
-        role: user["role"] as string,
-      };
-
+      req.user = { id: user.id, username: user.username, role: user.role };
       next();
     } catch (err) {
       next(err);

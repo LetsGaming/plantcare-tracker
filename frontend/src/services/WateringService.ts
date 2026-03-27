@@ -152,7 +152,7 @@ export default class WateringService extends BaseService {
       RESOURCE_KEY,
       "watering.add",
     );
-
+    // Invalidate so next fetch re-reads the full ordered list from server
     await this.invalidatePlantCache(plantId);
     return response;
   }

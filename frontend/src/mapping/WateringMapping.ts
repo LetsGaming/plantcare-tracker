@@ -23,7 +23,7 @@ export default class WateringMapper {
       id: watering.record_id,
       plantId: watering.plant_id,
       plantName: watering.plant_name,
-      date: Utils.convertDateString(watering.watering_date),
+      date: Utils.convertDateMillis(watering.watering_date),
       date_millis: Utils.convertToMillis(watering.watering_date),
       usedFertilizer: watering.used_fertilizer,
       fertilizerTypeId: watering.fertilizer_type_id ?? undefined,

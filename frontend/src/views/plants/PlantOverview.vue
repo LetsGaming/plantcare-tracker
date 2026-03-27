@@ -182,7 +182,7 @@ export default defineComponent({
 
         if (plantData.image) {
           await PlantService.uploadPlantImage(
-            response.plantId,
+            response.plant_id,
             plantData.image,
           );
           ToastService.showSuccess({

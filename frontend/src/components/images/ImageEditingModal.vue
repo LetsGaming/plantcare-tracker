@@ -108,7 +108,6 @@ export default defineComponent({
         this.isLoading = true;
         const response = await ImageService.editImage(
           this.image.id,
-          this.entityType,
           this.imageEditData.date,
           this.imageEditData.file
         );
@@ -123,11 +122,9 @@ export default defineComponent({
     async deleteImage() {
       try {
         this.isLoading = true;
-        const response = await ImageService.deleteImage(this.image.id, this.entityType);
-        if (response) {
-          this.isLoading = false;
-          this.$emit("edited");
-        }
+        await ImageService.deleteImage(this.image.id);
+        this.isLoading = false;
+        this.$emit("edited");
       } catch (error) {
         console.error(error);
       }

@@ -15,13 +15,12 @@ import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
 import { SseManager } from '../../sales/presentation/SseManager';
 import { createModuleLogger } from '../../../core/logging';
 
-import type { Pool } from 'mysql2/promise';
 
 const log = createModuleLogger('MoreInfoRoutes');
 
-export const createMoreInfoRouter = (pool: Pool): Router => {
+export const createMoreInfoRouter = (_pool?: unknown): Router => {
   const router = Router();
-  const authenticateSSE = makeAuthenticateSSE(pool);
+  const authenticateSSE = makeAuthenticateSSE();
 
   // Shared cache: 12h TTL for AI responses (same as V1)
   const cache = new NodeCacheAdapter(43_200);
@@ -32,7 +31,7 @@ export const createMoreInfoRouter = (pool: Pool): Router => {
     const { plantName, htmlFormatting, lang } = req.query as Record<string, string | undefined>;
 
     if (!plantName) {
-      res.status(400).json({ error: { message: 'plantName query parameter is required.', statusCode: 400 } });
+      res.status(400).json({ error: { type: 'ValidationError', message: 'plantName query parameter is required.', statusCode: 400 } });
       return;
     }
 
@@ -72,7 +71,7 @@ export const createMoreInfoRouter = (pool: Pool): Router => {
 
       if (!isAborted) await sse.end({ status: 'completed' });
     } catch (err: unknown) {
-      log.error(`MoreInfo SSE error: ${(err as Error).message}`);
+      log.error('MoreInfo SSE error', { err });
       if (!res.writableEnded) {
         res.write(`event: error\ndata: ${JSON.stringify({ message: 'Information stream interrupted' })}\n\n`);
         res.end();

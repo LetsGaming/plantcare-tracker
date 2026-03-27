@@ -43,7 +43,7 @@ const makeAPISubstrateComponent = (
 const makeAPIImage = (): APIImage => ({
   id: 10,
   url: "https://cdn.example.com/img.webp",
-  date: "2025-06-01T10:00:00.000Z",
+  date: 1748779200, // 2025-06-01T10:00:00 UTC as Unix epoch seconds
 });
 
 const makeAPISubstrate = (overrides: Partial<APISubstrate> = {}): APISubstrate => ({
@@ -51,7 +51,7 @@ const makeAPISubstrate = (overrides: Partial<APISubstrate> = {}): APISubstrate =
   substrate_user_id: 99,
   substrate_name: "Aroid Mix",
   is_public: true,
-  substrate_created_at: "2025-01-15T08:00:00.000Z",
+  substrate_created_at: 1736928000, // 2025-01-15T08:00:00 UTC as Unix epoch seconds
   image_url: null,
   images: [],
   components: [makeAPISubstrateComponent()],
@@ -64,7 +64,7 @@ const makeAPIPlant = (overrides: Partial<APIPlant> = {}): APIPlant => ({
   plant_name: "Monstera Deliciosa",
   plant_species: "Monstera deliciosa",
   is_public: false,
-  plant_created_at: "2024-09-20T14:30:00.000Z",
+  plant_created_at: 1726839000, // 2024-09-20T14:30:00 UTC as Unix epoch seconds
   image_url: "https://cdn.example.com/plant.webp",
   substrate: { substrate_id: 5, substrate_name: "Aroid Mix" },
   images: [makeAPIImage()],
@@ -78,7 +78,7 @@ const makeAPIWateringRecord = (
   plant_id: 7,
   plant_name: "Monstera Deliciosa",
   owner_id: 42,
-  watering_date: "2025-03-01T09:00:00.000Z",
+  watering_date: 1740819600, // 2025-03-01T09:00:00 UTC as Unix epoch seconds
   used_fertilizer: true,
   fertilizer_type_id: 1,
   fertilizer_type: "Organic",

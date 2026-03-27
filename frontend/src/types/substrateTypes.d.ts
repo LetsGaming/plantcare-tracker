@@ -67,7 +67,7 @@ interface APISubstrate {
   substrate_name: string;
   /** V2 returns boolean (not 0/1) — is_public from MySQL normalized by repo */
   is_public: boolean;
-  substrate_created_at: string;
+  substrate_created_at: number;
   image_url: string | null;
   images: APIImage[];
   components: APISubstrateComponent[];

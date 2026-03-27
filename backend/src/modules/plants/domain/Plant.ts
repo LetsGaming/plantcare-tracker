@@ -21,7 +21,7 @@ export interface SubstrateRef {
 export interface ImageRef {
   id: number;
   url: string;
-  date: string;
+  date: number;
 }
 
 export interface PlantData {
@@ -30,7 +30,7 @@ export interface PlantData {
   plant_name: string;
   plant_species: string;
   is_public: boolean;
-  plant_created_at: string;
+  plant_created_at: number;
   image_url: string | null;
   substrate: SubstrateRef | null;
   images: ImageRef[];
@@ -44,7 +44,7 @@ export class Plant {
   public readonly name: string;
   public readonly species: string;
   public readonly isPublic: boolean;
-  public readonly createdAt: string;
+  public readonly createdAt: number;
   public readonly imageUrl: string | null;
   public readonly substrate: SubstrateRef | null;
   public readonly images: ImageRef[];

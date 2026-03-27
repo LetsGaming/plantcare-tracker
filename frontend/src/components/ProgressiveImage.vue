@@ -137,7 +137,6 @@ ion-img {
   width: 100%;
   height: 100%;
   display: block;
-  transition: filter 0.5s ease-in-out;
 }
 
 .progressive-img-container ion-img::part(image) {
@@ -148,7 +147,6 @@ ion-img {
 
 .is-loading {
   filter: blur(10px);
-  /* Removed transform scale because it can cause layout shifts in some Ion-Grid setups, 
-     but add it back if you see white edges during the blur */
+  transition: filter 0.2s ease-in-out;
 }
 </style>

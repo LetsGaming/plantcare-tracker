@@ -3,18 +3,20 @@
 //
 // Frontend types for the Watering domain.
 //
-// V2 API shapes:
+// V2 API shapes (SQLite backend):
 //   - APIWateringRecord: record_id, plant_id, plant_name, owner_id,
-//                        watering_date, used_fertilizer,
-//                        fertilizer_type_id (int|null), fertilizer_type (string|null)
+//                        watering_date (Unix epoch seconds),
+//                        used_fertilizer, fertilizer_type_id (int|null),
+//                        fertilizer_type (string|null)
 //   - APIFertilizerType: fertilizer_id, fertilizer_name
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Frontend model for a single watering event */
 interface WateringRecord {
   id: number;
+  /** ID of the plant this record belongs to */
   plantId: number;
-  /** Plant name — included in V2 responses, avoids extra lookups in CalendarView */
+  /** Display name of the plant (included in V2 responses for calendar rendering) */
   plantName: string;
   /** Human-readable local date string */
   date: string;
@@ -22,7 +24,7 @@ interface WateringRecord {
   date_millis: number;
   usedFertilizer: boolean;
   fertilizerTypeId?: number;
-  /** Resolved display name of the fertilizer type, or "Unbekannt" if unknown */
+  /** Resolved display name of the fertilizer type, or undefined if unused */
   fertilizerType?: string;
 }
 
@@ -50,16 +52,16 @@ interface FertilizerType {
 // ── V2 API shapes ─────────────────────────────────────────────────────────────
 
 /**
- * Raw watering record as returned by the V2 API.
- * Matches the query result from MySQLWateringRepository.findByPlant().
+ * Raw watering record as returned by the V2 API (SQLite backend).
+ * watering_date is a Unix epoch integer (seconds) — NOT an ISO date string.
  */
 interface APIWateringRecord {
   record_id: number;
   plant_id: number;
   /** Included in V2 to enable calendar rendering without additional plant lookups */
   plant_name: string;
-  /** MySQL DATETIME string */
-  watering_date: string;
+  /** Unix epoch seconds stored by SQLite */
+  watering_date: number;
   used_fertilizer: boolean;
   fertilizer_type_id: number | null;
   /** Resolved name from fertilizer_types table, null if no fertilizer used */

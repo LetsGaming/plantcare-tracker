@@ -15,6 +15,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
+import ComponentService from "@/services/ComponentService";
 
 export default defineComponent({
   name: "ComponentAddingModal",
@@ -28,11 +29,14 @@ export default defineComponent({
     return {
       componentData: {
         name: "",
-        fineness: -1,
+        finenessId: 0,
         image: undefined,
       } as AddComponent,
-      
+      finenessLevels: [] as APIFinenessLevel[],
     };
+  },
+  async created() {
+    this.finenessLevels = await ComponentService.getFinenessLevels();
   },
   computed: {
     componentFormFields(): FormField[] {
@@ -40,14 +44,13 @@ export default defineComponent({
         { type: "input", modelKey: "name", label: "component.field.name" },
         {
           type: "select",
-          modelKey: "fineness",
+          modelKey: "finenessId",
           label: "component.field.fineness",
           placeholder: "component.field.fineness_placeholder",
-          options: [
-            { value: 1, label: "component.fineness.coarse" },
-            { value: 2, label: "component.fineness.medium" },
-            { value: 3, label: "component.fineness.fine" },
-          ],
+          options: this.finenessLevels.map((f) => ({
+            value: f.fineness_id,
+            label: f.fineness_name,
+          })),
         },
         { type: "file", modelKey: "image", label: "component.image.upload" },
       ];
@@ -55,12 +58,11 @@ export default defineComponent({
   },
   methods: {
     submit() {
-      // emit the current form data to the parent
       this.$emit("save", { ...this.componentData });
       this.clearComponentData();
     },
     clearComponentData() {
-      this.componentData = { name: "", fineness: -1, image: undefined };
+      this.componentData = { name: "", finenessId: 0, image: undefined };
     },
   },
 });

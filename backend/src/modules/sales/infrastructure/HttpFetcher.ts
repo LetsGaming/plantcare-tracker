@@ -75,11 +75,13 @@ const fetchWithAxios = async (
       (!axiosErr.response || axiosErr.response.status >= 500)
     ) {
       const delay = (3 - retries) * 2000;
-      log.warn(`Retrying ${url} in ${delay}ms... (${retries} left)`);
+      const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+      log.warn(`Retrying ${host} in ${delay}ms... (${retries} left)`);
       await new Promise((resolve) => setTimeout(resolve, delay));
       return fetchWithAxios(url, retries - 1);
     }
-    log.error(`Final failure for ${url}: ${axiosErr.message}`);
+    const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+    log.error(`Final failure for ${host}`, { err: axiosErr });
     return null;
   }
 };
@@ -115,7 +117,8 @@ const fetchWithChromium = async (url: string): Promise<string | null> => {
 
     return await page.content();
   } catch (err: unknown) {
-    log.error(`Chromium failed for ${url}: ${(err as Error).message}`);
+    const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+    log.error(`Chromium fetch failed for ${host}`, { err });
     return null;
   } finally {
     await context.close();
