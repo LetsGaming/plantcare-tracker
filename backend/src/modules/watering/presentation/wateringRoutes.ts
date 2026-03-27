@@ -30,11 +30,16 @@ const UpdateWateringSchema = z.object({
   { message: 'At least one field must be provided for update' },
 );
 
-/** Normalise a date value to Unix epoch seconds for SQLite storage */
-const toEpochSeconds = (date: string | number): number =>
-  typeof date === 'number'
-    ? (date > 1e10 ? Math.floor(date / 1000) : Math.floor(date))
-    : Math.floor(new Date(date).getTime() / 1000);
+/** Normalise a date value to Unix epoch seconds for SQLite storage.
+ *  Returns null when the input does not represent a valid point in time. */
+const toEpochSeconds = (date: string | number): number | null => {
+  const ms =
+    typeof date === 'number'
+      ? (date > 1e10 ? date : date * 1000)
+      : new Date(date).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return Math.floor(ms / 1000);
+};
 
 export const createWateringRouter = (_pool?: unknown): Router => {
   const router = Router();
@@ -74,6 +79,7 @@ export const createWateringRouter = (_pool?: unknown): Router => {
 
       const { date = Date.now(), usedFertilizer, fertilizerTypeId } = parsed.data;
       const epochSeconds = toEpochSeconds(date);
+      if (epochSeconds === null) return next(new ValidationError('Invalid date value'));
       const plantId = Number(req.params.plantId);
 
       const recordId = await repo.create({
@@ -102,8 +108,15 @@ export const createWateringRouter = (_pool?: unknown): Router => {
       const { date, usedFertilizer, fertilizerTypeId } = parsed.data;
       const id = Number(req.params.id);
 
+      let dateSeconds: number | undefined;
+      if (date !== undefined) {
+        const parsed = toEpochSeconds(date);
+        if (parsed === null) return next(new ValidationError('Invalid date value'));
+        dateSeconds = parsed;
+      }
+
       const updated = await repo.update(id, req.user!.id, {
-        date: date !== undefined ? toEpochSeconds(date) : undefined,
+        date: dateSeconds,
         usedFertilizer,
         fertilizerTypeId,
       });

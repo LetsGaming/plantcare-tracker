@@ -178,7 +178,6 @@ export default defineComponent({
         this.isAddingLoading = true;
 
         const response = await PlantService.addPlant(plantData);
-        console.log("Add plant response:", response);
         if (!response) return;
 
         if (plantData.image) {
