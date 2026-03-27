@@ -100,7 +100,7 @@ export abstract class BaseScraper implements SalesSource {
 
     const html = await fetchHtml(url, this.useChromium);
     if (!html) {
-      this.log.warn(`No HTML returned for page ${page} (${url})`);
+      this.log.warn(`No HTML returned for page ${page}`, { host: (() => { try { return new URL(url).hostname; } catch { return url; } })() });
       return [];
     }
 
@@ -112,9 +112,7 @@ export abstract class BaseScraper implements SalesSource {
         : this.defaultParseFn(root);
       items = raw.filter((item): item is RawSaleItem => item !== null);
     } catch (err: unknown) {
-      this.log.error(
-        `Parse failed for page ${page}: ${(err as Error).message}`,
-      );
+      this.log.error(`Parse failed for page ${page}`, { err });
       return [];
     }
 

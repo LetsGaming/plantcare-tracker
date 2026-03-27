@@ -15,13 +15,15 @@
 interface Component {
   id: number;
   name: string;
+  /** Fineness level ID — references fineness_levels table */
+  finenessId: number;
   /** Human-readable fineness label, e.g. "Fine", "Coarse" */
   fineness: string;
   imageUrl?: string;
 }
 
 /** A component as it appears within a substrate, including mix ratio */
-interface SubstrateComponent extends Component {
+interface SubstrateComponent extends Omit<Component, "finenessId"> {
   /** Fineness name used as the component's description in substrate context */
   description: string;
   /** Parts by volume in the substrate mix */
@@ -31,7 +33,6 @@ interface SubstrateComponent extends Component {
 /** Payload for creating a new component (admin only) */
 interface AddComponent extends Omit<Component, "id" | "fineness"> {
   /** Fineness level ID — references fineness_levels table */
-  fineness: number;
   image?: File;
 }
 

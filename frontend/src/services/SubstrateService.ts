@@ -8,11 +8,11 @@
  * | Method | Path                        | Purpose                              |
  * |--------|-----------------------------|--------------------------------------|
  * | GET    | /substrates                 | All public + own substrates (deduped)|
- * | GET    | /substrates/substrate/:id   | Single substrate by ID               |
+ * | GET    | /substrates/:id             | Single substrate by ID               |
  * | POST   | /substrates                 | Create a new substrate               |
  * | PATCH  | /substrates/:id             | Update name / isPublic / remove comps|
- * | POST   | /substrates/components/:id  | Add components to a substrate        |
- * | PATCH  | /substrates/components/:id  | Upsert (replace) substrate components|
+ * | POST   | /substrates/:id/components  | Add components to a substrate        |
+ * | PATCH  | /substrates/:id/components  | Upsert (replace) substrate components|
  * | DELETE | /substrates/:id             | Delete a substrate                   |
  *
  * ## Cache invalidation
@@ -72,7 +72,7 @@ export default class SubstrateService extends BaseService {
    */
   private static async fetchFromApi(id?: number): Promise<Substrate[]> {
     if (id) {
-      const response = await ApiUtils.get<APISubstrate>(`${BASE_ENDPOINT}/substrate/${id}`);
+      const response = await ApiUtils.get<APISubstrate>(`${BASE_ENDPOINT}/${id}`);
       const substrate = SubstrateMapper.mapSubstrate(response);
       await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED, substrate);
       return [substrate];
@@ -105,7 +105,7 @@ export default class SubstrateService extends BaseService {
    * Fetches a single substrate by ID.
    *
    * Checks the list cache first. On a miss or when `forceUpdate` is true,
-   * calls GET /substrates/substrate/:id and upserts the result.
+   * calls GET /substrates/:id and upserts the result.
    *
    * @throws {Error} If the substrate cannot be found after fetching
    */
@@ -140,7 +140,7 @@ export default class SubstrateService extends BaseService {
   /**
    * Creates a new substrate via POST /substrates.
    *
-   * Returns the API response containing `{ substrateId: number }`.
+   * Returns the full created substrate.
    */
   static async addSubstrate(substrateData: AddSubstrate): Promise<any> {
     const response = await this.handleRequest(
@@ -155,7 +155,7 @@ export default class SubstrateService extends BaseService {
   /**
    * Creates a new substrate and optionally adds components in one workflow.
    *
-   * Calls POST /substrates to create the substrate, then POST /substrates/components/:id
+   * Calls POST /substrates to create the substrate, then POST /substrates/:id/components
    * if `componentsData` is provided.
    *
    * Note: The V2 endpoint expects only `{ components: [...] }` in the body —
@@ -168,11 +168,11 @@ export default class SubstrateService extends BaseService {
     componentsData?: AddSubstrateComponents,
   ): Promise<number> {
     const substrateResponse = await this.addSubstrate(substrateData);
-    const substrateId = (substrateResponse as { substrateId: number }).substrateId;
+    const substrateId = (substrateResponse as APISubstrate).substrate_id;
 
     if (componentsData?.components?.length) {
       await this.handleRequest(
-        ApiUtils.post(`${BASE_ENDPOINT}/components/${substrateId}`, {
+        ApiUtils.post(`${BASE_ENDPOINT}/${substrateId}/components`, {
           components: componentsData.components,
         }),
         RESOURCE_KEY,
@@ -199,7 +199,7 @@ export default class SubstrateService extends BaseService {
   }
 
   /**
-   * Replaces the component mix for a substrate via PATCH /substrates/components/:id.
+   * Replaces the component mix for a substrate via PATCH /substrates/:id/components.
    *
    * The V2 endpoint uses "upsert" semantics — existing components are replaced,
    * not appended to.
@@ -209,11 +209,13 @@ export default class SubstrateService extends BaseService {
     components: EditSubstrateComponent[],
   ): Promise<any> {
     const response = await this.handleRequest(
-      ApiUtils.patch(`${BASE_ENDPOINT}/components/${substrateId}`, { components }),
+      ApiUtils.patch(`${BASE_ENDPOINT}/${substrateId}/components`, { components }),
       RESOURCE_KEY,
       "substrate.components.edit.title",
     );
-    await this.getSubstrateById(substrateId, true);
+    // Backend now returns the updated substrate — upsert it directly into the cache
+    await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
+      SubstrateMapper.mapSubstrate(response as APISubstrate));
     return response;
   }
 

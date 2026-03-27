@@ -185,7 +185,7 @@ export default defineComponent({
     /** Sort and map new components */
     sortedComponents(componentIds: number[], parts: Record<number, number>) {
       return componentIds
-        .map((id) => ({ componentId: id, parts: parts[id] || 1 }))
+        .map((id) => ({ componentId: id, parts: parseFloat(String(parts[id])) || 1 }))
         .sort((a, b) => a.componentId - b.componentId);
     },
 

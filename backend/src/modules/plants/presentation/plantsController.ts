@@ -2,8 +2,12 @@
  * modules/plants/presentation/plantsController.ts
  *
  * Thin controller: parses HTTP request → calls use case → sends response.
- * All errors are thrown as domain errors and caught by globalErrorHandler.
- * No try/catch needed in controllers anymore.
+ *
+ * REST compliance:
+ *  - GET    → 200 + resource
+ *  - POST   → 201 + created resource + Location header
+ *  - PATCH  → 200 + updated resource
+ *  - DELETE → 204 No Content
  */
 
 import type { Request, Response, NextFunction } from 'express';
@@ -28,14 +32,14 @@ export const createPlantsController = (repo: PlantRepository) => {
       try {
         const userId = req.user?.id ?? null;
         const plants = await getAll.execute(userId);
-        res.json({ success: true, data: plants.map((p) => p.toJSON()) });
+        res.json({ data: plants.map((p) => p.toJSON()) });
       } catch (err) { next(err); }
     },
 
     getPlant: async (req: Request, res: Response, next: NextFunction) => {
       try {
         const plant = await getOne.execute(Number(req.params.id));
-        res.json({ success: true, data: plant.toJSON() });
+        res.json({ data: plant.toJSON() });
       } catch (err) { next(err); }
     },
 
@@ -43,15 +47,23 @@ export const createPlantsController = (repo: PlantRepository) => {
       try {
         const userId = req.user!.id;
         const plantId = await create.execute(req.body, userId);
-        res.status(201).json({ success: true, data: { plantId } });
+        // Fetch the created resource so the client gets the full object
+        const plant = await getOne.execute(plantId);
+        res
+          .status(201)
+          .location(`/plants/${plantId}`)
+          .json({ data: plant.toJSON() });
       } catch (err) { next(err); }
     },
 
     editPlant: async (req: Request, res: Response, next: NextFunction) => {
       try {
         const userId = req.user!.id;
-        await update.execute(Number(req.params.id), userId, req.body);
-        res.json({ success: true, data: { updated: true } });
+        const id = Number(req.params.id);
+        await update.execute(id, userId, req.body);
+        // Return the updated resource
+        const plant = await getOne.execute(id);
+        res.json({ data: plant.toJSON() });
       } catch (err) { next(err); }
     },
 
@@ -59,7 +71,7 @@ export const createPlantsController = (repo: PlantRepository) => {
       try {
         const userId = req.user!.id;
         await remove.execute(Number(req.params.id), userId);
-        res.json({ success: true, data: { deleted: true } });
+        res.status(204).end();
       } catch (err) { next(err); }
     },
   };

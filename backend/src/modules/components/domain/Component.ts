@@ -8,7 +8,7 @@ export interface ComponentData {
   fineness_id: number;
   component_fineness: string;
   image_url: string | null;
-  images: { id: number; url: string; date: string }[];
+  images: { id: number; url: string; date: number }[]; // date = Unix epoch seconds
 }
 
 export interface FinenessLevel {

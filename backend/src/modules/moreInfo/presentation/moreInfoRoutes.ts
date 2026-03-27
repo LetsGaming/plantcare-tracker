@@ -31,7 +31,7 @@ export const createMoreInfoRouter = (_pool?: unknown): Router => {
     const { plantName, htmlFormatting, lang } = req.query as Record<string, string | undefined>;
 
     if (!plantName) {
-      res.status(400).json({ error: { message: 'plantName query parameter is required.', statusCode: 400 } });
+      res.status(400).json({ error: { type: 'ValidationError', message: 'plantName query parameter is required.', statusCode: 400 } });
       return;
     }
 
@@ -71,7 +71,7 @@ export const createMoreInfoRouter = (_pool?: unknown): Router => {
 
       if (!isAborted) await sse.end({ status: 'completed' });
     } catch (err: unknown) {
-      log.error(`MoreInfo SSE error: ${(err as Error).message}`);
+      log.error('MoreInfo SSE error', { err });
       if (!res.writableEnded) {
         res.write(`event: error\ndata: ${JSON.stringify({ message: 'Information stream interrupted' })}\n\n`);
         res.end();

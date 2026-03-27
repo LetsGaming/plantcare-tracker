@@ -62,7 +62,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
     isPublic: boolean,
   ): Promise<number> {
     const result = execute(
-      'INSERT INTO substrates (name, user_id, is_public, created_at) VALUES (?, ?, ?, strftime("%s","now"))',
+      "INSERT INTO substrates (name, user_id, is_public, created_at) VALUES (?, ?, ?, strftime('%s','now'))",
       [name, userId, isPublic ? 1 : 0],
     );
     return result.insertId as number;
@@ -179,7 +179,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
         const imageRef: ImageRef = {
           id: row.image_id,
           url: row.image_url ?? "",
-          date: row.upload_date?.toString() ?? "",
+          date: row.upload_date ?? 0,
         };
         s.images.push(imageRef);
         s.image_url = imageRef.url;

@@ -17,8 +17,10 @@ interface EditImage {
   file?: File;
 }
 
+/** Raw image object as returned by the V2 API (SQLite backend). */
 interface APIImage {
   id: number;
   url: string;
+  /** Unix epoch seconds — stored as INTEGER in SQLite. Use Utils.convertToMillis() to get ms. */
   date: number;
 }

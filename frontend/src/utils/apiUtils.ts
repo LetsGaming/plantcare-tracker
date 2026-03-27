@@ -10,10 +10,9 @@ const API_BASE_URL = Utils.getApiBaseUrl();
 // ── V2 Response envelope ──────────────────────────────────────────────────────
 
 /**
- * V2 success envelope: { success: true, data: T }
+ * Success envelope: { data: T }
  */
 interface ApiSuccessResponse<T = any> {
-  success: true;
   data: T;
 }
 
@@ -108,6 +107,9 @@ const NO_REFRESH_ENDPOINTS = [
  * and the legacy V1 shape { error: string, message: string }.
  */
 const handleResponse = async (response: Response): Promise<any> => {
+  // 204 No Content — no body, just signal success
+  if (response.status === 204) return null;
+
   // Read the body exactly once to avoid consuming the stream twice
   const rawText = await response.text().catch(() => "");
 
@@ -122,9 +124,9 @@ const handleResponse = async (response: Response): Promise<any> => {
     );
   }
 
-  // Success path: HTTP 2xx + success: true
-  if (response.ok && responseData?.success === true) {
-    return responseData.data;
+  // Success path: HTTP 2xx — return .data if present, else the full body
+  if (response.ok) {
+    return 'data' in responseData ? responseData.data : responseData;
   }
 
   // Error path: extract the best human-readable message.
@@ -309,7 +311,7 @@ const ApiUtils = {
     try {
       // V2: POST /auth/request-ticket requires no request body
       const { ticket } = await this.post<null, { ticket: string }>(
-        "/auth/request-ticket",
+        "/auth/ticket",
       );
 
       if (!ticket) throw new Error("SSE Ticket Missing");

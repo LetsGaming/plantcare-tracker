@@ -46,26 +46,80 @@ vi.mock("@/config.json", () => ({
   },
 }));
 
-import Utils from "../utils/utils";
+import Utils from "@/utils/utils";
 
-// ── convertDateString ─────────────────────────────────────────────────────────
+describe("convertDate", () => {
+  // ── VALID INPUTS ─────────────────────────────────────────
 
-describe("convertDateString", () => {
-  it("returns a non-empty string for a valid ISO date", () => {
-    const result = Utils.convertDateString("2025-01-15T08:00:00.000Z");
+  it("formats epoch milliseconds into a readable date", () => {
+    const result = Utils.convertDate(1700000000000);
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
   });
 
-  it("returns the original string for non-ISO input", () => {
-    expect(Utils.convertDateString("not-a-date")).toBe("not-a-date");
-    expect(Utils.convertDateString("01/15/2025")).toBe("01/15/2025");
+  it("formats epoch seconds correctly", () => {
+    const seconds = 1700000000;
+    const millis = 1700000000000;
+
+    const fromSeconds = Utils.convertDate(seconds);
+    const fromMillis = Utils.convertDate(millis);
+
+    expect(fromSeconds).toBe(fromMillis);
   });
 
-  it("handles date-only strings (no time component)", () => {
-    const result = Utils.convertDateString("2025-03-01");
+  it("formats ISO string into readable date", () => {
+    const result = Utils.convertDate("2024-11-14T20:53:20.000Z");
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("formats Date object correctly", () => {
+    const date = new Date("2024-11-14T20:53:20.000Z");
+    const result = Utils.convertDate(date);
+
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  // ── ISO MODE ─────────────────────────────────────────
+
+  it("returns ISO string when format = iso", () => {
+    const result = Utils.convertDate(1700000000000, { format: "iso" });
+
+    expect(result).toContain("202");
+    expect(result).toContain("T");
+    expect(result.endsWith("Z")).toBe(true);
+  });
+
+  // ── INVALID INPUTS ─────────────────────────────────────────
+
+  it("returns original value for invalid string", () => {
+    const result = Utils.convertDate("not-a-date");
+    expect(result).toBe("not-a-date");
+  });
+
+  it("returns original value for NaN", () => {
+    const result = Utils.convertDate(NaN as unknown as number);
+    expect(result).toBe("NaN");
+  });
+
+  // ── BACKWARD COMPAT ─────────────────────────────────────────
+
+  describe("convertDateMillis", () => {
+    it("returns readable date string", () => {
+      const result = Utils.convertDateMillis(1700000000000);
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("matches convertDate readable output", () => {
+      const epoch = 1700000000000;
+
+      const a = Utils.convertDateMillis(epoch);
+      const b = Utils.convertDate(epoch);
+
+      expect(a).toBe(b);
+    });
   });
 });
 

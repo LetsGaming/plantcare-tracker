@@ -11,16 +11,20 @@ type SqlParam = string | number | boolean | null;
 
 interface WateringRow {
   record_id: number;
-  watering_date: string;
+  plant_id: number;
+  plant_name: string;
+  watering_date: number; // Unix epoch seconds stored by SQLite
   used_fertilizer: number;
   fertilizer_type_id: number | null;
   fertilizer_type: string | null;
+  owner_id: number;
 }
 
 // Added JOIN plants p to allow filtering by user_id
 const BASE_QUERY = `
-  SELECT wr.id AS record_id, wr.date AS watering_date, wr.used_fertilizer,
-    ft.id AS fertilizer_type_id, ft.name AS fertilizer_type
+  SELECT wr.id AS record_id, wr.plant_id, wr.date AS watering_date, wr.used_fertilizer,
+    ft.id AS fertilizer_type_id, ft.name AS fertilizer_type,
+    p.name AS plant_name, p.user_id AS owner_id
   FROM watering_records wr
   JOIN plants p ON wr.plant_id = p.id
   LEFT JOIN fertilizer_types ft ON wr.fertilizer_type_id = ft.id
@@ -121,9 +125,12 @@ export class SQLiteWateringRepository implements WateringRepository {
 function mapRow(row: WateringRow): WateringRecordData {
   return {
     record_id: row.record_id,
-    watering_date: row.watering_date,
+    plant_id: row.plant_id,
+    plant_name: row.plant_name,
+    watering_date: row.watering_date, // already a Unix epoch integer from SQLite
     used_fertilizer: Boolean(row.used_fertilizer),
     fertilizer_type_id: row.fertilizer_type_id,
     fertilizer_type: row.fertilizer_type,
+    owner_id: row.owner_id,
   };
 }

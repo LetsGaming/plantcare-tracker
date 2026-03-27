@@ -178,11 +178,12 @@ export default defineComponent({
         this.isAddingLoading = true;
 
         const response = await PlantService.addPlant(plantData);
+        console.log("Add plant response:", response);
         if (!response) return;
 
         if (plantData.image) {
           await PlantService.uploadPlantImage(
-            response.plantId,
+            response.plant_id,
             plantData.image,
           );
           ToastService.showSuccess({

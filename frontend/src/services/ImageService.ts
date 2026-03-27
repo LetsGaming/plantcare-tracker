@@ -29,7 +29,6 @@ export default class ImageService extends BaseService {
 
   static async editImage(
     imageId: number,
-    entityType: string,
     date?: number,
     image?: File,
   ) {
@@ -37,7 +36,7 @@ export default class ImageService extends BaseService {
     if (date) formData.append("date", date.toString());
     if (image) formData.append("image", image);
 
-    const url = `${BASE_ENDPOINT}/image/${entityType}/${imageId}`;
+    const url = `${BASE_ENDPOINT}/${imageId}`;
 
     return this.handleRequest(
       ApiUtils.patchFile(url, formData),
@@ -46,8 +45,8 @@ export default class ImageService extends BaseService {
     );
   }
 
-  static async deleteImage(imageId: number, entityType: string) {
-    const url = `${BASE_ENDPOINT}/image/${entityType}/${imageId}`;
+  static async deleteImage(imageId: number) {
+    const url = `${BASE_ENDPOINT}/${imageId}`;
     return this.handleRequest(
       ApiUtils.delete(url),
       RESOURCE_KEY,

@@ -16,6 +16,7 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import BaseFormModal from "../modal/BaseFormModal.vue";
+import ComponentService from "@/services/ComponentService";
 
 export default defineComponent({
   name: "ComponentEditingModal",
@@ -32,7 +33,11 @@ export default defineComponent({
         name: "",
         fineness: 0,
       } as EditComponent,
+      finenessLevels: [] as APIFinenessLevel[],
     };
+  },
+  async created() {
+    this.finenessLevels = await ComponentService.getFinenessLevels();
   },
   watch: {
     component: {
@@ -55,11 +60,10 @@ export default defineComponent({
           modelKey: "fineness",
           label: "component.field.fineness",
           placeholder: "component.field.fineness_placeholder",
-          options: [
-            { value: "1", label: "component.fineness.coarse" },
-            { value: "2", label: "component.fineness.medium" },
-            { value: "3", label: "component.fineness.fine" },
-          ],
+          options: this.finenessLevels.map((f) => ({
+            value: f.fineness_id,
+            label: f.fineness_name,
+          })),
         },
       ];
     },
@@ -74,7 +78,7 @@ export default defineComponent({
     resetFromComponent() {
       this.editComponentData = {
         name: this.component.name,
-        fineness: 0,
+        fineness: this.component.finenessId,
       };
     },
   },

@@ -24,9 +24,34 @@ export class SQLiteUserRepository implements UserRepository {
   }
 
   async create(username: string, hashedPassword: string): Promise<{ id: number; username: string }> {
+    // Resolve the lowest-privilege role at runtime rather than relying on
+    // the column DEFAULT (3). On a fresh database the roles table may not
+    // yet contain that row, which would fire a FOREIGN KEY constraint error.
+    //
+    // Strategy: prefer the role named 'user' (case-insensitive); fall back
+    // to the role with the highest id (last inserted = least privileged by
+    // convention). Two separate queries avoids the invalid SQLite syntax
+    // of placing LIMIT on individual UNION ALL arms.
+    let roleRow = query<{ id: number }>(
+      `SELECT id FROM roles WHERE name = 'user' COLLATE NOCASE LIMIT 1`,
+    );
+    if (!roleRow.length) {
+      roleRow = query<{ id: number }>(
+        `SELECT id FROM roles ORDER BY id DESC LIMIT 1`,
+      );
+    }
+
+    if (!roleRow.length) {
+      // No roles exist at all — the schema seed hasn't run yet.
+      throw new Error(
+        'Cannot register: no roles found in the database. Run the schema seed first.',
+      );
+    }
+
+    const roleId = roleRow[0].id;
     const result = execute(
-      'INSERT INTO users (username, password) VALUES (?, ?)',
-      [username, hashedPassword],
+      'INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)',
+      [username, hashedPassword, roleId],
     );
     return { id: result.insertId, username };
   }

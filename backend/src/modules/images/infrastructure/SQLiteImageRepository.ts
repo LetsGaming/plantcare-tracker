@@ -11,17 +11,19 @@ import { query, execute, transaction } from "../../../core/database/db";
 export type EntityType = "plant" | "substrate" | "component";
 
 export interface ImageRecord {
-  image_id: number;
-  image_url: string;
-  upload_date: number; // timestamp in seconds
+  id: number;
+  url: string;
+  date: number; // Unix epoch seconds
+  entityType: EntityType;
 }
 
 type SqlParam = string | number | boolean | null;
 
 interface ImageRow {
-  image_id: number;
-  image_url: string;
-  upload_date: number;
+  id: number;
+  url: string;
+  date: number;
+  entityType: EntityType;
 }
 
 export class SQLiteImageRepository {
@@ -33,7 +35,7 @@ export class SQLiteImageRepository {
     entityId: number,
   ): Promise<ImageRecord[]> {
     return query<ImageRow>(
-      `SELECT id AS image_id, image_url, upload_date
+      `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType"
        FROM images
        WHERE entity_type = ? AND entity_id = ?
        ORDER BY upload_date ASC`,
@@ -46,7 +48,7 @@ export class SQLiteImageRepository {
    */
   async findById(imageId: number): Promise<ImageRecord | null> {
     const rows = query<ImageRow>(
-      `SELECT id AS image_id, image_url, upload_date
+      `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType"
        FROM images
        WHERE id = ?`,
       [imageId],
@@ -113,7 +115,7 @@ export class SQLiteImageRepository {
 
     transaction(({ execute: exec }) => {
       for (const img of images) {
-        exec(`DELETE FROM images WHERE id = ?`, [img.image_id]);
+        exec(`DELETE FROM images WHERE id = ?`, [img.id]);
       }
     });
 

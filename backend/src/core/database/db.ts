@@ -63,7 +63,7 @@ function openDb(): BetterSqlite3DB {
   db.pragma('temp_store = MEMORY');
   db.pragma('mmap_size = 134217728'); // 128 MB memory-mapped I/O
 
-  logger.info(`SQLite database opened at ${dbPath}`);
+  logger.debug(`SQLite database opened at ${dbPath}`);
   return db;
 }
 
@@ -92,7 +92,7 @@ function initSchema(db: BetterSqlite3DB): void {
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   // better-sqlite3 exec() runs multi-statement SQL in one shot
   db.exec(schema);
-  logger.info('SQLite schema initialised (CREATE IF NOT EXISTS — safe to re-run)');
+  logger.debug('SQLite schema initialised');
 }
 
 /**
@@ -103,7 +103,7 @@ export function closeDb(): void {
   if (_instance) {
     _instance.close();
     _instance = null;
-    logger.info('SQLite database closed.');
+    logger.debug('SQLite database closed.');
   }
 }
 

@@ -45,7 +45,9 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
   : [];
 
-app.set("trust proxy", true); // if behind a proxy (e.g. nginx), trust X-Forwarded-* headers for correct client IP and protocol detection
+app.set("trust proxy", 1); // trust exactly one upstream proxy (e.g. nginx);
+                           // "true" would trust all hops and let clients spoof X-Forwarded-For,
+                           // bypassing IP-based rate limiting
 
 app.use(
   cors({
@@ -132,16 +134,16 @@ app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
 const server = app.listen(PORT, () => {
-  logger.info(`V2 server running on port ${PORT}`);
+  logger.info(`V2 server running on port ${PORT}`);  // stays info — visible in both dev and prod on startup
 });
 
 const handleShutdown = async (signal: string): Promise<void> => {
-  logger.info(`${signal} — shutting down gracefully...`);
+  logger.debug(`${signal} — shutting down gracefully...`);
   server.close(async () => {
     try {
       await closeBrowser();
       closeDb();          // flushes WAL checkpoint and closes the SQLite file
-      logger.info("Shutdown complete.");
+      logger.debug("Shutdown complete.");
     } catch (err) {
       logger.error("Error during shutdown", { err });
     }
@@ -152,6 +154,24 @@ const handleShutdown = async (signal: string): Promise<void> => {
     process.exit(1);
   }, 10_000);
 };
+
+
+// ── Process-level error guards ────────────────────────────────────────────────
+// Catches unhandled promise rejections (e.g. the express-rate-limit
+// ValidationError about trust proxy) and unexpected thrown exceptions,
+// routing them through the structured logger instead of dumping raw
+// stack traces to stderr.
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection", {
+    err: reason instanceof Error ? reason : undefined,
+    reason: reason instanceof Error ? undefined : String(reason),
+  });
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception — shutting down", { err });
+  process.exit(1);
+});
 
 process.on("SIGTERM", () => handleShutdown("SIGTERM"));
 process.on("SIGINT", () => handleShutdown("SIGINT"));

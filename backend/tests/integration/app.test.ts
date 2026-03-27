@@ -80,14 +80,18 @@ beforeEach(() => {
 
 describe('POST /api/v2/auth/register', () => {
   it('returns 201 with new user data', async () => {
-    mockQuery.mockReturnValue([]);          // no existing user
+    // Call 1: findByUsername → no existing user
+    // Call 2: find role by name 'user' → return a role row
+    mockQuery
+      .mockReturnValueOnce([])                  // findByUsername: no conflict
+      .mockReturnValueOnce([{ id: 3 }]);        // role lookup: 'user' role exists
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 5 });
     const app = buildTestApp();
     const res = await request(app)
       .post('/api/v2/auth/register')
       .send({ username: 'newuser', password: 'password123' });
     expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
+    expect(res.body.data).toBeDefined();
   });
 
   it('returns 409 when username already taken', async () => {
@@ -167,12 +171,22 @@ describe('POST /api/v2/plants', () => {
 
   it('returns 201 for authenticated user with valid data', async () => {
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 7 });
+    // The plant repository has a module-level species cache. Depending on
+    // prior test execution order it may or may not call query() for species.
+    // Strategy: default mockReturnValue returns a plant row for findById;
+    // if the cache is cold it will first call query() for species — we use
+    // mockReturnValueOnce to serve a matching species row so upsertSpecies
+    // finds an exact match (no extra execute). The default fallback then
+    // serves the plant row for the subsequent findById call.
+    mockQuery
+      .mockReturnValueOnce([{ id: 1, name: 'Nephrolepis' }])  // species cache (if cold)
+      .mockReturnValue([makePlantRow({ plant_id: 7 })]);       // findById (always needed)
     const res = await request(buildTestApp())
       .post('/api/v2/plants')
       .set('Authorization', makeAuthHeader())
       .send({ name: 'Fern', species: 'Nephrolepis', substrateId: 1 });
     expect(res.status).toBe(201);
-    expect(res.body.data.plantId).toBe(7);
+    expect(res.body.data.plant_id).toBe(7);
     sessionStore.deleteAll(USER_ID);
   });
 
@@ -204,23 +218,25 @@ describe('GET /api/v2/watering/fertilizer-types', () => {
 describe('POST /api/v2/watering/:plantId', () => {
   it('creates a watering record', async () => {
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 15 });
+    // repo.findById after create calls query — return a watering row
+    mockQuery.mockReturnValue([makeWateringRow({ record_id: 15 })]);
     const res = await request(buildTestApp())
       .post('/api/v2/watering/1')
       .set('Authorization', makeAuthHeader())
       .send({ usedFertilizer: true, fertilizerTypeId: 1 });
     expect(res.status).toBe(201);
-    expect(res.body.data.waterRecordId).toBe(15);
+    expect(res.body.data.record_id).toBe(15);
     sessionStore.deleteAll(USER_ID);
   });
 });
 
 // ── Substrate routes ──────────────────────────────────────────────────────────
 
-describe('GET /api/v2/substrates/public', () => {
+describe('GET /api/v2/substrates', () => {
   it('returns public substrates', async () => {
     mockQuery.mockReturnValue([makeSubstrateRow()]);
     const res = await request(buildTestApp())
-      .get('/api/v2/substrates/public')
+      .get('/api/v2/substrates')
       .set('Authorization', makeAuthHeader());
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
@@ -230,10 +246,10 @@ describe('GET /api/v2/substrates/public', () => {
 
 // ── Component routes (admin) ──────────────────────────────────────────────────
 
-describe('POST /api/v2/components/admin', () => {
+describe('POST /api/v2/components', () => {
   it('returns 403 for non-admin users', async () => {
     const res = await request(buildTestApp())
-      .post('/api/v2/components/admin')
+      .post('/api/v2/components')
       .set('Authorization', makeAuthHeader('user'))
       .send({ name: 'Perlite', fineness: 1 });
     expect(res.status).toBe(403);
@@ -242,8 +258,10 @@ describe('POST /api/v2/components/admin', () => {
 
   it('returns 201 for admin users', async () => {
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 3 });
+    // repo.findById after create calls query — return a component row
+    mockQuery.mockReturnValue([{ id: 3, name: 'Perlite', fineness: 1, fineness_name: 'coarse' }]);
     const res = await request(buildTestApp())
-      .post('/api/v2/components/admin')
+      .post('/api/v2/components')
       .set('Authorization', makeAuthHeader('admin', ADMIN_ID))
       .send({ name: 'Perlite', fineness: 1 });
     expect(res.status).toBe(201);

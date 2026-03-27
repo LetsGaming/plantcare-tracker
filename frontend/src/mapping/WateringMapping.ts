@@ -21,6 +21,8 @@ export default class WateringMapper {
   static mapWateringRecord(watering: APIWateringRecord): WateringRecord {
     return {
       id: watering.record_id,
+      plantId: watering.plant_id,
+      plantName: watering.plant_name,
       date: Utils.convertDateMillis(watering.watering_date),
       date_millis: Utils.convertToMillis(watering.watering_date),
       usedFertilizer: watering.used_fertilizer,

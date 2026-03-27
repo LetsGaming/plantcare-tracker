@@ -100,6 +100,23 @@ CREATE TABLE IF NOT EXISTS substrate_components (
   FOREIGN KEY (component_id) REFERENCES components(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
+INSERT OR IGNORE INTO roles (id, name) VALUES
+  (1, 'admin'),
+  (2, 'user'),
+  (3, 'guest');
+
+INSERT OR IGNORE INTO users (id, username, password, role_id) VALUES
+  (0, 'guest', '$2a$10$JAz/R6ThStgqqGds62uJfeNBgLXsPc9dKp3sGFpCcjjLS3JLQxNBa', 3);
+
+INSERT OR IGNORE INTO fineness_levels (id, name) VALUES
+  (1, 'coarse'),
+  (2, 'medium'),
+  (3, 'fine');
+
+INSERT OR IGNORE INTO fertilizer_types (id, name) VALUES
+  (1, 'organic'),
+  (2, 'synthetic');
+
 COMMIT;
 
 -- ── Performance Indexes ───────────────────────────────────────────────────────

@@ -77,13 +77,16 @@ on SSE endpoints.
     "plant_name": "Monstera Deliciosa",
     "plant_species": "Monstera deliciosa",
     "is_public": true,
-    "plant_created_at": "2024-09-20T14:30:00.000Z",
+    "plant_created_at": 1726839000,
     "image_url": "https://…/plant.webp",
     "substrate": { "substrate_id": 5, "substrate_name": "Aroid Mix" },
-    "images": [{ "id": 10, "url": "…", "date": "…" }]
+    "images": [{ "id": 10, "url": "…", "date": 1748779200 }]
   }
 ]
 ```
+
+All date/time fields (`plant_created_at`, `images[].date`) are **Unix epoch seconds** (integer).
+Use `Utils.convertToMillis()` on the frontend to obtain milliseconds for display.
 
 Note: `substrate` is a **lightweight reference** `{ substrate_id, substrate_name }`,
 not the full `SubstrateData`. Fetch from `/substrates/substrate/:id` for full details.
@@ -138,13 +141,16 @@ The substrate ID belongs in the URL only — do **not** include it in the body.
     "plant_id": 7,
     "plant_name": "Monstera Deliciosa",
     "owner_id": 42,
-    "watering_date": "2025-03-01T09:00:00.000Z",
+    "watering_date": 1740819600,
     "used_fertilizer": true,
     "fertilizer_type_id": 1,
     "fertilizer_type": "Organic"
   }
 ]
 ```
+
+`watering_date` is a **Unix epoch integer (seconds)**, not an ISO date string.
+Use `Utils.convertToMillis()` on the frontend for display.
 
 ---
 

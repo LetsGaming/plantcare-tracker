@@ -92,9 +92,7 @@ export class FetchSalesOverview {
           await onItems(newItems);
         }
       } catch (err: unknown) {
-        log.error(
-          `[${source.key}] Page ${page} failed: ${(err as Error).message}`,
-        );
+        log.error(`[${source.key}] Page ${page} failed`, { err });
       }
     };
 

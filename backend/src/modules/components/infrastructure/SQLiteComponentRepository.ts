@@ -66,7 +66,7 @@ export class SQLiteComponentRepository implements ComponentRepository {
       updates.push("name = ?");
       params.push(fields.name);
     }
-    if (fields.fineness !== undefined) {
+    if (fields.fineness !== undefined && Number.isInteger(fields.fineness) && fields.fineness > 0) {
       updates.push("fineness_id = ?");
       params.push(fields.fineness);
     }
@@ -106,7 +106,7 @@ export class SQLiteComponentRepository implements ComponentRepository {
         const imageRef = {
           id: row.image_id,
           url: row.image_url ?? "",
-          date: row.upload_date?.toString() ?? "",
+          date: row.upload_date ?? 0,
         };
         c.images.push(imageRef);
         c.image_url = row.image_url ?? null;

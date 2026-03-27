@@ -67,7 +67,7 @@ const extractImageDate = async (buffer: Buffer): Promise<Date> => {
       if (parsed) return parsed;
     }
   } catch (err) {
-    log.warn('EXIF extraction failed', { err });
+    log.warn('EXIF extraction failed', { reason: (err as Error).message });
   }
   return new Date();
 };
@@ -133,9 +133,9 @@ const processAndStoreImage = (requireEntityType = false) =>
 const deleteFromDisk = async (imagePath: string): Promise<void> => {
   try {
     await fs.unlink(imagePath);
-    log.info(`Deleted: ${imagePath}`);
+    log.debug(`Deleted image: ${path.basename(imagePath)}`);
   } catch {
-    log.warn(`Unlink failed (file may not exist): ${imagePath}`);
+    log.warn(`Unlink failed (file may not exist): ${path.basename(imagePath)}`);
   }
 };
 
@@ -172,7 +172,7 @@ export const createImageRouter = (_pool?: unknown): Router => {
         const uploadTimestamp = req.body.date ? Math.floor(new Date(req.body.date).getTime() / 1000) : Math.floor(Date.now() / 1000);
 
         await repo.create(entityType as EntityType, Number(entityId), filePath, uploadTimestamp);
-        res.status(201).json({ success: true, data: { path: filePath, date: dateStr } });
+        res.status(201).location(`/images/${entityType}/${entityId}`).json({ data: { path: filePath, date: dateStr } });
       } catch (err) { next(err); }
     },
   );
@@ -181,8 +181,12 @@ export const createImageRouter = (_pool?: unknown): Router => {
   router.get('/:entityType', authenticateToken, validateEntityType, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { entityId } = req.query;
-      const images = await repo.findByEntity(req.params.entityType as EntityType, Number(entityId));
-      res.json({ success: true, data: images });
+      const parsedId = Number(entityId);
+      if (!entityId || !Number.isInteger(parsedId) || parsedId <= 0) {
+        return next(new ValidationError('entityId query parameter must be a positive integer'));
+      }
+      const images = await repo.findByEntity(req.params.entityType as EntityType, parsedId);
+      res.json({ data: images });
     } catch (err) { next(err); }
   });
 
@@ -193,9 +197,10 @@ export const createImageRouter = (_pool?: unknown): Router => {
       if (!images.length) return next(new NotFoundError('Image'));
 
       const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
-      const localPath = resolveLocalPath(images[0].image_url, entityType);
-      await fs.access(localPath);
-
+      const localPath = resolveLocalPath(images[0].url, entityType);
+      // No fs.access() pre-check — it creates a TOCTOU race (file can disappear
+      // between the check and the open). Let sharp throw ENOENT directly; the
+      // catch block below already handles it correctly.
       let transform = sharp(localPath);
       const sizeParam = req.query.size as string | undefined;
       if (sizeParam) {
@@ -213,9 +218,9 @@ export const createImageRouter = (_pool?: unknown): Router => {
     }
   });
 
-  // PATCH /image/:entityType/:id — update image (replace file and/or date)
+  // PATCH /:id — update image (replace file and/or date)
   router.patch(
-    '/image/:entityType/:id',
+    '/:id',
     authenticateToken,
     validateEntityType,
     upload.single('image'),
@@ -223,12 +228,14 @@ export const createImageRouter = (_pool?: unknown): Router => {
       if (!req.file && !req.body.date) {
         return next(new ValidationError('No file or date provided for update.'));
       }
-      // If replacing file, delete old one from disk first
+      // Stash the existing record so we can delete the old file AFTER the new
+      // one is successfully written. Deleting first risks losing the image if
+      // Sharp fails mid-processing.
       if (req.file) {
         const existing = await repo.findById(Number(req.params.id));
         if (existing) {
-          const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
-          await deleteFromDisk(resolveLocalPath(existing.image_url, entityType));
+          (req as Request & { _oldImageUrl?: string; _oldEntityType?: string })._oldImageUrl = existing.url;
+          (req as Request & { _oldImageUrl?: string; _oldEntityType?: string })._oldEntityType = existing.entityType;
         }
       }
       next();
@@ -240,28 +247,39 @@ export const createImageRouter = (_pool?: unknown): Router => {
     },
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const { id, entityType } = req.params;
+        const id = Number(req.params.id);
+        const typed = req as Request & { _oldImageUrl?: string; _oldEntityType?: string };
+        const entityType = typed._oldEntityType ?? 'plant';
         const filePath = req.file
           ? `${req.protocol}://${req.get('host')}/uploads/${entityType}/${req.file.filename}`
           : undefined;
 
         const uploadDate = req.body.date ? Math.floor(new Date(req.body.date).getTime() / 1000) : undefined;
-        await repo.update(Number(id), { uploadDate, imageUrl: filePath });
-        res.json({ success: true, data: { path: filePath } });
+        await repo.update(id, { uploadDate, imageUrl: filePath });
+
+        // New file committed to DB — safe to delete the old file now
+        if (req.file && typed._oldImageUrl) {
+          await deleteFromDisk(resolveLocalPath(typed._oldImageUrl, entityType));
+        }
+
+        const updated = await repo.findById(id);
+        res.json({ data: updated });
       } catch (err) { next(err); }
     },
   );
 
-  // DELETE /image/:entityType/:id — delete single image
-  router.delete('/image/:entityType/:id', authenticateToken, validateEntityType, async (req: Request, res: Response, next: NextFunction) => {
+  // DELETE /:id — delete single image by image ID, 204 No Content
+  router.delete('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const image = await repo.findById(Number(req.params.id));
+      const id = Number(req.params.id);
+      // Reject non-numeric IDs so this route doesn't shadow /:entityType/:entityId
+      if (!Number.isInteger(id) || id <= 0) return next();
+      const image = await repo.findById(id);
       if (!image) return next(new NotFoundError('Image'));
 
-      const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
-      await deleteFromDisk(resolveLocalPath(image.image_url, entityType));
-      await repo.delete(Number(req.params.id));
-      res.json({ success: true, data: { deleted: true } });
+      await deleteFromDisk(resolveLocalPath(image.url, image.entityType));
+      await repo.delete(id);
+      res.status(204).end();
     } catch (err) { next(err); }
   });
 
@@ -273,8 +291,8 @@ export const createImageRouter = (_pool?: unknown): Router => {
         Number(req.params.entityId),
       );
       const entityType = Array.isArray(req.params.entityType) ? req.params.entityType[0] : req.params.entityType;
-      await Promise.all(images.map((img) => deleteFromDisk(resolveLocalPath(img.image_url, entityType))));
-      res.json({ success: true, data: { deleted: true } });
+      await Promise.all(images.map((img) => deleteFromDisk(resolveLocalPath(img.url, entityType))));
+      res.status(204).end();
     } catch (err) { next(err); }
   });
 

@@ -104,7 +104,7 @@ export class OpenAIPlantClient {
       // Cache raw markdown — formatting is applied per-request on cache read
       this.cache.set(cacheKey, fullText);
     } catch (err: unknown) {
-      log.error(`OpenAI stream failed: ${(err as Error).message}`);
+      log.error('OpenAI stream failed', { err });
     }
   }
 }

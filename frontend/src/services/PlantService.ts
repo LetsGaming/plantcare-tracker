@@ -169,7 +169,11 @@ export default class PlantService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed",
     );
-    await this.invalidatePlantCache();
+    // Backend returns the full created plant — upsert into cache directly
+    if (response) {
+      const plant = PlantMapper.mapPlant(response as APIPlant);
+      await this.upsertIntoListCache(CACHE_KEY_ALL, PlantEvents.PLANTS_UPDATED, plant);
+    }
     return response;
   }
 
@@ -185,7 +189,11 @@ export default class PlantService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed",
     );
-    await this.invalidatePlantCache(plantId);
+    // Backend returns the full updated plant — upsert into cache directly
+    if (response) {
+      const plant = PlantMapper.mapPlant(response as APIPlant);
+      await this.upsertIntoListCache(CACHE_KEY_ALL, PlantEvents.PLANTS_UPDATED, plant);
+    }
     return response;
   }
 
