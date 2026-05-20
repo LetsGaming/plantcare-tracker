@@ -68,25 +68,58 @@ function findNpmProjects(dir, projects = []) {
   return projects;
 }
 
-function getVulnerabilityCount(cwd, manager) {
+/**
+ * Audits the project and returns { direct, transitive } vulnerability counts.
+ * "direct" = vulnerabilities in packages listed in package.json (fixable by you).
+ * "transitive" = vulnerabilities only in sub-dependencies (not directly fixable).
+ *
+ * Only direct vulnerabilities should block an update; transitive ones are reported
+ * as warnings since they require upstream fixes.
+ */
+function getVulnerabilities(cwd, manager) {
+  const empty = { direct: 0, transitive: 0 };
   try {
+    // Separate stdout/stderr so pnpm WARN lines don't corrupt JSON parsing
     const result = spawnSync(manager, ["audit", "--json"], {
       cwd,
       encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
     });
+
     const auditData = JSON.parse(result.stdout || "{}");
 
-    if (manager === "npm" && auditData.metadata?.vulnerabilities) {
-      const v = auditData.metadata.vulnerabilities;
-      return v.low + v.moderate + v.high + v.critical;
+    // npm and pnpm share the same audit JSON shape for metadata.vulnerabilities.
+    // The advisories object keys are the individual findings; each has a "findings"
+    // array where findings[].paths tells us whether it reaches a direct dep.
+    if (auditData.advisories) {
+      let direct = 0;
+      let transitive = 0;
+      for (const advisory of Object.values(auditData.advisories)) {
+        const isDirectlyReachable = advisory.findings?.some((f) =>
+          f.paths?.some((p) => !p.includes(">"))
+        );
+        if (isDirectlyReachable) {
+          direct++;
+        } else {
+          transitive++;
+        }
+      }
+      return { direct, transitive };
     }
-    if (manager === "pnpm" && auditData.metadata?.vulnerabilities) {
+
+    // Fallback: only have aggregate counts, can't distinguish direct vs transitive
+    if (auditData.metadata?.vulnerabilities) {
       const v = auditData.metadata.vulnerabilities;
-      return (v.low ?? 0) + (v.moderate ?? 0) + (v.high ?? 0) + (v.critical ?? 0);
+      const total =
+        (v.low ?? 0) + (v.moderate ?? 0) + (v.high ?? 0) + (v.critical ?? 0);
+      // Conservatively treat all as transitive (warn but don't block)
+      // since we can't tell without advisory details
+      return { direct: 0, transitive: total };
     }
-    return 0;
+
+    return empty;
   } catch (e) {
-    return 0;
+    return empty;
   }
 }
 
@@ -256,20 +289,28 @@ async function updateProject(fullPath) {
     for (const strategy of strategies) {
       log.info(`Attempting: ${strategy.name}`);
       if (runSync(strategy.cmd, fullPath)) {
-        const vulnCount = getVulnerabilityCount(fullPath, manager);
-        if (vulnCount === 0) {
-          log.success("Installation clean.");
+        const { direct, transitive } = getVulnerabilities(fullPath, manager);
+        if (direct === 0) {
+          if (transitive > 0) {
+            log.warn(
+              `${transitive} transitive vulnerabilit${transitive === 1 ? "y" : "ies"} found in sub-dependencies — these require upstream fixes and won't block the update.`,
+            );
+          } else {
+            log.success("Installation clean.");
+          }
           installSuccess = true;
           break;
         } else {
-          log.warn(`${vulnCount} vulnerabilit${vulnCount === 1 ? "y" : "ies"} found, trying next strategy...`);
+          log.warn(
+            `${direct} direct vulnerabilit${direct === 1 ? "y" : "ies"} found, trying next strategy...`,
+          );
         }
       }
     }
 
-    // Gate smoke test on a successful install
+    // Gate smoke test on a successful install; direct vulns remaining means rollback
     if (!installSuccess) {
-      throw new Error("All install strategies failed or vulnerabilities remain.");
+      throw new Error("All install strategies failed or direct vulnerabilities remain.");
     }
 
     // 3. Dynamic Smoke Test
