@@ -70,18 +70,52 @@ function findNpmProjects(dir, projects = []) {
 
 function getVulnerabilityCount(cwd, manager) {
   try {
-    const args = manager === "pnpm" ? ["audit", "--json"] : ["audit", "--json"];
-    // Note: Yarn audit output format differs significantly, defaulting to 0 if complex
-    const result = spawnSync(manager, args, { cwd, encoding: "utf8" });
+    const result = spawnSync(manager, ["audit", "--json"], {
+      cwd,
+      encoding: "utf8",
+    });
     const auditData = JSON.parse(result.stdout || "{}");
 
     if (manager === "npm" && auditData.metadata?.vulnerabilities) {
       const v = auditData.metadata.vulnerabilities;
       return v.low + v.moderate + v.high + v.critical;
     }
-    return 0; // Simplified for non-npm managers
+    if (manager === "pnpm" && auditData.metadata?.vulnerabilities) {
+      const v = auditData.metadata.vulnerabilities;
+      return (v.low ?? 0) + (v.moderate ?? 0) + (v.high ?? 0) + (v.critical ?? 0);
+    }
+    return 0;
   } catch (e) {
     return 0;
+  }
+}
+
+/**
+ * Returns manager-specific install strategies, in order of preference.
+ * Each strategy is tried until one succeeds with zero vulnerabilities.
+ */
+function getInstallStrategies(manager) {
+  switch (manager) {
+    case "pnpm":
+      return [
+        { name: "Default Install", cmd: "pnpm install" },
+        // pnpm's equivalent of --legacy-peer-deps: ignore peer dep conflicts
+        { name: "No Strict Peer Install", cmd: "pnpm install --no-strict-peer-dependencies" },
+      ];
+    case "yarn":
+      return [
+        { name: "Default Install", cmd: "yarn install" },
+        // Yarn 1: ignore engines/peer; Yarn Berry: --mode=skip-build is safer but less relevant
+        { name: "Ignore Engines Install", cmd: "yarn install --ignore-engines" },
+      ];
+    case "npm":
+    default:
+      return [
+        { name: "Default Install", cmd: "npm install" },
+        { name: "Legacy Peer Install", cmd: "npm install --legacy-peer-deps" },
+        // audit fix only makes sense after a successful install (lockfile exists)
+        { name: "Security Patch", cmd: "npm audit fix" },
+      ];
   }
 }
 
@@ -215,20 +249,9 @@ async function updateProject(fullPath) {
       throw new Error("NCU failed.");
     }
 
-    // 2. Install Strategy
+    // 2. Install — try manager-specific strategies in order, stop at first clean success
     let installSuccess = false;
-    const strategies = [
-      { name: "Default Install", cmd: `${manager} install` },
-      {
-        name: "Legacy Peer Install",
-        cmd: `${manager} install --legacy-peer-deps`,
-      },
-    ];
-
-    // Add npm-specific audit fix
-    if (manager === "npm") {
-      strategies.push({ name: "Security Patch", cmd: "npm audit fix" });
-    }
+    const strategies = getInstallStrategies(manager);
 
     for (const strategy of strategies) {
       log.info(`Attempting: ${strategy.name}`);
@@ -238,8 +261,15 @@ async function updateProject(fullPath) {
           log.success("Installation clean.");
           installSuccess = true;
           break;
+        } else {
+          log.warn(`${vulnCount} vulnerabilit${vulnCount === 1 ? "y" : "ies"} found, trying next strategy...`);
         }
       }
+    }
+
+    // Gate smoke test on a successful install
+    if (!installSuccess) {
+      throw new Error("All install strategies failed or vulnerabilities remain.");
     }
 
     // 3. Dynamic Smoke Test
