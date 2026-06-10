@@ -124,9 +124,13 @@ const handleResponse = async (response: Response): Promise<any> => {
     );
   }
 
-  // Success path: HTTP 2xx — return .data if present, else the full body
+  // Success path: HTTP 2xx — return .data if present, else the full body.
+  // Guard against null / primitive JSON bodies before using the `in` operator.
   if (response.ok) {
-    return 'data' in responseData ? responseData.data : responseData;
+    if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
+      return 'data' in responseData ? responseData.data : responseData;
+    }
+    return responseData ?? null;
   }
 
   // Error path: extract the best human-readable message.

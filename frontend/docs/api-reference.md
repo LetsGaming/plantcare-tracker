@@ -89,7 +89,7 @@ All date/time fields (`plant_created_at`, `images[].date`) are **Unix epoch seco
 Use `Utils.convertToMillis()` on the frontend to obtain milliseconds for display.
 
 Note: `substrate` is a **lightweight reference** `{ substrate_id, substrate_name }`,
-not the full `SubstrateData`. Fetch from `/substrates/substrate/:id` for full details.
+not the full `SubstrateData`. Fetch from `/substrates/:id` for full details.
 
 ### POST `/` request body
 
@@ -104,7 +104,7 @@ not the full `SubstrateData`. Fetch from `/substrates/substrate/:id` for full de
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
 | GET | `/` | JWT | All public + own substrates (deduped) |
-| GET | `/substrate/:id` | JWT | Single substrate by ID |
+| GET | `/:id` | JWT | Single substrate by ID |
 | POST | `/` | JWT | Create substrate |
 | PATCH | `/:id` | JWT | Update name / isPublic / remove components |
 | POST | `/components/:id` | JWT | Add components |

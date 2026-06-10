@@ -110,7 +110,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       for (const { componentId, parts } of components) {
         exec(
           "INSERT INTO substrate_components (substrate_id, component_id, parts) VALUES (?, ?, ?)",
-          [substrateId, componentId, parseFloat(parts.toString()).toFixed(2)],
+          [substrateId, componentId, Math.round(parts * 100) / 100],
         );
       }
     });
@@ -125,7 +125,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
         exec(
           `INSERT OR REPLACE INTO substrate_components (substrate_id, component_id, parts)
            VALUES (?, ?, ?)`,
-          [substrateId, componentId, parseFloat(parts.toString()).toFixed(2)],
+          [substrateId, componentId, Math.round(parts * 100) / 100],
         );
       }
     });

@@ -44,7 +44,7 @@ export default defineComponent({
         { type: "input", modelKey: "name", label: "component.field.name" },
         {
           type: "select",
-          modelKey: "fineness",
+          modelKey: "finenessId",
           label: "component.field.fineness",
           placeholder: "component.field.fineness_placeholder",
           options: this.finenessLevels.map((f) => ({

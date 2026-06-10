@@ -222,22 +222,21 @@ export const createImageRouter = (_pool?: unknown): Router => {
   router.patch(
     '/:id',
     authenticateToken,
-    validateEntityType,
     upload.single('image'),
     async (req: Request, _res: Response, next: NextFunction) => {
       if (!req.file && !req.body.date) {
         return next(new ValidationError('No file or date provided for update.'));
       }
+      // Fetch the existing record upfront — needed for the old file path and
+      // to return 404 early rather than silently succeeding on a missing id.
+      const existing = await repo.findById(Number(req.params.id));
+      if (!existing) return next(new NotFoundError('Image'));
+
       // Stash the existing record so we can delete the old file AFTER the new
       // one is successfully written. Deleting first risks losing the image if
       // Sharp fails mid-processing.
-      if (req.file) {
-        const existing = await repo.findById(Number(req.params.id));
-        if (existing) {
-          (req as Request & { _oldImageUrl?: string; _oldEntityType?: string })._oldImageUrl = existing.url;
-          (req as Request & { _oldImageUrl?: string; _oldEntityType?: string })._oldEntityType = existing.entityType;
-        }
-      }
+      (req as Request & { _oldImageUrl?: string; _oldEntityType?: string })._oldImageUrl = existing.url;
+      (req as Request & { _oldImageUrl?: string; _oldEntityType?: string })._oldEntityType = existing.entityType;
       next();
     },
     // Only run Sharp processing if a new file was actually uploaded
@@ -249,6 +248,7 @@ export const createImageRouter = (_pool?: unknown): Router => {
       try {
         const id = Number(req.params.id);
         const typed = req as Request & { _oldImageUrl?: string; _oldEntityType?: string };
+        // `_oldEntityType` is always set by the guard above; fallback is a safety net only.
         const entityType = typed._oldEntityType ?? 'plant';
         const filePath = req.file
           ? `${req.protocol}://${req.get('host')}/uploads/${entityType}/${req.file.filename}`

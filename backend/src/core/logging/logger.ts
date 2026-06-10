@@ -112,9 +112,8 @@ const prodConsoleFormat = format.printf(({
 const isDev = process.env.NODE_ENV !== 'production';
 
 export const logger: Logger = createLogger({
-  // debug in dev for maximum visibility; warn in prod to only surface
-  // issues that need attention, keeping log files lean.
-  level: isDev ? 'debug' : 'warn',
+  // Always log at 'info' or above; control verbosity per-transport below.
+  level: isDev ? 'debug' : 'info',
   format: format.combine(
     injectRequestId(),
     format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -129,10 +128,15 @@ export const logger: Logger = createLogger({
     }),
     new transports.File({
       filename: path.join(logDir, 'combined.log'),
+      // persist info+ events so operational logs are always available on disk
+      level: 'info',
     }),
     // Console transport is always active so PM2 / systemd / Docker can
     // capture logs via stdout regardless of environment.
+    // In production, only surface warn+ to stdout to keep it lean while
+    // the combined.log file captures all info-level events.
     new transports.Console({
+      level: isDev ? 'debug' : 'warn',
       format: isDev
         ? format.combine(
             injectRequestId(),

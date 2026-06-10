@@ -79,8 +79,11 @@ export function getDb(): BetterSqlite3DB {
 }
 
 /**
- * Applies the schema SQL if the database is empty (i.e. first run).
- * Idempotent — all CREATE TABLE statements use IF NOT EXISTS.
+ * Applies the schema SQL only when the database has never been initialised
+ * (i.e. the `users` table does not yet exist in sqlite_master).
+ * All CREATE TABLE statements use IF NOT EXISTS, but skipping the exec on
+ * subsequent boots avoids unnecessary I/O and prevents re-running any seed
+ * INSERT statements that may be present in the schema file.
  */
 function initSchema(db: BetterSqlite3DB): void {
   const schemaPath = path.resolve(process.cwd(), 'database', 'database-v3-sqlite.sql');
@@ -89,8 +92,17 @@ function initSchema(db: BetterSqlite3DB): void {
     return;
   }
 
+  // Check whether the DB has already been initialised by looking for a known table.
+  const tableExists = (db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+  ).get() as { name: string } | undefined);
+
+  if (tableExists) {
+    logger.debug('SQLite schema already initialised — skipping');
+    return;
+  }
+
   const schema = fs.readFileSync(schemaPath, 'utf-8');
-  // better-sqlite3 exec() runs multi-statement SQL in one shot
   db.exec(schema);
   logger.debug('SQLite schema initialised');
 }
