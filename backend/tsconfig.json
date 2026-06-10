@@ -21,11 +21,9 @@
     "sourceMap": true,
 
     "skipLibCheck": true,
-
-    "baseUrl": ".",
     "paths": {
-      "@core/*": ["src/core/*"],
-      "@modules/*": ["src/modules/*"]
+      "@core/*": ["./src/core/*"],
+      "@modules/*": ["./src/modules/*"]
     },
 
     "types": ["node"],

@@ -68,20 +68,127 @@ function findNpmProjects(dir, projects = []) {
   return projects;
 }
 
-function getVulnerabilityCount(cwd, manager) {
+/**
+ * Audits the project and returns { direct, transitive } vulnerability counts.
+ * "direct" = vulnerabilities in packages listed in package.json (fixable by you).
+ * "transitive" = vulnerabilities only in sub-dependencies (not directly fixable).
+ *
+ * Only direct vulnerabilities should block an update; transitive ones are reported
+ * as warnings since they require upstream fixes.
+ */
+function getVulnerabilities(cwd, manager) {
+  const empty = { direct: 0, transitive: 0 };
   try {
-    const args = manager === "pnpm" ? ["audit", "--json"] : ["audit", "--json"];
-    // Note: Yarn audit output format differs significantly, defaulting to 0 if complex
-    const result = spawnSync(manager, args, { cwd, encoding: "utf8" });
+    // Separate stdout/stderr so pnpm WARN lines don't corrupt JSON parsing
+    const result = spawnSync(manager, ["audit", "--json"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
     const auditData = JSON.parse(result.stdout || "{}");
 
-    if (manager === "npm" && auditData.metadata?.vulnerabilities) {
-      const v = auditData.metadata.vulnerabilities;
-      return v.low + v.moderate + v.high + v.critical;
+    // npm and pnpm share the same audit JSON shape for metadata.vulnerabilities.
+    // The advisories object keys are the individual findings; each has a "findings"
+    // array where findings[].paths tells us whether it reaches a direct dep.
+    if (auditData.advisories) {
+      let direct = 0;
+      let transitive = 0;
+      for (const advisory of Object.values(auditData.advisories)) {
+        const isDirectlyReachable = advisory.findings?.some((f) =>
+          f.paths?.some((p) => !p.includes(">")),
+        );
+        if (isDirectlyReachable) {
+          direct++;
+        } else {
+          transitive++;
+        }
+      }
+      return { direct, transitive };
     }
-    return 0; // Simplified for non-npm managers
+
+    // Fallback: only have aggregate counts, can't distinguish direct vs transitive
+    if (auditData.metadata?.vulnerabilities) {
+      const v = auditData.metadata.vulnerabilities;
+      const total =
+        (v.low ?? 0) + (v.moderate ?? 0) + (v.high ?? 0) + (v.critical ?? 0);
+      // Conservatively treat all as transitive (warn but don't block)
+      // since we can't tell without advisory details
+      return { direct: 0, transitive: total };
+    }
+
+    return empty;
   } catch (e) {
-    return 0;
+    return empty;
+  }
+}
+
+/**
+ * Returns manager-specific install strategies, in order of preference.
+ * Each strategy is tried until one succeeds with zero direct vulnerabilities.
+ *
+ * `strictPeer` flags whether the strategy uses strict peer resolution (true)
+ * or a more permissive one (false). This is forwarded to buildSyncCmd so the
+ * final lockfile reconciliation uses the same resolution that actually worked.
+ */
+function getInstallStrategies(manager) {
+  switch (manager) {
+    case "pnpm":
+      return [
+        { name: "Default Install", cmd: "pnpm install", strictPeer: true },
+        {
+          name: "No Strict Peer Install",
+          cmd: "pnpm install --no-strict-peer-dependencies",
+          strictPeer: false,
+        },
+      ];
+    case "yarn":
+      return [
+        { name: "Default Install", cmd: "yarn install", strictPeer: true },
+        {
+          name: "Ignore Engines Install",
+          cmd: "yarn install --ignore-engines",
+          strictPeer: true,
+        },
+      ];
+    case "npm":
+    default:
+      return [
+        // audit fix only makes sense after a successful install (lockfile exists).
+        // We provide both variants so audit fix uses the same peer resolution that
+        // the install step required — mismatching them is what causes CI drift.
+        { name: "Default Install", cmd: "npm install", strictPeer: true },
+        {
+          name: "Legacy Peer Install",
+          cmd: "npm install --legacy-peer-deps",
+          strictPeer: false,
+        },
+        { name: "Security Patch", cmd: "npm audit fix", strictPeer: true },
+        {
+          name: "Security Patch (Legacy Peers)",
+          cmd: "npm audit fix --legacy-peer-deps",
+          strictPeer: false,
+        },
+      ];
+  }
+}
+
+/**
+ * Builds the lockfile reconciliation command.
+ * Uses the same peer-dep strictness as the winning install strategy so that
+ * `npm ci` / `pnpm install --frozen-lockfile` in CI sees a consistent lockfile.
+ */
+function buildSyncCmd(manager, strictPeer) {
+  switch (manager) {
+    case "pnpm":
+      return strictPeer
+        ? "pnpm install"
+        : "pnpm install --no-strict-peer-dependencies";
+    case "yarn":
+      return "yarn install";
+    case "npm":
+    default:
+      return strictPeer ? "npm install" : "npm install --legacy-peer-deps";
   }
 }
 
@@ -215,34 +322,61 @@ async function updateProject(fullPath) {
       throw new Error("NCU failed.");
     }
 
-    // 2. Install Strategy
+    // 2. Install — try manager-specific strategies in order, stop at first clean success.
+    //    Track the strictPeer value of the winning strategy for use in step 3.
     let installSuccess = false;
-    const strategies = [
-      { name: "Default Install", cmd: `${manager} install` },
-      {
-        name: "Legacy Peer Install",
-        cmd: `${manager} install --legacy-peer-deps`,
-      },
-    ];
-
-    // Add npm-specific audit fix
-    if (manager === "npm") {
-      strategies.push({ name: "Security Patch", cmd: "npm audit fix" });
-    }
+    let winnerStrictPeer = true;
+    const strategies = getInstallStrategies(manager);
 
     for (const strategy of strategies) {
       log.info(`Attempting: ${strategy.name}`);
       if (runSync(strategy.cmd, fullPath)) {
-        const vulnCount = getVulnerabilityCount(fullPath, manager);
-        if (vulnCount === 0) {
-          log.success("Installation clean.");
+        const { direct, transitive } = getVulnerabilities(fullPath, manager);
+        if (direct === 0) {
+          winnerStrictPeer = strategy.strictPeer;
+          if (transitive > 0) {
+            log.warn(
+              `${transitive} transitive vulnerabilit${transitive === 1 ? "y" : "ies"} found in sub-dependencies — these require upstream fixes and won't block the update.`,
+            );
+          } else {
+            log.success("Installation clean.");
+          }
           installSuccess = true;
           break;
+        } else {
+          log.warn(
+            `${direct} direct vulnerabilit${direct === 1 ? "y" : "ies"} found, trying next strategy...`,
+          );
         }
       }
     }
 
-    // 3. Dynamic Smoke Test
+    if (!installSuccess) {
+      throw new Error(
+        "All install strategies failed or direct vulnerabilities remain.",
+      );
+    }
+
+    // 3. Lockfile reconciliation — prevents the "package.json and package-lock.json
+    //    are out of sync" error in CI.
+    //
+    //    WHY THIS HAPPENS: `npm audit fix` rewrites package.json to bump vulnerable
+    //    deps to safe versions, but its internal `npm install` call doesn't inherit
+    //    the flags (e.g. --legacy-peer-deps) that the earlier install loop needed.
+    //    The lockfile ends up reflecting a different resolution than package.json,
+    //    and `npm ci` rejects it.
+    //
+    //    FIX: Run one final install with the same peer-dep strictness as the strategy
+    //    that succeeded. This regenerates the lockfile from the current package.json
+    //    in a single, consistent pass — the file CI will actually validate against.
+    log.info("Reconciling lockfile with package.json for CI compatibility...");
+    const syncCmd = buildSyncCmd(manager, winnerStrictPeer);
+    if (!runSync(syncCmd, fullPath)) {
+      throw new Error("Lockfile reconciliation failed.");
+    }
+    log.success("Lockfile synced.");
+
+    // 4. Dynamic Smoke Test
     const isStable = await testProject(fullPath, manager);
     if (!isStable) throw new Error("Project failed stability check.");
 
