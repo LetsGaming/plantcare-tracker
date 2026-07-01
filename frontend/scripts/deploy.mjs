@@ -32,7 +32,7 @@ const BASE_DIR = join(DIR, "..");
 // ─── Config ───────────────────────────────────────────────────────────────────
 const CONFIG = {
   appName: process.env.APP_NAME || "plantcare-frontend",
-  port: process.env.PORT || "8080",
+  port: process.env.PORT || "8081",
   host: process.env.HOST || "localhost",
   packageManager: process.env.PM || "auto",
   buildScript: process.env.BUILD_SCRIPT || "build",
