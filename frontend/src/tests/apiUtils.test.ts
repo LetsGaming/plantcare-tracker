@@ -138,20 +138,20 @@ describe("handleResponse (via ApiUtils.get)", () => {
   });
 
   it("returns data from success envelope", async () => {
-    (global.fetch as any).mockResolvedValue(mockResponse(200, { data: { plant_id: 1 } }));
+    (globalThis.fetch as any).mockResolvedValue(mockResponse(200, { data: { plant_id: 1 } }));
     const result = await ApiUtils.get("/test");
     expect(result).toEqual({ plant_id: 1 });
   });
 
   it("throws ApiError for V2 error envelope", async () => {
-    (global.fetch as any).mockResolvedValue(
+    (globalThis.fetch as any).mockResolvedValue(
       mockResponse(404, { error: { type: "NotFoundError", message: "Plant not found", statusCode: 404 } }),
     );
     await expect(ApiUtils.get("/test")).rejects.toThrow("Plant not found");
   });
 
   it("throws ApiError with correct status and fields for 400 ValidationError", async () => {
-    (global.fetch as any).mockResolvedValue(
+    (globalThis.fetch as any).mockResolvedValue(
       mockResponse(400, {
         error: { type: "ValidationError", message: "Species is required", statusCode: 400, fields: { species: "Required" } },
       }),
@@ -169,44 +169,44 @@ describe("handleResponse (via ApiUtils.get)", () => {
   });
 
   it("throws ApiError for V1 legacy string error envelope", async () => {
-    (global.fetch as any).mockResolvedValue(
+    (globalThis.fetch as any).mockResolvedValue(
       mockResponse(400, { error: "Bad request" }),
     );
     await expect(ApiUtils.get("/test")).rejects.toThrow("Bad request");
   });
 
   it("throws ApiError using top-level message as fallback", async () => {
-    (global.fetch as any).mockResolvedValue(
+    (globalThis.fetch as any).mockResolvedValue(
       mockResponse(500, { message: "Internal Server Error" }),
     );
     await expect(ApiUtils.get("/test")).rejects.toThrow("Internal Server Error");
   });
 
   it("throws ApiError with status fallback when no message field exists", async () => {
-    (global.fetch as any).mockResolvedValue(mockResponse(503, {}));
+    (globalThis.fetch as any).mockResolvedValue(mockResponse(503, {}));
     await expect(ApiUtils.get("/test")).rejects.toThrow("Error: 503");
   });
 
   it("returns null data for 200 with null data field", async () => {
-    (global.fetch as any).mockResolvedValue(mockResponse(200, { data: null }));
+    (globalThis.fetch as any).mockResolvedValue(mockResponse(200, { data: null }));
     const result = await ApiUtils.get("/test");
     expect(result).toBeNull();
   });
 
   it("returns empty array for 200 with [] data field", async () => {
-    (global.fetch as any).mockResolvedValue(mockResponse(200, { data: [] }));
+    (globalThis.fetch as any).mockResolvedValue(mockResponse(200, { data: [] }));
     const result = await ApiUtils.get("/test");
     expect(result).toEqual([]);
   });
 
   it("returns null for 204 No Content", async () => {
-    (global.fetch as any).mockResolvedValue({ ok: true, status: 204, text: () => Promise.resolve("") });
+    (globalThis.fetch as any).mockResolvedValue({ ok: true, status: 204, text: () => Promise.resolve("") });
     const result = await ApiUtils.get("/test");
     expect(result).toBeNull();
   });
 
   it("throws ApiError with raw text when JSON parsing fails", async () => {
-    (global.fetch as any).mockResolvedValue({
+    (globalThis.fetch as any).mockResolvedValue({
       ok: false,
       status: 500,
       text: () => Promise.resolve("not json"),
