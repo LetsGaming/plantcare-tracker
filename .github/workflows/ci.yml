@@ -29,7 +29,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: ./backend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Run Typecheck
         working-directory: ./backend
@@ -65,7 +65,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ./frontend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Run Key Diff Check
         working-directory: ./frontend
