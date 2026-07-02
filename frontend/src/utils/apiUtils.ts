@@ -176,7 +176,11 @@ const handleNoAuth = async (
     await UserService.refreshToken();
     return await requestFn();
   } catch (error) {
-    await UserService.logout();
+    // Local teardown only: the refresh just failed, so the session is
+    // already dead server-side — a POST /logout would be a no-op. The
+    // full logout() here used to clear a token that a parallel login had
+    // just stored and then reloaded the page mid-login.
+    await UserService.handleLocalLogout();
     const msg = localizationService.t(
       "auth.session_expired",
       undefined,
@@ -227,7 +231,15 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
     (response.status === 401 || response.status === 403) &&
     !shouldSkipRefresh
   ) {
-    response = await handleNoAuth(requestFn);
+    // Only enter the refresh/teardown cycle if the request was actually
+    // made while signed in. A 401 on an unauthenticated call (anything
+    // fired while the user is still on the login screen) must never
+    // trigger the token-clearing logout path — it would race and undo a
+    // login happening at the same moment.
+    const hadToken = !!(await TokenUtils.getToken());
+    if (hadToken) {
+      response = await handleNoAuth(requestFn);
+    }
   }
 
   return handleResponse(response);

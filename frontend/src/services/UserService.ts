@@ -75,6 +75,10 @@ export default class UserService extends BaseService {
     this.clearMemoryCache();
     await TokenUtils.clearToken();
     await storageService.clear();
+    // Already on the login screen (e.g. a background refresh died there):
+    // local cleanup is all that is needed — navigating/reloading here
+    // would interrupt whatever the user is typing into the login form.
+    if (router.currentRoute.value.name === "login") return;
     router.replace({ name: "login" }).then(() => window.location.reload());
   }
 

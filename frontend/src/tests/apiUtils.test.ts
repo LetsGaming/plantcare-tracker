@@ -26,7 +26,11 @@ vi.mock("../utils/utils", () => ({
   default: { getApiBaseUrl: vi.fn().mockReturnValue("http://test") },
 }));
 vi.mock("@/services/UserService", () => ({
-  default: { refreshToken: vi.fn(), logout: vi.fn() },
+  default: {
+    refreshToken: vi.fn(),
+    logout: vi.fn(),
+    handleLocalLogout: vi.fn(),
+  },
 }));
 
 import ApiUtils, { ApiError } from "../utils/apiUtils";
@@ -235,3 +239,52 @@ describe("isApiError type guard", () => {
   });
 });
 
+
+// ── Auth retry gate (performRequest) ─────────────────────────────────────────
+
+import TokenUtils from "../utils/tokenUtils";
+import UserService from "@/services/UserService";
+
+describe("auth retry gate", () => {
+  const jsonResponse = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  it("does not enter the refresh cycle for a 401 without a stored token", async () => {
+    // Anything that 401s while the user is not signed in (e.g. a request
+    // fired on the login screen) must fail plainly — the refresh/teardown
+    // cycle used to clear a token a parallel login had just stored.
+    vi.mocked(TokenUtils.getToken).mockResolvedValue(null);
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(401, {
+        error: { type: "UnauthorizedError", message: "No token", statusCode: 401 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(ApiUtils.get("/plants")).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no retry
+    expect(UserService.refreshToken).not.toHaveBeenCalled();
+    expect(UserService.handleLocalLogout).not.toHaveBeenCalled();
+    expect(UserService.logout).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("refreshes and retries a 401 when a token was stored", async () => {
+    vi.mocked(TokenUtils.getToken).mockResolvedValue("stored-jwt");
+    vi.mocked(UserService.refreshToken).mockResolvedValue("new-jwt" as any);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(401, { error: { message: "expired" } }))
+      .mockResolvedValueOnce(jsonResponse(200, { data: { ok: true } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ApiUtils.get<{ ok: boolean }>("/plants");
+    expect(result).toEqual({ ok: true });
+    expect(UserService.refreshToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+  });
+});

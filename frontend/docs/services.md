@@ -180,6 +180,13 @@ UserService.isGuest()          → boolean
 Token refresh uses exponential backoff (3 retries, 1s apart). A 401 response
 from `/auth/refresh-token` immediately aborts the retry loop and triggers logout.
 
+The 401/403 retry path in `ApiUtils` only runs when an access token was
+actually stored: a 401 on an unauthenticated request (e.g. anything fired
+while the user is still on the login screen) fails plainly instead of
+triggering the refresh/teardown cycle. When the cycle does fail, teardown is
+local (`handleLocalLogout`) and never navigates or reloads while the user is
+already on the login screen.
+
 ---
 
 ## ComponentService

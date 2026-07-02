@@ -185,10 +185,11 @@ export default defineComponent({
 
   async mounted() {
     try {
-      if (!(await UserService.isAuthenticated())) return;
-
-      await UserService.refreshToken(1);
-      this.redirectUser();
+      // isAuthenticated() already refreshes via the cookie when no access
+      // token is stored — the unconditional second refresh that used to
+      // follow here was redundant and could throw on cookie edge cases,
+      // silently preventing the redirect.
+      if (await UserService.isAuthenticated()) this.redirectUser();
     } catch {
       // ignore
     } finally {

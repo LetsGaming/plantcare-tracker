@@ -116,7 +116,9 @@ Issues a one-time ticket (60 s validity) for authenticating SSE streams; see [Au
 
 ### POST `/logout`
 
-Clears the `refreshToken` cookie and removes the session.
+Invalidates the session server-side (the refresh cookie is scoped to
+`/auth`, so it reaches this endpoint) and clears the `refreshToken` cookie —
+on the current path as well as on legacy paths from earlier releases.
 
 ```
 // Response 204 — no body

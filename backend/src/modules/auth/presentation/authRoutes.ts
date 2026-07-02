@@ -76,9 +76,21 @@ export const createAuthRouter = (): Router => {
   const updateProfile = new UpdateProfileUseCase(repo);
   const deleteProfile = new DeleteProfileUseCase(repo);
 
-  // Scope the refresh cookie to the one endpoint that reads it, so it
-  // is never sent along with regular API calls.
-  const refreshCookiePath = `/api/${getApiVersionPath()}/auth/refresh-token`;
+  // Scope the refresh cookie to the auth module: /refresh-token reads it
+  // to mint new access tokens and /logout reads it to invalidate the
+  // session server-side. It is still never sent along with regular API
+  // calls outside /auth. (Scoping it to /refresh-token only — as earlier
+  // releases did — meant /logout never saw the cookie, so sessions were
+  // never invalidated and a page load could silently sign the user back
+  // in via the surviving refresh token.)
+  const refreshCookiePath = `/api/${getApiVersionPath()}/auth`;
+
+  // Cookie paths used by earlier releases — logout keeps clearing them so
+  // sessions created before the upgrade can still sign out cleanly.
+  const legacyCookiePaths = [
+    `/api/${getApiVersionPath()}/auth/refresh-token`,
+    '/',
+  ];
 
   // POST /register → 201 + user
   router.post(
@@ -117,6 +129,10 @@ export const createAuthRouter = (): Router => {
         ...COOKIE_BASE,
         secure: isHttpsRequest(req),
         maxAge: AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS,
+        // Same scope as the regular login — without it the cookie lands on
+        // path "/" and the logout clearCookie (attribute-matched) never
+        // removes it, so guests could not actually sign out.
+        path: refreshCookiePath,
       });
       res.json({ data: { accessToken } });
     }),
@@ -143,12 +159,16 @@ export const createAuthRouter = (): Router => {
 
   // POST /logout → 204 No Content
   router.post('/logout', (req: Request, res: Response) => {
+    // The cookie is scoped to /auth, so it arrives here and the session
+    // can actually be invalidated server-side.
     logout.execute(req.cookies?.refreshToken);
-    res.clearCookie(AUTH.REFRESH_TOKEN_COOKIE, {
-      ...COOKIE_BASE,
-      secure: isHttpsRequest(req),
-      path: refreshCookiePath,
-    });
+    for (const path of [refreshCookiePath, ...legacyCookiePaths]) {
+      res.clearCookie(AUTH.REFRESH_TOKEN_COOKIE, {
+        ...COOKIE_BASE,
+        secure: isHttpsRequest(req),
+        path,
+      });
+    }
     res.status(HTTP_STATUS.NO_CONTENT).end();
   });
 

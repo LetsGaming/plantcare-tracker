@@ -82,6 +82,10 @@ Full HTTP cycle against a real Express app with the `core/database/db` module mo
 - Watering: fertilizer types, create record
 - Substrates: public listing
 - Components: admin guard (403 for user, 201 for admin)
+- Auth session lifecycle: refresh cookie scoped to `/auth` (login and guest
+  login), logout invalidates the session server-side (the same refresh token
+  answers 403 afterwards), logout clears current + legacy cookie paths,
+  refresh without a cookie answers 401
 - Errors: 404 for unknown routes, JSON error shape, `X-Request-Id` header present
 
 ## Coverage Thresholds

@@ -46,10 +46,15 @@ Cookie: accessToken=<accessToken>
 
 The refresh token is always delivered via cookie:
 ```
-Cookie: refreshToken=<refreshToken>; HttpOnly; SameSite=Strict; Path=/api/v2/auth/refresh-token
+Cookie: refreshToken=<refreshToken>; HttpOnly; SameSite=Strict; Path=/api/v2/auth
 ```
 
-The `path` restriction means the refresh token cookie is **only sent** to the `/refresh-token` endpoint, not to every API call.
+The `path` restriction scopes the cookie to the auth module: it is sent to
+`/refresh-token` (to mint new access tokens) and to `/logout` (so the session
+can be invalidated server-side), but never to regular API calls outside
+`/auth`. Logout also clears the cookie on the paths used by earlier releases
+(`/api/v2/auth/refresh-token` and `/`), so sessions created before an upgrade
+can still sign out cleanly.
 
 ## Guest Access
 
@@ -58,7 +63,7 @@ Guest users can read all public data but cannot create, modify, or delete anythi
 ```
 POST /auth/login/guest
   → Returns { accessToken } (1h expiry)
-  → Sets refreshToken cookie (no path restriction, 1h expiry)
+  → Sets refreshToken cookie (same /auth path scope as a regular login, 1h expiry)
 ```
 
 The `checkGuestPermission` middleware blocks non-GET methods for the `guest` role.

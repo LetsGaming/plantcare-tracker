@@ -26,7 +26,7 @@ pnpm test --coverage
 ```
 src/tests/
 ├── mapping.test.ts        Unit tests for all mapper classes
-├── apiUtils.test.ts       Unit tests for ApiError and handleResponse
+├── apiUtils.test.ts       Unit tests for ApiError, handleResponse, auth retry gate
 ├── utils.test.ts          Unit tests for Utils helper functions
 ├── baseService.test.ts    Cache helpers + optimistic wrappers (paint / reconcile / rollback)
 └── viewReactivity.test.ts Event-driven views via @vue/test-utils

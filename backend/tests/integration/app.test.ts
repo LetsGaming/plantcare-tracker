@@ -289,3 +289,87 @@ describe('Error handling', () => {
     expect(res.headers['x-request-id']).toBeTruthy();
   });
 });
+// ── Auth session lifecycle (cookie scope + server-side invalidation) ─────────
+
+describe('auth session lifecycle', () => {
+  const loginAlice = async (app: Application) => {
+    const hash = await bcrypt.hash('pass123', 10);
+    mockQuery.mockReturnValue([
+      { id: 1, username: 'alice', password: hash, role: 'user' },
+    ]);
+    return request(app)
+      .post('/api/v2/auth/login')
+      .send({ username: 'alice', password: 'pass123' });
+  };
+
+  const setCookies = (res: request.Response): string[] =>
+    (res.headers['set-cookie'] as unknown as string[]) ?? [];
+
+  const extractRefreshCookie = (res: request.Response): string => {
+    const cookie = setCookies(res).find((c) => c.startsWith('refreshToken='));
+    expect(cookie).toBeTruthy();
+    return (cookie as string).split(';')[0]; // "refreshToken=<jwt>"
+  };
+
+  it('scopes the login refresh cookie to the auth module so /logout receives it', async () => {
+    const res = await loginAlice(buildTestApp());
+    const cookieHeader = setCookies(res).join('\n');
+    expect(cookieHeader).toContain('Path=/api/v2/auth;');
+    // The old refresh-token-only scope kept the cookie away from /logout,
+    // so sessions were never invalidated.
+    expect(cookieHeader).not.toContain('Path=/api/v2/auth/refresh-token');
+    sessionStore.deleteAll(1);
+  });
+
+  it('scopes the guest refresh cookie identically (it must be clearable on logout)', async () => {
+    mockQuery.mockReturnValue([
+      { id: 99, username: 'guest', password: 'x', role: 'guest' },
+    ]);
+    const res = await request(buildTestApp()).post('/api/v2/auth/login/guest');
+    expect(res.status).toBe(200);
+    // Previously the guest cookie was set without a path (landing on "/"),
+    // so the attribute-matched clearCookie on logout never removed it and
+    // guests could not actually sign out.
+    expect(setCookies(res).join('\n')).toContain('Path=/api/v2/auth;');
+    sessionStore.deleteAll(99);
+  });
+
+  it('logout invalidates the session — the same refresh token is rejected afterwards', async () => {
+    const app = buildTestApp();
+    const cookie = extractRefreshCookie(await loginAlice(app));
+
+    // Sanity: the refresh token works before logout.
+    const before = await request(app)
+      .post('/api/v2/auth/refresh-token')
+      .set('Cookie', cookie);
+    expect(before.status).toBe(200);
+    expect(before.body.data.accessToken).toBeTruthy();
+
+    // The browser now sends the cookie to /logout (same /auth scope).
+    const logoutRes = await request(app)
+      .post('/api/v2/auth/logout')
+      .set('Cookie', cookie);
+    expect(logoutRes.status).toBe(204);
+
+    // The very same refresh token must be dead server-side afterwards.
+    const after = await request(app)
+      .post('/api/v2/auth/refresh-token')
+      .set('Cookie', cookie);
+    expect(after.status).toBe(403);
+    sessionStore.deleteAll(1);
+  });
+
+  it('logout clears the current and all legacy cookie paths', async () => {
+    const res = await request(buildTestApp()).post('/api/v2/auth/logout');
+    expect(res.status).toBe(204);
+    const cleared = setCookies(res).join('\n');
+    expect(cleared).toContain('Path=/api/v2/auth;');
+    expect(cleared).toContain('Path=/api/v2/auth/refresh-token;');
+    expect(cleared).toContain('Path=/;');
+  });
+
+  it('refresh without a cookie answers 401', async () => {
+    const res = await request(buildTestApp()).post('/api/v2/auth/refresh-token');
+    expect(res.status).toBe(401);
+  });
+});
