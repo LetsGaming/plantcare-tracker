@@ -41,9 +41,14 @@ tests/
 │   │   └── auth.test.ts        # generateTokens, sessionStore, ticketStore, middleware
 │   └── modules/
 │       ├── plants.test.ts      # Plant entity + all 5 PlantUseCases
+│       ├── watering.test.ts    # toEpochSeconds + all 6 WateringUseCases
+│       ├── substrate.test.ts   # Ownership guard, dedupe, component parsing
+│       ├── components.test.ts  # Catalogue CRUD use cases
+│       ├── images.test.ts      # Image use cases incl. file/DB ordering rules
+│       ├── moreInfo.test.ts    # parsePlantInfoQuery + StreamPlantInfo orchestration
 │       ├── auth.test.ts        # All 8 AuthUseCases (register, login, logout, …)
 │       ├── sales.test.ts       # Sale entity, scrapeHelpers, FetchSalesOverview
-│       └── repositories.test.ts # MySQL repos with mocked pool
+│       └── repositories.test.ts # SQLite repos with the db module mocked
 │
 └── integration/
     └── app.test.ts             # Full HTTP cycle: auth flow, CRUD, error shapes
@@ -52,7 +57,7 @@ tests/
 ### What Each File Covers
 
 **`helpers/mockFactory.ts`**  
-Central source of truth for test doubles. Exports `createMockPool`, `createMockRequest`, `createMockResponse`, `createMockNext`, typed user fixtures (`adminUser`, `regularUser`, `guestUser`), and DB row builders (`makePlantRow`, `makeWateringRow`, etc.).
+Central source of truth for test doubles. Exports `createMockRequest`, `createMockResponse`, `createMockNext`, typed user fixtures (`adminUser`, `regularUser`, `guestUser`), and DB row builders (`makePlantRow`, `makeWateringRow`, etc.).
 
 **`unit/core/auth.test.ts`**  
 - `generateTokens` — payload, relative expiry
@@ -66,12 +71,12 @@ Central source of truth for test doubles. Exports `createMockPool`, `createMockR
 Tests SQL correctness and row-mapping logic without a real database:
 - Plants: JOIN row collapsing, multi-image dedup, `affectedRows` → boolean
 - Watering: `used_fertilizer` cast to boolean, `fertilizerTypeId: null` handled correctly
-- Substrates: component + image collapsing, `ON DUPLICATE KEY UPDATE` SQL, empty array early return
+- Substrates: component + image collapsing, `INSERT OR REPLACE` SQL, empty array early return
 - UserRepository: column whitelist — injecting `malicious` or `role_id` keys has no effect
 - ImageRepository: `delete()` hits only `images` table (CASCADE handles join tables)
 
 **`integration/app.test.ts`**  
-Full HTTP cycle with a mocked pool injected into a real Express app:
+Full HTTP cycle against a real Express app with the `core/database/db` module mocked:
 - Auth: register (201, 409), login (200, 401), wrong password
 - Plants: GET without auth (200), POST without auth (401), guest POST (403), valid POST (201), validation failure (400)
 - Watering: fertilizer types, create record
@@ -132,24 +137,28 @@ describe('MyUseCase', () => {
 ### 2. Repository Test
 
 ```typescript
-import { createMockPool } from '../../helpers/mockFactory';
-import type { ResultSetHeader } from 'mysql2/promise';
+// Repositories call the query/execute/transaction helpers from core/database/db;
+// mock that module before importing the repository (see repositories.test.ts).
+const mockQuery   = vi.fn().mockReturnValue([]);
+const mockExecute = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
+
+vi.mock('../../../src/core/database/db', () => ({
+  query:   (...args: unknown[]) => mockQuery(...args),
+  execute: (...args: unknown[]) => mockExecute(...args),
+  transaction: vi.fn((fn: Function) => fn({ query: mockQuery, execute: mockExecute })),
+  getDb: vi.fn(),
+  closeDb: vi.fn(),
+}));
 
 it('create returns insertId', async () => {
-  const pool = createMockPool();
-  (pool.execute as ReturnType<typeof vi.fn>)
-    .mockResolvedValue([{ insertId: 42 } as ResultSetHeader, []]);
-
-  const repo = new MySQLMyRepository(pool);
-  const id = await repo.create({ name: 'test' });
+  mockExecute.mockReturnValue({ affectedRows: 1, insertId: 42 });
+  const id = await new SQLiteMyRepository().create({ name: 'test' });
   expect(id).toBe(42);
 });
 
 it('findById returns null when no rows', async () => {
-  const pool = createMockPool();
-  (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue([[], []]);
-
-  expect(await new MySQLMyRepository(pool).findById(999)).toBeNull();
+  mockQuery.mockReturnValue([]);
+  expect(await new SQLiteMyRepository().findById(999)).toBeNull();
 });
 ```
 
@@ -160,17 +169,14 @@ Add to `tests/integration/app.test.ts` (or create a new file and register the ro
 ```typescript
 describe('GET /api/v2/my-module', () => {
   it('returns 200 with data', async () => {
-    const pool = createMockPool();
-    (pool.query as ReturnType<typeof vi.fn>)
-      .mockResolvedValue([[{ id: 1, name: 'test' }], []]);
+    mockQuery.mockReturnValue([{ id: 1, name: 'test' }]);
 
-    const app = buildTestApp(pool);
+    const app = buildTestApp();
     const res = await request(app)
       .get('/api/v2/my-module')
       .set('Authorization', makeAuthHeader());
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(res.body.data).toHaveLength(1);
     sessionStore.deleteAll(USER_ID);
   });

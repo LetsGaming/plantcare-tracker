@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { formatToDBDate, ensureArray, filterDuplicatesById } from '../../../src/core/utils';
 
 describe('formatToDBDate', () => {
-  it('formats a timestamp number to MySQL datetime string', () => {
+  it('formats a timestamp number to a SQL datetime string', () => {
     const ts = new Date('2024-06-15T10:30:00.000Z').getTime();
     expect(formatToDBDate(ts)).toBe('2024-06-15 10:30:00');
   });

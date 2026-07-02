@@ -1,21 +1,17 @@
 /**
  * modules/images/infrastructure/SQLiteImageRepository.ts
  *
- * Handles images in the new schema:
- *  • Single table `images` with columns: id, image_url, entity_type, entity_id, upload_date
- *  • All operations are straightforward, no join tables needed
+ * SQLite implementation of the ImageRepository port.
+ * Single table `images`: id, image_url, entity_type, entity_id, upload_date.
  */
 
 import { query, execute, transaction } from "../../../core/database/db";
-
-export type EntityType = "plant" | "substrate" | "component";
-
-export interface ImageRecord {
-  id: number;
-  url: string;
-  date: number; // Unix epoch seconds
-  entityType: EntityType;
-}
+import type {
+  ImageRepository,
+  ImageRecord,
+  EntityType,
+  UpdateImageDTO,
+} from "../domain/Image";
 
 type SqlParam = string | number | boolean | null;
 
@@ -26,10 +22,7 @@ interface ImageRow {
   entityType: EntityType;
 }
 
-export class SQLiteImageRepository {
-  /**
-   * Fetch all images for a given entity
-   */
+export class SQLiteImageRepository implements ImageRepository {
   async findByEntity(
     entityType: EntityType,
     entityId: number,
@@ -43,9 +36,6 @@ export class SQLiteImageRepository {
     );
   }
 
-  /**
-   * Fetch a single image by ID
-   */
   async findById(imageId: number): Promise<ImageRecord | null> {
     const rows = query<ImageRow>(
       `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType"
@@ -56,32 +46,21 @@ export class SQLiteImageRepository {
     return rows[0] ?? null;
   }
 
-  /**
-   * Insert a new image
-   */
   async create(
     entityType: EntityType,
     entityId: number,
     imageUrl: string,
     uploadDate?: number,
   ): Promise<number> {
-    return transaction(({ execute: exec }) => {
-      const result = exec(
-        `INSERT INTO images (image_url, entity_type, entity_id, upload_date)
-         VALUES (?, ?, ?, COALESCE(?, strftime('%s','now')))`,
-        [imageUrl, entityType, entityId, uploadDate ?? null],
-      );
-      return result.insertId as number;
-    });
+    const result = execute(
+      `INSERT INTO images (image_url, entity_type, entity_id, upload_date)
+       VALUES (?, ?, ?, COALESCE(?, strftime('%s','now')))`,
+      [imageUrl, entityType, entityId, uploadDate ?? null],
+    );
+    return result.insertId;
   }
 
-  /**
-   * Update image URL and/or upload date
-   */
-  async update(
-    imageId: number,
-    fields: { imageUrl?: string; uploadDate?: number },
-  ): Promise<void> {
+  async update(imageId: number, fields: UpdateImageDTO): Promise<void> {
     const updates: string[] = [];
     const params: SqlParam[] = [];
     if (fields.imageUrl !== undefined) {
@@ -97,15 +76,13 @@ export class SQLiteImageRepository {
     execute(`UPDATE images SET ${updates.join(", ")} WHERE id = ?`, params);
   }
 
-  /**
-   * Delete a single image
-   */
   async delete(imageId: number): Promise<void> {
     execute(`DELETE FROM images WHERE id = ?`, [imageId]);
   }
 
   /**
-   * Delete all images linked to a specific entity
+   * Deletes all images of an entity inside one transaction and returns
+   * the deleted records so the caller can clean up the files.
    */
   async deleteByEntity(
     entityType: EntityType,

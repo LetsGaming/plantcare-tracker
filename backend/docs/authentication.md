@@ -68,7 +68,7 @@ The `checkGuestPermission` middleware blocks non-GET methods for the `guest` rol
 `EventSource` does not support custom headers, so SSE endpoints (`/sales`, `/more-info`) use one-time tickets:
 
 ```
-1. POST /auth/request-ticket   (requires valid JWT)
+1. POST /auth/ticket           (requires valid JWT)
    → { ticket: "a3f9b2..." }
 
 2. GET /sales?ticket=a3f9b2...
@@ -81,7 +81,7 @@ Tickets:
 - Are **single-use** (burned on first use, even if invalid)
 - Are generated with `crypto.randomBytes(32)`
 
-Use `makeAuthenticateSSE(pool)` for SSE routes that need full user data (role, username). Use `authenticateSSE` for routes that only need the user ID.
+SSE routes use `makeAuthenticateSSE({ loadUserFromDb })` — see the middleware reference below. Ticket TTL and the session limit live in `core/config` (`AUTH.SSE_TICKET_TTL_MS`, `AUTH.MAX_SESSIONS_PER_USER`).
 
 ## Roles
 
@@ -89,9 +89,9 @@ Use `makeAuthenticateSSE(pool)` for SSE routes that need full user data (role, u
 |------|------|-------------|
 | Admin | `admin` | Full access, including component CRUD |
 | User | `user` | CRUD on own plants, substrates, watering records |
-| Guest | `guest` | GET only on public data |
+| Guest | `guest` | GET only |
 
-The `isAdmin` middleware checks `req.user.role === 'admin'` (case-insensitive).
+The `isAdmin` middleware checks `req.user.role === 'admin'` (case-insensitive). The guest restriction is enforced by `checkGuestPermission` on **every mutating route** across all modules — plants, watering, substrates, and images (the components catalogue is admin-only anyway).
 
 ## Session Store
 
@@ -115,12 +115,12 @@ Validates the access token (header or cookie) and checks the session store. Sets
 router.get('/protected', authenticateToken, handler);
 ```
 
-### `optionalAuth`
+### `optionalAuthenticateToken`
 
 Like `authenticateToken`, but never blocks the request. `req.user` is set if a valid token is present, `undefined` otherwise. Used for `GET /plants` so public plants are visible without login.
 
 ```typescript
-router.get('/', optionalAuth, handler);
+router.get('/', optionalAuthenticateToken, handler);
 ```
 
 ### `isAdmin`
@@ -139,18 +139,16 @@ Blocks non-GET requests from the `guest` role.
 router.post('/', authenticateToken, checkGuestPermission, handler);
 ```
 
-### `makeAuthenticateSSE(pool)`
+### `makeAuthenticateSSE(options)`
 
-For SSE endpoints. Validates ticket, burns it, then performs a DB lookup to populate `req.user` with full user data (username, role).
+The single SSE authenticator (the former standalone `authenticateSSE` variant is merged into it). Validates the one-time ticket and burns it, then populates `req.user`:
+
+- `makeAuthenticateSSE()` — no DB lookup; `req.user` carries only `{ id, username: '', role: 'user' }`. Used by sales.
+- `makeAuthenticateSSE({ loadUserFromDb: true })` — additionally loads username and role from the database. Used by moreInfo.
 
 ```typescript
-const authenticateSSE = makeAuthenticateSSE(pool);
-router.get('/', authenticateSSE, sseHandler);
+router.get('/', makeAuthenticateSSE({ loadUserFromDb: true }), sseHandler);
 ```
-
-### `authenticateSSE`
-
-Fallback version without DB lookup — sets `req.user` with only `{ id, username: '', role: 'user' }`. Only use when user details beyond ID are not needed.
 
 ---
 

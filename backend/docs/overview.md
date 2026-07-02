@@ -11,7 +11,7 @@ The Plantcare Tracker Backend is a Node.js/Express REST API built with clean arc
 | Validation | Manual `if` checks | Zod schemas at use-case boundaries |
 | Error handling | `errorResponse()` helper per controller | Centralized `globalErrorHandler` with typed `AppError` hierarchy |
 | N+1 queries | Present in plants, substrates, components | Eliminated — single JOIN queries throughout |
-| SQL injection | Direct key interpolation in `UPDATE` | Column whitelist in `MySQLUserRepository` |
+| SQL injection | Direct key interpolation in `UPDATE` | Column whitelist in `SQLiteUserRepository` |
 | Logging | `console.log` | Winston with AsyncLocalStorage request-ID correlation |
 | Testing | None | Vitest unit + integration suite |
 
@@ -35,7 +35,7 @@ server.ts  →  /api/v2/auth
 | Runtime | Node.js ≥ 18 |
 | Framework | Express 5 |
 | Language | TypeScript 5 (strict) |
-| Database | MySQL 8 via `mysql2/promise` |
+| Database | SQLite via `better-sqlite3` (WAL mode) |
 | Validation | Zod |
 | Auth | JWT (`jsonwebtoken`), bcrypt |
 | Image processing | Sharp, exif-parser |

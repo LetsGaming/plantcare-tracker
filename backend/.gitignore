@@ -1,4 +1,16 @@
 .buildcache.json
+
+# Environment / secrets
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+
 # SQLite database files
 data/
 *.db

@@ -2,6 +2,7 @@ import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 import storageService from "@/services/general/StorageService";
 import WateringMapper from "@/mapping/WateringMapping";
+import Utils from "@/utils/utils";
 
 /**
  * Base API endpoint for all watering-related requests.
@@ -137,59 +138,150 @@ export default class WateringService extends BaseService {
   }
 
   /* =========================================================================
-     Mutations
-     ========================================================================= */
+     Mutations — optimistic
+     =========================================================================
+     Each mutation paints the expected outcome into the dictionary cache
+     immediately (views react to RECORDS_CHANGED), then reconciles with the
+     record the server returns — or rolls back just the affected item on
+     failure. handleRequest still owns the single error toast. */
 
   /**
-   * Adds a new watering record.
+   * Adds a new watering record (optimistic).
+   *
+   * The record appears in the cache instantly under a temporary negative
+   * id and is swapped for the server-assigned record on success.
+   *
+   * @returns The mapped server record.
    */
   static async addWateringRecord(
     plantId: number,
     data: AddWateringRecord,
-  ): Promise<any> {
-    const response = await this.handleRequest(
-      ApiUtils.post(`${BASE_ENDPOINT}/${plantId}`, data),
-      RESOURCE_KEY,
-      "watering.add",
-    );
-    // Invalidate so next fetch re-reads the full ordered list from server
-    await this.invalidatePlantCache(plantId);
-    return response;
+  ): Promise<WateringRecord> {
+    const millis = data.date ?? Date.now();
+    const optimistic: WateringRecord = {
+      id: -Date.now(), // temp id — replaced by the server id on reconcile
+      plantId,
+      plantName: await this.peekPlantName(plantId),
+      date: Utils.convertDateMillis(millis),
+      date_millis: millis,
+      usedFertilizer: data.usedFertilizer,
+      fertilizerTypeId: data.fertilizerTypeId ?? undefined,
+      fertilizerType: await this.peekFertilizerName(data.fertilizerTypeId),
+    };
+
+    return this.optimisticDictionaryListUpsert<WateringRecord, WateringRecord>({
+      cacheKey: CACHE_KEY_RECORDS,
+      entryKey: plantId.toString(),
+      eventKey: WateringEvents.RECORDS_CHANGED,
+      optimisticItem: optimistic,
+      request: async () =>
+        WateringMapper.mapWateringRecord(
+          await this.handleRequest(
+            ApiUtils.post<AddWateringRecord, APIWateringRecord>(
+              `${BASE_ENDPOINT}/${plantId}`,
+              data,
+            ),
+            RESOURCE_KEY,
+            "watering.add",
+          ),
+        ),
+      reconcile: (record) => record,
+    });
   }
 
   /**
-   * Updates an existing watering record.
+   * Updates an existing watering record (optimistic).
+   *
+   * The merged record is painted immediately; the previous state of that
+   * one record is restored if the request fails.
+   *
+   * @returns The mapped server record.
    */
   static async editWateringRecord(
     plantId: number,
     recordId: number,
     data: EditWateringRecord,
-  ): Promise<any> {
-    const response = await this.handleRequest(
-      ApiUtils.patch(`${BASE_ENDPOINT}/${recordId}`, data),
-      RESOURCE_KEY,
-      "watering.update",
+  ): Promise<WateringRecord> {
+    const existing = (await this.getWateringRecords(plantId)).find(
+      (r) => r.id === recordId,
     );
+    const millis = data.date ?? existing?.date_millis ?? Date.now();
+    const optimistic: WateringRecord = {
+      id: recordId,
+      plantId,
+      plantName: existing?.plantName ?? "",
+      date: Utils.convertDateMillis(millis),
+      date_millis: millis,
+      usedFertilizer: data.usedFertilizer,
+      fertilizerTypeId: data.fertilizerTypeId ?? undefined,
+      fertilizerType: await this.peekFertilizerName(data.fertilizerTypeId),
+    };
 
-    await this.invalidatePlantCache(plantId);
-    return response;
+    return this.optimisticDictionaryListUpsert<WateringRecord, WateringRecord>({
+      cacheKey: CACHE_KEY_RECORDS,
+      entryKey: plantId.toString(),
+      eventKey: WateringEvents.RECORDS_CHANGED,
+      optimisticItem: optimistic,
+      request: async () =>
+        WateringMapper.mapWateringRecord(
+          await this.handleRequest(
+            ApiUtils.patch<EditWateringRecord, APIWateringRecord>(
+              `${BASE_ENDPOINT}/${recordId}`,
+              data,
+            ),
+            RESOURCE_KEY,
+            "watering.update",
+          ),
+        ),
+      reconcile: (record) => record,
+    });
   }
 
   /**
-   * Deletes a watering record.
+   * Deletes a watering record (optimistic).
+   *
+   * The record disappears immediately and is re-inserted at its original
+   * position if the request fails.
    */
   static async deleteWateringRecord(
     plantId: number,
     recordId: number,
-  ): Promise<any> {
-    const response = await this.handleRequest(
-      ApiUtils.delete(`${BASE_ENDPOINT}/${recordId}`),
-      RESOURCE_KEY,
-      "watering.delete",
-    );
+  ): Promise<void> {
+    await this.optimisticDictionaryListRemove<WateringRecord, unknown>({
+      cacheKey: CACHE_KEY_RECORDS,
+      entryKey: plantId.toString(),
+      eventKey: WateringEvents.RECORDS_CHANGED,
+      itemId: recordId,
+      request: () =>
+        this.handleRequest(
+          ApiUtils.delete<void>(`${BASE_ENDPOINT}/${recordId}`),
+          RESOURCE_KEY,
+          "watering.delete",
+        ),
+    });
+  }
 
-    await this.invalidatePlantCache(plantId);
-    return response;
+  /* =========================================================================
+     Optimistic-paint helpers (cache-only, never trigger network)
+     ========================================================================= */
+
+  /** Best-effort plant name for a fresh optimistic record, from sibling records. */
+  private static async peekPlantName(plantId: number): Promise<string> {
+    const stored = await storageService.get<{
+      data: Record<string, WateringRecord[]>;
+    }>(CACHE_KEY_RECORDS);
+    return stored?.data?.[plantId.toString()]?.[0]?.plantName ?? "";
+  }
+
+  /** Best-effort fertilizer display name from the cached type catalogue. */
+  private static async peekFertilizerName(
+    fertilizerTypeId?: number | null,
+  ): Promise<string | undefined> {
+    if (fertilizerTypeId == null) return undefined;
+    const stored = await storageService.get<{ data: FertilizerType[] }>(
+      CACHE_KEY_FERTILIZER,
+    );
+    return stored?.data?.find((t) => t.id === fertilizerTypeId)?.name;
   }
 
   /**

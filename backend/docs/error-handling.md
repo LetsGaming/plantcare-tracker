@@ -18,6 +18,26 @@ AppError
 
 All classes live in `src/core/errors/AppError.ts` and are re-exported from `src/core/errors/index.ts`.
 
+## Reaching the Handler: asyncHandler
+
+Every async controller is wrapped in `asyncHandler` (`core/middleware`, a re-export of `express-async-handler`), so a rejected promise lands in the global handler without try/catch boilerplate:
+
+```typescript
+getPlant: asyncHandler(async (req, res) => {
+  const plant = await getOne.execute(Number(req.params.id)); // may throw NotFoundError
+  res.json({ data: plant.toJSON() });
+}),
+```
+
+## Validation: parseOrThrow
+
+Use cases never call `schema.parse` directly. `parseOrThrow(schema, input, message)` (`core/validation`) runs the zod schema and converts failures into a `ValidationError` whose `fields` map carries one message per invalid field — the same shape on every endpoint:
+
+```typescript
+const data = parseOrThrow(CreatePlantSchema, input, 'Invalid plant data');
+// on failure → ValidationError('Invalid plant data', { species: 'Species is required' })
+```
+
 ## Throwing Errors
 
 Throw typed errors from anywhere — use cases, repositories, middleware — and they will be caught and serialized automatically:
@@ -42,7 +62,7 @@ throw new ConflictError('Username already exists');
 
 ## The Global Handler
 
-`src/core/middleware/errorHandler.ts` — registered last in `server-v2.ts`:
+`src/core/middleware/errorHandler.ts` — registered last in `server.ts`:
 
 ```typescript
 app.use(notFoundHandler);   // catches unmatched routes → 404

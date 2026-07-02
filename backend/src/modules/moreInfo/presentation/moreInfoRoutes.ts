@@ -1,83 +1,51 @@
 /**
  * modules/moreInfo/presentation/moreInfoRoutes.ts
  *
- * SSE endpoint: streams AI care guide + plant links in parallel.
- * Thin controller: orchestration logic lives in the use case,
- * SSE plumbing is handled by the shared SseManager.
+ * Composition root for the plant-information SSE endpoint. The route
+ * is thin wiring only: SSE-ticket auth, the shared stream lifecycle
+ * from core/sse, and the StreamPlantInfo use case doing the work.
  */
 
 import { Router } from 'express';
-import type { Request, Response } from 'express';
 import { NodeCacheAdapter } from '../../../core/cache';
 import { makeAuthenticateSSE } from '../../../core/middleware';
+import { createSseEndpoint } from '../../../core/sse';
 import { OpenAIPlantClient } from '../infrastructure/OpenAIClient';
 import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
-import { SseManager } from '../../sales/presentation/SseManager';
-import { createModuleLogger } from '../../../core/logging';
+import {
+  StreamPlantInfoUseCase,
+  parsePlantInfoQuery,
+} from '../application/StreamPlantInfo';
+import type { PlantInfoRequest } from '../domain/PlantInfo';
 
+/** AI care guides are cached for 12 hours (matches V1). */
+const AI_GUIDE_CACHE_TTL_SECONDS = 43_200;
 
-const log = createModuleLogger('MoreInfoRoutes');
-
-export const createMoreInfoRouter = (_pool?: unknown): Router => {
+export const createMoreInfoRouter = (): Router => {
   const router = Router();
-  const authenticateSSE = makeAuthenticateSSE();
 
-  // Shared cache: 12h TTL for AI responses (same as V1)
-  const cache = new NodeCacheAdapter(43_200);
+  const cache = new NodeCacheAdapter(AI_GUIDE_CACHE_TTL_SECONDS);
   const aiClient = new OpenAIPlantClient(cache);
   const searchers = createPlantLinkSearchers(cache);
+  const useCase = new StreamPlantInfoUseCase(aiClient, searchers);
 
-  router.get('/', authenticateSSE, async (req: Request, res: Response) => {
-    const { plantName, htmlFormatting, lang } = req.query as Record<string, string | undefined>;
-
-    if (!plantName) {
-      res.status(400).json({ error: { type: 'ValidationError', message: 'plantName query parameter is required.', statusCode: 400 } });
-      return;
-    }
-
-    const cleanedName = plantName
-      .replace(/\s*\([^)]*\)/g, '')
-      .replace(/[^a-zA-Z0-9 ]/g, '');
-
-    const targetLanguage = lang ?? req.headers['accept-language']?.split(',')[0] ?? 'en';
-    let isAborted = false;
-
-    req.on('close', () => { isAborted = true; });
-
-    const sse = new SseManager(res);
-
-    try {
-      // Run AI stream and link scrapers in parallel
-      const linksPromise = Promise.allSettled(
-        searchers.map(async (searcher) => {
-          if (isAborted) return;
-          const link = await searcher(cleanedName);
-          if (link && !isAborted) {
-            await sse.send({ type: 'link', value: link });
-          }
+  router.get(
+    '/',
+    makeAuthenticateSSE({ loadUserFromDb: true }),
+    createSseEndpoint<PlantInfoRequest>({
+      name: 'MoreInfo',
+      errorMessage: 'Information stream interrupted',
+      doneMessage: () => ({ status: 'completed' }),
+      prepare: (req) =>
+        parsePlantInfoQuery(req.query, req.headers['accept-language']),
+      run: ({ sse, isAborted }, request) =>
+        useCase.execute({
+          request,
+          isAborted,
+          onEvent: (event) => sse.send(event),
         }),
-      );
-
-      const aiPromise = aiClient.streamPlantCare(
-        cleanedName,
-        htmlFormatting === 'true',
-        async (chunk) => {
-          if (!isAborted) await sse.send({ type: 'ai_chunk', value: chunk });
-        },
-        targetLanguage,
-      );
-
-      await Promise.all([linksPromise, aiPromise]);
-
-      if (!isAborted) await sse.end({ status: 'completed' });
-    } catch (err: unknown) {
-      log.error('MoreInfo SSE error', { err });
-      if (!res.writableEnded) {
-        res.write(`event: error\ndata: ${JSON.stringify({ message: 'Information stream interrupted' })}\n\n`);
-        res.end();
-      }
-    }
-  });
+    }),
+  );
 
   return router;
 };

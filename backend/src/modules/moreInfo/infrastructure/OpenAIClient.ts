@@ -1,13 +1,15 @@
 /**
  * modules/moreInfo/infrastructure/OpenAIClient.ts
  *
- * Streams plant care information from OpenAI.
- * Ported 1:1 from V1's openaiClient.js with TypeScript types added.
- * Cache uses the shared CacheService interface.
+ * OpenAI implementation of the PlantGuideStreamer port.
+ * Streams plant care information chunk by chunk; completed guides are
+ * cached (raw Markdown) via the shared CacheService interface, with
+ * HTML formatting applied per request on cache reads.
  */
 
 import { OpenAI } from 'openai';
 import type { CacheService } from '../../../core/cache/CacheService';
+import type { PlantGuideStreamer } from '../domain/PlantInfo';
 import { createModuleLogger } from '../../../core/logging';
 
 const log = createModuleLogger('OpenAIClient');
@@ -29,7 +31,7 @@ const formatToHTML = (text: string, htmlFormatting: boolean): string => {
   return `<div>${lines.join('')}</div>`;
 };
 
-export class OpenAIPlantClient {
+export class OpenAIPlantClient implements PlantGuideStreamer {
   private readonly client: OpenAI | null;
 
   constructor(private readonly cache: CacheService) {

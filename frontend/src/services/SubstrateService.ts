@@ -67,7 +67,7 @@ export default class SubstrateService extends BaseService {
   /**
    * Internal API fetcher.
    *
-   * - With `id`: calls GET /substrates/substrate/:id and upserts the result.
+   * - With `id`: calls GET /substrates/:id and upserts the result.
    * - Without `id`: calls GET /substrates and replaces the full cache.
    */
   private static async fetchFromApi(id?: number): Promise<Substrate[]> {
@@ -148,7 +148,11 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed",
     );
-    await this.invalidateSubstrateCache();
+    // Backend returns the full created substrate — upsert it directly
+    // instead of clearing the whole cache (which forced every view into
+    // a refetch).
+    await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
+      SubstrateMapper.mapSubstrate(response as APISubstrate));
     return response;
   }
 
@@ -171,12 +175,16 @@ export default class SubstrateService extends BaseService {
     const substrateId = (substrateResponse as APISubstrate).substrate_id;
 
     if (componentsData?.components?.length) {
-      await this.handleRequest(
+      const withComponents = await this.handleRequest(
         ApiUtils.post(`${BASE_ENDPOINT}/${substrateId}/components`, {
           components: componentsData.components,
         }),
         RESOURCE_KEY,
       );
+      // The components endpoint answers with the full substrate including
+      // its component mix — upsert the final state over the bare create.
+      await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
+        SubstrateMapper.mapSubstrate(withComponents as APISubstrate));
     }
 
     return substrateId;
@@ -194,7 +202,9 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed",
     );
-    await this.invalidateSubstrateCache(substrateId);
+    // Backend returns the full updated substrate — upsert it directly
+    await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
+      SubstrateMapper.mapSubstrate(response as APISubstrate));
     return response;
   }
 
@@ -230,7 +240,7 @@ export default class SubstrateService extends BaseService {
       RESOURCE_KEY,
       "error.action_failed",
     );
-    await this.invalidateSubstrateCache(substrateId);
+    await this.removeFromListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED, substrateId);
     return response;
   }
 
@@ -244,10 +254,14 @@ export default class SubstrateService extends BaseService {
     substrateId: number,
     image: File,
     date?: string | Date,
-    doInvalidate = true,
+    refreshCache = true,
   ): Promise<any> {
     const response = await ImageService.uploadImage(image, "substrate", substrateId, date);
-    if (doInvalidate) await this.invalidateSubstrateCache(substrateId);
+    // Targeted refresh (GET /substrates/:id → upsert + event) — the old
+    // invalidation dropped the substrate from every view until a refetch.
+    if (refreshCache) {
+      await this.handleRequest(this.fetchFromApi(substrateId), RESOURCE_KEY);
+    }
     return response;
   }
 }

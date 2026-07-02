@@ -42,7 +42,7 @@ import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 
-import PlantService from "@/services/PlantService";
+import PlantService, { PlantEvents } from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -72,6 +72,18 @@ export default defineComponent({
 
   async ionViewWillEnter() {
     await this.fetchPlants();
+  },
+
+  // Cache subscription lives in mounted/beforeUnmount (not the ionView
+  // hooks): Ionic keeps pages alive when navigating away, and the list
+  // must keep reacting to mutations made elsewhere (e.g. plant deleted
+  // from its details page).
+  mounted() {
+    document.addEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
+  },
+
+  beforeUnmount() {
+    document.removeEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
   },
 
   computed: {
@@ -120,6 +132,17 @@ export default defineComponent({
 
     async fetchPlants() {
       await this.loadPlants();
+    },
+
+    /**
+     * Reacts to PLANTS_UPDATED (fired by every optimistic paint,
+     * reconcile, and rollback). Re-derives the visible list from the
+     * cache via the service getters — never triggers a network request.
+     */
+    async handlePlantsUpdated() {
+      this.plants = this.isPublic
+        ? await PlantService.getPublicPlants()
+        : await PlantService.getPersonalPlants();
     },
 
     async refreshPlants() {
@@ -177,30 +200,23 @@ export default defineComponent({
       try {
         this.isAddingLoading = true;
 
-        const response = await PlantService.addPlant(plantData);
-        console.log("Add plant response:", response);
-        if (!response) return;
+        // Optimistic: the plant is already painted into the cache and the
+        // list has re-rendered via PLANTS_UPDATED. The resolved value is
+        // the reconciled server plant, carrying the real id for the upload.
+        const plant = await PlantService.addPlant(plantData);
 
         if (plantData.image) {
-          await PlantService.uploadPlantImage(
-            response.plant_id,
-            plantData.image,
-          );
+          await PlantService.uploadPlantImage(plant.id, plantData.image);
           ToastService.showSuccess({
             key: "plant.add.upload_success",
             fallback: "Image uploaded successfully.",
           });
         }
 
-        this.isAddingLoading = false;
         this.closeAddModal();
-        await this.fetchPlants();
       } catch (error) {
-        this.isAddingLoading = false;
-        ToastService.showError({
-          key: "plant.add.error_failed",
-          fallback: "Failed to add plant.",
-        });
+        // handleRequest has already shown the error toast; the optimistic
+        // wrapper has rolled the cache back. Keep the modal open for retry.
         console.error("Add plant failed:", error);
       } finally {
         this.isAddingLoading = false;

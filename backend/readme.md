@@ -29,8 +29,10 @@ pnpm run typecheck
 ## 3. DB-Migration ausführen
 
 ```bash
-mysql -u <user> -p <database> < database/migration_v2_indexes.sql
+node scripts/migrate-sqlite.js
 ```
+
+Die SQLite-Datenbank (inkl. Schema) wird beim ersten Start automatisch angelegt; das Skript wird nur für die Übernahme von Bestandsdaten benötigt.
 
 ## Hinweis
 

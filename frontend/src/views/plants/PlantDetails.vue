@@ -80,7 +80,7 @@
 import { IonPage, IonContent, IonText } from "@ionic/vue";
 import { defineComponent } from "vue";
 
-import PlantService from "@/services/PlantService";
+import PlantService, { PlantEvents } from "@/services/PlantService";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -137,7 +137,12 @@ export default defineComponent({
   },
 
   async mounted() {
+    document.addEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
     await Promise.all([this.loadPlantData(), this.fetchSubstrates()]);
+  },
+
+  beforeUnmount() {
+    document.removeEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
   },
 
   computed: {
@@ -186,6 +191,26 @@ export default defineComponent({
       }
     },
 
+    /**
+     * Reacts to PLANTS_UPDATED (optimistic paints, reconciles, rollbacks,
+     * and image-triggered refreshes). Re-derives this page's plant from the
+     * cache — never triggers a plant fetch. Only the full substrate is
+     * (re)fetched, and only when the referenced substrate actually changed.
+     */
+    async handlePlantsUpdated() {
+      const plants = await PlantService.getAllPlants();
+      this.plant = plants.find((p) => p.id === this.plantId) ?? null;
+
+      const refId = this.plant?.substrate?.id;
+      if (!refId) {
+        this.fullSubstrate = null;
+      } else if (this.fullSubstrate?.id !== refId) {
+        this.fullSubstrate = await SubstrateService.getSubstrateById(refId).catch(
+          () => null,
+        );
+      }
+    },
+
     async fetchSubstrates() {
       try {
         this.substrates = await SubstrateService.getAllSubstrates();
@@ -205,15 +230,13 @@ export default defineComponent({
 
       this.isEditLoading = true;
       try {
+        // Optimistic: the page has already re-rendered via PLANTS_UPDATED.
         await PlantService.editPlant(this.plant.id, payload);
         ToastService.showSuccess({ key: "plant.edit.success" });
-        await this.loadPlantData();
         this.showEditModal = false;
       } catch (error) {
-        ToastService.showError({
-          key: "plant.edit.error",
-          fallback: "Error while editing the plant",
-        });
+        // handleRequest has shown the toast; the cache was rolled back and
+        // the page re-derived the previous state. Keep the modal open.
         console.error("Edit plant failed:", error);
       } finally {
         this.isEditLoading = false;
@@ -222,20 +245,20 @@ export default defineComponent({
 
     async handlePlantDelete() {
       if (!this.plant) return;
+      const plantId = this.plant.id;
 
-      this.isEditLoading = true;
+      // Optimistic: the plant is removed from the cache immediately, so
+      // navigate right away — the overview already renders without it.
+      this.showEditModal = false;
+      this.$router.push({ name: "plant-overview" });
+
       try {
-        await PlantService.deletePlant(this.plant.id);
+        await PlantService.deletePlant(plantId);
         ToastService.showSuccess({ key: "plant.delete.success" });
-        this.$router.push({ name: "plant-overview" });
       } catch (error) {
-        ToastService.showError({
-          key: "plant.delete.error",
-          fallback: "Error while deleting the plant",
-        });
+        // handleRequest has shown the toast; the rollback re-inserted the
+        // plant, and the overview re-derived it back into the list.
         console.error("Delete plant failed:", error);
-      } finally {
-        this.isEditLoading = false;
       }
     },
 
@@ -246,12 +269,13 @@ export default defineComponent({
 
       try {
         this.isImageLoading = true;
+        // uploadPlantImage refreshes this plant's cache entry itself;
+        // the gallery re-renders via PLANTS_UPDATED.
         await PlantService.uploadPlantImage(
           this.plant.id,
           fileItem.file,
           fileItem.date
         );
-        await this.loadPlantData();
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);
@@ -266,7 +290,10 @@ export default defineComponent({
     },
 
     async handleImageEdited() {
-      await this.loadPlantData();
+      // Images are edited via ImageService and are embedded in the plant
+      // object — force-refresh this plant's cache entry; PLANTS_UPDATED
+      // then re-derives the gallery.
+      await PlantService.getPlantById(this.plantId, true).catch(() => undefined);
       this.showImageEditModal = false;
     },
   },

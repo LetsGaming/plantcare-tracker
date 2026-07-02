@@ -15,7 +15,7 @@ pnpm install
 cp .env.example .env        # fill in DB credentials and JWT secrets
 
 # Database
-mysql -u your_user -p your_db < database/database-v2.sql
+# SQLite schema is applied automatically on first start
 
 # Develop
 pnpm run dev             # hot reload via tsx

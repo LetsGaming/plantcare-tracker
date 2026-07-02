@@ -14,7 +14,7 @@ import {
   UpdatePlantUseCase,
   DeletePlantUseCase,
 } from '../../../src/modules/plants/application/PlantUseCases';
-import { NotFoundError, ValidationError } from '../../../src/core/errors';
+import { NotFoundError, ValidationError, InternalError } from '../../../src/core/errors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -121,13 +121,27 @@ describe('GetPlantUseCase', () => {
 describe('CreatePlantUseCase', () => {
   const validInput = { name: 'Pothos', species: 'Epipremnum aureum', substrateId: 1, isPublic: false };
 
-  it('creates plant with valid input', async () => {
+  it('creates plant and returns the full read-back resource', async () => {
+    const repo = makeMockRepo();
+    const created = new Plant(makePlantData({ plant_id: 42, plant_name: 'Pothos' }));
+    (repo.create as ReturnType<typeof vi.fn>).mockResolvedValue(42);
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(created);
+
+    const plant = await new CreatePlantUseCase(repo).execute(validInput, 2);
+    expect(plant.id).toBe(42);
+    expect(plant.name).toBe('Pothos');
+    expect(repo.create).toHaveBeenCalledWith({ ...validInput, userId: 2 });
+    expect(repo.findById).toHaveBeenCalledWith(42);
+  });
+
+  it('throws InternalError when the created plant cannot be read back', async () => {
     const repo = makeMockRepo();
     (repo.create as ReturnType<typeof vi.fn>).mockResolvedValue(42);
+    // default findById mock resolves null → read-back fails
 
-    const id = await new CreatePlantUseCase(repo).execute(validInput, 2);
-    expect(id).toBe(42);
-    expect(repo.create).toHaveBeenCalledWith({ ...validInput, userId: 2 });
+    await expect(
+      new CreatePlantUseCase(repo).execute(validInput, 2),
+    ).rejects.toThrow(InternalError);
   });
 
   it('throws ValidationError for missing name', async () => {
@@ -153,6 +167,7 @@ describe('CreatePlantUseCase', () => {
 
   it('defaults isPublic to false', async () => {
     const repo = makeMockRepo();
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
     await new CreatePlantUseCase(repo).execute({ name: 'x', species: 'x', substrateId: 1 }, 2);
     const callArg = (repo.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(callArg.isPublic).toBe(false);
@@ -162,10 +177,14 @@ describe('CreatePlantUseCase', () => {
 // ── UpdatePlantUseCase ────────────────────────────────────────────────────────
 
 describe('UpdatePlantUseCase', () => {
-  it('updates plant with valid partial input', async () => {
+  it('updates plant and returns the full read-back resource', async () => {
     const repo = makeMockRepo();
-    await new UpdatePlantUseCase(repo).execute(1, 2, { name: 'New Name' });
+    const updatedPlant = new Plant(makePlantData({ plant_name: 'New Name' }));
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(updatedPlant);
+
+    const plant = await new UpdatePlantUseCase(repo).execute(1, 2, { name: 'New Name' });
     expect(repo.update).toHaveBeenCalledWith(1, 2, { name: 'New Name' });
+    expect(plant.name).toBe('New Name');
   });
 
   it('throws NotFoundError when update returns false', async () => {

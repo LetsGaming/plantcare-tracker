@@ -7,8 +7,8 @@
  * Business logic (combining public + private, dedup) was in the controller.
  *
  * V2: Plant is a proper entity. PlantRepository is a pure interface —
- * the infrastructure layer (MySQL) implements it without the domain
- * knowing anything about SQL or connection pools.
+ * the infrastructure layer (SQLite) implements it without the domain
+ * knowing anything about SQL or the database driver.
  */
 
 // ── Value types ───────────────────────────────────────────────────────────────

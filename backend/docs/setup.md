@@ -4,7 +4,7 @@
 
 - **Node.js** ≥ 18
 - **pnpm** (or npm / yarn)
-- **MySQL** 8+
+- **SQLite** — bundled via `better-sqlite3`, no separate server required
 - **Playwright Chromium** — only required for the sales scraper (5 of 9 scrapers use it)
 
 ## Installation
@@ -57,7 +57,8 @@ ALLOWED_ORIGINS=https://your-frontend.com
 ### Fresh Installation
 
 ```bash
-mysql -u your_user -p your_database < database/database-v2.sql
+# Nothing to do — the SQLite file and schema are created automatically on first start.
+# To import existing data: node scripts/migrate-sqlite.js
 ```
 
 This creates all tables, inserts seed data (roles, guest user, fertilizer types, fineness levels), and applies all 12 performance indexes.

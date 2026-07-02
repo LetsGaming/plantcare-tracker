@@ -45,7 +45,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonPage, IonContent } from "@ionic/vue";
-import SubstrateService from "@/services/SubstrateService";
+import SubstrateService, { SubstrateEvents } from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -90,7 +90,18 @@ export default defineComponent({
     },
   },
   async mounted() {
+    document.addEventListener(
+      SubstrateEvents.SUBSTRATES_UPDATED,
+      this.handleSubstratesUpdated,
+    );
     await Promise.all([this.fetchSubstrate(), this.fetchAvailableComponents()]);
+  },
+
+  beforeUnmount() {
+    document.removeEventListener(
+      SubstrateEvents.SUBSTRATES_UPDATED,
+      this.handleSubstratesUpdated,
+    );
   },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
@@ -106,6 +117,17 @@ export default defineComponent({
       } catch (error) {
         console.error("Error fetching substrate:", error);
       }
+    },
+
+    /**
+     * Reacts to SUBSTRATES_UPDATED (the service writes server truth into
+     * the cache after every mutation). Re-derives this page's substrate
+     * from the cache — never triggers a network call.
+     */
+    async handleSubstratesUpdated() {
+      const substrates = await SubstrateService.getAllSubstrates();
+      this.substrate =
+        substrates.find((sub) => sub.id === this.substrateId) ?? null;
     },
 
     async fetchAvailableComponents() {
@@ -147,6 +169,8 @@ export default defineComponent({
 
       this.isSubmitting = true;
       try {
+        // The service upserts the server-confirmed substrate into the
+        // cache; this page re-derives via SUBSTRATES_UPDATED.
         await this.updateSubstrate(
           metaChanged,
           componentsChanged,
@@ -154,10 +178,10 @@ export default defineComponent({
           componentIds,
           parts,
         );
-        await this.fetchSubstrate(); // Refresh data
         this.showEditModal = false;
-      } catch {
-        ToastService.showError({ key: "substrate.update_error" });
+      } catch (error) {
+        // handleRequest has already shown the error toast.
+        console.error("Substrate update failed:", error);
       } finally {
         this.isSubmitting = false;
       }
@@ -243,7 +267,8 @@ export default defineComponent({
         this.showEditModal = false;
         this.$router.push({ name: "substrate-overview" });
       } catch (error) {
-        ToastService.showError({ key: "substrate.delete_error" });
+        // handleRequest has already shown the error toast.
+        console.error("Substrate delete failed:", error);
       } finally {
         this.isSubmitting = false;
       }
@@ -253,12 +278,13 @@ export default defineComponent({
       if (!this.substrate) return;
       try {
         this.isLoading = true;
+        // uploadSubstrateImage refreshes this substrate's cache entry
+        // itself; the page re-renders via SUBSTRATES_UPDATED.
         await SubstrateService.uploadSubstrateImage(
           this.substrate.id,
           fileItem.file,
           fileItem.date,
         );
-        await this.fetchSubstrate();
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);

@@ -8,6 +8,7 @@
 import { parse } from 'node-html-parser';
 import axios from 'axios';
 import type { CacheService } from '../../../core/cache/CacheService';
+import type { PlantLinkSearcher } from '../domain/PlantInfo';
 import { createModuleLogger } from '../../../core/logging';
 
 const log = createModuleLogger('PlantLinkSearchers');
@@ -61,8 +62,9 @@ const resolveLink = (href: string | null | undefined, baseUrl: string): string |
 };
 
 // ── Searcher type ─────────────────────────────────────────────────────────────
+// Alias of the domain port — kept local for brevity in the builders below.
 
-type Searcher = (plantName: string) => Promise<string | null>;
+type Searcher = PlantLinkSearcher;
 
 // ── HTML-based searchers ──────────────────────────────────────────────────────
 

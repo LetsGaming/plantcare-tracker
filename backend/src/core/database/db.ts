@@ -15,12 +15,11 @@
  *  • Singleton pattern — one Database instance per process (better-sqlite3
  *    is NOT async; keeping one connection avoids per-request open overhead).
  *
- * Query helper API mirrors the mysql2 pool surface used in the repositories
- * so the diff between MySQL↔SQLite repos stays minimal:
+ * Query helper API — the only surface repositories are allowed to use:
  *
- *   db.query(sql, params?)   → rows[]   (SELECT)
- *   db.execute(sql, params?) → { affectedRows, insertId }  (INSERT/UPDATE/DELETE)
- *   db.transaction(fn)       → wraps fn in BEGIN/COMMIT, rolls back on throw
+ *   query(sql, params?)   → rows[]   (SELECT)
+ *   execute(sql, params?) → { affectedRows, insertId }  (INSERT/UPDATE/DELETE)
+ *   transaction(fn)       → wraps fn in BEGIN/COMMIT, rolls back on throw
  */
 
 import BetterSqlite3 from 'better-sqlite3';
@@ -121,12 +120,10 @@ export function closeDb(): void {
 
 // ── Thin helper layer ─────────────────────────────────────────────────────────
 //
-// These wrappers let the repository classes use an API that closely mirrors
-// the mysql2 pool (pool.query / pool.execute) so the diff between drivers
-// stays small.
-//
 // better-sqlite3 is *synchronous*, but the repositories are still declared
-// async so that callers never need to know which driver is underneath.
+// async so that callers never need to know which driver is underneath —
+// swapping in an async driver later would not ripple through the domain
+// or application layers.
 
 /**
  * Execute a SELECT statement and return all matching rows.
@@ -144,7 +141,8 @@ export function query<T extends object>(
 
 /**
  * Execute an INSERT, UPDATE, or DELETE statement.
- * Returns { affectedRows, insertId } to match the mysql2 result shape.
+ * Returns { affectedRows, insertId } — the write-result shape every
+ * repository in this codebase is written against.
  */
 export function execute(
   sql: string,

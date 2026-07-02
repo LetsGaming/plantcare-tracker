@@ -25,9 +25,11 @@ pnpm test --coverage
 
 ```
 src/tests/
-├── mapping.test.ts      Unit tests for all mapper classes
-├── apiUtils.test.ts     Unit tests for ApiError and handleResponse
-└── utils.test.ts        Unit tests for Utils helper functions
+├── mapping.test.ts        Unit tests for all mapper classes
+├── apiUtils.test.ts       Unit tests for ApiError and handleResponse
+├── utils.test.ts          Unit tests for Utils helper functions
+├── baseService.test.ts    Cache helpers + optimistic wrappers (paint / reconcile / rollback)
+└── viewReactivity.test.ts Event-driven views via @vue/test-utils
 ```
 
 ## What is Tested
@@ -52,6 +54,29 @@ mapper is covered for:
 - `handleResponse`: success path returns `data`
 - `handleResponse`: error path throws `ApiError` with correct status
 - `isApiError` type guard
+
+### BaseService (`baseService.test.ts`)
+
+StorageService is mocked with an in-memory map; unique cache keys per case
+keep the static L1 cache from bleeding between tests.
+
+- `upsertInto/removeFrom/replaceInListCache`: order preservation, temp-id swap, silent no-op
+- `optimisticListUpsert`: immediate paint (asserted before the request settles via a deferred promise), reconcile swaps the temporary negative id in place, edit failure restores the snapshot
+- **Item-scoped rollback**: a concurrent change to a sibling item while the request is in flight survives the rollback
+- `optimisticListRemove`: instant removal, re-insert at the original index on failure
+- Dictionary variants: only the addressed entry is touched; sibling entries survive paint and rollback
+
+### View reactivity (`viewReactivity.test.ts`)
+
+Components are `shallowMount`ed with all services mocked (no network, no
+Ionic storage):
+
+- A cache `CustomEvent` triggers exactly one re-derivation through the
+  service getter; mutation methods are never called by the handler
+- The listener is removed on unmount — later events are ignored
+- Optimistic UX: the watering add-modal closes before the request settles
+- `addPlant` resolves with the reconciled server plant; the dependent image
+  upload receives the real id (never a raw snake_case field)
 
 ### Utils (`utils.test.ts`)
 

@@ -78,25 +78,13 @@ Winston is already configured. Adding a transport for a log aggregation service 
 
 ### Image CDN Integration
 
-Images are currently served directly from Node.js via `express.static`. For better performance, store originals in object storage (S3, MinIO, Cloudflare R2) and serve via CDN. The `MySQLImageRepository` stores a URL string — switching storage backends only requires changing where `imageUrl` is written in `imageRoutes.ts`.
+Images are currently served directly from Node.js via `express.static`. For better performance, store originals in object storage (S3, MinIO, Cloudflare R2) and serve via CDN. The images module already isolates file handling behind the `ImageStorage` port (`LocalImageStorage` today) — an S3/R2 backend is a second adapter implementing the same interface; no use case or route changes required.
 
 ---
 
 ### E2E Test Suite
 
-The current test suite covers unit and integration layers with a mocked database. A true E2E suite (Playwright or Supertest against a test MySQL container) would catch schema drift and migration issues. A Docker Compose file with a test database is the natural starting point.
-
-```yaml
-# docker-compose.test.yml
-services:
-  db-test:
-    image: mysql:8
-    environment:
-      MYSQL_DATABASE: plantcare_test
-      MYSQL_ROOT_PASSWORD: test
-    ports:
-      - "3307:3306"
-```
+The current test suite covers unit and integration layers with a mocked database. A true E2E suite (Playwright or Supertest against a throwaway SQLite file) would catch schema drift and migration issues. Since SQLite is embedded, a temp-file database per test run replaces the container setup entirely.
 
 ---
 

@@ -106,7 +106,7 @@ The server handles `SIGTERM` and `SIGINT` (Ctrl+C) gracefully:
 
 1. Stops accepting new HTTP connections
 2. Closes the Playwright Chromium browser instance
-3. Drains the MySQL connection pool
+3. Closes the SQLite database (WAL checkpoint via `closeDb()`)
 4. Exits with code `0`
 
 If shutdown takes longer than 10 seconds, the process force-exits with code `1`.
@@ -177,7 +177,7 @@ Every log line includes the `requestId` from `AsyncLocalStorage`, making it poss
 
 ```
 14:23:01 | [info] [a1b2-c3d4] {PlantsController}: Plant created | {"plantId":7}
-14:23:01 | [info] [a1b2-c3d4] {MySQLPlantRepository}: INSERT executed | {"affectedRows":1}
+14:23:01 | [info] [a1b2-c3d4] {SQLitePlantRepository}: INSERT executed | {"affectedRows":1}
 ```
 
 ---

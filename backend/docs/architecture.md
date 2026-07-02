@@ -2,60 +2,67 @@
 
 ## Clean Architecture
 
-V2 follows [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) principles. Each module is split into four layers:
+V2 follows [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) principles. **Every module** is split into the same four layers:
 
 ```
 ┌─────────────────────────────────────────────┐
 │  Presentation   HTTP: routes, controllers   │
 ├─────────────────────────────────────────────┤
-│  Application    Use cases, orchestration    │
+│  Application    Use cases, validation       │
 ├─────────────────────────────────────────────┤
-│  Domain         Entities, repo interfaces   │
+│  Domain         Entities, ports (interfaces)│
 ├─────────────────────────────────────────────┤
-│  Infrastructure MySQL repos, APIs, files    │
+│  Infrastructure SQLite repos, APIs, files   │
 └─────────────────────────────────────────────┘
 ```
 
-**Dependency rule:** inner layers know nothing about outer layers. Domain has zero framework imports. Infrastructure imports Domain but not Application. Application imports Domain. Presentation imports Application and Infrastructure (for DI).
+**Dependency rule:** inner layers know nothing about outer layers. Domain has zero framework imports. Infrastructure imports Domain but not Application. Application imports Domain. Presentation imports Application and Infrastructure (for wiring only) and never reaches past the application layer for behavior.
 
 ### Layer Responsibilities
 
 | Layer | Knows about | Example files |
 |-------|-------------|---------------|
-| Domain | Nothing external | `Plant.ts`, `PlantRepository` interface |
-| Application | Domain only | `PlantUseCases.ts`, `AuthUseCases.ts` |
-| Infrastructure | Domain (implements interfaces) | `MySQLPlantRepository.ts`, `OpenAIClient.ts` |
+| Domain | Nothing external | `Plant.ts`, `PlantRepository` interface, `ImageStorage` port |
+| Application | Domain only | `PlantUseCases.ts`, `SubstrateUseCases.ts`, `StreamPlantInfo.ts` |
+| Infrastructure | Domain (implements ports) | `SQLitePlantRepository.ts`, `LocalImageStorage.ts`, `OpenAIClient.ts` |
 | Presentation | Application + Infrastructure | `plantsRoutes.ts`, `plantsController.ts` |
 
+Zod input schemas live in the **application** layer next to the use cases that consume them; parsing goes through the shared `parseOrThrow` helper (`core/validation`), which turns issues into a `ValidationError` with a per-field `fields` map.
+
 ### Example: Plants Module
+
+Every module mirrors this tree — plants, watering, substrate, components, images, sales, moreInfo, auth:
 
 ```
 src/modules/plants/
 ├── domain/
-│   └── Plant.ts              # Plant entity + PlantRepository interface
+│   └── Plant.ts                 # Plant entity + PlantRepository port
 ├── application/
-│   └── PlantUseCases.ts      # GetAll, GetOne, Create, Update, Delete
+│   └── PlantUseCases.ts         # GetAll, GetOne, Create, Update, Delete + zod schemas
 ├── infrastructure/
-│   └── MySQLPlantRepository.ts  # Implements PlantRepository with SQL
+│   └── SQLitePlantRepository.ts # Implements PlantRepository with SQL
 └── presentation/
-    ├── plantsController.ts   # Thin HTTP adapter
-    └── plantsRoutes.ts       # Express Router, middleware wiring
+    ├── plantsController.ts      # Thin HTTP adapter (asyncHandler + typed responses)
+    └── plantsRoutes.ts          # Express Router, middleware wiring (composition root)
 ```
+
+Two modules have additional ports beyond the repository:
+
+- **images** — `ImageStorage` (implemented by `LocalImageStorage`): converts uploads to WebP, extracts EXIF capture dates, serves resized reads, deletes files. A future object-storage backend only has to satisfy this interface.
+- **moreInfo** — `PlantGuideStreamer` (OpenAI adapter) and `PlantLinkSearcher` (7 scraper/API adapters), orchestrated by the `StreamPlantInfoUseCase`.
 
 ## Dependency Injection
 
-All dependencies are injected via constructors. The MySQL `Pool` is created once in `server-v2.ts` (the composition root) and passed into each router factory:
+Dependencies are injected via constructors — plain factory functions and `new`, no DI container. Since the SQLite handle is a process-wide singleton (`core/database/db.ts`), each **router factory is its own composition root**:
 
 ```typescript
-// server-v2.ts — composition root
-const pool = mysql.createPool({ host, user, password, database });
+// server.ts — mounts the routers, nothing else
+app.use(`${V}/plants`, createPlantsRouter());
 
-app.use('/api/v2/plants', createPlantsRouter(pool));
-
-// createPlantsRouter:
-export const createPlantsRouter = (pool: Pool): Router => {
-  const repo = new MySQLPlantRepository(pool);   // concrete infra
-  const ctrl = createPlantsController(repo);     // use cases injected with interface
+// plantsRoutes.ts — composition root of the module
+export const createPlantsRouter = (): Router => {
+  const repo = new SQLitePlantRepository();     // concrete infra (uses db singleton)
+  const ctrl = createPlantsController(repo);    // use cases injected with the port
   // ...
 };
 ```
@@ -72,9 +79,25 @@ const repo: PlantRepository = {
 const useCase = new CreatePlantUseCase(repo);
 ```
 
+Create and update use cases return the **full, freshly-read resource** (create → read-back), so controllers contain no orchestration — they parse HTTP inputs, call one use case, and shape the response.
+
 ## Core Layer
 
 `src/core/` contains shared infrastructure used by all modules. It has no business logic.
+
+### `core/config/`
+
+Single source of truth for values that must agree across files:
+
+- **`constants.ts`** — `HTTP_STATUS` (success codes used by controllers), `AUTH` (bcrypt cost, session limits, cookie names/lifetimes, SSE ticket TTL), `AUTH_RATE_LIMIT`, `SSE` (heartbeat interval, chunk size, event names)
+- **`apiVersion.ts`** — `getApiVersionPath()` / `getApiBasePath()`: resolves `/api/vX` from `API_VERSION_PATH` or package.json (used by `server.ts` and the auth module's cookie scoping)
+- **`uploads.ts`** — `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`: the static mount in `server.ts` and the URL builder in the images module resolve from the same place
+
+Error status codes are **not** listed here — each `AppError` subclass owns its code (see [Error Handling](./error-handling.md)).
+
+### `core/validation/`
+
+`parseOrThrow(schema, input, message)` — runs a zod schema and converts failures into a `ValidationError` carrying a `fields` map (`{ "species": "Species is required" }`). Used by every use case.
 
 ### `core/errors/`
 
@@ -92,9 +115,17 @@ AppError (base)
 
 ### `core/middleware/`
 
-- **`auth.ts`** — JWT verification, session store, ticket store, `authenticateToken`, `isAdmin`, `checkGuestPermission`, `makeAuthenticateSSE`
-- **`errorHandler.ts`** — `globalErrorHandler` (maps `AppError` to JSON) + `notFoundHandler`
+- **`auth.ts`** — JWT verification, session store, ticket store, `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `checkGuestPermission`, `makeAuthenticateSSE({ loadUserFromDb })`
+- **`asyncHandler.ts`** — re-export of `express-async-handler`; wraps every async controller so rejections reach the global error handler
+- **`errorHandler.ts`** — `globalErrorHandler` (maps `AppError` to the JSON error envelope) + `notFoundHandler`
 - **`requestId.ts`** — assigns UUID per request, stores in `AsyncLocalStorage`
+
+### `core/sse/`
+
+Server-Sent Events as a cross-cutting transport concern (previously `SseManager` lived inside the sales module and was imported across module boundaries by moreInfo):
+
+- **`SseManager.ts`** — stream writer: headers, heartbeat, `send`, `sendUnique` (id-deduplicated, chunked), terminal `end` (`event: done`), `fail` (`event: error`), `dispose`
+- **`sseEndpoint.ts`** — `createSseEndpoint({ name, errorMessage, doneMessage?, prepare?, run })`: the shared lifecycle every SSE route uses. `prepare` runs **before** the stream opens, so validation failures still return a regular JSON 400; after the headers are on the wire, failures become `error` events.
 
 ### `core/logging/`
 
@@ -120,12 +151,16 @@ interface CacheService {
 }
 ```
 
+### `core/database/`
+
+`db.ts` — the better-sqlite3 singleton plus thin `query` / `execute` / `transaction` helpers used by every repository. WAL mode, schema auto-applied on first run.
+
 ### `core/utils/`
 
 Pure utility functions with no side effects:
 
-- `formatToDBDate(input)` — converts timestamp/Date/string to MySQL `DATETIME` format
-- `ensureArray(value)` — normalizes any value to an array
+- `formatToDBDate(input)` — converts timestamp/Date/string to SQL `DATETIME` string format
+- `ensureArray(value)` — normalizes any value to an array (including index-keyed objects from form serializers)
 - `filterDuplicatesById(items, key)` — deduplicates arrays by a key (used for public + private merge)
 
 ## Module: Sales
@@ -134,7 +169,7 @@ The Sales module has the most complex internal architecture due to its multi-sou
 
 ```
 createSalesRouter()
-  └── createSalesController(sources)
+  └── createSalesController(sources)      ← returns createSseEndpoint({ run })
         └── FetchSalesOverview.execute()
               ├── Concurrency limiter (max 2 Chromium, max 8 Axios)
               ├── BaseScraper.fetchPage()  ← each scraper
@@ -142,7 +177,7 @@ createSalesRouter()
               │     ├── fetchHtml() (Axios or Playwright)
               │     ├── node-html-parser → defaultParseFn or custom parseFn
               │     └── CacheService (per-page, 24h TTL)
-              └── Sale.fromRaw() → dedup by sale_id → SseManager.sendUnique()
+              └── Sale.fromRaw() → dedup by sale_id → sse.sendUnique()
 ```
 
 Scrapers inherit from `BaseScraper` and only provide config. Complex parsers (Foliage Dreams, Harmony Plants) provide a custom `parseFn`. The concurrency limiter prevents overloading Playwright by running at most 2 Chromium scrapes simultaneously.
@@ -151,12 +186,13 @@ Scrapers inherit from `BaseScraper` and only provide config. Complex parsers (Fo
 
 ```
 GET /more-info?ticket=...&plantName=...
-  └── makeAuthenticateSSE(pool)   ← DB lookup for full user data
-  └── Promise.all([
-        aiClient.streamPlantCare()  ← OpenAI GPT-4o-mini, chunked SSE
-        searchers[].map()           ← 7 parallel link scrapers
-      ])
-  └── SseManager.send({ type: 'ai_chunk' | 'link', value })
+  └── makeAuthenticateSSE({ loadUserFromDb: true })   ← DB lookup for full user data
+  └── createSseEndpoint
+        ├── prepare: parsePlantInfoQuery()             ← 400 as JSON before stream opens
+        └── run: StreamPlantInfoUseCase.execute()
+              ├── guideStreamer.streamPlantCare()      ← OpenAI GPT-4o-mini, chunked
+              └── linkSearchers[]                      ← 7 parallel link scrapers
+                    → onEvent({ type: 'ai_chunk' | 'link', value })
 ```
 
 The OpenAI response is cached as raw Markdown (12h TTL). HTML conversion happens on read, so a cached entry can be served with or without `htmlFormatting`.

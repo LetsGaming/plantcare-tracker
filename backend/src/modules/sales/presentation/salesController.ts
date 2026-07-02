@@ -1,55 +1,33 @@
 /**
  * modules/sales/presentation/salesController.ts
  *
- * Thin controller. Its only job:
- *   1. Set up SSE
- *   2. Instantiate and run the use case
- *   3. Close the stream
- *
- * Compare to V1: the controller had 150+ lines of business logic.
- * This file is ~35 lines.
+ * Thin controller: instantiates the use case and hands the stream
+ * lifecycle to the shared SSE endpoint helper (core/sse). Compare to
+ * V1, where 150+ lines of business logic lived here — and to the
+ * previous V2 iteration, where the abort/done/error plumbing was
+ * duplicated between this file and moreInfo.
  */
 
-import type { Request, Response } from 'express';
+import type { RequestHandler } from 'express';
 import { FetchSalesOverview } from '../application/FetchSalesOverview';
-import { SseManager } from './SseManager';
 import type { SalesSource } from '../domain/SalesSource';
-import { createModuleLogger } from '../../../core/logging';
-
-const log = createModuleLogger('SalesController');
+import { createSseEndpoint } from '../../../core/sse';
 
 /**
  * Factory — sources are injected so the controller is fully testable
  * without any actual HTTP or scraping.
  */
-export const createSalesController = (sources: SalesSource[]) => {
+export const createSalesController = (sources: SalesSource[]): RequestHandler => {
   const useCase = new FetchSalesOverview(sources);
 
-  return async (req: Request, res: Response): Promise<void> => {
-    const sse = new SseManager(res);
-    let isAborted = false;
-
-    req.on('close', () => {
-      isAborted = true;
-    });
-
-    try {
-      await useCase.execute({
+  return createSseEndpoint({
+    name: 'Sales',
+    errorMessage: 'Stream interrupted',
+    // No doneMessage: the SseManager default `{ total }` is the sales contract.
+    run: ({ sse, isAborted }) =>
+      useCase.execute({
         onItems: (items) => sse.sendUnique(items, 'sale_id'),
-        isAborted: () => isAborted,
-      });
-
-      if (!isAborted) {
-        await sse.end();
-      }
-    } catch (err: unknown) {
-      log.error('SSE stream error', { err });
-      if (!res.writableEnded) {
-        res.write(
-          `event: error\ndata: ${JSON.stringify({ message: 'Stream interrupted' })}\n\n`,
-        );
-        res.end();
-      }
-    }
-  };
+        isAborted,
+      }),
+  });
 };

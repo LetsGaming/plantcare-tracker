@@ -42,7 +42,7 @@
 import { defineComponent } from "vue";
 import { IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
-import SubstrateService from "@/services/SubstrateService";
+import SubstrateService, { SubstrateEvents } from "@/services/SubstrateService";
 import ComponentService from "@/services/ComponentService";
 import localizationService from "@/services/general/LocalizationService";
 import ToastService from "@/services/general/ToastService";
@@ -76,6 +76,23 @@ export default defineComponent({
       this.fetchSubstrates(),
       this.fetchAvailableComponents(),
     ]);
+  },
+
+  // Cache subscription lives in mounted/beforeUnmount (not the ionView
+  // hooks): Ionic keeps pages alive, and the list must keep reacting to
+  // mutations made elsewhere (e.g. a substrate edited on its details page).
+  mounted() {
+    document.addEventListener(
+      SubstrateEvents.SUBSTRATES_UPDATED,
+      this.handleSubstratesUpdated,
+    );
+  },
+
+  beforeUnmount() {
+    document.removeEventListener(
+      SubstrateEvents.SUBSTRATES_UPDATED,
+      this.handleSubstratesUpdated,
+    );
   },
   methods: {
     t: (k: string, v?: any) => localizationService.t(k, v),
@@ -129,6 +146,17 @@ export default defineComponent({
 
     async fetchSubstrates() {
       await this.loadSubstrates();
+    },
+
+    /**
+     * Reacts to SUBSTRATES_UPDATED (the service writes server truth into
+     * the cache after every mutation). Re-derives the visible list from
+     * the cache via the service getters — never triggers a network call.
+     */
+    async handleSubstratesUpdated() {
+      this.substrates = this.isPublic
+        ? await SubstrateService.getPublicSubstrates()
+        : await SubstrateService.getPrivateSubstrates();
     },
     async refreshSubstrates() {
       await this.loadSubstrates(true);
@@ -189,19 +217,19 @@ export default defineComponent({
         if (!newSubstrateId) return;
 
         if (payload.meta.image) {
+          // Default refreshCache=true: the upload upserts the substrate
+          // (now including the image) and SUBSTRATES_UPDATED repaints.
           await SubstrateService.uploadSubstrateImage(
             newSubstrateId,
             payload.meta.image,
-            undefined,
-            false,
           );
         }
 
         ToastService.showSuccess({ key: "substrate.added" });
         this.showAddingModal = false;
-        await this.fetchSubstrates();
       } catch (error) {
-        ToastService.showError({ key: "substrate.add_error" });
+        // handleRequest has already shown the error toast.
+        console.error("Substrate add failed:", error);
       } finally {
         this.isSubmitting = false;
       }

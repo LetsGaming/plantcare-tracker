@@ -1,8 +1,9 @@
 export { requestIdMiddleware } from './requestId';
 export { globalErrorHandler, notFoundHandler } from './errorHandler';
+export { asyncHandler } from './asyncHandler';
 export {
   authenticateToken,
-  authenticateSSE,
+  optionalAuthenticateToken,
   makeAuthenticateSSE,
   isAdmin,
   checkGuestPermission,
@@ -11,4 +12,4 @@ export {
   generateTokens,
   jwtConfig,
 } from './auth';
-export type { JwtPayload } from './auth';
+export type { JwtPayload, SseAuthOptions } from './auth';

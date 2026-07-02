@@ -1,27 +1,24 @@
 /**
  * src/core/middleware/auth.ts
  *
- * JWT authentication middleware — ported from V1's authMiddleware.js.
- * Now uses typed Request extensions instead of casting.
+ * JWT authentication middleware, token helpers, and the in-memory
+ * session / one-time-ticket stores.
+ *
+ * Uses typed Request extensions instead of casting, and shared
+ * constants from core/config instead of inline magic numbers.
  */
 
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import { UnauthorizedError, ForbiddenError } from "../errors";
+import { AUTH } from "../config";
 import crypto from "crypto";
-
-// ── ENV HELPERS ───────────────────────────────────────────────────────────────
 
 // ── JWT config ───────────────────────────────────────────────────────────────
 //
 // Validated eagerly at module-load time so the process fails immediately
 // at startup with a clear message if required env vars are absent, rather
 // than crashing on the first auth request with a confusing stack trace.
-//
-// The Proxy is kept so that tests can override process.env before importing
-// this module — values are still read lazily per-access, but the required
-// keys are checked on first import so a missing var surfaces in the startup
-// log rather than mid-request.
 
 interface JwtConfig {
   JWT_SECRET: Secret;
@@ -50,13 +47,12 @@ export const jwtConfig: JwtConfig = loadJwtConfig();
 
 // ── Session store (in-memory) ─────────────────────────────────────────────────
 
-const MAX_SESSIONS = 3;
 const activeSessions = new Map<number, string[]>();
 
 export const sessionStore = {
   save(userId: number, refreshToken: string): void {
     const sessions = activeSessions.get(userId) ?? [];
-    if (sessions.length >= MAX_SESSIONS) sessions.shift();
+    if (sessions.length >= AUTH.MAX_SESSIONS_PER_USER) sessions.shift();
     sessions.push(refreshToken);
     activeSessions.set(userId, sessions);
   },
@@ -87,7 +83,7 @@ const tickets = new Map<string, { userId: number; expires: number }>();
 export const ticketStore = {
   create(userId: number): string {
     const ticket = crypto.randomBytes(32).toString("hex");
-    tickets.set(ticket, { userId, expires: Date.now() + 60_000 });
+    tickets.set(ticket, { userId, expires: Date.now() + AUTH.SSE_TICKET_TTL_MS });
     return ticket;
   },
   validateAndBurn(ticket: string): number | null {
@@ -148,8 +144,9 @@ export const authenticateToken = (
   const authHeader = req.headers["authorization"];
   if (authHeader?.startsWith("Bearer ")) token = authHeader.split(" ")[1];
 
-  if (!token && (req as any).cookies?.accessToken) {
-    token = (req as any).cookies.accessToken;
+  const cookies = req.cookies as Record<string, string> | undefined;
+  if (!token && cookies?.[AUTH.ACCESS_TOKEN_COOKIE]) {
+    token = cookies[AUTH.ACCESS_TOKEN_COOKIE];
   }
 
   if (!token)
@@ -172,12 +169,47 @@ export const authenticateToken = (
   });
 };
 
-// ── SSE ticket auth (DB-backed, SQLite) ──────────────────────────────────────
+/**
+ * Optional variant of authenticateToken: attaches req.user when a valid
+ * token is present but never blocks the request. Used for endpoints
+ * where public data must be visible unauthenticated while private data
+ * is included for logged-in users (GET /plants, GET /plants/:id).
+ */
+export const optionalAuthenticateToken = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  authenticateToken(req, res, (err) => {
+    // Any auth failure is treated as "not logged in", not as an error.
+    if (err) req.user = undefined;
+    next();
+  });
+};
 
-export const makeAuthenticateSSE =
-  // The `pool` parameter is kept for API compatibility with callers that pass
-  // a pool object, but is ignored — the SQLite helper reads from the singleton db.
-  (_pool?: unknown) =>
+// ── SSE ticket auth ───────────────────────────────────────────────────────────
+//
+// EventSource cannot send an Authorization header, so SSE endpoints
+// authenticate via a one-time ticket (POST /auth/ticket → ?ticket=…).
+//
+// This helper replaces two near-identical implementations that used to
+// coexist: a DB-backed `makeAuthenticateSSE(pool)` (the pool argument
+// was ignored MySQL-era residue) and a no-DB `authenticateSSE`. The
+// only real difference was whether the user record is re-loaded from
+// the database after the ticket is burned, so that is now the single
+// parameter.
+
+export interface SseAuthOptions {
+  /**
+   * When true, re-loads username and role from the users table after
+   * validating the ticket. When false, req.user carries only the id
+   * (username empty, role "user") — sufficient for endpoints that only
+   * need to know the request is authenticated.
+   */
+  loadUserFromDb?: boolean;
+}
+
+export const makeAuthenticateSSE = ({ loadUserFromDb = false }: SseAuthOptions = {}) =>
   async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const { ticket } = req.query as { ticket?: string };
 
@@ -187,7 +219,14 @@ export const makeAuthenticateSSE =
     const userId = ticketStore.validateAndBurn(ticket);
     if (!userId) return next(new ForbiddenError("Invalid or expired ticket"));
 
+    if (!loadUserFromDb) {
+      req.user = { id: userId, username: "", role: "user" };
+      return next();
+    }
+
     try {
+      // Imported lazily so unit tests can exercise the no-DB path
+      // without the db module (and its native binding) ever loading.
       const { query } = await import('../database/db');
       const rows = query<{ id: number; username: string; role: string }>(
         `SELECT users.id, username, roles.name AS role
@@ -205,25 +244,6 @@ export const makeAuthenticateSSE =
       next(err);
     }
   };
-
-// ── SSE ticket auth (no DB) ───────────────────────────────────────────────────
-
-export const authenticateSSE = (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-): void => {
-  const { ticket } = req.query as { ticket?: string };
-
-  if (!ticket)
-    return next(new UnauthorizedError("No authentication ticket provided"));
-
-  const userId = ticketStore.validateAndBurn(ticket);
-  if (!userId) return next(new ForbiddenError("Invalid or expired ticket"));
-
-  req.user = { id: userId, username: "", role: "user" };
-  next();
-};
 
 // ── Role guards ───────────────────────────────────────────────────────────────
 

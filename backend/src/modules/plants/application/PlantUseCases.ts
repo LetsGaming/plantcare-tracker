@@ -5,15 +5,18 @@
  * Each use case takes a PlantRepository via constructor injection
  * and throws typed domain errors — never raw strings.
  *
- * V1 improvement: validation was a tiny validatePlantData() helper
- * in the controller that threw plain Error('some string'). The controller
- * then compared err.message === 'Name, species...' to pick status codes.
+ * Create and update return the full, freshly-read Plant so that the
+ * controller has nothing to orchestrate: the create-then-refetch
+ * sequence that used to live in the controller belongs to the use
+ * case, which is the layer that knows a write must be answered with
+ * the complete resource.
  */
 
 import { z } from 'zod';
 import type { PlantRepository } from '../domain/Plant';
 import type { Plant } from '../domain/Plant';
-import { ValidationError, NotFoundError } from '../../../core/errors';
+import { NotFoundError, InternalError } from '../../../core/errors';
+import { parseOrThrow } from '../../../core/validation';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
@@ -74,33 +77,35 @@ export class GetPlantUseCase {
 export class CreatePlantUseCase {
   constructor(private readonly repo: PlantRepository) {}
 
-  async execute(input: unknown, userId: number): Promise<number> {
-    const result = CreatePlantSchema.safeParse(input);
-    if (!result.success) {
-      const fields = Object.fromEntries(
-        result.error.issues.map((e) => [e.path.join('.'), e.message]),
-      );
-      throw new ValidationError('Invalid plant data', fields);
-    }
+  async execute(input: unknown, userId: number): Promise<Plant> {
+    const data = parseOrThrow(CreatePlantSchema, input, 'Invalid plant data');
 
-    return this.repo.create({ ...result.data, userId });
+    const plantId = await this.repo.create({ ...data, userId });
+
+    // Read back the full resource so the client receives the same shape
+    // a GET would produce (joined substrate name, images, timestamps).
+    const plant = await this.repo.findById(plantId);
+    if (!plant) {
+      // The row we just inserted has vanished — a data-layer fault, not
+      // a client error, hence 500 rather than 404.
+      throw new InternalError('Created plant could not be read back');
+    }
+    return plant;
   }
 }
 
 export class UpdatePlantUseCase {
   constructor(private readonly repo: PlantRepository) {}
 
-  async execute(id: number, userId: number, input: unknown): Promise<void> {
-    const result = UpdatePlantSchema.safeParse(input);
-    if (!result.success) {
-      const fields = Object.fromEntries(
-        result.error.issues.map((e) => [e.path.join('.'), e.message]),
-      );
-      throw new ValidationError('Invalid update data', fields);
-    }
+  async execute(id: number, userId: number, input: unknown): Promise<Plant> {
+    const data = parseOrThrow(UpdatePlantSchema, input, 'Invalid update data');
 
-    const updated = await this.repo.update(id, userId, result.data);
+    const updated = await this.repo.update(id, userId, data);
     if (!updated) throw new NotFoundError('Plant');
+
+    const plant = await this.repo.findById(id);
+    if (!plant) throw new NotFoundError('Plant');
+    return plant;
   }
 }
 

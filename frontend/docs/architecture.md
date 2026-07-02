@@ -38,15 +38,56 @@ that mirrors the backend's clean separation of concerns.
 Every entity service extends `BaseService` and follows the same pattern:
 
 ```
-getAllXxx(forceUpdate?)     → cache-first fetch, full list
+getAllXxx(forceUpdate?)      → cache-first fetch, full list
 getXxxById(id, forceUpdate?) → cache-first fetch, single item
-addXxx(data)               → POST, then invalidate cache
-editXxx(id, data)          → PATCH, then targeted invalidation
-deleteXxx(id)              → DELETE, then targeted invalidation
+addXxx(data)                 → mutation, cache updated with the result
+editXxx(id, data)            → mutation, cache updated with the result
+deleteXxx(id)                → mutation, item removed from the cache
 ```
 
-Services emit DOM `CustomEvent`s when their cache changes. Views subscribe via
-`document.addEventListener` or Ionic lifecycle hooks.
+Services emit DOM `CustomEvent`s **whenever their cache changes** — a fetch,
+an optimistic paint, a reconcile, or a rollback. The cache is the single
+source of truth; mutations never leave it stale.
+
+### Mutation strategy
+
+Two strategies exist, chosen per domain:
+
+| Strategy | Used by | Behaviour |
+|----------|---------|-----------|
+| **Optimistic** | Plants (create/edit/delete), Watering (add/edit/delete) | The expected outcome is painted into the cache immediately (creates use a temporary **negative id**). The request runs; on success the painted item is swapped in place for the server resource (reconcile), on failure only the affected item is rolled back — concurrent changes to siblings survive. Implemented once in `BaseService` (`optimisticListUpsert/Remove` + dictionary variants). |
+| **Pessimistic** | Substrates (multi-request create/edit with components), admin Components, Profile | The request runs first; the server-confirmed resource is then upserted into the cache. |
+
+In both cases the V2 backend returns the **full resource** from every
+mutation, so the cache is updated from server truth without follow-up
+fetches. `handleRequest` owns the single error toast for a failed request;
+views never add a second one.
+
+### View pattern
+
+Views and data-bearing components subscribe in `mounted` and unsubscribe in
+`beforeUnmount` (Ionic keeps pages alive, so the ionView hooks are the wrong
+place for listeners):
+
+```typescript
+mounted() {
+  document.addEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
+},
+beforeUnmount() {
+  document.removeEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
+},
+methods: {
+  // Handlers only READ the cache and re-derive via the service getters —
+  // they never mutate and never refetch after a mutation.
+  async handlePlantsUpdated() {
+    this.plants = await PlantService.getPersonalPlants();
+  },
+},
+```
+
+Because every optimistic paint fires the event, mutation handlers in views
+reduce to: fire the service call, close the modal, let the event repaint the
+page. There are no manual post-mutation refreshes.
 
 ## Two-Tier Cache
 
@@ -55,7 +96,7 @@ Request
   │
   ├──▶ L1 (Map<string, { data, timestamp }>)
   │       Fast in-memory lookup
-  │       Evicted by LRU when > 500 entries
+  │       Evicted FIFO (insertion order) when > 500 entries
   │       Shared across all services
   │
   └──▶ L2 (@ionic/storage — IndexedDB / SQLite)
@@ -75,7 +116,7 @@ simultaneously, `BaseService` coalesces them into a single in-flight request.
 Sales and MoreInfo data arrive via Server-Sent Events. The flow is:
 
 ```
-1. POST /auth/request-ticket   → { ticket: string }  (no body required in V2)
+1. POST /auth/ticket           → { ticket: string }  (no body required in V2)
 2. GET  /sales?ticket=…        → EventSource
 3. message events              → single APISale per event
 4. done event                  → { total: number }

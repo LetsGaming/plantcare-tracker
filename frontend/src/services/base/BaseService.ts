@@ -170,6 +170,20 @@ export abstract class BaseService {
     }
   }
 
+  private static async readList<T>(cacheKey: string): Promise<T[]> {
+    const cached = await storageService.get<{ data: T[] }>(cacheKey);
+    return cached?.data ? [...cached.data] : [];
+  }
+
+  private static async readDictionary<T>(
+    cacheKey: string,
+  ): Promise<Record<string, T[]>> {
+    const cached = await storageService.get<{ data: Record<string, T[]> }>(
+      cacheKey,
+    );
+    return cached?.data ? { ...cached.data } : {};
+  }
+
   protected static async upsertIntoListCache<T extends { id: number | string }>(
     cacheKey: string,
     eventKey: string,
@@ -177,10 +191,294 @@ export abstract class BaseService {
     keepOnClear = false,
   ): Promise<void> {
     if (!item?.id) throw new Error("BaseService: item must have an 'id'");
-    const cached = await storageService.get<{ data: T[] }>(cacheKey);
-    const list = cached?.data ? [...cached.data] : [];
+    const list = await this.readList<T>(cacheKey);
     const index = list.findIndex((x) => x.id === item.id);
     index === -1 ? list.push(item) : (list[index] = item);
     await this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear);
+  }
+
+  /** Removes the item with the given id from a cached list (no-op if absent). */
+  protected static async removeFromListCache<T extends { id: number | string }>(
+    cacheKey: string,
+    eventKey: string,
+    itemId: number | string,
+    keepOnClear = false,
+  ): Promise<void> {
+    const list = await this.readList<T>(cacheKey);
+    const updated = list.filter((x) => x.id !== itemId);
+    if (updated.length === list.length) return;
+    await this.saveAndNotify(cacheKey, eventKey, updated, "data", keepOnClear);
+  }
+
+  /**
+   * Replaces the item carrying `previousId` with `item` (in place, order
+   * preserved). Falls back to an upsert when `previousId` is absent —
+   * this is the reconcile step after an optimistic create, where a
+   * temporary negative id is swapped for the server-assigned one.
+   */
+  protected static async replaceInListCache<T extends { id: number | string }>(
+    cacheKey: string,
+    eventKey: string,
+    previousId: number | string,
+    item: T,
+    keepOnClear = false,
+  ): Promise<void> {
+    const list = await this.readList<T>(cacheKey);
+    const index = list.findIndex((x) => x.id === previousId);
+    index === -1 ? list.push(item) : (list[index] = item);
+    await this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear);
+  }
+
+  // ── Dictionary-list variants (Record<entryKey, T[]> one level in) ──────────
+  // Same operations for dictionary caches such as the watering records
+  // ("watering_records_data" keyed by plantId). Only the addressed entry
+  // is touched; sibling entries are preserved.
+
+  protected static async upsertIntoDictionaryListCache<
+    T extends { id: number | string },
+  >(
+    cacheKey: string,
+    entryKey: string,
+    eventKey: string,
+    item: T,
+  ): Promise<void> {
+    if (!item?.id) throw new Error("BaseService: item must have an 'id'");
+    const dict = await this.readDictionary<T>(cacheKey);
+    const list = dict[entryKey] ? [...dict[entryKey]] : [];
+    const index = list.findIndex((x) => x.id === item.id);
+    index === -1 ? list.push(item) : (list[index] = item);
+    await this.saveAndNotify(cacheKey, eventKey, { ...dict, [entryKey]: list });
+  }
+
+  protected static async removeFromDictionaryListCache<
+    T extends { id: number | string },
+  >(
+    cacheKey: string,
+    entryKey: string,
+    eventKey: string,
+    itemId: number | string,
+  ): Promise<void> {
+    const dict = await this.readDictionary<T>(cacheKey);
+    const list = dict[entryKey];
+    if (!list) return;
+    const updated = list.filter((x) => x.id !== itemId);
+    if (updated.length === list.length) return;
+    await this.saveAndNotify(cacheKey, eventKey, {
+      ...dict,
+      [entryKey]: updated,
+    });
+  }
+
+  protected static async replaceInDictionaryListCache<
+    T extends { id: number | string },
+  >(
+    cacheKey: string,
+    entryKey: string,
+    eventKey: string,
+    previousId: number | string,
+    item: T,
+  ): Promise<void> {
+    const dict = await this.readDictionary<T>(cacheKey);
+    const list = dict[entryKey] ? [...dict[entryKey]] : [];
+    const index = list.findIndex((x) => x.id === previousId);
+    index === -1 ? list.push(item) : (list[index] = item);
+    await this.saveAndNotify(cacheKey, eventKey, { ...dict, [entryKey]: list });
+  }
+
+  // ── Optimistic mutation wrappers ────────────────────────────────────────────
+  // Paint the expected outcome into the cache immediately (views react via
+  // the emitted event), run the request, then reconcile with the server
+  // response — or roll back on failure. Rollback is **item-scoped**: only
+  // the affected item is snapshotted and restored, so concurrent changes
+  // to other items in the same list survive a failed request.
+
+  private static async runOptimisticUpsert<
+    T extends { id: number | string },
+    R,
+  >(
+    io: { read: () => Promise<T[]>; write: (list: T[]) => Promise<void> },
+    optimisticItem: T,
+    request: () => Promise<R>,
+    reconcile: (response: R) => T,
+  ): Promise<R> {
+    // 1. Snapshot only the affected item (or note that it did not exist).
+    const before = await io.read();
+    const existing = before.find((x) => x.id === optimisticItem.id);
+    const snapshot = existing ? this.deepCopy(existing) : null;
+
+    // 2. Optimistic paint.
+    const painted = [...before];
+    const paintIndex = painted.findIndex((x) => x.id === optimisticItem.id);
+    paintIndex === -1
+      ? painted.push(optimisticItem)
+      : (painted[paintIndex] = optimisticItem);
+    await io.write(painted);
+
+    try {
+      // 3. Real request, then reconcile: swap the optimistic item (temp
+      //    negative id for creates) for the server truth, in place.
+      const response = await request();
+      const finalItem = reconcile(response);
+      const current = await io.read();
+      const index = current.findIndex((x) => x.id === optimisticItem.id);
+      index === -1 ? current.push(finalItem) : (current[index] = finalItem);
+      await io.write(current);
+      return response;
+    } catch (error) {
+      // 4. Item-scoped rollback on the *current* list state.
+      const current = await io.read();
+      const index = current.findIndex((x) => x.id === optimisticItem.id);
+      if (snapshot) {
+        index === -1 ? current.push(snapshot) : (current[index] = snapshot);
+      } else if (index !== -1) {
+        current.splice(index, 1);
+      }
+      await io.write(current);
+      throw error;
+    }
+  }
+
+  private static async runOptimisticRemove<
+    T extends { id: number | string },
+    R,
+  >(
+    io: { read: () => Promise<T[]>; write: (list: T[]) => Promise<void> },
+    itemId: number | string,
+    request: () => Promise<R>,
+  ): Promise<R> {
+    const before = await io.read();
+    const index = before.findIndex((x) => x.id === itemId);
+    const snapshot = index === -1 ? null : this.deepCopy(before[index]);
+
+    if (index !== -1) {
+      const painted = [...before];
+      painted.splice(index, 1);
+      await io.write(painted);
+    }
+
+    try {
+      return await request();
+    } catch (error) {
+      if (snapshot) {
+        const current = await io.read();
+        if (!current.some((x) => x.id === itemId)) {
+          current.splice(Math.min(index, current.length), 0, snapshot);
+          await io.write(current);
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Optimistic upsert on a flat list cache. For creates, give the
+   * optimistic item a temporary **negative** id (e.g. `-Date.now()`);
+   * `reconcile` maps the server response to the final item that replaces it.
+   * Returns the raw response so callers can chain on server data.
+   */
+  protected static optimisticListUpsert<
+    T extends { id: number | string },
+    R,
+  >(options: {
+    cacheKey: string;
+    eventKey: string;
+    optimisticItem: T;
+    request: () => Promise<R>;
+    reconcile: (response: R) => T;
+    keepOnClear?: boolean;
+  }): Promise<R> {
+    const { cacheKey, eventKey, keepOnClear = false } = options;
+    return this.runOptimisticUpsert(
+      {
+        read: () => this.readList<T>(cacheKey),
+        write: (list) =>
+          this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear),
+      },
+      options.optimisticItem,
+      options.request,
+      options.reconcile,
+    );
+  }
+
+  /** Optimistic removal from a flat list cache (re-inserts at the original index on failure). */
+  protected static optimisticListRemove<
+    T extends { id: number | string },
+    R,
+  >(options: {
+    cacheKey: string;
+    eventKey: string;
+    itemId: number | string;
+    request: () => Promise<R>;
+    keepOnClear?: boolean;
+  }): Promise<R> {
+    const { cacheKey, eventKey, keepOnClear = false } = options;
+    return this.runOptimisticRemove<T, R>(
+      {
+        read: () => this.readList<T>(cacheKey),
+        write: (list) =>
+          this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear),
+      },
+      options.itemId,
+      options.request,
+    );
+  }
+
+  /** Optimistic upsert on one entry of a dictionary-list cache. */
+  protected static optimisticDictionaryListUpsert<
+    T extends { id: number | string },
+    R,
+  >(options: {
+    cacheKey: string;
+    entryKey: string;
+    eventKey: string;
+    optimisticItem: T;
+    request: () => Promise<R>;
+    reconcile: (response: R) => T;
+  }): Promise<R> {
+    return this.runOptimisticUpsert(
+      this.dictionaryListIo<T>(options.cacheKey, options.entryKey, options.eventKey),
+      options.optimisticItem,
+      options.request,
+      options.reconcile,
+    );
+  }
+
+  /** Optimistic removal from one entry of a dictionary-list cache. */
+  protected static optimisticDictionaryListRemove<
+    T extends { id: number | string },
+    R,
+  >(options: {
+    cacheKey: string;
+    entryKey: string;
+    eventKey: string;
+    itemId: number | string;
+    request: () => Promise<R>;
+  }): Promise<R> {
+    return this.runOptimisticRemove<T, R>(
+      this.dictionaryListIo<T>(options.cacheKey, options.entryKey, options.eventKey),
+      options.itemId,
+      options.request,
+    );
+  }
+
+  /** read/write pair addressing a single entry inside a dictionary cache. */
+  private static dictionaryListIo<T>(
+    cacheKey: string,
+    entryKey: string,
+    eventKey: string,
+  ): { read: () => Promise<T[]>; write: (list: T[]) => Promise<void> } {
+    return {
+      read: async () => {
+        const dict = await this.readDictionary<T>(cacheKey);
+        return dict[entryKey] ? [...dict[entryKey]] : [];
+      },
+      write: async (list) => {
+        const dict = await this.readDictionary<T>(cacheKey);
+        await this.saveAndNotify(cacheKey, eventKey, {
+          ...dict,
+          [entryKey]: list,
+        });
+      },
+    };
   }
 }

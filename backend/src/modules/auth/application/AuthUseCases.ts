@@ -1,12 +1,25 @@
 /**
  * modules/auth/application/AuthUseCases.ts
+ *
+ * Use cases for registration, login (user + guest), token refresh,
+ * logout, SSE tickets, and profile management. Validation goes through
+ * the shared parseOrThrow helper; magic numbers (bcrypt cost, session
+ * limits) come from core/config.
  */
 
 import bcrypt from 'bcryptjs';
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 import type { UserRepository } from '../domain/User';
-import { ValidationError, UnauthorizedError, NotFoundError, ConflictError, ForbiddenError } from '../../../core/errors';
+import {
+  ValidationError,
+  UnauthorizedError,
+  NotFoundError,
+  ConflictError,
+  ForbiddenError,
+} from '../../../core/errors';
+import { parseOrThrow } from '../../../core/validation';
+import { AUTH } from '../../../core/config';
 import { generateTokens, sessionStore, ticketStore, jwtConfig } from '../../../core/middleware/auth';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -16,20 +29,33 @@ const CredentialsSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+export const UpdateProfileSchema = z
+  .object({
+    username: z.string().min(1, 'Username must not be empty').optional(),
+    password: z.string().min(1, 'Password must not be empty').optional(),
+    passwordConfirmation: z.string().optional(),
+  })
+  .refine(
+    (d) => d.username !== undefined || d.password !== undefined,
+    { message: 'No fields provided' },
+  );
+
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
 export class RegisterUseCase {
   constructor(private readonly repo: UserRepository) {}
 
   async execute(input: unknown): Promise<{ id: number; username: string }> {
-    const result = CredentialsSchema.safeParse(input);
-    if (!result.success) throw new ValidationError('Username and password are required');
+    const { username, password } = parseOrThrow(
+      CredentialsSchema,
+      input,
+      'Username and password are required',
+    );
 
-    const { username, password } = result.data;
     const existing = await this.repo.findByUsername(username);
     if (existing) throw new ConflictError('Username already exists');
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, AUTH.BCRYPT_SALT_ROUNDS);
     return this.repo.create(username, hashedPassword);
   }
 }
@@ -38,10 +64,12 @@ export class LoginUseCase {
   constructor(private readonly repo: UserRepository) {}
 
   async execute(input: unknown): Promise<{ accessToken: string; refreshToken: string }> {
-    const result = CredentialsSchema.safeParse(input);
-    if (!result.success) throw new ValidationError('Username and password are required');
+    const { username, password } = parseOrThrow(
+      CredentialsSchema,
+      input,
+      'Username and password are required',
+    );
 
-    const { username, password } = result.data;
     const user = await this.repo.findByUsername(username);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new UnauthorizedError('Invalid credentials');
@@ -74,11 +102,10 @@ export class RefreshTokenUseCase {
     if (!userId) throw new ForbiddenError('Invalid refresh token');
 
     try {
-      // Use the secret from config, cast to Secret type
-      const decoded = jwt.verify(refreshToken, jwtConfig.JWT_REFRESH_SECRET as Secret) as { 
-        id: number; 
-        username: string; 
-        role: string 
+      const decoded = jwt.verify(refreshToken, jwtConfig.JWT_REFRESH_SECRET as Secret) as {
+        id: number;
+        username: string;
+        role: string;
       };
 
       if (decoded.id !== userId) throw new ForbiddenError('Invalid refresh token');
@@ -110,26 +137,26 @@ export class RequestTicketUseCase {
 export class UpdateProfileUseCase {
   constructor(private readonly repo: UserRepository) {}
 
-  async execute(userId: number, fields: Record<string, unknown>): Promise<void> {
-    if (Object.keys(fields).length === 0) throw new ValidationError('No fields provided');
+  async execute(userId: number, input: unknown): Promise<void> {
+    const fields = parseOrThrow(UpdateProfileSchema, input, 'No fields provided');
 
-    const updateFields = { ...fields };
+    const updateFields: Record<string, unknown> = { ...fields };
 
-    if (updateFields['password']) {
-      if (!updateFields['passwordConfirmation']) {
+    if (fields.password) {
+      if (!fields.passwordConfirmation) {
         throw new ValidationError('Password confirmation is required');
       }
-      if (updateFields['password'] !== updateFields['passwordConfirmation']) {
+      if (fields.password !== fields.passwordConfirmation) {
         throw new ValidationError('Passwords do not match');
       }
-      updateFields['password'] = await bcrypt.hash(updateFields['password'] as string, 10);
+      updateFields['password'] = await bcrypt.hash(fields.password, AUTH.BCRYPT_SALT_ROUNDS);
       delete updateFields['passwordConfirmation'];
     }
 
     const updated = await this.repo.update(userId, updateFields);
     if (!updated) throw new NotFoundError('User');
 
-    // Invalidate all sessions after profile change
+    // Credentials changed — every existing session must re-authenticate.
     sessionStore.deleteAll(userId);
   }
 }

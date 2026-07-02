@@ -297,7 +297,7 @@ const ApiUtils = {
 
   /**
    * Initializes a Server-Sent Events (SSE) stream.
-   * Obtains a one-time ticket via POST /auth/request-ticket (no body required in V2),
+   * Obtains a one-time ticket via POST /auth/ticket (no body required in V2),
    * then opens an EventSource with the ticket as a query parameter.
    *
    * @param endpoint     The streaming endpoint path (e.g. "/sales")
@@ -313,7 +313,7 @@ const ApiUtils = {
     onDone?: (doneData?: { total?: number; status?: string }) => void,
   ): Promise<() => void> {
     try {
-      // V2: POST /auth/request-ticket requires no request body
+      // V2: POST /auth/ticket requires no request body
       const { ticket } = await this.post<null, { ticket: string }>(
         "/auth/ticket",
       );

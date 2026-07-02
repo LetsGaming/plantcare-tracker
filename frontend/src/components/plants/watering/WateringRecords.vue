@@ -111,7 +111,7 @@ import { addCircle } from "ionicons/icons";
 import Calendar from "@/components/calendar/Calendar.vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 
-import WateringService from "@/services/WateringService";
+import WateringService, { WateringEvents } from "@/services/WateringService";
 import UserService from "@/services/UserService";
 import CalendarService from "@/services/CalendarService";
 import localizationService from "@/services/general/LocalizationService";
@@ -170,6 +170,11 @@ export default defineComponent({
     };
   },
   async mounted() {
+    document.addEventListener(
+      WateringEvents.RECORDS_CHANGED,
+      this.handleRecordsChanged,
+    );
+
     this.isLoading = true;
     try {
       // Parallel loading to optimize speed while remaining safe
@@ -197,6 +202,12 @@ export default defineComponent({
     } finally {
       this.isLoading = false;
     }
+  },
+  beforeUnmount() {
+    document.removeEventListener(
+      WateringEvents.RECORDS_CHANGED,
+      this.handleRecordsChanged,
+    );
   },
   computed: {
     popoverInfo(): PopoverItem | undefined {
@@ -360,6 +371,15 @@ export default defineComponent({
         },
       ];
     },
+    /**
+     * Reacts to RECORDS_CHANGED (fired by every optimistic paint,
+     * reconcile, and rollback). setRecords re-derives from the dictionary
+     * cache — an L1 hit in all event-driven cases, never a network call.
+     */
+    handleRecordsChanged() {
+      void this.setRecords();
+    },
+
     async setRecords() {
       try {
         const response = await WateringService.getWateringRecords(this.plantId);
@@ -411,36 +431,37 @@ export default defineComponent({
     },
     async deleteRecord() {
       if (!this.selectedRecord?.id) return;
-      this.isLoading = true;
-      try {
-        await WateringService.deleteWateringRecord(
-          this.plantId,
-          this.selectedRecord.id,
-        );
-        this.showEditingModal = false;
-        await this.setRecords();
-      } finally {
-        this.isLoading = false;
-      }
+      const recordId = this.selectedRecord.id;
+
+      // Optimistic: the record is removed from the cache immediately and
+      // the calendar repaints via RECORDS_CHANGED — close right away.
+      // On failure handleRequest shows the toast and the rollback
+      // re-derives the previous state.
+      this.showEditingModal = false;
+      await WateringService.deleteWateringRecord(this.plantId, recordId).catch(
+        () => undefined,
+      );
     },
     async prepareAndSaveRecord(
       record: AddWateringRecord | EditWateringRecord,
       mode: "add" | "edit",
       id?: number,
     ) {
-      this.isLoading = true;
       this.syncFertilizerUsage(record, record.fertilizerTypeId ?? undefined);
-      try {
-        if (mode === "add") {
-          await WateringService.addWateringRecord(this.plantId, record);
-          this.showAddingModal = false;
-        } else if (id) {
-          await WateringService.editWateringRecord(this.plantId, id, record);
-          this.showEditingModal = false;
-        }
-        await this.setRecords();
-      } finally {
-        this.isLoading = false;
+
+      // Optimistic: the calendar repaints via RECORDS_CHANGED before the
+      // request settles — close the modal immediately. Errors are already
+      // toasted by handleRequest and rolled back by the service.
+      if (mode === "add") {
+        this.showAddingModal = false;
+        await WateringService.addWateringRecord(this.plantId, record).catch(
+          () => undefined,
+        );
+      } else if (id) {
+        this.showEditingModal = false;
+        await WateringService.editWateringRecord(this.plantId, id, record).catch(
+          () => undefined,
+        );
       }
     },
     mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {

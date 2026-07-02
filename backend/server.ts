@@ -1,8 +1,9 @@
 /**
  * server.ts
  *
- * Backend entry point — SQLite edition.
- * Replaces the mysql2 pool with the better-sqlite3 singleton from src/core/database/db.ts.
+ * Backend entry point. Persistence is the better-sqlite3 singleton from
+ * src/core/database/db.ts; module routers construct their own
+ * repositories against it (see each module's presentation layer).
  *
  * Start: `pnpm run dev`  or  `pnpm run build && pnpm run start`
  */
@@ -11,7 +12,6 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
-import fs from "fs";
 import path from "path";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -26,6 +26,12 @@ import {
   notFoundHandler,
 } from "./src/core/middleware";
 import { logger } from "./src/core/logging";
+import {
+  getApiBasePath,
+  getApiVersionPath,
+  getUploadsDirectory,
+  STATIC_UPLOADS_ROUTE,
+} from "./src/core/config";
 
 import { createAuthRouter }      from "./src/modules/auth/presentation/authRoutes";
 import { createSalesRouter }     from "./src/modules/sales/presentation/salesRoutes";
@@ -66,29 +72,16 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(requestIdMiddleware);
 
-const uploadDir = process.env.NAS_PATH
-  ? path.resolve(process.env.NAS_PATH)
-  : path.resolve(process.cwd(), "uploads");
-app.use("/uploads", express.static(uploadDir));
+// Uploaded images are served statically; the directory and route prefix
+// come from core/config so the images module builds matching URLs.
+app.use(STATIC_UPLOADS_ROUTE, express.static(getUploadsDirectory()));
 
-// get version for /api/vX prefix from env or package.json ("versionPath" field)
-function getVersionPath(): string {
-  if (process.env.API_VERSION_PATH) return process.env.API_VERSION_PATH;
-  try {
-    const raw = fs.readFileSync(
-      path.resolve(process.cwd(), "package.json"),
-      "utf-8",
-    );
-    const pkg = JSON.parse(raw) as { versionPath?: string };
-    return pkg.versionPath ?? "v2";
-  } catch {
-    return "v2";
-  }
-}
-const versionPath = getVersionPath();
-const V = `/api/${versionPath}`;
+// API version prefix (/api/vX) resolved once in core/config — the auth
+// module uses the same resolver to scope its refresh-token cookie.
+const versionPath = getApiVersionPath();
+const V = getApiBasePath();
 
-// Routes — no pool argument needed; repositories use the db singleton
+// Routes — each router is its own composition root
 app.use(`${V}/auth`,       createAuthRouter());
 app.use(`${V}/sales`,      createSalesRouter());
 app.use(`${V}/plants`,     createPlantsRouter());

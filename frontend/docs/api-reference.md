@@ -8,12 +8,17 @@
 
 All requests require an `Authorization: Bearer <accessToken>` header except
 `/auth/login`, `/auth/login/guest`, `/auth/register`, and `/auth/refresh-token`.
+Guest accounts are read-only: every mutating route (POST / PATCH / PUT / DELETE)
+answers `403` for guest tokens.
 
 ## Response Format
 
 ```json
-// Success
-{ "success": true, "data": { ... } }
+// Success (200 / 201)
+{ "data": { ... } }
+
+// No Content (successful DELETE, logout)
+// → 204, empty body
 
 // Error
 {
@@ -28,6 +33,11 @@ All requests require an `Authorization: Bearer <accessToken>` header except
 
 The `fields` property is only present on `ValidationError` (400) responses.
 
+Mutating endpoints (POST / PATCH / PUT) respond with the **full resource** in
+the same shape a subsequent GET would return — no follow-up fetch is needed
+after a write. POST additionally sets a `Location` header. Successful DELETEs
+answer `204` with an empty body.
+
 ---
 
 ## Auth — `/api/v2/auth`
@@ -38,22 +48,23 @@ The `fields` property is only present on `ValidationError` (400) responses.
 | POST | `/login` | — | Login |
 | POST | `/login/guest` | — | Guest login (read-only) |
 | POST | `/refresh-token` | cookie | Refresh access token |
-| POST | `/request-ticket` | JWT | Get one-time SSE ticket |
+| POST | `/ticket` | JWT | Get one-time SSE ticket |
 | POST | `/logout` | cookie | Logout |
-| PUT | `/update` | JWT | Update own profile |
-| DELETE | `/delete` | JWT | Delete own account |
+| PATCH | `/me` | JWT | Update own profile |
+| DELETE | `/me` | JWT | Delete own account |
 
 ### POST `/register` and POST `/login`
 
 ```json
 { "username": "alice", "password": "mypassword" }
-// → 201/200: { "success": true, "data": { "accessToken": "eyJ..." } }
+// → 201/200: { "data": { "accessToken": "eyJ..." } }
 ```
 
-### POST `/request-ticket`
+### POST `/ticket`
 
-No request body. Returns `{ "ticket": "abc123" }` used as a query parameter
-on SSE endpoints.
+No request body. Returns `{ "data": { "ticket": "abc123" } }`. The ticket is
+single-use, valid for 60 seconds, and passed as a `ticket` query parameter on
+SSE endpoints.
 
 ---
 
@@ -107,11 +118,11 @@ not the full `SubstrateData`. Fetch from `/substrates/:id` for full details.
 | GET | `/:id` | JWT | Single substrate by ID |
 | POST | `/` | JWT | Create substrate |
 | PATCH | `/:id` | JWT | Update name / isPublic / remove components |
-| POST | `/components/:id` | JWT | Add components |
-| PATCH | `/components/:id` | JWT | Upsert (replace) components |
+| POST | `/:id/components` | JWT | Add components |
+| PATCH | `/:id/components` | JWT | Upsert (replace) components |
 | DELETE | `/:id` | JWT | Delete substrate |
 
-### POST `/components/:id` request body
+### POST `/:id/components` request body
 
 ```json
 { "components": [{ "componentId": 1, "parts": 3 }, { "componentId": 2, "parts": 1 }] }
@@ -160,10 +171,10 @@ Use `Utils.convertToMillis()` on the frontend for display.
 |--------|------|:----:|-------------|
 | GET | `/` | JWT | All components |
 | GET | `/fineness-levels` | JWT | Available fineness options |
-| GET | `/component/:id` | JWT | Single component |
-| POST | `/admin` | admin | Create component |
-| PUT | `/admin/:id` | admin | Update component |
-| DELETE | `/admin/:id` | admin | Delete component |
+| GET | `/:id` | JWT | Single component |
+| POST | `/` | admin | Create component |
+| PUT | `/:id` | admin | Update component |
+| DELETE | `/:id` | admin | Delete component |
 
 ---
 
@@ -172,8 +183,10 @@ Use `Utils.convertToMillis()` on the frontend for display.
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
 | POST | `/:entityType/:entityId` | JWT | Upload image (multipart/form-data) |
-| PATCH | `/image/:entityType/:id` | JWT | Replace file and/or update date |
-| DELETE | `/image/:entityType/:id` | JWT | Delete single image |
+| GET | `/:entityType` | JWT | List images for entity (`?entityId=<id>`) |
+| GET | `/:entityType/:entityId` | JWT | Serve primary image file (`?size=<px>`) |
+| PATCH | `/:id` | JWT | Replace file and/or update date |
+| DELETE | `/:id` | JWT | Delete single image by image ID |
 | DELETE | `/:entityType/:entityId` | JWT | Delete all images for an entity |
 
 `entityType` must be one of: `plant`, `substrate`, `component`.
@@ -186,7 +199,7 @@ Use `Utils.convertToMillis()` on the frontend for display.
 GET /api/v2/sales?ticket=<ticket>
 ```
 
-Requires a one-time ticket from `POST /auth/request-ticket`.
+Requires a one-time ticket from `POST /auth/ticket`.
 
 ### Stream events
 

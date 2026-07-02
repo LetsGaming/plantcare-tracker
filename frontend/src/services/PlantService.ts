@@ -21,10 +21,12 @@
  *
  * Images are managed via ImageService (POST/PATCH/DELETE /images/plant/:id).
  *
- * ## Cache invalidation
+ * ## Mutation strategy — optimistic
  *
- * - After create → full cache clear (plant might affect public view)
- * - After update / delete → targeted ID-based removal + re-fetch
+ * Create, edit, and delete paint the expected outcome into the `plants_all`
+ * cache immediately (a temporary negative id for creates) and reconcile with
+ * the full plant the server returns — or roll back just the affected item on
+ * failure. Views react to PLANTS_UPDATED and never refetch after mutations.
  */
 import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
@@ -33,6 +35,8 @@ import PlantMapper from "@/mapping/PlantMapping";
 import WateringService from "./WateringService";
 import ImageService from "@/services/ImageService";
 import UserService from "./UserService";
+import SubstrateService from "./SubstrateService";
+import Utils from "@/utils/utils";
 
 const BASE_ENDPOINT = "/plants";
 const RESOURCE_KEY = "plants.title";
@@ -155,69 +159,151 @@ export default class PlantService extends BaseService {
     return plants.filter((p) => p.userId === userId);
   }
 
-  // ── Mutations ─────────────────────────────────────────────────────────────────
+  // ── Mutations — optimistic ────────────────────────────────────────────────────
+  // Each mutation paints the expected outcome into the cache immediately
+  // (views react to PLANTS_UPDATED), then reconciles with the full plant the
+  // server returns — or rolls back just the affected item on failure.
+  // handleRequest still owns the single error toast.
 
   /**
-   * Creates a new plant via POST /plants.
+   * Creates a new plant via POST /plants (optimistic).
    *
-   * Performs a full cache invalidation after creation because the new plant
-   * may affect the public view for other users.
+   * The plant appears in the cache instantly under a temporary negative id
+   * and is swapped in place for the server plant on success — so the
+   * returned Plant carries the real id for dependent calls such as the
+   * initial image upload.
+   *
+   * @returns The mapped server plant.
    */
-  static async addPlant(plantToAdd: AddPlant): Promise<any> {
-    const response = await this.handleRequest(
-      ApiUtils.post(BASE_ENDPOINT, plantToAdd),
-      RESOURCE_KEY,
-      "error.action_failed",
-    );
-    // Backend returns the full created plant — upsert into cache directly
-    if (response) {
-      const plant = PlantMapper.mapPlant(response as APIPlant);
-      await this.upsertIntoListCache(CACHE_KEY_ALL, PlantEvents.PLANTS_UPDATED, plant);
-    }
-    return response;
+  static async addPlant(plantToAdd: AddPlant): Promise<Plant> {
+    // `image` is handled by uploadPlantImage after creation — never sent here.
+    const { image: _image, ...body } = plantToAdd;
+
+    const [userId, substrates] = await Promise.all([
+      UserService.getUserId(),
+      // Best-effort name lookup for the optimistic card; the picker the
+      // user just used has warmed this cache in practice.
+      SubstrateService.getAllSubstrates().catch(() => [] as Substrate[]),
+    ]);
+    const substrateName =
+      substrates.find((s) => s.id === plantToAdd.substrateId)?.name ?? "";
+
+    const optimistic: Plant = {
+      id: -Date.now(), // temp id — replaced by the server id on reconcile
+      userId: userId ?? -1,
+      name: plantToAdd.name,
+      species: plantToAdd.species,
+      description: plantToAdd.species,
+      isPublic: plantToAdd.isPublic ?? false,
+      created_at: Utils.convertDateMillis(Date.now()),
+      imageUrl: undefined,
+      substrate: { id: plantToAdd.substrateId, name: substrateName },
+      images: [],
+    };
+
+    return this.optimisticListUpsert<Plant, Plant>({
+      cacheKey: CACHE_KEY_ALL,
+      eventKey: PlantEvents.PLANTS_UPDATED,
+      optimisticItem: optimistic,
+      request: async () =>
+        PlantMapper.mapPlant(
+          await this.handleRequest(
+            ApiUtils.post<typeof body, APIPlant>(BASE_ENDPOINT, body),
+            RESOURCE_KEY,
+            "error.action_failed",
+          ),
+        ),
+      reconcile: (plant) => plant,
+    });
   }
 
   /**
-   * Updates an existing plant via PATCH /plants/:id.
+   * Updates an existing plant via PATCH /plants/:id (optimistic).
    *
-   * Invalidates the specific plant entry in the cache and triggers
-   * a re-fetch to keep derived views consistent.
+   * The merged plant is painted immediately; the previous state of that
+   * one plant is restored if the request fails.
+   *
+   * @returns The mapped server plant.
    */
-  static async editPlant(plantId: number, updatedPlantData: EditPlant): Promise<any> {
-    const response = await this.handleRequest(
-      ApiUtils.patch(`${BASE_ENDPOINT}/${plantId}`, updatedPlantData),
-      RESOURCE_KEY,
-      "error.action_failed",
-    );
-    // Backend returns the full updated plant — upsert into cache directly
-    if (response) {
-      const plant = PlantMapper.mapPlant(response as APIPlant);
-      await this.upsertIntoListCache(CACHE_KEY_ALL, PlantEvents.PLANTS_UPDATED, plant);
+  static async editPlant(
+    plantId: number,
+    updatedPlantData: EditPlant,
+  ): Promise<Plant> {
+    const existing = (await this.getAllPlants()).find((p) => p.id === plantId);
+
+    let substrate = existing?.substrate ?? null;
+    if (updatedPlantData.substrateId !== undefined) {
+      const substrates = await SubstrateService.getAllSubstrates().catch(
+        () => [] as Substrate[],
+      );
+      substrate = {
+        id: updatedPlantData.substrateId,
+        name:
+          substrates.find((s) => s.id === updatedPlantData.substrateId)?.name ??
+          "",
+      };
     }
-    return response;
+
+    const optimistic: Plant = {
+      id: plantId,
+      userId: existing?.userId ?? -1,
+      name: updatedPlantData.name ?? existing?.name ?? "",
+      species: updatedPlantData.species ?? existing?.species ?? "",
+      description: updatedPlantData.species ?? existing?.description ?? "",
+      isPublic: updatedPlantData.isPublic ?? existing?.isPublic ?? false,
+      created_at: existing?.created_at ?? Utils.convertDateMillis(Date.now()),
+      imageUrl: existing?.imageUrl,
+      substrate,
+      images: existing?.images ?? [],
+    };
+
+    return this.optimisticListUpsert<Plant, Plant>({
+      cacheKey: CACHE_KEY_ALL,
+      eventKey: PlantEvents.PLANTS_UPDATED,
+      optimisticItem: optimistic,
+      request: async () =>
+        PlantMapper.mapPlant(
+          await this.handleRequest(
+            ApiUtils.patch<EditPlant, APIPlant>(
+              `${BASE_ENDPOINT}/${plantId}`,
+              updatedPlantData,
+            ),
+            RESOURCE_KEY,
+            "error.action_failed",
+          ),
+        ),
+      reconcile: (plant) => plant,
+    });
   }
 
   /**
-   * Deletes a plant via DELETE /plants/:id.
+   * Deletes a plant via DELETE /plants/:id (optimistic).
    *
-   * Removes the plant entity from the cache and cascades the invalidation
-   * to the associated watering records.
+   * The plant disappears immediately and is re-inserted at its original
+   * position if the request fails. The watering cache for the plant is
+   * cleared only after the server has confirmed the delete.
    */
-  static async deletePlant(plantId: number): Promise<any> {
-    const response = await this.handleRequest(
-      ApiUtils.delete(`${BASE_ENDPOINT}/${plantId}`),
-      RESOURCE_KEY,
-      "error.action_failed",
-    );
-    await this.invalidatePlantCache(plantId);
-    return response;
+  static async deletePlant(plantId: number): Promise<void> {
+    await this.optimisticListRemove<Plant, unknown>({
+      cacheKey: CACHE_KEY_ALL,
+      eventKey: PlantEvents.PLANTS_UPDATED,
+      itemId: plantId,
+      request: () =>
+        this.handleRequest(
+          ApiUtils.delete<void>(`${BASE_ENDPOINT}/${plantId}`),
+          RESOURCE_KEY,
+          "error.action_failed",
+        ),
+    });
+    await WateringService.invalidatePlantCache(plantId);
   }
 
   /**
    * Uploads an image for a plant via POST /images/plant/:id.
    *
-   * Delegates to ImageService and then invalidates the plant cache entry
-   * so the updated image metadata is reflected in the UI.
+   * Delegates to ImageService, then refreshes just this plant via
+   * GET /plants/:id so the new image metadata lands in the cache without
+   * discarding the rest of the list or the watering history.
    */
   static async uploadPlantImage(
     plantId: number,
@@ -225,7 +311,7 @@ export default class PlantService extends BaseService {
     date?: string | Date,
   ): Promise<any> {
     const response = await ImageService.uploadImage(image, "plant", plantId, date);
-    await this.invalidatePlantCache(plantId);
+    await this.handleRequest(this.fetchFromApi(plantId), RESOURCE_KEY);
     return response;
   }
 }

@@ -33,7 +33,7 @@ V2 uses the **same schema** as V1. The only addition is 12 performance indexes.
 If upgrading from a V1 database:
 
 ```bash
-mysql -u your_user -p your_database < database/migration_v2_indexes.sql
+node scripts/migrate-sqlite.js
 ```
 
 This is a non-destructive, backwards-compatible change.

@@ -1,25 +1,22 @@
 /**
  * modules/auth/presentation/authRoutes.ts
  *
- * REST compliance:
- *  - POST /auth/register     → 201 + user resource
- *  - POST /auth/login        → 200 + token
- *  - POST /auth/login/guest  → 200 + token
- *  - POST /auth/logout       → 204 No Content
- *  - POST /auth/refresh-token → 200 + new token
- *  - POST /auth/ticket       → 200 + ticket
- *  - PATCH /auth/me          → 200 (no body — session invalidated, client must re-login)
- *  - DELETE /auth/me         → 204 No Content
+ * Composition root for the auth module.
  *
- * URL cleanup:
- *  - PATCH /auth/me     (was PUT /auth/update — verb in URL, wrong method for partial update)
- *  - PATCH /auth/:id    (was PUT /auth/update/:id — admin override)
- *  - DELETE /auth/me    (was DELETE /auth/delete — verb in URL)
- *  - POST /auth/ticket  (was POST /auth/request-ticket — verb in URL)
+ * REST compliance:
+ *  - POST /auth/register      → 201 + user resource
+ *  - POST /auth/login         → 200 + token
+ *  - POST /auth/login/guest   → 200 + token
+ *  - POST /auth/logout        → 204 No Content
+ *  - POST /auth/refresh-token → 200 + new token
+ *  - POST /auth/ticket        → 200 + ticket
+ *  - PATCH /auth/me           → 200 (data: null — sessions invalidated, client must re-login)
+ *  - PATCH /auth/:id          → 200 (admin override)
+ *  - DELETE /auth/me          → 204 No Content
  */
 
 import { Router } from 'express';
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { SQLiteUserRepository } from '../infrastructure/SQLiteUserRepository';
 import {
@@ -32,18 +29,21 @@ import {
   UpdateProfileUseCase,
   DeleteProfileUseCase,
 } from '../application/AuthUseCases';
-import { authenticateToken, isAdmin } from '../../../core/middleware';
+import { authenticateToken, isAdmin, asyncHandler } from '../../../core/middleware';
+import { AUTH, AUTH_RATE_LIMIT, HTTP_STATUS, getApiVersionPath } from '../../../core/config';
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
 
 const authIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 50,
+  windowMs: AUTH_RATE_LIMIT.WINDOW_MS,
+  max: AUTH_RATE_LIMIT.MAX_PER_IP,
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const authAccountLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: AUTH_RATE_LIMIT.WINDOW_MS,
+  max: AUTH_RATE_LIMIT.MAX_PER_ACCOUNT,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -56,7 +56,14 @@ const authAccountLimiter = rateLimit({
   },
 });
 
-export const createAuthRouter = (_pool?: unknown): Router => {
+// ── Cookie helpers ────────────────────────────────────────────────────────────
+
+const COOKIE_BASE = { httpOnly: true, sameSite: 'strict' as const };
+
+const isHttpsRequest = (req: Request): boolean =>
+  req.secure || req.headers['x-forwarded-proto'] === 'https';
+
+export const createAuthRouter = (): Router => {
   const router = Router();
   const repo = new SQLiteUserRepository();
 
@@ -69,138 +76,113 @@ export const createAuthRouter = (_pool?: unknown): Router => {
   const updateProfile = new UpdateProfileUseCase(repo);
   const deleteProfile = new DeleteProfileUseCase(repo);
 
-  const COOKIE_BASE = { httpOnly: true, sameSite: 'strict' as const };
-  const apiVersion = process.env.API_VERSION_PATH ?? (() => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pkg = require('../../../../../package.json') as { versionPath?: string };
-      return pkg.versionPath ?? 'v2';
-    } catch { return 'v2'; }
-  })();
-  const refreshCookiePath = `/api/${apiVersion}/auth/refresh-token`;
+  // Scope the refresh cookie to the one endpoint that reads it, so it
+  // is never sent along with regular API calls.
+  const refreshCookiePath = `/api/${getApiVersionPath()}/auth/refresh-token`;
 
   // POST /register → 201 + user
   router.post(
     '/register',
     authIpLimiter,
     authAccountLimiter,
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const user = await register.execute(req.body);
-        res.status(201).location(`/auth/me`).json({ data: user });
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      const user = await register.execute(req.body);
+      res.status(HTTP_STATUS.CREATED).location('/auth/me').json({ data: user });
+    }),
   );
 
-  // POST /login → 200 + accessToken
+  // POST /login → 200 + accessToken (refresh token in scoped cookie)
   router.post(
     '/login',
     authIpLimiter,
     authAccountLimiter,
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { accessToken, refreshToken } = await login.execute(req.body);
-        const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
-        res.cookie('refreshToken', refreshToken, {
-          ...COOKIE_BASE,
-          secure: isHttps,
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-          path: refreshCookiePath,
-        });
-        res.json({ data: { accessToken } });
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      const { accessToken, refreshToken } = await login.execute(req.body);
+      res.cookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
+        ...COOKIE_BASE,
+        secure: isHttpsRequest(req),
+        maxAge: AUTH.REFRESH_COOKIE_MAX_AGE_MS,
+        path: refreshCookiePath,
+      });
+      res.json({ data: { accessToken } });
+    }),
   );
 
   // POST /login/guest → 200 + accessToken
   router.post(
     '/login/guest',
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { accessToken, refreshToken } = await guestLogin.execute();
-        const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
-        res.cookie('refreshToken', refreshToken, {
-          ...COOKIE_BASE,
-          secure: isHttps,
-          maxAge: 60 * 60 * 1000,
-        });
-        res.json({ data: { accessToken } });
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      const { accessToken, refreshToken } = await guestLogin.execute();
+      res.cookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
+        ...COOKIE_BASE,
+        secure: isHttpsRequest(req),
+        maxAge: AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS,
+      });
+      res.json({ data: { accessToken } });
+    }),
   );
 
   // POST /refresh-token → 200 + accessToken
   router.post(
     '/refresh-token',
-    (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const accessToken = refresh.execute(req.cookies?.refreshToken);
-        res.json({ data: { accessToken } });
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      const accessToken = refresh.execute(req.cookies?.refreshToken);
+      res.json({ data: { accessToken } });
+    }),
   );
 
-  // POST /ticket — was /request-ticket (verb removed)
+  // POST /ticket → 200 + one-time SSE ticket
   router.post(
     '/ticket',
     authenticateToken,
-    (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const ticket = requestTicket.execute(req.user!.id);
-        res.json({ data: { ticket } });
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      const ticket = requestTicket.execute(req.user!.id);
+      res.json({ data: { ticket } });
+    }),
   );
 
   // POST /logout → 204 No Content
   router.post('/logout', (req: Request, res: Response) => {
     logout.execute(req.cookies?.refreshToken);
-    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
-    res.clearCookie('refreshToken', {
+    res.clearCookie(AUTH.REFRESH_TOKEN_COOKIE, {
       ...COOKIE_BASE,
-      secure: isHttps,
+      secure: isHttpsRequest(req),
       path: refreshCookiePath,
     });
-    res.status(204).end();
+    res.status(HTTP_STATUS.NO_CONTENT).end();
   });
 
-  // PATCH /me — own profile (was PUT /update — verb in URL + wrong method)
+  // PATCH /me — own profile
   router.patch(
     '/me',
     authenticateToken,
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        await updateProfile.execute(req.user!.id, req.body);
-        // Sessions are invalidated after profile change — client must re-authenticate.
-        // Return 200 with no data body so the client knows to log out cleanly.
-        res.json({ data: null });
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      await updateProfile.execute(req.user!.id, req.body);
+      // Sessions are invalidated after a profile change — the client
+      // must re-authenticate. data: null signals "log out cleanly".
+      res.json({ data: null });
+    }),
   );
 
-  // PATCH /:id — admin profile override (was PUT /update/:id)
+  // PATCH /:id — admin profile override
   router.patch(
     '/:id',
     authenticateToken,
     isAdmin,
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        await updateProfile.execute(Number(req.params.id), req.body);
-        res.json({ data: null });
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      await updateProfile.execute(Number(req.params.id), req.body);
+      res.json({ data: null });
+    }),
   );
 
-  // DELETE /me — own account (was DELETE /delete — verb in URL)
+  // DELETE /me — own account
   router.delete(
     '/me',
     authenticateToken,
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        await deleteProfile.execute(req.user!.id);
-        res.status(204).end();
-      } catch (err) { next(err); }
-    },
+    asyncHandler(async (req: Request, res: Response) => {
+      await deleteProfile.execute(req.user!.id);
+      res.status(HTTP_STATUS.NO_CONTENT).end();
+    }),
   );
 
   return router;
