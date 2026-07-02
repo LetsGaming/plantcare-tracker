@@ -209,11 +209,10 @@ export default defineComponent({
       this.isLoading = true;
       try {
         // V2: DELETE /auth/me answers 204 — success is "no throw".
-        // The service clears local storage; the account is gone, so
-        // leave the authenticated area immediately.
+        // The service performs the full local teardown (memory cache,
+        // tokens, storage) and redirects to the login page itself.
         await UserService.deleteProfile();
         this.showEditingModal = false;
-        this.$router.replace({ name: "login" });
       } catch (error) {
         // handleRequest has already shown the error toast.
         console.error("Profile delete failed:", error);

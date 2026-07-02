@@ -391,7 +391,7 @@ The component catalogue is global, so all mutations are admin-only (`403` otherw
 | DELETE | `/:id` | JWT | Delete single image by image id |
 | DELETE | `/:entityType/:entityId` | JWT | Delete all images for an entity |
 
-`entityType` must be one of: `plant`, `substrate`, `component`. Mutations answer `403` for guests. Uploads with an unsupported MIME type answer `400`.
+`entityType` must be one of: `plant`, `substrate`, `component`. Mutations answer `403` for guests. Uploads with an unsupported MIME type or larger than **10 MB** answer `400`.
 
 ### POST `/:entityType/:entityId`
 
@@ -489,11 +489,11 @@ GET /api/v2/more-info?ticket=<ticket>&plantName=Monstera+deliciosa&htmlFormattin
 
 | Parameter | Required | Default | Description |
 |-----------|:--------:|---------|-------------|
-| `plantName` | ✓ | — | Plant name to look up |
+| `plantName` | ✓ | — | Plant name to look up (max. 100 characters) |
 | `htmlFormatting` | — | `false` | Return HTML instead of Markdown chunks |
 | `lang` | — | `en` | Response language (falls back to `Accept-Language` header) |
 
-A missing `plantName` is rejected **before** the stream opens with a regular JSON `400` error envelope.
+A missing or over-long `plantName` is rejected **before** the stream opens with a regular JSON `400` error envelope.
 
 ### Events
 

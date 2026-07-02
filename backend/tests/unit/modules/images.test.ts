@@ -27,6 +27,11 @@ import {
   DeleteEntityImagesUseCase,
 } from '../../../src/modules/images/application/ImageUseCases';
 import { NotFoundError, ValidationError } from '../../../src/core/errors';
+import multer from 'multer';
+import {
+  MAX_UPLOAD_BYTES,
+  translateMulterError,
+} from '../../../src/modules/images/presentation/uploadErrors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -264,5 +269,30 @@ describe('DeleteEntityImagesUseCase', () => {
     expect(storage.remove).toHaveBeenCalledTimes(2);
     expect(storage.remove).toHaveBeenCalledWith('plant', a.url);
     expect(storage.remove).toHaveBeenCalledWith('plant', b.url);
+  });
+});
+
+// ── translateMulterError ──────────────────────────────────────────────────────
+
+describe('translateMulterError', () => {
+  it('maps LIMIT_FILE_SIZE to a ValidationError naming the cap', () => {
+    const out = translateMulterError(new multer.MulterError('LIMIT_FILE_SIZE'));
+    expect(out).toBeInstanceOf(ValidationError);
+    expect((out as ValidationError).message).toContain(
+      `${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`,
+    );
+  });
+
+  it('maps other Multer errors to a generic upload ValidationError', () => {
+    const out = translateMulterError(
+      new multer.MulterError('LIMIT_UNEXPECTED_FILE'),
+    );
+    expect(out).toBeInstanceOf(ValidationError);
+    expect((out as ValidationError).message).toContain('Upload failed');
+  });
+
+  it('passes non-Multer errors through unchanged', () => {
+    const err = new Error('boom');
+    expect(translateMulterError(err)).toBe(err);
   });
 });

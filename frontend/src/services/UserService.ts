@@ -70,6 +70,9 @@ export default class UserService extends BaseService {
   }
 
   static async handleLocalLogout() {
+    // The static L1 cache is not touched by storage clears — drop it
+    // explicitly so a following login cannot read this account's data.
+    this.clearMemoryCache();
     await TokenUtils.clearToken();
     await storageService.clear();
     router.replace({ name: "login" }).then(() => window.location.reload());
@@ -154,19 +157,18 @@ export default class UserService extends BaseService {
   }
 
   static async deleteProfile() {
-    try {
-      const res = await this.handleRequest(
-        ApiUtils.delete(`${BASE_ENDPOINT}/me`),
-        "profile.title",
-        "profile.delete_failed",
-      );
+    const res = await this.handleRequest(
+      ApiUtils.delete(`${BASE_ENDPOINT}/me`),
+      "profile.title",
+      "profile.delete_failed",
+    );
 
-      await storageService.clearAll();
+    // Full wipe including keepOnClear data — the account is gone.
+    await storageService.clearAll();
+    // Same teardown as logout: memory cache, tokens, redirect, reload.
+    await this.handleLocalLogout();
 
-      return res;
-    } catch (error) {
-      throw error;
-    }
+    return res;
   }
 
   // --- Identity & Role Getters ---

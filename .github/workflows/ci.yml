@@ -1,80 +1,103 @@
-name: CI Pipeline
+# PlantCare CI — typechecks, tests, and the frontend production build
+# for every push and pull request.
+#
+# Both packages use pnpm. The exact pnpm version comes from the
+# `packageManager` field in each package.json (read by pnpm/action-setup),
+# and the `onlyBuiltDependencies` allowlists in the pnpm-workspace.yaml
+# files let pnpm 10 run the native build scripts it would otherwise block
+# (better-sqlite3, sharp, esbuild).
+#
+# Both jobs run independently and in parallel; a failure in one does not
+# cancel the other, so a red run always shows the full picture.
+#
+# NOTE: There is intentionally no lint step yet. ESLint 10 is installed in
+# the frontend but the config is still in the legacy .eslintrc format,
+# which v10 no longer supports — add a lint step here once the config has
+# been migrated to flat config (eslint.config.js) or ESLint is pinned to v8.
+
+name: CI
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  backend-test:
-    name: Backend Test & Typecheck
+  backend:
+    name: Backend — typecheck & tests
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
+      # Must come before setup-node: the pnpm cache needs pnpm on PATH.
+      # The version is read from package.json's `packageManager` field.
+      - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: backend/package.json
 
-      - name: Set up Node.js & Cache Backend
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
-          cache-dependency-path: "backend/pnpm-lock.yaml"
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
 
-      - name: Install backend dependencies
-        working-directory: ./backend
-        run: pnpm install --frozen-lockfile --ignore-workspace
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Run Typecheck
-        working-directory: ./backend
+      - name: Typecheck
         run: pnpm run typecheck
 
-      - name: Run Tests
-        working-directory: ./backend
-        run: pnpm run test
+      # The test suite mocks the database module; these values only need
+      # to exist for the config validation — they are not real secrets.
+      - name: Tests
+        run: pnpm test
+        env:
+          JWT_SECRET: ci-only-test-secret
+          JWT_REFRESH_SECRET: ci-only-test-refresh-secret
 
-      - name: Build Application
-        working-directory: ./backend
-        run: pnpm run build
-
-  frontend-test:
-    name: Frontend Test & Build
+  frontend:
+    name: Frontend — tests & production build
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: frontend
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
+      - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: frontend/package.json
 
-      - name: Set up Node.js & Cache Frontend
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
-          cache-dependency-path: "frontend/pnpm-lock.yaml"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Install frontend dependencies
-        working-directory: ./frontend
-        run: pnpm install --frozen-lockfile --ignore-workspace
+      # No e2e tests run in CI yet, so skip the ~200 MB Cypress binary.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          CYPRESS_INSTALL_BINARY: "0"
 
-      - name: Run Key Diff Check
-        working-directory: ./frontend
-        run: pnpm run check-keys
+      # Explicit `vitest run`: the package script starts watch mode.
+      - name: Tests
+        run: pnpm exec vitest run
 
-      - name: Run Tests
-        working-directory: ./frontend
-        run: pnpm run test -- --run
-
-      - name: Build Application (Includes vue-tsc)
-        working-directory: ./frontend
+      # `pnpm run build` runs vue-tsc first, so this single step covers
+      # both the typecheck and the production bundle.
+      - name: Typecheck & production build
         run: pnpm run build

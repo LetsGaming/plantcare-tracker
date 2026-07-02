@@ -25,6 +25,12 @@ describe('parsePlantInfoQuery', () => {
     expect(() => parsePlantInfoQuery({})).toThrow(ValidationError);
   });
 
+  it('rejects a plantName longer than 100 characters', () => {
+    expect(() =>
+      parsePlantInfoQuery({ plantName: 'a'.repeat(101) }),
+    ).toThrow(ValidationError);
+  });
+
   it('cleans the plant name (parentheses and special characters)', () => {
     const req = parsePlantInfoQuery({ plantName: "Monstera 'Thai' (variegated)" });
     expect(req.plantName).toBe('Monstera Thai');

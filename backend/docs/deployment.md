@@ -40,7 +40,7 @@ PM2 keeps the process alive and restarts it on crash:
 
 ```bash
 # Install globally
-npm install -g pm2
+pnpm add -g pm2
 
 # Start server
 pm2 start dist/server.js --name plantcare

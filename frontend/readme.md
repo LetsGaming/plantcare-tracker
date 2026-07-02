@@ -31,11 +31,11 @@ This is the frontend for the PlantCare Tracker app, a web application for tracki
    ```
 3. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 4. Start the development server:
    ```bash
-   npm run serve
+   pnpm run dev
    ```
 
 5. Open the app in your browser at `http://localhost:8100`.

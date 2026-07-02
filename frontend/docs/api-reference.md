@@ -189,6 +189,9 @@ Use `Utils.convertToMillis()` on the frontend for display.
 | DELETE | `/:id` | JWT | Delete single image by image ID |
 | DELETE | `/:entityType/:entityId` | JWT | Delete all images for an entity |
 
+Uploads with an unsupported MIME type (only png/jpeg/jpg are accepted) or
+larger than **10 MB** answer `400`.
+
 `entityType` must be one of: `plant`, `substrate`, `component`.
 
 ---
@@ -215,6 +218,7 @@ Requires a one-time ticket from `POST /auth/ticket`.
 
 ```
 GET /api/v2/more-info?ticket=<ticket>&plantName=<name>&lang=<lang>
+// plantName is required and limited to 100 characters (JSON 400 otherwise)
 ```
 
 ### Stream events

@@ -46,6 +46,19 @@ export abstract class BaseService {
     this.l1Cache.set(key, { data, timestamp: Date.now() });
   }
 
+  /**
+   * Empties the in-memory L1 cache and the in-flight request registry.
+   *
+   * Must accompany every local logout / account deletion: L2 storage is
+   * cleared there, but this static map would otherwise keep serving the
+   * previous account's data (until entry expiry or a full page reload)
+   * if another user signs in within the same app session.
+   */
+  static clearMemoryCache(): void {
+    this.l1Cache.clear();
+    this.ongoingRequests.clear();
+  }
+
   protected static async getCachedData<T>(
     cacheKey: string,
     fetcher: () => Promise<T>,

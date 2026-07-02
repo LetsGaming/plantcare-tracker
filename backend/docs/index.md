@@ -35,7 +35,7 @@ pnpm run build && pnpm run start
 | | |
 |--|--|
 | [Overview](./overview.md) | What V2 is, improvements over V1, tech stack, project layout |
-| [Setup](./setup.md) | Installation, all environment variables, npm scripts |
+| [Setup](./setup.md) | Installation, all environment variables, pnpm scripts |
 
 ### Core Concepts
 | | |

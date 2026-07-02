@@ -18,6 +18,7 @@ import { createImageController } from './imageController';
 import { IMAGE_ENTITY_TYPES, isEntityType } from '../domain/Image';
 import { ValidationError } from '../../../core/errors';
 import { authenticateToken, checkGuestPermission } from '../../../core/middleware';
+import { MAX_UPLOAD_BYTES, translateMulterError } from './uploadErrors';
 
 // ── Upload middleware ─────────────────────────────────────────────────────────
 
@@ -27,11 +28,20 @@ const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 // Sharp processing before anything touches the disk.
 const upload = multer({
   storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME_TYPES.includes(file.mimetype)) return cb(null, true);
     cb(new ValidationError('Invalid file type. Only png, jpeg, and jpg are allowed.'));
   },
 });
+
+/** upload.single('image') with Multer errors translated to the API contract. */
+const uploadSingleImage = (req: Request, res: Response, next: NextFunction): void => {
+  upload.single('image')(req, res, (err: unknown) => {
+    if (err) return next(translateMulterError(err));
+    next();
+  });
+};
 
 const validateEntityType = (req: Request, _res: Response, next: NextFunction): void => {
   // Express 5 types params as string | string[] — normalise first.
@@ -65,7 +75,7 @@ export const createImageRouter = (): Router => {
     authenticateToken,
     checkGuestPermission,
     validateEntityType,
-    upload.single('image'),
+    uploadSingleImage,
     requireUploadedFile,
     ctrl.uploadImage,
   );
@@ -81,7 +91,7 @@ export const createImageRouter = (): Router => {
     '/:id',
     authenticateToken,
     checkGuestPermission,
-    upload.single('image'),
+    uploadSingleImage,
     ctrl.updateImage,
   );
 

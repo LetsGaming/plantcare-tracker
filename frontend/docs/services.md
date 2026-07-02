@@ -17,6 +17,7 @@ Located at `src/services/base/BaseService.ts`.
 | `removeFromListCache(key, event, itemId)` | Remove one item from a cached list (silent no-op if absent) |
 | `replaceInListCache(key, event, previousId, item)` | Swap an item in place by its previous id (temp id → server id) |
 | `upsertInto/removeFrom/replaceInDictionaryListCache(key, entryKey, …)` | Same three operations addressing one entry of a dictionary cache; sibling entries are untouched |
+| `clearMemoryCache()` | Empties the static L1 cache and the in-flight registry. Called by `UserService.handleLocalLogout` (and therefore also on account deletion) so a following login in the same app session cannot read the previous account's data |
 
 ### Optimistic mutation wrappers
 

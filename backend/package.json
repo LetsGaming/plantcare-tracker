@@ -1,6 +1,7 @@
 {
   "name": "plantcare-backend",
   "version": "2.0.0",
+  "packageManager": "pnpm@10.34.4",
   "versionPath": "v2",
   "description": "Backend for Plant Care Tracker Webapp",
   "main": "server.js",

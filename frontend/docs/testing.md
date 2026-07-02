@@ -65,6 +65,7 @@ keep the static L1 cache from bleeding between tests.
 - **Item-scoped rollback**: a concurrent change to a sibling item while the request is in flight survives the rollback
 - `optimisticListRemove`: instant removal, re-insert at the original index on failure
 - Dictionary variants: only the addressed entry is touched; sibling entries survive paint and rollback
+- `clearMemoryCache`: proves the logout leak scenario — after wiping L2 the static L1 still serves the previous account's data until the memory cache is cleared as well
 
 ### View reactivity (`viewReactivity.test.ts`)
 

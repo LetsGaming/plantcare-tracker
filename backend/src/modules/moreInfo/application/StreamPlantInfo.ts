@@ -26,10 +26,21 @@ import { parseOrThrow } from '../../../core/validation';
 
 // ── Input schema ──────────────────────────────────────────────────────────────
 
+/** No real plant name exceeds this; the cap bounds per-request AI cost. */
+const MAX_PLANT_NAME_LENGTH = 100;
+/** RFC 5646 recommends 35 chars as a safe language-tag buffer size. */
+const MAX_LANGUAGE_TAG_LENGTH = 35;
+
 const PlantInfoQuerySchema = z.object({
-  plantName: z.string().min(1, 'plantName query parameter is required.'),
+  plantName: z
+    .string()
+    .min(1, 'plantName query parameter is required.')
+    .max(
+      MAX_PLANT_NAME_LENGTH,
+      `plantName must be at most ${MAX_PLANT_NAME_LENGTH} characters.`,
+    ),
   htmlFormatting: z.string().optional(),
-  lang: z.string().optional(),
+  lang: z.string().max(MAX_LANGUAGE_TAG_LENGTH).optional(),
 });
 
 const DEFAULT_LANGUAGE = 'en';

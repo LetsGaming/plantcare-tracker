@@ -45,6 +45,9 @@ import { BaseService } from "@/services/base/BaseService";
 type Item = { id: number; name: string };
 
 class TestService extends BaseService {
+  static getCached<T>(key: string, fetcher: () => Promise<T>) {
+    return this.getCachedData<T>(key, fetcher);
+  }
   static upsertList(key: string, event: string, item: Item) {
     return this.upsertIntoListCache(key, event, item);
   }
@@ -390,5 +393,34 @@ describe("optimistic dictionary-list wrappers", () => {
     await expect(pending).rejects.toThrow("offline");
 
     expect(readStoredDict(key)["3"].map((x) => x.id)).toEqual([30, 31]);
+  });
+});
+
+// ── clearMemoryCache ─────────────────────────────────────────────────────────
+
+describe("clearMemoryCache", () => {
+  it("drops L1 so a cleared storage cannot leak the previous account's data", async () => {
+    const key = nextKey();
+
+    // Prime both cache tiers via the normal read path.
+    const first = await TestService.getCached(key, async () => [
+      { id: 1, name: "user-A" },
+    ]);
+    expect(first).toEqual([{ id: 1, name: "user-A" }]);
+
+    // Simulate a logout that only wipes L2 storage: the static L1 map
+    // still serves the previous account's data …
+    store.clear();
+    const l1Hit = await TestService.getCached(key, async () => [
+      { id: 2, name: "user-B" },
+    ]);
+    expect(l1Hit).toEqual([{ id: 1, name: "user-A" }]);
+
+    // … unless the memory cache is cleared as well (handleLocalLogout).
+    TestService.clearMemoryCache();
+    const fresh = await TestService.getCached(key, async () => [
+      { id: 2, name: "user-B" },
+    ]);
+    expect(fresh).toEqual([{ id: 2, name: "user-B" }]);
   });
 });
