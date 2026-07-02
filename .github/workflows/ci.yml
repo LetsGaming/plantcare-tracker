@@ -28,8 +28,7 @@ jobs:
           node-version: 22
 
       - name: Install backend dependencies
-        working-directory: ./backend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --dir backend
 
       - name: Run Typecheck
         working-directory: ./backend
@@ -64,8 +63,7 @@ jobs:
           node-version: 22
 
       - name: Install frontend dependencies
-        working-directory: ./frontend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --dir frontend
 
       - name: Run Key Diff Check
         working-directory: ./frontend
