@@ -10,7 +10,7 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import {
   GetAllSubstratesUseCase,
   GetSubstrateUseCase,
@@ -29,7 +29,25 @@ import { HTTP_STATUS } from '../../../core/config';
 export interface SubstrateListResponse { data: SubstrateData[] }
 export interface SubstrateResponse { data: SubstrateData }
 
-export const createSubstrateController = (repo: SubstrateRepository) => {
+/**
+ * HTTP handlers exposed by the substrates module.
+ *
+ * Explicitly typed so the declaration emit never has to name
+ * transitive express types (ParamsDictionary/ParsedQs) — those are
+ * not reachable by name under pnpm's non-hoisted node_modules
+ * layout (TS2883).
+ */
+export interface SubstrateController {
+  getAllSubstrates: RequestHandler;
+  getSubstrate: RequestHandler;
+  addSubstrate: RequestHandler;
+  editSubstrate: RequestHandler;
+  addComponents: RequestHandler;
+  upsertComponents: RequestHandler;
+  deleteSubstrate: RequestHandler;
+}
+
+export const createSubstrateController = (repo: SubstrateRepository): SubstrateController => {
   const getAll = new GetAllSubstratesUseCase(repo);
   const getOne = new GetSubstrateUseCase(repo);
   const create = new CreateSubstrateUseCase(repo);

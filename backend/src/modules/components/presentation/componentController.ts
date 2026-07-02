@@ -10,7 +10,7 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import {
   GetAllComponentsUseCase,
   GetFinenessLevelsUseCase,
@@ -33,7 +33,24 @@ export interface ComponentListResponse { data: ComponentData[] }
 export interface ComponentResponse { data: ComponentData }
 export interface FinenessLevelListResponse { data: FinenessLevel[] }
 
-export const createComponentController = (repo: ComponentRepository) => {
+/**
+ * HTTP handlers exposed by the components module.
+ *
+ * Explicitly typed so the declaration emit never has to name
+ * transitive express types (ParamsDictionary/ParsedQs) — those are
+ * not reachable by name under pnpm's non-hoisted node_modules
+ * layout (TS2883).
+ */
+export interface ComponentController {
+  getAllComponents: RequestHandler;
+  getFinenessLevels: RequestHandler;
+  getComponent: RequestHandler;
+  addComponent: RequestHandler;
+  editComponent: RequestHandler;
+  deleteComponent: RequestHandler;
+}
+
+export const createComponentController = (repo: ComponentRepository): ComponentController => {
   const getAll = new GetAllComponentsUseCase(repo);
   const getLevels = new GetFinenessLevelsUseCase(repo);
   const getOne = new GetComponentUseCase(repo);

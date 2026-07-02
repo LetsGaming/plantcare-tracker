@@ -7,7 +7,7 @@
  * application layer.
  */
 
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import {
   UploadImageUseCase,
   ListEntityImagesUseCase,
@@ -52,10 +52,27 @@ const uploadedFile = (req: Request): UploadedFile => ({
   originalName: req.file!.originalname,
 });
 
+/**
+ * HTTP handlers exposed by the images module.
+ *
+ * Explicitly typed so the declaration emit never has to name
+ * transitive express types (ParamsDictionary/ParsedQs) — those are
+ * not reachable by name under pnpm's non-hoisted node_modules
+ * layout (TS2883).
+ */
+export interface ImageController {
+  uploadImage: RequestHandler;
+  listEntityImages: RequestHandler;
+  serveEntityImage: RequestHandler;
+  updateImage: RequestHandler;
+  deleteImage: RequestHandler;
+  deleteEntityImages: RequestHandler;
+}
+
 export const createImageController = (
   repo: ImageRepository,
   storage: ImageStorage,
-) => {
+): ImageController => {
   const upload = new UploadImageUseCase(repo, storage);
   const list = new ListEntityImagesUseCase(repo);
   const serve = new ServeEntityImageUseCase(repo, storage);

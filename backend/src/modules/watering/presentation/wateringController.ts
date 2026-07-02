@@ -10,7 +10,7 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import {
   GetFertilizerTypesUseCase,
   GetWateringRecordsForPlantUseCase,
@@ -33,7 +33,24 @@ export interface FertilizerTypeListResponse { data: FertilizerType[] }
 export interface WateringRecordListResponse { data: WateringRecordData[] }
 export interface WateringRecordResponse { data: WateringRecordData }
 
-export const createWateringController = (repo: WateringRepository) => {
+/**
+ * HTTP handlers exposed by the watering module.
+ *
+ * Explicitly typed so the declaration emit never has to name
+ * transitive express types (ParamsDictionary/ParsedQs) — those are
+ * not reachable by name under pnpm's non-hoisted node_modules
+ * layout (TS2883).
+ */
+export interface WateringController {
+  getFertilizerTypes: RequestHandler;
+  getRecordsForPlant: RequestHandler;
+  getRecord: RequestHandler;
+  addRecord: RequestHandler;
+  editRecord: RequestHandler;
+  deleteRecord: RequestHandler;
+}
+
+export const createWateringController = (repo: WateringRepository): WateringController => {
   const getTypes = new GetFertilizerTypesUseCase(repo);
   const getForPlant = new GetWateringRecordsForPlantUseCase(repo);
   const getOne = new GetWateringRecordUseCase(repo);
