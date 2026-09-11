@@ -1,13 +1,3 @@
-/**
- * modules/sales/infrastructure/scrapers/BaseScraper.ts
- *
- * Abstract base class for all scrapers.
- * Handles: URL construction, fetching, HTML parsing, caching.
- * Concrete scrapers only provide config + optional custom parseFn.
- *
- * V1 equivalent: scraperFactory.js + scrapeUtils.fetchData combined.
- */
-
 import { parse, type HTMLElement } from "node-html-parser";
 import type { SalesSource } from "../../domain/SalesSource";
 import type { RawSaleItem } from "../../domain/Sale";
@@ -157,8 +147,22 @@ export abstract class BaseScraper implements SalesSource {
         imgElem?.getAttribute("srcset") ||
         imgElem?.getAttribute("data-src") ||
         imgElem?.getAttribute("data-srcset");
-      let img = imgRaw?.split(" ")[0].split(",")[0];
-      if (img?.startsWith("//")) img = `https:${img}`;
+
+      let img: string | undefined;
+
+      if (imgRaw) {
+        // Pick the first entry in case of space or comma-delimited src/srcset values
+        const firstEntry = imgRaw.trim().split(",")[0].trim().split(" ")[0];
+
+        // Extract raw image URL if nested within a Cloudflare image optimizer proxy path (/cdn-cgi/image/.../https://...)
+        const directUrlMatch = firstEntry.match(/https?:\/\/[^\s]+/);
+        if (directUrlMatch) {
+          img = directUrlMatch[0];
+        } else {
+          // Fallback to link resolution if it's a standard path
+          img = resolveLink(firstEntry, this.baseUrl) || "";
+        }
+      }
 
       return {
         name: name?.trim() ?? "Unnamed Plant",
