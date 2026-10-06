@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { NodeCacheAdapter } from '../../../core/cache';
 import { makeAuthenticateSSE } from '../../../core/middleware';
+import { SourceHealthTracker, SQLiteSourceHealthRepository } from '../../../core/scrapeHealth';
 import { createSseEndpoint } from '../../../core/sse';
 import { OpenAIPlantClient } from '../infrastructure/OpenAIClient';
 import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
@@ -26,7 +27,8 @@ export const createMoreInfoRouter = (): Router => {
 
   const cache = new NodeCacheAdapter(AI_GUIDE_CACHE_TTL_SECONDS);
   const aiClient = new OpenAIPlantClient(cache);
-  const searchers = createPlantLinkSearchers(cache);
+  const health = new SourceHealthTracker(new SQLiteSourceHealthRepository());
+  const searchers = createPlantLinkSearchers(cache, health);
   const useCase = new StreamPlantInfoUseCase(aiClient, searchers);
 
   router.get(

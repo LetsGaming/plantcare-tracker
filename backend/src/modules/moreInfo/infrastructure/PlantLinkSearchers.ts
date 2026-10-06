@@ -9,6 +9,7 @@ import { parse } from 'node-html-parser';
 import axios from 'axios';
 import type { CacheService } from '../../../core/cache/CacheService';
 import type { PlantLinkSearcher } from '../domain/PlantInfo';
+import type { SourceHealthReporter, StrategyName } from '../../../core/scrapeHealth';
 import { createModuleLogger } from '../../../core/logging';
 
 const log = createModuleLogger('PlantLinkSearchers');
@@ -66,39 +67,102 @@ const resolveLink = (href: string | null | undefined, baseUrl: string): string |
 
 type Searcher = PlantLinkSearcher;
 
-// ── HTML-based searchers ──────────────────────────────────────────────────────
+// ── Shop searchers ────────────────────────────────────────────────────────────
 
-const htmlSearcher = (config: {
+interface ShopSearchConfig {
   key: string;
+  seller: string;
   baseUrl: string;
   searchUrl: (q: string) => string;
   selector: string;
   filter?: (href: string) => boolean;
-  useChromium?: boolean;
   cache: CacheService;
-}): Searcher =>
+  health?: SourceHealthReporter;
+}
+
+/** Candidate links from the shop's search results page. */
+const htmlSearchLinks = async (
+  config: ShopSearchConfig,
+  plantName: string,
+): Promise<string[]> => {
+  const root = parse(await fetchHtml(config.searchUrl(encodeURIComponent(plantName))));
+  const hrefs = root.querySelectorAll(config.selector)
+    .map((a) => a.getAttribute('href'))
+    .filter((href): href is string => !!href && (!config.filter || config.filter(href)));
+  return [...new Set(hrefs)].map((href) => resolveLink(href, config.baseUrl)!);
+};
+
+interface SuggestResponse {
+  resources?: { results?: { products?: { handle: string }[] } };
+}
+
+/**
+ * Shopify's predictive search endpoint. Returns null when the response does
+ * not have the expected shape, which is how a changed storefront shows up.
+ */
+const suggestSearchLinks = async (
+  config: ShopSearchConfig,
+  plantName: string,
+): Promise<string[] | null> => {
+  const origin = new URL(config.baseUrl).origin;
+  const data = await fetchJson(
+    `${origin}/search/suggest.json?q=${encodeURIComponent(plantName)}&resources[type]=product&resources[limit]=10`,
+  ) as SuggestResponse | null;
+  const products = data?.resources?.results?.products;
+  if (!Array.isArray(products)) return null;
+  return products.map((p) => `${origin}/products/${p.handle}`);
+};
+
+/**
+ * Tries the structured Shopify search first and the shop's HTML search page
+ * second. Outcomes are reported as source health; a plain zero-result query
+ * from the HTML page carries no signal (it could be a broken selector or a
+ * missing plant) and is not reported.
+ */
+const shopSearcher = (config: ShopSearchConfig): Searcher =>
   async (plantName) => {
     const cacheKey = `${config.key}_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
     const cached = config.cache.get<string>(cacheKey);
     if (cached !== undefined) return cached;
 
-    try {
-      const url = config.searchUrl(encodeURIComponent(plantName));
-      const html = await fetchHtml(url);
-      const root = parse(html);
-      const links = [...new Set(
-        root.querySelectorAll(config.selector)
-          .map((a) => a.getAttribute('href'))
-          .filter((href): href is string => !!href && (!config.filter || config.filter(href))),
-      )];
-      const best = findBestMatch(plantName, links);
-      const result = best ? resolveLink(best, config.baseUrl) : null;
-      config.cache.set(cacheKey, result ?? '', 86_400);
-      return result;
-    } catch (err: unknown) {
-      log.warn(`[${config.key}] search failed`, { err });
-      return null;
+    const attempts: { strategy: StrategyName; find: () => Promise<string[] | null> }[] = [
+      { strategy: 'shopifyJson', find: () => suggestSearchLinks(config, plantName) },
+      { strategy: 'selector', find: () => htmlSearchLinks(config, plantName) },
+    ];
+    const healthKey = `search:${config.key}`;
+    const failures: string[] = [];
+
+    for (const [index, { strategy, find }] of attempts.entries()) {
+      try {
+        const links = await find();
+        if (links === null) {
+          failures.push(`${strategy}: unexpected response structure`);
+          continue;
+        }
+        if (links.length === 0 && strategy !== 'shopifyJson') continue;
+
+        const result = findBestMatch(plantName, links);
+        config.cache.set(cacheKey, result ?? '', 86_400);
+        config.health?.record({
+          key: healthKey, seller: config.seller, kind: 'search',
+          strategy, usedFallback: index > 0, itemCount: links.length,
+          error: failures.join('; ') || null,
+        });
+        return result;
+      } catch (err: unknown) {
+        failures.push(`${strategy}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
+
+    if (failures.length === attempts.length) {
+      log.warn(`[${config.key}] search failed`, { failures });
+      config.health?.record({
+        key: healthKey, seller: config.seller, kind: 'search',
+        strategy: null, usedFallback: false, itemCount: 0,
+        error: failures.join('; '),
+      });
+    }
+    return null;
   };
 
 // ── API-based searchers ───────────────────────────────────────────────────────
@@ -160,17 +224,20 @@ const rhsSearcher = (cache: CacheService): Searcher =>
 
 // ── Registry factory ──────────────────────────────────────────────────────────
 
-export const createPlantLinkSearchers = (cache: CacheService): Searcher[] => [
-  htmlSearcher({ key: 'jungleLeaves', baseUrl: 'https://www.jungle-leaves.de', cache,
-    searchUrl: (q) => `https://www.jungle-leaves.de/?s=${q}`,
-    selector: 'article a', filter: (h) => !h.includes('author') }),
-  htmlSearcher({ key: 'harmonyPlants', baseUrl: 'https://www.harmony-plants.com', cache,
+export const createPlantLinkSearchers = (
+  cache: CacheService,
+  health?: SourceHealthReporter,
+): Searcher[] => [
+  shopSearcher({ key: 'jungleLeaves', seller: 'Jungle Leaves', baseUrl: 'https://www.jungle-leaves.de', cache, health,
+    searchUrl: (q) => `https://www.jungle-leaves.de/search?type=product&q=${q}`,
+    selector: 'product-card a.product-card-title' }),
+  shopSearcher({ key: 'harmonyPlants', seller: 'Harmony Plants', baseUrl: 'https://www.harmony-plants.com', cache, health,
     searchUrl: (q) => `https://www.harmony-plants.com/search?type=product&q=${q}`,
     selector: '.card-information__text' }),
-  htmlSearcher({ key: 'foliageDreams', baseUrl: 'https://www.foliagedreams.com', cache,
+  shopSearcher({ key: 'foliageDreams', seller: 'Foliage Dreams', baseUrl: 'https://www.foliagedreams.com', cache, health,
     searchUrl: (q) => `https://www.foliagedreams.com/search?q=${q}`,
     selector: '.grid-product__link' }),
-  htmlSearcher({ key: 'whiteLeafPlants', baseUrl: 'https://www.whiteleafplants.com', cache,
+  shopSearcher({ key: 'whiteLeafPlants', seller: 'White Leaf Plants', baseUrl: 'https://www.whiteleafplants.com', cache, health,
     searchUrl: (q) => `https://www.whiteleafplants.com/search?q=${q}`,
     selector: '.card-title', filter: (h) => !h.includes('author') }),
   wikipediaSearcher(cache),

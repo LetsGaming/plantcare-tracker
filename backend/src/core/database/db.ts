@@ -73,8 +73,32 @@ export function getDb(): BetterSqlite3DB {
   if (!_instance) {
     _instance = openDb();
     initSchema(_instance);
+    ensureSchemaExtensions(_instance);
   }
   return _instance;
+}
+
+/**
+ * Tables added after the base schema shipped. initSchema only runs on a fresh
+ * database, so these idempotent statements run on every boot to reach
+ * existing installs as well.
+ */
+function ensureSchemaExtensions(db: BetterSqlite3DB): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scrape_source_health (
+      source_key           TEXT PRIMARY KEY,
+      kind                 TEXT NOT NULL CHECK (kind IN ('sales', 'search')),
+      seller               TEXT NOT NULL,
+      status               TEXT NOT NULL CHECK (status IN ('ok', 'degraded', 'failing', 'unknown')),
+      active_strategy      TEXT,
+      last_item_count      INTEGER,
+      consecutive_failures INTEGER NOT NULL DEFAULT 0,
+      last_success_at      TEXT,
+      last_failure_at      TEXT,
+      last_error           TEXT,
+      updated_at           TEXT NOT NULL
+    );
+  `);
 }
 
 /**

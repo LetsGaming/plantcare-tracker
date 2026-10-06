@@ -52,22 +52,43 @@ export const closeBrowser = async (): Promise<void> => {
 
 // ── Axios fetch with retry ────────────────────────────────────────────────────
 
-const fetchWithAxios = async (
-  url: string,
-  retries = 2,
-): Promise<string | null> => {
+const HTML_ACCEPT =
+  "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+const JSON_ACCEPT = "application/json,text/plain;q=0.9,*/*;q=0.8";
+
+const hostOf = (url: string): string => {
   try {
-    const response = await axios.get<string>(url, {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+};
+
+export interface FetchedDocument {
+  html: string;
+  /** URL after redirects. */
+  finalUrl: string;
+}
+
+const requestWithAxios = async <T>(
+  url: string,
+  accept: string,
+  retries = 2,
+): Promise<{ data: T; finalUrl: string } | null> => {
+  try {
+    const response = await axios.get<T>(url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        Accept: accept,
         "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
       },
       timeout: 15_000,
     });
-    return response.data;
+    const finalUrl =
+      (response.request as { res?: { responseUrl?: string } } | undefined)?.res
+        ?.responseUrl ?? url;
+    return { data: response.data, finalUrl };
   } catch (err: unknown) {
     const axiosErr = err as { response?: { status: number }; message: string };
     if (
@@ -75,20 +96,26 @@ const fetchWithAxios = async (
       (!axiosErr.response || axiosErr.response.status >= 500)
     ) {
       const delay = (3 - retries) * 2000;
-      const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
-      log.warn(`Retrying ${host} in ${delay}ms... (${retries} left)`);
+      log.warn(`Retrying ${hostOf(url)} in ${delay}ms... (${retries} left)`);
       await new Promise((resolve) => setTimeout(resolve, delay));
-      return fetchWithAxios(url, retries - 1);
+      return requestWithAxios<T>(url, accept, retries - 1);
     }
-    const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
-    log.error(`Final failure for ${host}`, { err: axiosErr });
+    log.error(`Final failure for ${hostOf(url)}`, { err: axiosErr });
     return null;
   }
 };
 
+const fetchWithAxios = async (url: string): Promise<FetchedDocument | null> => {
+  const res = await requestWithAxios<string>(url, HTML_ACCEPT);
+  if (!res || typeof res.data !== "string") return null;
+  return { html: res.data, finalUrl: res.finalUrl };
+};
+
 // ── Chromium fetch ────────────────────────────────────────────────────────────
 
-const fetchWithChromium = async (url: string): Promise<string | null> => {
+const fetchWithChromium = async (
+  url: string,
+): Promise<FetchedDocument | null> => {
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent:
@@ -115,10 +142,9 @@ const fetchWithChromium = async (url: string): Promise<string | null> => {
 
     await page.waitForTimeout(1000);
 
-    return await page.content();
+    return { html: await page.content(), finalUrl: page.url() };
   } catch (err: unknown) {
-    const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
-    log.error(`Chromium fetch failed for ${host}`, { err });
+    log.error(`Chromium fetch failed for ${hostOf(url)}`, { err });
     return null;
   } finally {
     await context.close();
@@ -127,9 +153,22 @@ const fetchWithChromium = async (url: string): Promise<string | null> => {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+export const fetchDocument = async (
+  url: string,
+  useChromium: boolean,
+): Promise<FetchedDocument | null> => {
+  return useChromium ? fetchWithChromium(url) : fetchWithAxios(url);
+};
+
 export const fetchHtml = async (
   url: string,
   useChromium: boolean,
 ): Promise<string | null> => {
-  return useChromium ? fetchWithChromium(url) : fetchWithAxios(url);
+  return (await fetchDocument(url, useChromium))?.html ?? null;
+};
+
+export const fetchJson = async <T>(url: string): Promise<T | null> => {
+  const res = await requestWithAxios<T>(url, JSON_ACCEPT);
+  if (!res || typeof res.data !== "object" || res.data === null) return null;
+  return res.data;
 };

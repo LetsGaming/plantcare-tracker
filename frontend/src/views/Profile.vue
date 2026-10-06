@@ -50,6 +50,13 @@
           @click="openEditingModal"
           >{{ t("profile.edit") }}</ion-button
         >
+        <ion-button
+          v-if="isAdmin"
+          expand="full"
+          fill="outline"
+          @click="openAdmin"
+          >{{ t("admin.menu.open") }}</ion-button
+        >
       </ion-card>
 
       <profile-editing-modal
@@ -118,6 +125,7 @@ export default defineComponent({
   data() {
     return {
       showEditButton: false,
+      isAdmin: false,
       showEditingModal: false,
       isLoading: false,
       username: "",
@@ -155,6 +163,7 @@ export default defineComponent({
   },
   async mounted() {
     this.showEditButton = !(await UserService.isGuest());
+    this.isAdmin = await UserService.isAdmin();
     this.username = await UserService.getUsername();
     this.role = Utils.capitalizeFirstLetter(
       (await UserService.getUserRole()) || "",
@@ -167,6 +176,9 @@ export default defineComponent({
     },
     openEditingModal() {
       this.showEditingModal = true;
+    },
+    openAdmin() {
+      this.$router.push({ name: "admin-dashboard" });
     },
     t(key: string) {
       return localizationService.t(key, undefined, key);

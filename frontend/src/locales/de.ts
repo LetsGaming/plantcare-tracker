@@ -327,6 +327,38 @@ export default {
   "sales.price_increased": "Preis gestiegen",
 
   /* =====================================================
+   * Admin
+   * ===================================================== */
+  "admin.title": "Admin",
+  "admin.menu.open": "Admin-Werkzeuge",
+  "admin.dashboard.intro": "Werkzeuge zur Verwaltung von PlantCare.",
+  "admin.scrapers.title": "Scraper-Status",
+  "admin.scrapers.description":
+    "Zustand der Shops, aus denen Angebote und Pflanzenlinks gesammelt werden.",
+  "admin.scrapers.summary":
+    "{failing} fehlerhaft, {degraded} eingeschränkt, {ok} in Ordnung",
+  "admin.scrapers.all_ok": "Alle Quellen funktionieren.",
+  "admin.scrapers.empty": "Keine Quellen registriert.",
+  "admin.scrapers.failing_badge": "{count} Scraper-Quellen fehlerhaft",
+  "admin.scrapers.section.sales": "Angebotsquellen",
+  "admin.scrapers.section.search": "Pflanzenlink-Suche",
+  "admin.scrapers.status.ok": "Funktioniert",
+  "admin.scrapers.status.degraded": "Eingeschränkt",
+  "admin.scrapers.status.failing": "Fehlerhaft",
+  "admin.scrapers.status.unknown": "Noch nicht geprüft",
+  "admin.scrapers.strategy": "Methode: {strategy}",
+  "admin.scrapers.strategy.shopifyJson": "Shopify-Feed",
+  "admin.scrapers.strategy.jsonLd": "Strukturierte Daten",
+  "admin.scrapers.strategy.selector": "Seiten-Selektoren",
+  "admin.scrapers.strategy.heuristic": "Layout-Erkennung",
+  "admin.scrapers.items": "{count} Artikel",
+  "admin.scrapers.last_success": "Letzter Erfolg {time}",
+  "admin.scrapers.never_succeeded": "Noch nie erfolgreich",
+  "admin.scrapers.failures_in_a_row": "{count} fehlgeschlagene Prüfungen in Folge",
+  "admin.scrapers.recheck": "Jetzt prüfen",
+  "admin.scrapers.rechecked": "{seller} geprüft.",
+
+  /* =====================================================
    * Overview / More Info
    * ===================================================== */
   "overview.more_details": "Mehr Details",

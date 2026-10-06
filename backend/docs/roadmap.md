@@ -20,9 +20,11 @@ Account registration immediately grants access. There is no verification step, n
 
 ### Scraper Selector Fragility
 
-The sales scraper selectors in `src/modules/sales/infrastructure/scrapers/index.ts` are CSS selectors tied to each shop's current HTML structure. Shops update their frontends periodically, which silently breaks scrapers (they return empty results rather than errors).
+The sales scraper selectors in `src/modules/sales/infrastructure/scrapers/index.ts` are CSS selectors tied to each shop's current HTML structure. Shops update their frontends periodically, which breaks selector based extraction.
 
-**Mitigation:** The `FetchSalesOverview` use case is resilient — a failing scraper is caught and logged, other scrapers continue. Add monitoring on the `sale_seller` distribution in SSE responses to detect when a specific shop stops producing results.
+**Mitigation:** Scrapers now try several extraction strategies (Shopify JSON feed, selectors, structured data, layout heuristics) and fall back automatically, and every source reports its health to `scrape_source_health`, which admins can inspect in the app (Profile, Admin tools, Scraper status). See the architecture document. A shop that is not on Shopify still depends on its selectors with only the structured data and heuristic fallbacks behind them, so Palmenmann and PLNTS are the most exposed.
+
+**Remaining gap:** an HTML strategy that returns nothing on page 1 is reported as failing even if the shop simply has no sale items at that moment. Zero results of the plant link HTML search are deliberately not reported, so a broken search selector shows up only as a stale status.
 
 ---
 

@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+  <script type="application/ld+json">
+    { "@context": "https://schema.org", "@type": "Organization", "name": "Shop" }
+  </script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Product",
+          "name": "Ficus Lyrata",
+          "url": "/produkte/ficus-lyrata",
+          "image": ["https://cdn.example/ficus.jpg"],
+          "offers": {
+            "@type": "Offer",
+            "price": "34.99",
+            "availability": "https://schema.org/InStock",
+            "priceSpecification": [
+              { "@type": "UnitPriceSpecification", "priceType": "https://schema.org/ListPrice", "price": "39.99" }
+            ]
+          }
+        },
+        {
+          "@type": "Product",
+          "name": "No strike price",
+          "url": "/produkte/plain",
+          "offers": { "@type": "Offer", "price": "10.00" }
+        },
+        {
+          "@type": "Product",
+          "name": "Sold out sale",
+          "url": "/produkte/sold-out",
+          "offers": {
+            "@type": "Offer",
+            "price": "5.00",
+            "availability": "https://schema.org/OutOfStock",
+            "priceSpecification": { "priceType": "https://schema.org/ListPrice", "price": "9.00" }
+          }
+        }
+      ]
+    }
+  </script>
+  <script type="application/ld+json">{ this is not json }</script>
+</head>
+<body></body>
+</html>

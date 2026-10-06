@@ -34,5 +34,10 @@ export interface SalesSource {
    * Fetch and parse a single page of sale items.
    * Returns an array of raw items. The use case handles formatting.
    */
-  fetchPage(page: number): Promise<RawSaleItem[]>;
+  fetchPage(page: number, options?: FetchOptions): Promise<RawSaleItem[]>;
+}
+
+export interface FetchOptions {
+  /** Skip the result cache, used by admin re-checks. */
+  bypassCache?: boolean;
 }

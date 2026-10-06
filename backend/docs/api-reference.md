@@ -449,6 +449,8 @@ When a new file is uploaded, the previous file is deleted from disk only after t
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
 | GET | `/` | ticket | SSE stream of live plant sales |
+| GET | `/health` | admin | Health of every scrape source |
+| POST | `/health/:key/check` | admin | Re-scrape page 1 of one source now and return its health |
 
 ### Request
 
@@ -474,6 +476,37 @@ data: {"message":"Stream interrupted"}
 Items arrive in batches as each scraper completes. The `done` event is sent when all scrapers have finished. A heartbeat (`: heartbeat`) is sent every 20 seconds to keep the connection alive.
 
 **Supported shops:** Foliage Dreams, White Leaf Plants, Palmenmann, Plant Circle, PLNTS, Green Me Up, Jungle Leaves, Potflourri, Harmony Plants.
+
+### Source health (admin)
+
+`GET /api/v2/sales/health` requires a Bearer token of an admin user (401 without a token, 403 for other roles).
+
+```json
+{
+  "data": [
+    {
+      "source_key": "jungleLeaves",
+      "kind": "sales",
+      "seller": "Jungle Leaves",
+      "status": "ok",
+      "active_strategy": "shopifyJson",
+      "last_item_count": 3,
+      "consecutive_failures": 0,
+      "last_success_at": "2026-10-06T10:00:00.000Z",
+      "last_failure_at": null,
+      "last_error": null,
+      "updated_at": "2026-10-06T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+- `status`: `ok` (primary extraction strategy works), `degraded` (a fallback strategy carries the source), `failing` (no strategy produced usable data) or `unknown` (not scraped yet).
+- `kind`: `sales` for the shops above, `search` for the plant link searchers used by `/more-info`. Search rows use the key `search:<shop>`.
+- `active_strategy`: `shopifyJson`, `jsonLd`, `selector` or `heuristic`.
+- `last_error` keeps the most recent failure reason after a recovery. Show it only while `status` is not `ok`.
+
+`POST /api/v2/sales/health/:key/check` bypasses the result cache, re-scrapes page 1 and answers with the updated row in the same shape (`{ "data": { ... } }`). Unknown or `search` keys answer 404.
 
 ---
 

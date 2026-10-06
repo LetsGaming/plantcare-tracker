@@ -43,6 +43,23 @@ describe('Sale.fromRaw', () => {
     expect(a!.sale_id).toBe(b!.sale_id);
   });
 
+  it('gives one Shopify product the same id under every path it is served from', () => {
+    const paths = [
+      'https://shop.com/products/monstera',
+      'https://shop.com/collections/sale/products/monstera?variant=1',
+      'https://www.shop.com/de/products/monstera/',
+      'https://shop.com/de/collections/sale/products/monstera#reviews',
+    ];
+    const ids = paths.map((link) => Sale.fromRaw({ link, newPrice: 5 }, seller)!.sale_id);
+    expect(new Set(ids).size).toBe(1);
+  });
+
+  it('keeps different products distinct', () => {
+    const a = Sale.fromRaw({ link: 'https://shop.com/products/monstera', newPrice: 5 }, seller)!;
+    const b = Sale.fromRaw({ link: 'https://shop.com/products/pilea', newPrice: 5 }, seller)!;
+    expect(a.sale_id).not.toBe(b.sale_id);
+  });
+
   it('uses "Unnamed Product" as fallback name', () => {
     const sale = Sale.fromRaw({ link: 'https://shop.com', newPrice: 5, name: null }, seller);
     expect(sale!.sale_name).toBe('Unnamed Product');

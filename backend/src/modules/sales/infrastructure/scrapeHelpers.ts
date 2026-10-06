@@ -65,6 +65,27 @@ export const resolveLink = (
   }
 };
 
+// ── Image URL extraction ──────────────────────────────────────────────────────
+
+export const extractImageUrl = (
+  imgElem: NodeLike,
+  baseUrl: string,
+): string | null => {
+  const raw = ["src", "srcset", "data-src", "data-srcset"]
+    .map((attr) => imgElem?.getAttribute(attr))
+    .find((value) => value && !value.startsWith("data:"));
+  if (!raw) return null;
+
+  // src and srcset values may hold several space or comma separated entries
+  const firstEntry = raw.trim().split(",")[0].trim().split(" ")[0];
+
+  // Unwrap image optimizer proxies like /cdn-cgi/image/.../https://...
+  const direct = firstEntry.match(/https?:\/\/[^\s]+/);
+  if (direct) return direct[0];
+
+  return resolveLink(firstEntry, baseUrl) || null;
+};
+
 // ── Pagination URL builder ────────────────────────────────────────────────────
 
 export const buildPageUrl = (

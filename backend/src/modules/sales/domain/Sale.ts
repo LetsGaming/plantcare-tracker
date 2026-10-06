@@ -88,7 +88,10 @@ export class Sale {
       u.hostname = u.hostname.replace(/^www\./, '');
       u.hash = '';
       u.search = '';
-      u.pathname = u.pathname.replace(/\/$/, '');
+      // Shopify serves one product under /products/<h>, /collections/<c>/products/<h>
+      // and locale prefixes; ids must not depend on which path a strategy saw.
+      const shopifyProduct = u.pathname.match(/\/products\/[^/]+/);
+      u.pathname = (shopifyProduct ? shopifyProduct[0] : u.pathname).replace(/\/$/, '');
       return u.toString().toLowerCase();
     } catch {
       return url.toLowerCase();

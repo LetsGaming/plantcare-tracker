@@ -3,6 +3,7 @@ import { RouteRecordRaw } from "vue-router";
 
 import Utils from "@/utils/utils";
 import UserService from "@/services/UserService";
+import { resolveAccess } from "./guards";
 
 // Dynamic imports for lazy loading
 const Login = () => import("@/views/Login.vue");
@@ -26,9 +27,13 @@ const ComponentDetails = () =>
 const SalesOverview = () => import("@/views/sales/SalesOverview.vue");
 const SalesDetails = () => import("@/views/sales/SalesDetails.vue");
 
+const AdminDashboard = () => import("@/views/admin/AdminDashboard.vue");
+const ScraperHealth = () => import("@/views/admin/ScraperHealth.vue");
+
 const Debug = () => import("@/views/Debug.vue");
 
 const authMeta = { requiresAuth: true };
+const adminMeta = { requiresAuth: true, requiresAdmin: true };
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -118,6 +123,18 @@ const routes: Array<RouteRecordRaw> = [
         props: true,
         component: SalesDetails,
       },
+      {
+        name: "admin-dashboard",
+        path: "admin",
+        meta: adminMeta,
+        component: AdminDashboard,
+      },
+      {
+        name: "admin-scrapers",
+        path: "admin/scrapers",
+        meta: adminMeta,
+        component: ScraperHealth,
+      },
     ],
   },
 ];
@@ -132,11 +149,19 @@ router.beforeEach(async (to, from, next) => {
   await Utils.closeAllOpenModals();
 
   try {
-    const isAuthed = await UserService.isAuthenticated();
+    const decision = await resolveAccess(
+      {
+        requiresAuth: to.meta.requiresAuth === true,
+        requiresAdmin: to.meta.requiresAdmin === true,
+      },
+      {
+        isAuthenticated: () => UserService.isAuthenticated(),
+        isAdmin: () => UserService.isAdmin(),
+      },
+    );
 
-    if (to.meta.requiresAuth && !isAuthed) {
-      return next({ name: "login" });
-    }
+    if (decision === "login") return next({ name: "login" });
+    if (decision === "home") return next({ name: "plant-overview" });
 
     next();
   } catch (error) {

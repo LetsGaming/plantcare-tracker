@@ -320,6 +320,37 @@ export default {
   "sales.price_increased": "Price increased",
 
   /* =====================================================
+   * Admin
+   * ===================================================== */
+  "admin.title": "Admin",
+  "admin.menu.open": "Admin tools",
+  "admin.dashboard.intro": "Tools for managing PlantCare.",
+  "admin.scrapers.title": "Scraper status",
+  "admin.scrapers.description":
+    "Health of the shops that sale offers and plant links are collected from.",
+  "admin.scrapers.summary": "{failing} failing, {degraded} degraded, {ok} ok",
+  "admin.scrapers.all_ok": "All sources are working.",
+  "admin.scrapers.empty": "No sources registered.",
+  "admin.scrapers.failing_badge": "{count} scrape sources failing",
+  "admin.scrapers.section.sales": "Sale sources",
+  "admin.scrapers.section.search": "Plant link search",
+  "admin.scrapers.status.ok": "Working",
+  "admin.scrapers.status.degraded": "Degraded",
+  "admin.scrapers.status.failing": "Failing",
+  "admin.scrapers.status.unknown": "Not checked yet",
+  "admin.scrapers.strategy": "Method: {strategy}",
+  "admin.scrapers.strategy.shopifyJson": "Shopify feed",
+  "admin.scrapers.strategy.jsonLd": "Structured data",
+  "admin.scrapers.strategy.selector": "Page selectors",
+  "admin.scrapers.strategy.heuristic": "Layout detection",
+  "admin.scrapers.items": "{count} items",
+  "admin.scrapers.last_success": "Last success {time}",
+  "admin.scrapers.never_succeeded": "Never succeeded",
+  "admin.scrapers.failures_in_a_row": "{count} failed checks in a row",
+  "admin.scrapers.recheck": "Check now",
+  "admin.scrapers.rechecked": "{seller} checked.",
+
+  /* =====================================================
    * Overview / More Info
    * ===================================================== */
   "overview.more_details": "More details",

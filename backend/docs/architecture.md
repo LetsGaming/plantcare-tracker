@@ -173,14 +173,34 @@ createSalesRouter()
         └── FetchSalesOverview.execute()
               ├── Concurrency limiter (max 2 Chromium, max 8 Axios)
               ├── BaseScraper.fetchPage()  ← each scraper
-              │     ├── buildPageUrl()
-              │     ├── fetchHtml() (Axios or Playwright)
-              │     ├── node-html-parser → defaultParseFn or custom parseFn
-              │     └── CacheService (per-page, 24h TTL)
+              │     ├── CacheService (per-page, 24h TTL)
+              │     ├── strategies, in order, first valid result wins:
+              │     │     shopifyJson → selector → jsonLd → heuristic
+              │     ├── Shopify detection if all strategies fail
+              │     └── SourceHealthReporter.record()  (page 1 only)
               └── Sale.fromRaw() → dedup by sale_id → sse.sendUnique()
 ```
 
-Scrapers inherit from `BaseScraper` and only provide config. Complex parsers (Foliage Dreams, Harmony Plants) provide a custom `parseFn`. The concurrency limiter prevents overloading Playwright by running at most 2 Chromium scrapes simultaneously.
+Scrapers inherit from `BaseScraper` and only provide config. `BaseScraper` runs the configured extraction strategies in order and accepts the first result that passes validation (at least one item for HTML strategies, and at least 80% of items with a link, a name and a real discount). A page change therefore degrades a source instead of silently emptying it.
+
+| Strategy | Source of data | Notes |
+|----------|----------------|-------|
+| `shopifyJson` | `<collection>/products.json` | Primary for the seven Shopify shops. An empty feed counts as a valid, empty sale. |
+| `selector` | CSS selectors from the shop config | Selector fields accept a list of candidates. Foliage Dreams and Harmony Plants use a custom `parseFn`. |
+| `jsonLd` | `application/ld+json` product data | Needs a strike-through price in the markup. |
+| `heuristic` | Struck-through prices and the surrounding card | Last resort. It refuses containers holding several products rather than guessing a link. |
+
+If every strategy fails but the page carries Shopify markers, the products feed of the redirected collection is tried, which is how a platform migration heals itself.
+
+Sale ids hash `seller|normalized url`. For Shopify products the normalized path is always `/products/<handle>`, so the same product keeps its id regardless of which strategy or collection path produced the link.
+
+The concurrency limiter prevents overloading Playwright by running at most 2 Chromium scrapes simultaneously.
+
+### Source health
+
+Each page 1 scrape reports a `ScrapeOutcome` to `core/scrapeHealth`, which stores one row per source in `scrape_source_health` (created idempotently on every boot by `ensureSchemaExtensions` in `core/database/db.ts`). The plant link searchers of the MoreInfo module report to the same table under `search:<shop>` keys. Admins read the rows through `GET /sales/health` (see the API reference). Reporting failures are logged and never break a scrape.
+
+Strategies are always tried in configuration order. A source stays `degraded` while a fallback carries it and returns to `ok` on its own once the primary strategy works again.
 
 ## Module: MoreInfo
 

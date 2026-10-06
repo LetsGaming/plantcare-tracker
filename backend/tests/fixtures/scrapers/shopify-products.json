@@ -1,0 +1,40 @@
+{
+  "products": [
+    {
+      "handle": "alocasia-nobilis",
+      "title": "Alocasia 'Nobilis'",
+      "images": [{ "src": "https://cdn.example/nobilis.jpg" }],
+      "variants": [
+        { "price": "19.99", "compare_at_price": "29.99", "available": true }
+      ]
+    },
+    {
+      "handle": "philodendron-sizes",
+      "title": "Philodendron Florida Beauty",
+      "images": [{ "src": "https://cdn.example/florida.jpg" }],
+      "variants": [
+        { "price": "99.99", "compare_at_price": "149.99", "available": true },
+        { "price": "59.99", "compare_at_price": "89.99", "available": true },
+        { "price": "39.99", "compare_at_price": "79.99", "available": false }
+      ]
+    },
+    {
+      "handle": "sold-out-plant",
+      "title": "Sold out",
+      "images": [],
+      "variants": [{ "price": "5.00", "compare_at_price": "10.00", "available": false }]
+    },
+    {
+      "handle": "full-price-plant",
+      "title": "Full price",
+      "images": [{ "src": "https://cdn.example/full.jpg" }],
+      "variants": [{ "price": "12.00", "compare_at_price": null, "available": true }]
+    },
+    {
+      "handle": "bad-compare",
+      "title": "Compare below price",
+      "images": [],
+      "variants": [{ "price": "12.00", "compare_at_price": "9.00", "available": true }]
+    }
+  ]
+}
