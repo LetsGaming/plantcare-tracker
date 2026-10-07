@@ -30,6 +30,8 @@ export interface RequestContext {
   requestId: string;
   method?: string;
   path?: string;
+  /** protocol://host of the current request. */
+  origin?: string;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();

@@ -20,6 +20,7 @@ import {
   DeleteComponentUseCase,
 } from '../application/ComponentUseCases';
 import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
@@ -51,13 +52,16 @@ export interface ComponentController {
   deleteComponent: RequestHandler;
 }
 
-export const createComponentController = (repo: ComponentRepository): ComponentController => {
+export const createComponentController = (
+  repo: ComponentRepository,
+  imageCleanup: EntityImageCleanup,
+): ComponentController => {
   const getAll = new GetAllComponentsUseCase(repo);
   const getLevels = new GetFinenessLevelsUseCase(repo);
   const getOne = new GetComponentUseCase(repo);
   const create = new CreateComponentUseCase(repo);
   const update = new UpdateComponentUseCase(repo);
-  const remove = new DeleteComponentUseCase(repo);
+  const remove = new DeleteComponentUseCase(repo, imageCleanup);
 
   return {
     getAllComponents: async (_req: Request, res: Response) => {

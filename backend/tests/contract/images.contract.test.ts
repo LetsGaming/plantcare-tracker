@@ -461,7 +461,74 @@ describe('authorization', () => {
   });
 });
 
-describe('known defects', () => {
+describe('stored paths', () => {
+  it('keeps only the path in the database and answers absolute urls everywhere', async () => {
+    const { owner, plant } = await setup();
+    const up = await upload(owner.auth, 'plant', plant.plant_id);
+
+    const [row] = app.db.query<{ image_url: string }>(
+      'SELECT image_url FROM images WHERE entity_id = ? AND entity_type = ?',
+      [plant.plant_id, 'plant'],
+    );
+    expect(row.image_url).toBe(pathOf(up.body.data.path));
+
+    const list = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant?entityId=${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(list.body.data[0].url).toMatch(/^http:\/\/[^/]+\/uploads\/plant\//);
+    expect(pathOf(list.body.data[0].url)).toBe(row.image_url);
+
+    const fetched = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(pathOf(fetched.body.data.image_url)).toBe(row.image_url);
+  });
+});
+
+describe('cleanup on entity deletion', () => {
+  it('removes the images of a deleted substrate', async () => {
+    const { owner, substrate } = await setup();
+    await upload(owner.auth, 'substrate', substrate.substrate_id);
+    await app.client.request({
+      method: 'delete',
+      url: `${API}/substrates/${substrate.substrate_id}`,
+      headers: owner.auth,
+    });
+    const rows = app.db.query<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM images WHERE entity_type = 'substrate' AND entity_id = ?",
+      [substrate.substrate_id],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  it('removes the images of a deleted component', async () => {
+    const admin = await app.signIn('admin');
+    const created = await app.client.request({
+      method: 'post',
+      url: `${API}/components`,
+      headers: admin.auth,
+      json: { name: 'Cleanup grit', fineness: 1 },
+    });
+    const id = created.body.data.component_id;
+    await upload(admin.auth, 'component', id);
+    await app.client.request({
+      method: 'delete',
+      url: `${API}/components/${id}`,
+      headers: admin.auth,
+    });
+    const rows = app.db.query<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM images WHERE entity_type = 'component' AND entity_id = ?",
+      [id],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+});
+
+describe('remaining gaps', () => {
   it('answers non-image bytes labelled as PNG with 400', async () => {
     const { owner, plant } = await setup();
     const res = await upload(owner.auth, 'plant', plant.plant_id, {

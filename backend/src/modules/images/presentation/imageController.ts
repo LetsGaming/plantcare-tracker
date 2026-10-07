@@ -52,8 +52,6 @@ const entityTypeParam = (req: Request): EntityType => req.params.entityType as E
 
 const actorOf = (req: Request): ImageActor => ({ id: req.user!.id, role: req.user!.role });
 
-const publicBaseUrl = (req: Request): string => `${req.protocol}://${req.get('host')}`;
-
 const uploadedFile = (req: Request): UploadedFile => ({
   buffer: req.file!.buffer,
   originalName: req.file!.originalname,
@@ -100,7 +98,6 @@ export const createImageController = (
         entityType,
         entityId,
         file: uploadedFile(req),
-        publicBaseUrl: publicBaseUrl(req),
       });
 
       const body: UploadImageResponse = {
@@ -141,7 +138,6 @@ export const createImageController = (
         imageId: Number(req.params.id),
         file: req.file ? uploadedFile(req) : undefined,
         date: (req.body as { date?: string | number }).date,
-        publicBaseUrl: publicBaseUrl(req),
       });
       const body: ImageResponse = { data: record };
       res.json(body);

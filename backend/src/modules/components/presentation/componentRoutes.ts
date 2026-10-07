@@ -8,12 +8,13 @@
 import { Router } from 'express';
 import { SQLiteComponentRepository } from '../infrastructure/SQLiteComponentRepository';
 import { createComponentController } from './componentController';
+import { createImageCleanup } from '../../images';
 import { authenticateToken, isAdmin } from '../../../core/middleware';
 
 export const createComponentRouter = (): Router => {
   const router = Router();
   const repo = new SQLiteComponentRepository();
-  const ctrl = createComponentController(repo);
+  const ctrl = createComponentController(repo, createImageCleanup());
 
   router.get('/', authenticateToken, ctrl.getAllComponents);
   router.get('/fineness-levels', authenticateToken, ctrl.getFinenessLevels);

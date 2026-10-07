@@ -30,7 +30,7 @@ export const isEntityType = (value: string): value is EntityType =>
 
 export interface ImageRecord {
   id: number;
-  /** Absolute public URL the client loads the image from. */
+  /** Absolute public URL the client loads the image from (the database stores the path only). */
   url: string;
   /** Capture/upload date as Unix epoch seconds. */
   date: number;
@@ -60,6 +60,14 @@ export interface ImageEntityInfo {
 export interface ImageEntityLookup {
   /** Returns null when the entity does not exist. */
   find(entityType: EntityType, entityId: number): Promise<ImageEntityInfo | null>;
+}
+
+/**
+ * Lets the modules that own images (plants, substrates, components) remove
+ * every image of an entity they delete, rows and files alike.
+ */
+export interface EntityImageCleanup {
+  removeAll(entityType: EntityType, entityId: number): Promise<void>;
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────

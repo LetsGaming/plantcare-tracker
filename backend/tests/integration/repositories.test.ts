@@ -20,7 +20,7 @@ import { SQLiteImageEntityLookup } from '../../src/modules/images/infrastructure
 import { SQLiteSourceHealthRepository } from '../../src/core/scrapeHealth/SQLiteSourceHealthRepository';
 
 const users = new SQLiteUserRepository();
-const plants = new SQLitePlantRepository(new SpeciesResolver(new SQLiteSpeciesCatalog()));
+const plants = new SQLitePlantRepository((db) => new SpeciesResolver(new SQLiteSpeciesCatalog(db)));
 const substrates = new SQLiteSubstrateRepository();
 const components = new SQLiteComponentRepository();
 const watering = new SQLiteWateringRepository();
@@ -43,7 +43,11 @@ describe('migrations', () => {
       .selectFrom('kysely_migration' as never)
       .selectAll()
       .execute();
-    expect(applied.map((m) => (m as { name: string }).name)).toEqual(['0001_baseline']);
+    expect(applied.map((m) => (m as { name: string }).name)).toEqual([
+      '0001_baseline',
+      '0002_purge_orphan_images',
+      '0003_relative_image_paths',
+    ]);
 
     const roles = await getKysely().selectFrom('roles').select('name').orderBy('id').execute();
     expect(roles.map((r) => r.name)).toEqual(['admin', 'user', 'guest']);
@@ -173,7 +177,7 @@ describe('SQLitePlantRepository', () => {
     expect(await plants.findById(id)).toBeNull();
   });
 
-  it('normalises Windows separators in stored image urls', async () => {
+  it('returns images oldest first with absolute urls built from stored paths', async () => {
     const userId = await newUser();
     const substrateId = await substrates.create('S', userId, false);
     const id = await plants.create({
@@ -183,8 +187,36 @@ describe('SQLitePlantRepository', () => {
       isPublic: false,
       userId,
     });
-    await images.create('plant', id, 'http://h/uploads\\plant\\a.webp');
-    expect((await plants.findById(id))?.images[0].url).toBe('http://h/uploads/plant/a.webp');
+    await images.create('plant', id, '/uploads/plant/new.webp', 200);
+    await images.create('plant', id, '/uploads/plant/old.webp', 100);
+    await images.create('plant', id, 'https://cdn.example/legacy.webp', 300);
+
+    const plant = await plants.findById(id);
+    expect(plant?.images.map((i) => i.url)).toEqual([
+      'http://localhost:5000/uploads/plant/old.webp',
+      'http://localhost:5000/uploads/plant/new.webp',
+      'https://cdn.example/legacy.webp',
+    ]);
+    expect(plant?.imageUrl).toBe('https://cdn.example/legacy.webp');
+  });
+
+  it('does not leave a species behind when the plant insert fails', async () => {
+    const userId = await newUser();
+    await expect(
+      plants.create({
+        name: 'p',
+        species: 'Phantom speciesus',
+        substrateId: 987654,
+        isPublic: false,
+        userId,
+      }),
+    ).rejects.toMatchObject({ code: 'SQLITE_CONSTRAINT_FOREIGNKEY' });
+    const left = await getKysely()
+      .selectFrom('species')
+      .select('id')
+      .where('name', '=', 'Phantom speciesus')
+      .execute();
+    expect(left).toEqual([]);
   });
 });
 

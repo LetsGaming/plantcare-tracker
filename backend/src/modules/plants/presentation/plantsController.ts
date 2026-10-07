@@ -21,6 +21,7 @@ import {
   DeletePlantUseCase,
 } from '../application/PlantUseCases';
 import type { PlantRepository, PlantData } from '../domain/Plant';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
@@ -48,12 +49,15 @@ export interface PlantsController {
   deletePlant: RequestHandler;
 }
 
-export const createPlantsController = (repo: PlantRepository): PlantsController => {
+export const createPlantsController = (
+  repo: PlantRepository,
+  imageCleanup: EntityImageCleanup,
+): PlantsController => {
   const getAll = new GetAllPlantsUseCase(repo);
   const getOne = new GetPlantUseCase(repo);
   const create = new CreatePlantUseCase(repo);
   const update = new UpdatePlantUseCase(repo);
-  const remove = new DeletePlantUseCase(repo);
+  const remove = new DeletePlantUseCase(repo, imageCleanup);
 
   return {
     getAllPlants: async (req: Request, res: Response) => {

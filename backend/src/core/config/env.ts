@@ -24,6 +24,8 @@ export interface AppConfig {
   apiVersionPath: string | null;
   dbPath: string;
   uploadsDir: string;
+  /** Public origin for image URLs; null derives it from each request. */
+  publicBaseUrl: string | null;
   jwt: JwtSettings;
   openAiApiKey: string | null;
   /** Run the scraping browser without a window. Always true in production. */
@@ -64,6 +66,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
     apiVersionPath: env.API_VERSION_PATH || null,
     dbPath: resolveDbPath(env.DB_PATH),
     uploadsDir: env.NAS_PATH ? path.resolve(env.NAS_PATH) : path.resolve(process.cwd(), 'uploads'),
+    publicBaseUrl: env.PUBLIC_BASE_URL?.replace(/\/+$/, '') || null,
     jwt: {
       secret: env.JWT_SECRET as string,
       refreshSecret: env.JWT_REFRESH_SECRET as string,

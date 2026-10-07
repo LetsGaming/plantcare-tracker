@@ -7,7 +7,7 @@
  * array), and the update orchestration.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type {
   SubstrateRepository,
   SubstrateData,
@@ -213,9 +213,22 @@ describe('UpsertSubstrateComponentsUseCase', () => {
 // ── DeleteSubstrateUseCase ────────────────────────────────────────────────────
 
 describe('DeleteSubstrateUseCase', () => {
+  const images = { removeAll: vi.fn().mockResolvedValue(undefined) };
+  beforeEach(() => images.removeAll.mockClear());
+
   it('answers missing and foreign substrates uniformly with NotFoundError', async () => {
     const repo = makeMockRepo();
     asMock(repo.delete).mockResolvedValue(false);
-    await expect(new DeleteSubstrateUseCase(repo).execute(1, 2)).rejects.toThrow(NotFoundError);
+    await expect(new DeleteSubstrateUseCase(repo, images).execute(1, 2)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(images.removeAll).not.toHaveBeenCalled();
+  });
+
+  it('removes the images of a deleted substrate', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.delete).mockResolvedValue(true);
+    await new DeleteSubstrateUseCase(repo, images).execute(3, 2);
+    expect(images.removeAll).toHaveBeenCalledWith('substrate', 3);
   });
 });

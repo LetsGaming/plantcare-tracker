@@ -39,6 +39,10 @@ JWT_REFRESH_EXPIRATION=7d   # refresh token lifetime
 # Defaults to ./uploads if not set
 NAS_PATH=/mnt/nas/plantcare/uploads
 
+# Public origin used in image URLs. Set it when a proxy rewrites the Host header.
+# Defaults to the origin of each request.
+PUBLIC_BASE_URL=https://api.example.com
+
 # ── OpenAI ─────────────────────────────────────────────────────────────────────
 # Optional — the /more-info endpoint returns nothing without this
 OPENAI_API_KEY=sk-...

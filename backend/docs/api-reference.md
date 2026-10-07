@@ -416,6 +416,8 @@ The component catalogue is global, so all mutations are admin-only (`403` otherw
 | plant, substrate | owner, or anyone when public | owner only |
 | component | any signed-in user | admin only |
 
+Image URLs in responses are absolute. The database stores only the path (`/uploads/plant/<file>.webp`); the origin comes from `PUBLIC_BASE_URL` when set, otherwise from the request's own origin. Deleting a plant, substrate or component also deletes its image rows and files.
+
 A private entity the caller does not own, and an unknown entity, answer `404`. A write to a public entity owned by someone else answers `403`. Mutations answer `403` for guests. Uploads with an unsupported MIME type or larger than **10 MB** answer `400`.
 
 ### POST `/:entityType/:entityId`

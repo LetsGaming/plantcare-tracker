@@ -9,12 +9,13 @@
 import { Router } from 'express';
 import { SQLiteSubstrateRepository } from '../infrastructure/SQLiteSubstrateRepository';
 import { createSubstrateController } from './substrateController';
+import { createImageCleanup } from '../../images';
 import { authenticateToken } from '../../../core/middleware';
 
 export const createSubstrateRouter = (): Router => {
   const router = Router();
   const repo = new SQLiteSubstrateRepository();
-  const ctrl = createSubstrateController(repo);
+  const ctrl = createSubstrateController(repo, createImageCleanup());
 
   router.get('/', authenticateToken, ctrl.getAllSubstrates);
   router.get('/:id', authenticateToken, ctrl.getSubstrate);

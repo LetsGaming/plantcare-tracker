@@ -124,7 +124,9 @@ export abstract class BaseScraper implements SalesSource {
     }
 
     if (page === 1) this.report(accepted, items.length, failures);
-    if (items.length > 0) this.cache.set(cacheKey, items);
+    // An accepted empty page is a real answer (the sale ended or the pages ran
+    // out); only a page every strategy failed on must be retried next time.
+    if (accepted) this.cache.set(cacheKey, items);
     return items;
   }
 

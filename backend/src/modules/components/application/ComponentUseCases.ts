@@ -10,6 +10,7 @@ import { z } from 'zod';
 import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
 import { NotFoundError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
@@ -85,10 +86,14 @@ export class UpdateComponentUseCase {
 }
 
 export class DeleteComponentUseCase {
-  constructor(private readonly repo: ComponentRepository) {}
+  constructor(
+    private readonly repo: ComponentRepository,
+    private readonly images: EntityImageCleanup,
+  ) {}
 
   async execute(id: number): Promise<void> {
     const deleted = await this.repo.delete(id);
     if (!deleted) throw new NotFoundError('Component');
+    await this.images.removeAll('component', id);
   }
 }

@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { getKysely } from '../../../core/database/db';
+import { toPublicImageUrl } from '../../../core/config';
 import type { SubstrateRepository, SubstrateData, ImageRef } from '../domain/Substrate';
 
 interface SubstrateRow {
@@ -39,7 +40,9 @@ const substrateRows = () =>
       'img.id as image_id',
       'img.image_url',
       'img.upload_date',
-    ]);
+    ])
+    .orderBy('img.upload_date')
+    .orderBy('img.id');
 
 const roundParts = (parts: number): number => Math.round(parts * 100) / 100;
 
@@ -179,7 +182,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       if (row.image_id && !s.images.find((i) => i.id === row.image_id)) {
         const imageRef: ImageRef = {
           id: row.image_id,
-          url: row.image_url ?? '',
+          url: row.image_url ? toPublicImageUrl(row.image_url) : '',
           date: row.upload_date ?? 0,
         };
         s.images.push(imageRef);

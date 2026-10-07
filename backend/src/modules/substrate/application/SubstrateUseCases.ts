@@ -14,6 +14,7 @@ import { isSubstrateVisibleTo } from '../domain/Substrate';
 import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
 import { NotFoundError, ForbiddenError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { ensureArray, filterDuplicatesById } from '../../../core/utils';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
@@ -173,7 +174,10 @@ export class UpsertSubstrateComponentsUseCase {
 }
 
 export class DeleteSubstrateUseCase {
-  constructor(private readonly repo: SubstrateRepository) {}
+  constructor(
+    private readonly repo: SubstrateRepository,
+    private readonly images: EntityImageCleanup,
+  ) {}
 
   async execute(id: number, userId: number): Promise<void> {
     // The repository scopes the DELETE by user_id, so "not found" and
@@ -181,5 +185,6 @@ export class DeleteSubstrateUseCase {
     // to avoid leaking whether a foreign substrate id exists.
     const deleted = await this.repo.delete(id, userId);
     if (!deleted) throw new NotFoundError('Substrate');
+    await this.images.removeAll('substrate', id);
   }
 }

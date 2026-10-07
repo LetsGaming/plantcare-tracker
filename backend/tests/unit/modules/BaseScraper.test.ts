@@ -222,12 +222,22 @@ describe('BaseScraper caching', () => {
     expect(outcomes).toHaveLength(2);
   });
 
-  it('does not cache empty results', async () => {
+  it('caches an accepted empty page so exhausted pages are not refetched', async () => {
     serveHtml('<html><body></body></html>');
     const { scraper } = setup();
 
     await scraper.fetchPage(2);
     await scraper.fetchPage(2);
+
+    expect(fetchDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a page every strategy failed on', async () => {
+    serveHtml('<html><body></body></html>');
+    const { scraper } = setup();
+
+    await scraper.fetchPage(1);
+    await scraper.fetchPage(1);
 
     expect(fetchDocument).toHaveBeenCalledTimes(2);
   });

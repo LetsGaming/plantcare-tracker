@@ -24,6 +24,7 @@ Go through this before every production deployment:
 - [ ] `DB_PASSWORD` — stored in secrets manager or environment, not in `.env` files in the repo
 - [ ] `ALLOWED_ORIGINS` — restricted to your actual frontend domain(s)
 - [ ] `NAS_PATH` — points to persistent storage, not ephemeral container filesystem
+- [ ] `PUBLIC_BASE_URL`: set to the public API origin when a proxy rewrites the Host header
 - [ ] `OPENAI_API_KEY` — set if the `/more-info` endpoint is needed
 - [ ] DB indexes applied — run `database/migration_v2_indexes.sql` if upgrading from an older installation
 - [ ] Playwright Chromium installed — run `pnpm exec playwright install chromium` if using the sales scraper

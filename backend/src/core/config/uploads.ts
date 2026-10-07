@@ -1,13 +1,15 @@
 /**
  * core/config/uploads.ts
  *
- * Single source of truth for where uploaded images live on disk and
- * under which route they are served. Both values were previously
- * resolved independently in server.ts and imageRoutes.ts — a drift
- * hazard, since the static mount and the URL builder must agree.
+ * Single source of truth for where uploaded images live on disk, under
+ * which route they are served, and how stored paths become public URLs.
+ * The database keeps origin-free paths ("/uploads/plant/a.webp"); the
+ * origin is added when a response is built so the host can change
+ * without rewriting rows.
  */
 
 import { getConfig } from './env';
+import { requestContext } from '../logging/logger';
 
 /** Public route prefix under which uploads are statically served. */
 export const STATIC_UPLOADS_ROUTE = '/uploads';
@@ -19,3 +21,21 @@ export const STATIC_UPLOADS_ROUTE = '/uploads';
 export function getUploadsDirectory(): string {
   return getConfig().uploadsDir;
 }
+
+/** The origin-free path stored for an uploaded file. */
+export const toStoredImagePath = (entityType: string, filename: string): string =>
+  `${STATIC_UPLOADS_ROUTE}/${entityType}/${filename}`;
+
+const ABSOLUTE_URL = /^https?:\/\//i;
+
+/**
+ * The URL clients load an image from. Absolute values (rows that predate
+ * relative storage) pass through; stored paths get PUBLIC_BASE_URL, else
+ * the current request's origin, else the local server address.
+ */
+export const toPublicImageUrl = (stored: string): string => {
+  if (ABSOLUTE_URL.test(stored)) return stored;
+  const { publicBaseUrl, port } = getConfig();
+  const origin = publicBaseUrl ?? requestContext.getStore()?.origin ?? `http://localhost:${port}`;
+  return `${origin}${stored.startsWith('/') ? stored : `/${stored}`}`;
+};

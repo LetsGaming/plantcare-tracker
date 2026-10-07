@@ -15,6 +15,7 @@
 import { z } from 'zod';
 import type { PlantRepository } from '../domain/Plant';
 import type { Plant } from '../domain/Plant';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { NotFoundError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
 
@@ -111,10 +112,14 @@ export class UpdatePlantUseCase {
 }
 
 export class DeletePlantUseCase {
-  constructor(private readonly repo: PlantRepository) {}
+  constructor(
+    private readonly repo: PlantRepository,
+    private readonly images: EntityImageCleanup,
+  ) {}
 
   async execute(id: number, userId: number): Promise<void> {
     const deleted = await this.repo.delete(id, userId);
     if (!deleted) throw new NotFoundError('Plant');
+    await this.images.removeAll('plant', id);
   }
 }

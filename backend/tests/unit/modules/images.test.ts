@@ -83,7 +83,6 @@ const makeAllowAll = () => {
 const asMock = (fn: unknown): ReturnType<typeof vi.fn> => fn as ReturnType<typeof vi.fn>;
 
 const file = { buffer: Buffer.from('raw'), originalName: 'IMG_1234.jpg' };
-const baseUrl = 'https://api.test';
 
 // ── Domain guard ──────────────────────────────────────────────────────────────
 
@@ -154,7 +153,7 @@ describe('ImageAccessPolicy', () => {
 // ── UploadImageUseCase ────────────────────────────────────────────────────────
 
 describe('UploadImageUseCase', () => {
-  it('processes the file, builds the public URL, and persists epoch seconds', async () => {
+  it('processes the file, stores the origin-free path, returns the public URL, and persists epoch seconds', async () => {
     const repo = makeMockRepo();
     const storage = makeMockStorage();
     const { policy } = makeAllowAll();
@@ -164,12 +163,16 @@ describe('UploadImageUseCase', () => {
       entityType: 'plant',
       entityId: 4,
       file,
-      publicBaseUrl: baseUrl,
     });
 
     expect(storage.processUpload).toHaveBeenCalledWith(file, 'plant');
-    expect(result.url).toBe('https://api.test/uploads/plant/new-ef01.webp');
-    expect(repo.create).toHaveBeenCalledWith('plant', 4, result.url, 1717236000);
+    expect(result.url).toBe('http://localhost:5000/uploads/plant/new-ef01.webp');
+    expect(repo.create).toHaveBeenCalledWith(
+      'plant',
+      4,
+      '/uploads/plant/new-ef01.webp',
+      1717236000,
+    );
   });
 
   it('checks modify access before touching storage or the database', async () => {
@@ -184,7 +187,6 @@ describe('UploadImageUseCase', () => {
         entityType: 'plant',
         entityId: 4,
         file,
-        publicBaseUrl: baseUrl,
       }),
     ).rejects.toThrow(ForbiddenError);
     expect(assertCanModify).toHaveBeenCalledWith('plant', 4, actor);
@@ -272,7 +274,6 @@ describe('UpdateImageUseCase', () => {
       new UpdateImageUseCase(repo, storage, policy).execute({
         actor,
         imageId: 10,
-        publicBaseUrl: baseUrl,
       }),
     ).rejects.toThrow(ValidationError);
   });
@@ -286,7 +287,6 @@ describe('UpdateImageUseCase', () => {
         actor,
         imageId: 999,
         date: '2024-06-01T10:00:00.000Z',
-        publicBaseUrl: baseUrl,
       }),
     ).rejects.toThrow(NotFoundError);
   });
@@ -303,7 +303,6 @@ describe('UpdateImageUseCase', () => {
         actor,
         imageId: 10,
         date: 1717236000000,
-        publicBaseUrl: baseUrl,
       }),
     ).rejects.toThrow(ForbiddenError);
     expect(assertCanModify).toHaveBeenCalledWith('substrate', 9, actor);
@@ -321,7 +320,6 @@ describe('UpdateImageUseCase', () => {
         actor,
         imageId: 10,
         date: 'garbage',
-        publicBaseUrl: baseUrl,
       }),
     ).rejects.toThrow(ValidationError);
   });
@@ -340,14 +338,13 @@ describe('UpdateImageUseCase', () => {
       actor,
       imageId: 10,
       file,
-      publicBaseUrl: baseUrl,
     });
 
     // New file processed under the EXISTING entity type
     expect(storage.processUpload).toHaveBeenCalledWith(file, 'plant');
     // DB update carries the new URL
     expect(repo.update).toHaveBeenCalledWith(10, {
-      imageUrl: 'https://api.test/uploads/plant/new-ef01.webp',
+      imageUrl: '/uploads/plant/new-ef01.webp',
       uploadDate: undefined,
     });
     // Old file removed, and strictly after the DB update
@@ -368,7 +365,6 @@ describe('UpdateImageUseCase', () => {
       actor,
       imageId: 10,
       date: 1717236000000,
-      publicBaseUrl: baseUrl,
     });
     expect(Object.keys(record).sort()).toEqual(['date', 'entityType', 'id', 'url']);
   });
@@ -383,7 +379,6 @@ describe('UpdateImageUseCase', () => {
       actor,
       imageId: 10,
       date: 1717236000000,
-      publicBaseUrl: baseUrl,
     });
 
     expect(repo.update).toHaveBeenCalledWith(10, { imageUrl: undefined, uploadDate: 1717236000 });

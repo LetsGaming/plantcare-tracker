@@ -21,6 +21,7 @@ import {
   DeleteSubstrateUseCase,
 } from '../application/SubstrateUseCases';
 import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
@@ -50,14 +51,17 @@ export interface SubstrateController {
   deleteSubstrate: RequestHandler;
 }
 
-export const createSubstrateController = (repo: SubstrateRepository): SubstrateController => {
+export const createSubstrateController = (
+  repo: SubstrateRepository,
+  imageCleanup: EntityImageCleanup,
+): SubstrateController => {
   const getAll = new GetAllSubstratesUseCase(repo);
   const getOne = new GetSubstrateUseCase(repo);
   const create = new CreateSubstrateUseCase(repo);
   const update = new UpdateSubstrateUseCase(repo);
   const addComponents = new AddSubstrateComponentsUseCase(repo);
   const upsertComponents = new UpsertSubstrateComponentsUseCase(repo);
-  const remove = new DeleteSubstrateUseCase(repo);
+  const remove = new DeleteSubstrateUseCase(repo, imageCleanup);
 
   return {
     getAllSubstrates: async (req: Request, res: Response) => {

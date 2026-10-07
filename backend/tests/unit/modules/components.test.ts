@@ -4,7 +4,7 @@
  * Tests for the components application layer (ComponentUseCases).
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComponentRepository } from '../../../src/modules/components/domain/Component';
 import {
   GetAllComponentsUseCase,
@@ -120,9 +120,22 @@ describe('UpdateComponentUseCase', () => {
 // ── DeleteComponentUseCase ────────────────────────────────────────────────────
 
 describe('DeleteComponentUseCase', () => {
+  const images = { removeAll: vi.fn().mockResolvedValue(undefined) };
+  beforeEach(() => images.removeAll.mockClear());
+
   it('throws NotFoundError when nothing was deleted', async () => {
     const repo = makeMockRepo();
     asMock(repo.delete).mockResolvedValue(false);
-    await expect(new DeleteComponentUseCase(repo).execute(999)).rejects.toThrow(NotFoundError);
+    await expect(new DeleteComponentUseCase(repo, images).execute(999)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(images.removeAll).not.toHaveBeenCalled();
+  });
+
+  it('removes the images of a deleted component', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.delete).mockResolvedValue(true);
+    await new DeleteComponentUseCase(repo, images).execute(7);
+    expect(images.removeAll).toHaveBeenCalledWith('component', 7);
   });
 });

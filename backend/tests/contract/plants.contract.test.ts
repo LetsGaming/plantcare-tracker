@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import { API, createContractApp, type ContractApp } from './harness';
 import { createPlant, createSubstrate } from './support';
 
@@ -308,7 +310,7 @@ describe('DELETE /plants/:id', () => {
   });
 });
 
-describe('known defects', () => {
+describe('constraint errors and deletion', () => {
   it('answers a plant update with an unknown substrate with 400', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);
@@ -321,10 +323,10 @@ describe('known defects', () => {
     expect(res.status).toBe(400);
   });
 
-  it('leaves image rows behind when a plant is deleted (BUG-04)', async () => {
+  it('removes the images of a deleted plant, rows and files', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);
-    await app.client.request({
+    const upload = await app.client.request({
       method: 'post',
       url: `${API}/images/plant/${plant.plant_id}`,
       headers: owner.auth,
@@ -332,6 +334,13 @@ describe('known defects', () => {
         { field: 'image', filename: 'a.png', contentType: 'image/png', data: await app.png() },
       ],
     });
+    const file = path.join(
+      process.env.NAS_PATH!,
+      'plant',
+      path.basename(new URL(upload.body.data.path).pathname),
+    );
+    expect(fs.existsSync(file)).toBe(true);
+
     await app.client.request({
       method: 'delete',
       url: `${API}/plants/${plant.plant_id}`,
@@ -341,6 +350,7 @@ describe('known defects', () => {
       "SELECT COUNT(*) AS n FROM images WHERE entity_type = 'plant' AND entity_id = ?",
       [plant.plant_id],
     );
-    expect(rows[0].n).toBe(1);
+    expect(rows[0].n).toBe(0);
+    expect(fs.existsSync(file)).toBe(false);
   });
 });

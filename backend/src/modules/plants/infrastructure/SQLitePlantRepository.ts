@@ -1,5 +1,7 @@
-import { sql } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { getKysely } from '../../../core/database/db';
+import type { Database } from '../../../core/database/schema';
+import { toPublicImageUrl } from '../../../core/config';
 import type { SpeciesResolver } from '../domain/SpeciesResolver';
 import type { PlantRepository, CreatePlantDTO, UpdatePlantDTO } from '../domain/Plant';
 import { Plant } from '../domain/Plant';
@@ -21,9 +23,7 @@ interface PlantRow {
   upload_date: number | null;
 }
 
-/** Image URLs stored by older releases may contain Windows path separators. */
-const WINDOWS_SEPARATOR = '\\';
-
+/** Plants joined with species, substrate and images, images oldest first. */
 const plantRows = () =>
   getKysely()
     .selectFrom('plants as p')
@@ -43,18 +43,21 @@ const plantRows = () =>
       's.id as substrate_id',
       's.name as substrate_name',
       'img.id as image_id',
-      sql<string | null>`REPLACE(img.image_url, ${WINDOWS_SEPARATOR}, '/')`.as('image_url'),
+      'img.image_url',
       'img.upload_date',
     ]);
 
 // ── Repository ───────────────────────────────────────────────────────────────
 export class SQLitePlantRepository implements PlantRepository {
-  constructor(private readonly species: SpeciesResolver) {}
+  /** Builds a resolver on the given executor so a species insert and the plant write share a transaction. */
+  constructor(private readonly speciesFor: (db: Kysely<Database>) => SpeciesResolver) {}
 
   async findAllPublic(): Promise<Plant[]> {
     const rows = await plantRows()
       .where('p.is_public', '=', 1)
       .orderBy('p.created_at', 'desc')
+      .orderBy('img.upload_date')
+      .orderBy('img.id')
       .execute();
     return this.groupRows(rows);
   }
@@ -63,51 +66,67 @@ export class SQLitePlantRepository implements PlantRepository {
     const rows = await plantRows()
       .where('p.user_id', '=', userId)
       .orderBy('p.created_at', 'desc')
+      .orderBy('img.upload_date')
+      .orderBy('img.id')
       .execute();
     return this.groupRows(rows);
   }
 
   async findById(id: number): Promise<Plant | null> {
-    const rows = await plantRows().where('p.id', '=', id).execute();
+    const rows = await plantRows()
+      .where('p.id', '=', id)
+      .orderBy('img.upload_date')
+      .orderBy('img.id')
+      .execute();
     return this.groupRows(rows)[0] ?? null;
   }
 
   async create(dto: CreatePlantDTO): Promise<number> {
-    const speciesId = await this.species.resolve(dto.species);
-    const result = await getKysely()
-      .insertInto('plants')
-      .values({
-        name: dto.name,
-        species_id: speciesId,
-        substrate_id: dto.substrateId ?? null,
-        is_public: dto.isPublic ? 1 : 0,
-        user_id: dto.userId,
-        created_at: sql<number>`strftime('%s', 'now')`,
-      })
-      .executeTakeFirstOrThrow();
-    return Number(result.insertId);
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const speciesId = await this.speciesFor(trx).resolve(dto.species);
+        const result = await trx
+          .insertInto('plants')
+          .values({
+            name: dto.name,
+            species_id: speciesId,
+            substrate_id: dto.substrateId ?? null,
+            is_public: dto.isPublic ? 1 : 0,
+            user_id: dto.userId,
+            created_at: sql<number>`strftime('%s', 'now')`,
+          })
+          .executeTakeFirstOrThrow();
+        return Number(result.insertId);
+      });
   }
 
   async update(id: number, userId: number, dto: UpdatePlantDTO): Promise<boolean> {
-    const changes: {
-      name?: string;
-      species_id?: number | null;
-      substrate_id?: number;
-      is_public?: number;
-    } = {};
-    if (dto.name !== undefined) changes.name = dto.name;
-    if (dto.species !== undefined) changes.species_id = await this.species.resolve(dto.species);
-    if (dto.substrateId !== undefined) changes.substrate_id = dto.substrateId;
-    if (dto.isPublic !== undefined) changes.is_public = dto.isPublic ? 1 : 0;
-    if (Object.keys(changes).length === 0) return false;
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const changes: {
+          name?: string;
+          species_id?: number | null;
+          substrate_id?: number;
+          is_public?: number;
+        } = {};
+        if (dto.name !== undefined) changes.name = dto.name;
+        if (dto.species !== undefined) {
+          changes.species_id = await this.speciesFor(trx).resolve(dto.species);
+        }
+        if (dto.substrateId !== undefined) changes.substrate_id = dto.substrateId;
+        if (dto.isPublic !== undefined) changes.is_public = dto.isPublic ? 1 : 0;
+        if (Object.keys(changes).length === 0) return false;
 
-    const result = await getKysely()
-      .updateTable('plants')
-      .set(changes)
-      .where('id', '=', id)
-      .where('user_id', '=', userId)
-      .executeTakeFirst();
-    return Number(result.numUpdatedRows) > 0;
+        const result = await trx
+          .updateTable('plants')
+          .set(changes)
+          .where('id', '=', id)
+          .where('user_id', '=', userId)
+          .executeTakeFirst();
+        return Number(result.numUpdatedRows) > 0;
+      });
   }
 
   async delete(id: number, userId: number): Promise<boolean> {
@@ -130,7 +149,7 @@ export class SQLitePlantRepository implements PlantRepository {
       if (row.image_id && row.image_url) {
         map.get(row.plant_id)!.images.push({
           id: row.image_id,
-          url: row.image_url,
+          url: toPublicImageUrl(row.image_url),
           date: row.upload_date ?? 0,
         });
       }

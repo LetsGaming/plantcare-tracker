@@ -7,6 +7,7 @@
 
 import { sql } from 'kysely';
 import { getKysely } from '../../../core/database/db';
+import { toPublicImageUrl } from '../../../core/config';
 import type {
   ImageRepository,
   ImageRecord,
@@ -15,6 +16,11 @@ import type {
   UpdateImageDTO,
 } from '../domain/Image';
 
+const withPublicUrl = <T extends { url: string }>(row: T): T => ({
+  ...row,
+  url: toPublicImageUrl(row.url),
+});
+
 const imageRecords = () =>
   getKysely()
     .selectFrom('images')
@@ -22,11 +28,13 @@ const imageRecords = () =>
 
 export class SQLiteImageRepository implements ImageRepository {
   async findByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
-    return imageRecords()
+    const rows = await imageRecords()
       .where('entity_type', '=', entityType)
       .where('entity_id', '=', entityId)
       .orderBy('upload_date', 'asc')
+      .orderBy('id', 'asc')
       .execute();
+    return rows.map(withPublicUrl);
   }
 
   async findById(imageId: number): Promise<StoredImage | null> {
@@ -34,7 +42,7 @@ export class SQLiteImageRepository implements ImageRepository {
       .select('entity_id as entityId')
       .where('id', '=', imageId)
       .executeTakeFirst();
-    return row ?? null;
+    return row ? withPublicUrl(row) : null;
   }
 
   async create(
@@ -81,6 +89,7 @@ export class SQLiteImageRepository implements ImageRepository {
           .where('entity_type', '=', entityType)
           .where('entity_id', '=', entityId)
           .orderBy('upload_date', 'asc')
+          .orderBy('id', 'asc')
           .execute();
         if (images.length) {
           await trx
@@ -92,7 +101,7 @@ export class SQLiteImageRepository implements ImageRepository {
             )
             .execute();
         }
-        return images;
+        return images.map(withPublicUrl);
       });
   }
 }

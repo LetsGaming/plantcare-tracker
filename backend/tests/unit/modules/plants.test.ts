@@ -4,7 +4,7 @@
  * Tests for Plant domain entity and use cases.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Plant } from '../../../src/modules/plants/domain/Plant';
 import type { PlantRepository } from '../../../src/modules/plants/domain/Plant';
 import {
@@ -209,15 +209,22 @@ describe('UpdatePlantUseCase', () => {
 // ── DeletePlantUseCase ────────────────────────────────────────────────────────
 
 describe('DeletePlantUseCase', () => {
-  it('deletes existing plant', async () => {
+  const images = { removeAll: vi.fn().mockResolvedValue(undefined) };
+  beforeEach(() => images.removeAll.mockClear());
+
+  it('deletes existing plant and its images', async () => {
     const repo = makeMockRepo();
-    await new DeletePlantUseCase(repo).execute(1, 2);
+    await new DeletePlantUseCase(repo, images).execute(1, 2);
     expect(repo.delete).toHaveBeenCalledWith(1, 2);
+    expect(images.removeAll).toHaveBeenCalledWith('plant', 1);
   });
 
-  it('throws NotFoundError when delete returns false', async () => {
+  it('throws NotFoundError and keeps the images when delete returns false', async () => {
     const repo = makeMockRepo();
     (repo.delete as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new DeletePlantUseCase(repo).execute(999, 2)).rejects.toThrow(NotFoundError);
+    await expect(new DeletePlantUseCase(repo, images).execute(999, 2)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(images.removeAll).not.toHaveBeenCalled();
   });
 });

@@ -10,12 +10,13 @@ import { SQLitePlantRepository } from '../infrastructure/SQLitePlantRepository';
 import { SQLiteSpeciesCatalog } from '../infrastructure/SQLiteSpeciesCatalog';
 import { SpeciesResolver } from '../domain/SpeciesResolver';
 import { createPlantsController } from './plantsController';
+import { createImageCleanup } from '../../images';
 import { authenticateToken, optionalAuthenticateToken } from '../../../core/middleware';
 
 export const createPlantsRouter = (): Router => {
   const router = Router();
-  const repo = new SQLitePlantRepository(new SpeciesResolver(new SQLiteSpeciesCatalog()));
-  const ctrl = createPlantsController(repo);
+  const repo = new SQLitePlantRepository((db) => new SpeciesResolver(new SQLiteSpeciesCatalog(db)));
+  const ctrl = createPlantsController(repo, createImageCleanup());
 
   // Optional auth on reads: public plants are visible without login,
   // private plants are included when a valid token is present.

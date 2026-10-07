@@ -51,6 +51,7 @@ src/modules/plants/
 Two modules have additional ports beyond the repository:
 
 - **images** — `ImageStorage` (implemented by `LocalImageStorage`): converts uploads to WebP, extracts EXIF capture dates, serves resized reads, deletes files. A future object-storage backend only has to satisfy this interface.
+  The module also exports `EntityImageCleanup` (`createImageCleanup()`): plants, substrates and components call it after deleting an entity, which removes the image rows and files. Cleanup failures are logged, never raised, because the entity is already gone.
 - **moreInfo** — `PlantGuideStreamer` (OpenAI adapter) and `PlantLinkSearcher` (7 scraper/API adapters), orchestrated by the `StreamPlantInfoUseCase`.
 
 ## Dependency Injection
@@ -94,7 +95,7 @@ Single source of truth for values that must agree across files:
 - **`constants.ts`**: `HTTP_STATUS` (success codes used by controllers), `AUTH` (bcrypt cost, session limits, refresh cookie name/lifetimes, SSE ticket TTL), `AUTH_RATE_LIMIT`, `USER_RATE_LIMIT`, `SSE` (heartbeat interval, chunk size, event names)
 - **`env.ts`**: the only reader of `process.env`. `loadConfig()` returns a typed, validated `AppConfig` (ports, origins, database and upload paths, JWT settings, OpenAI key, headless flag) and throws when `JWT_SECRET` or `JWT_REFRESH_SECRET` is missing; `getConfig()` memoizes it. `server.ts` resolves it first thing so a misconfigured process fails at boot.
 - **`apiVersion.ts`**: `getApiVersionPath()` / `getApiBasePath()` resolve `/api/vX` from `API_VERSION_PATH` or package.json (used by `app.ts` and the auth module's cookie scoping)
-- **`uploads.ts`**: `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`; the static mount in `app.ts` and the URL builder in the images module resolve from the same place
+- **`uploads.ts`**: `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`, plus `toStoredImagePath()` (the origin-free path persisted for an upload) and `toPublicImageUrl()` (adds `PUBLIC_BASE_URL`, else the request origin held in `requestContext`, to a stored path). Repositories apply it on read, so responses keep absolute URLs.
 
 Error status codes are **not** listed here — each `AppError` subclass owns its code (see [Error Handling](./error-handling.md)).
 

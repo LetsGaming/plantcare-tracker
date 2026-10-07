@@ -1,4 +1,5 @@
 import { getKysely } from '../../../core/database/db';
+import { toPublicImageUrl } from '../../../core/config';
 import type { ComponentData, FinenessLevel, ComponentRepository } from '../domain/Component';
 
 interface ComponentRow {
@@ -30,11 +31,20 @@ const componentRows = () =>
 
 export class SQLiteComponentRepository implements ComponentRepository {
   async findAll(): Promise<ComponentData[]> {
-    return this.groupRows(await componentRows().orderBy('c.name').execute());
+    const rows = await componentRows()
+      .orderBy('c.name')
+      .orderBy('img.upload_date')
+      .orderBy('img.id')
+      .execute();
+    return this.groupRows(rows);
   }
 
   async findById(id: number): Promise<ComponentData | null> {
-    const rows = await componentRows().where('c.id', '=', id).execute();
+    const rows = await componentRows()
+      .where('c.id', '=', id)
+      .orderBy('img.upload_date')
+      .orderBy('img.id')
+      .execute();
     return this.groupRows(rows)[0] ?? null;
   }
 
@@ -92,8 +102,9 @@ export class SQLiteComponentRepository implements ComponentRepository {
       const c = map.get(row.component_id)!;
 
       if (row.image_id && !c.images.find((i) => i.id === row.image_id)) {
-        c.images.push({ id: row.image_id, url: row.image_url ?? '', date: row.upload_date ?? 0 });
-        c.image_url = row.image_url ?? null;
+        const url = row.image_url ? toPublicImageUrl(row.image_url) : '';
+        c.images.push({ id: row.image_id, url, date: row.upload_date ?? 0 });
+        c.image_url = url || null;
       }
     }
 

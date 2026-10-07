@@ -25,7 +25,7 @@ import type {
 } from '../domain/Image';
 import type { ImageAccessPolicy } from './ImageAccessPolicy';
 import { NotFoundError, ValidationError } from '../../../core/errors';
-import { STATIC_UPLOADS_ROUTE } from '../../../core/config';
+import { toPublicImageUrl, toStoredImagePath } from '../../../core/config';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -39,10 +39,6 @@ const toRecord = ({ id, url, date, entityType }: StoredImage): ImageRecord => ({
 
 const toEpochSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
 
-/** Builds the absolute public URL a stored file is served under. */
-const buildPublicUrl = (publicBaseUrl: string, entityType: EntityType, filename: string): string =>
-  `${publicBaseUrl}${STATIC_UPLOADS_ROUTE}/${entityType}/${filename}`;
-
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
 export interface UploadImageInput {
@@ -50,8 +46,6 @@ export interface UploadImageInput {
   entityType: EntityType;
   entityId: number;
   file: UploadedFile;
-  /** protocol://host of this request — used to build the stored URL. */
-  publicBaseUrl: string;
 }
 
 export interface UploadImageResult {
@@ -71,10 +65,10 @@ export class UploadImageUseCase {
 
     const { filename, capturedAt } = await this.storage.processUpload(input.file, input.entityType);
 
-    const url = buildPublicUrl(input.publicBaseUrl, input.entityType, filename);
-    await this.repo.create(input.entityType, input.entityId, url, toEpochSeconds(capturedAt));
+    const stored = toStoredImagePath(input.entityType, filename);
+    await this.repo.create(input.entityType, input.entityId, stored, toEpochSeconds(capturedAt));
 
-    return { url, capturedAt };
+    return { url: toPublicImageUrl(stored), capturedAt };
   }
 }
 
@@ -132,7 +126,6 @@ export interface UpdateImageInput {
   file?: UploadedFile;
   /** New capture date — any Date-parsable value from the form. */
   date?: string | number;
-  publicBaseUrl: string;
 }
 
 export class UpdateImageUseCase {
@@ -154,7 +147,7 @@ export class UpdateImageUseCase {
     let newUrl: string | undefined;
     if (input.file) {
       const { filename } = await this.storage.processUpload(input.file, existing.entityType);
-      newUrl = buildPublicUrl(input.publicBaseUrl, existing.entityType, filename);
+      newUrl = toStoredImagePath(existing.entityType, filename);
     }
 
     let uploadDate: number | undefined;

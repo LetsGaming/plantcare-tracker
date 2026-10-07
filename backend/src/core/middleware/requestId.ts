@@ -17,5 +17,13 @@ export const requestIdMiddleware = (req: Request, res: Response, next: NextFunct
 
   res.setHeader('X-Request-Id', requestId);
 
-  requestContext.run({ requestId, method: req.method, path: req.path }, next);
+  requestContext.run(
+    {
+      requestId,
+      method: req.method,
+      path: req.path,
+      origin: `${req.protocol}://${req.get('host')}`,
+    },
+    next,
+  );
 };

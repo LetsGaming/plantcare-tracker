@@ -82,7 +82,11 @@ describe('importMysqlDump', () => {
   it('records the baseline migration so the app can start on the result', async () => {
     const file = targetPath();
     await importMysqlDump(dump, file);
-    expect(rows(file, 'SELECT name FROM kysely_migration')).toEqual([{ name: '0001_baseline' }]);
+    expect(rows(file, 'SELECT name FROM kysely_migration')).toEqual([
+      { name: '0001_baseline' },
+      { name: '0002_purge_orphan_images' },
+      { name: '0003_relative_image_paths' },
+    ]);
   });
 
   it('names the failing statement when the dump cannot be loaded', async () => {
