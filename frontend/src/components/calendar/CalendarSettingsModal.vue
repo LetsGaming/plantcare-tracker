@@ -206,10 +206,10 @@ export default defineComponent({
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
       } as Category,
-      debouncedUpdateCategories: ((index: number) => {
+      debouncedUpdateCategories: (() => {
         console.warn("debouncedUpdateCategories called before initialization");
       }) as (index: number) => void,
-      debouncedUpdateWateringCategories: ((index: number) => {
+      debouncedUpdateWateringCategories: (() => {
         console.warn("debouncedUpdateWateringCategories called before initialization");
       }) as (index: number) => void,
     };
@@ -261,9 +261,9 @@ export default defineComponent({
         const b = parseInt(hex.substring(5, 7), 16) / 255;
         const max = Math.max(r, g, b),
           min = Math.min(r, g, b);
+        const l = (max + min) / 2;
         let h = 0,
-          s = 0,
-          l = (max + min) / 2;
+          s = 0;
         if (max !== min) {
           const d = max - min;
           s = l > 0.5 ? d / (2 - max - min) : d / (max + min);

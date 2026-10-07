@@ -16,6 +16,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "DateFieldComponent",
+  emits: ["update:modelValue"],
   components: { IonItem, IonLabel, IonInput, RequiredNote },
   props: {
     field: {

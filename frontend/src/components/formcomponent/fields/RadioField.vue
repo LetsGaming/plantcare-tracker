@@ -24,6 +24,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "RadioFieldComponent",
+  emits: ["update:modelValue"],
   components: { IonItem, IonLabel, IonRadioGroup, IonRadio, RequiredNote },
   props: {
     field: {

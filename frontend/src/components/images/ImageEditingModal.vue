@@ -31,16 +31,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import {
-  IonModal,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonButton,
-  IonIcon,
-  IonContent,
-} from "@ionic/vue";
+import { IonModal, IonContent } from "@ionic/vue";
 import { closeOutline } from "ionicons/icons";
 
 import FormComponent from "../formcomponent/FormComponent.vue";
@@ -54,12 +45,6 @@ export default defineComponent({
   emits: ["close", "edited"],
   components: {
     IonModal,
-    IonHeader,
-    IonToolbar,
-    IonTitle,
-    IonButtons,
-    IonButton,
-    IonIcon,
     IonContent,
     ModalHeader,
     FormComponent,

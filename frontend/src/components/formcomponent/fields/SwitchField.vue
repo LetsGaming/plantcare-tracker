@@ -16,6 +16,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SwitchFieldComponent",
+  emits: ["update:modelValue"],
   components: { IonItem, IonLabel, IonToggle, RequiredNote },
   props: {
     field: {

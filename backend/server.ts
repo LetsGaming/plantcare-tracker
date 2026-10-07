@@ -124,17 +124,20 @@ const server = app.listen(PORT, () => {
   logger.info(`V2 server running on port ${PORT}`); // stays info — visible in both dev and prod on startup
 });
 
-const handleShutdown = async (signal: string): Promise<void> => {
-  logger.debug(`${signal} — shutting down gracefully...`);
-  server.close(async () => {
-    try {
-      await closeBrowser();
-      closeDb(); // flushes WAL checkpoint and closes the SQLite file
-      logger.debug('Shutdown complete.');
-    } catch (err) {
-      logger.error('Error during shutdown', { err });
-    }
-    process.exit(0);
+const releaseResources = async (): Promise<void> => {
+  try {
+    await closeBrowser();
+    closeDb(); // flushes WAL checkpoint and closes the SQLite file
+    logger.debug('Shutdown complete.');
+  } catch (err) {
+    logger.error('Error during shutdown', { err });
+  }
+};
+
+const handleShutdown = (signal: string): void => {
+  logger.debug(`${signal}: shutting down gracefully...`);
+  server.close(() => {
+    void releaseResources().then(() => process.exit(0));
   });
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');

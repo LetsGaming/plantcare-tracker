@@ -27,7 +27,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonContent, IonPage } from "@ionic/vue";
+import { IonPage } from "@ionic/vue";
 import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
@@ -43,7 +43,6 @@ export default defineComponent({
   name: "ComponentOverview",
   components: {
     IonPage,
-    IonContent,
     OverviewHeader,
     ItemsOverview,
     ComponentAddingModal,
@@ -124,7 +123,7 @@ export default defineComponent({
           key: "components.add.success",
           fallback: "Component added successfully",
         });
-      } catch (error) {
+      } catch {
         ToastService.showError({
           key: "components.add.failed",
           fallback: "Failed to add component",

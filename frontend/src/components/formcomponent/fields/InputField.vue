@@ -20,6 +20,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "InputFieldComponent",
+  emits: ["update:modelValue"],
   components: { IonItem, IonInput, RequiredNote },
   props: {
     field: {

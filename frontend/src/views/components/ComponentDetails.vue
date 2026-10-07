@@ -104,7 +104,7 @@ export default defineComponent({
             fallback: "Component edited successfully",
           });
         }
-      } catch (error) {
+      } catch {
         ToastService.showError({
           key: "components.edit.failed",
           fallback: "Error editing component",
@@ -125,7 +125,7 @@ export default defineComponent({
           });
           this.$router.push({ name: "component-overview" });
         }
-      } catch (error) {
+      } catch {
         ToastService.showError({
           key: "components.delete.failed",
           fallback: "Error deleting component",

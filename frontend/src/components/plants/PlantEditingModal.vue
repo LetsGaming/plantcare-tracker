@@ -16,7 +16,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType, watch } from "vue";
+import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import localizationService from "@/services/general/LocalizationService";
@@ -25,7 +25,6 @@ export default defineComponent({
   name: "PlantEditingModal",
   components: {
     BaseFormModal,
-    SubstrateContainer,
   },
   emits: ["close", "save", "delete"],
   props: {

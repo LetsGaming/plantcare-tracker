@@ -12,14 +12,13 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonItem, IonInput, IonIcon } from "@ionic/vue";
+import { IonInput } from "@ionic/vue";
 
 export default defineComponent({
   name: "SearchBar",
+  emits: ["search"],
   components: {
-    IonItem,
     IonInput,
-    IonIcon,
   },
   props: {
     placeholder: {

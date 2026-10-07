@@ -193,7 +193,8 @@ export default defineComponent({
 
     handleEnterKey(event: KeyboardEvent) {
       if (event.key === "Enter") {
-        this.isRegisterMode ? this.handleRegister() : this.handleLogin();
+        if (this.isRegisterMode) this.handleRegister();
+        else this.handleLogin();
       }
     },
 
@@ -254,7 +255,7 @@ export default defineComponent({
 
       this.loading = true;
       try {
-        const result = await UserService.register({
+        await UserService.register({
           username: this.username,
           password: this.password,
         });

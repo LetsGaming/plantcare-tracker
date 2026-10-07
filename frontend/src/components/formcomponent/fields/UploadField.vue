@@ -16,6 +16,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "UploadFieldComponent",
+  emits: ["update:modelValue"],
   components: { IonItem, IonLabel, RequiredNote },
   props: {
     field: {

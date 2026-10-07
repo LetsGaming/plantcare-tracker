@@ -32,6 +32,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "PasswordField",
+  emits: ["update:modelValue"],
   components: {
     IonItem,
     IonButton,

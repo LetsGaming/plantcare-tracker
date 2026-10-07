@@ -113,7 +113,7 @@ const fetchWithChromium = async (url: string): Promise<FetchedDocument | null> =
 
   try {
     await page.route('**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2}', (route) => {
-      route.abort();
+      void route.abort();
     });
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });

@@ -7,42 +7,6 @@ import UserService from "@/services/UserService";
 /** Pre-computed API URL to eliminate repeated string concatenation logic */
 const API_BASE_URL = Utils.getApiBaseUrl();
 
-// ── V2 Response envelope ──────────────────────────────────────────────────────
-
-/**
- * Success envelope: { data: T }
- */
-interface ApiSuccessResponse<T = any> {
-  data: T;
-}
-
-/**
- * V2 error envelope: { error: { type, message, statusCode, fields? } }
- */
-interface ApiErrorBody {
-  error?: {
-    type?: string;
-    message?: string;
-    statusCode?: number;
-    /** Present only on ValidationError (400) */
-    fields?: Record<string, string>;
-  };
-  success?: false;
-}
-
-type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorBody;
-
-// ── SSE types ─────────────────────────────────────────────────────────────────
-
-/** Structure for individual Server-Sent Events (SSE) */
-interface StreamEvent<T = any> {
-  data: T;
-  event?: string;
-}
-
-/** Callback definition for processing stream events */
-type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
-
 // ── ApiError ──────────────────────────────────────────────────────────────────
 
 /**
@@ -164,7 +128,7 @@ const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Respons
   try {
     await UserService.refreshToken();
     return await requestFn();
-  } catch (error) {
+  } catch {
     // Local teardown only: the refresh just failed, so the session is
     // already dead server-side — a POST /logout would be a no-op. The
     // full logout() here used to clear a token that a parallel login had

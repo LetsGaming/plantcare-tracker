@@ -48,12 +48,6 @@ import {
   IonTitle,
   IonButtons,
   IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-  IonLabel,
-  IonItem,
 } from "@ionic/vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import { closeOutline } from "ionicons/icons";
@@ -71,12 +65,6 @@ export default defineComponent({
     IonTitle,
     IonButtons,
     IonContent,
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
-    IonLabel,
-    IonItem,
     FormComponent,
   },
   props: {

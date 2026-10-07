@@ -198,7 +198,8 @@ export abstract class BaseService {
     if (!item?.id) throw new Error("BaseService: item must have an 'id'");
     const list = await this.readList<T>(cacheKey);
     const index = list.findIndex((x) => x.id === item.id);
-    index === -1 ? list.push(item) : (list[index] = item);
+    if (index === -1) list.push(item);
+    else list[index] = item;
     await this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear);
   }
 
@@ -230,7 +231,8 @@ export abstract class BaseService {
   ): Promise<void> {
     const list = await this.readList<T>(cacheKey);
     const index = list.findIndex((x) => x.id === previousId);
-    index === -1 ? list.push(item) : (list[index] = item);
+    if (index === -1) list.push(item);
+    else list[index] = item;
     await this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear);
   }
 
@@ -249,7 +251,8 @@ export abstract class BaseService {
     const dict = await this.readDictionary<T>(cacheKey);
     const list = dict[entryKey] ? [...dict[entryKey]] : [];
     const index = list.findIndex((x) => x.id === item.id);
-    index === -1 ? list.push(item) : (list[index] = item);
+    if (index === -1) list.push(item);
+    else list[index] = item;
     await this.saveAndNotify(cacheKey, eventKey, { ...dict, [entryKey]: list });
   }
 
@@ -280,7 +283,8 @@ export abstract class BaseService {
     const dict = await this.readDictionary<T>(cacheKey);
     const list = dict[entryKey] ? [...dict[entryKey]] : [];
     const index = list.findIndex((x) => x.id === previousId);
-    index === -1 ? list.push(item) : (list[index] = item);
+    if (index === -1) list.push(item);
+    else list[index] = item;
     await this.saveAndNotify(cacheKey, eventKey, { ...dict, [entryKey]: list });
   }
 
@@ -305,7 +309,8 @@ export abstract class BaseService {
     // 2. Optimistic paint.
     const painted = [...before];
     const paintIndex = painted.findIndex((x) => x.id === optimisticItem.id);
-    paintIndex === -1 ? painted.push(optimisticItem) : (painted[paintIndex] = optimisticItem);
+    if (paintIndex === -1) painted.push(optimisticItem);
+    else painted[paintIndex] = optimisticItem;
     await io.write(painted);
 
     try {
@@ -315,7 +320,8 @@ export abstract class BaseService {
       const finalItem = reconcile(response);
       const current = await io.read();
       const index = current.findIndex((x) => x.id === optimisticItem.id);
-      index === -1 ? current.push(finalItem) : (current[index] = finalItem);
+      if (index === -1) current.push(finalItem);
+      else current[index] = finalItem;
       await io.write(current);
       return response;
     } catch (error) {
@@ -323,7 +329,8 @@ export abstract class BaseService {
       const current = await io.read();
       const index = current.findIndex((x) => x.id === optimisticItem.id);
       if (snapshot) {
-        index === -1 ? current.push(snapshot) : (current[index] = snapshot);
+        if (index === -1) current.push(snapshot);
+        else current[index] = snapshot;
       } else if (index !== -1) {
         current.splice(index, 1);
       }

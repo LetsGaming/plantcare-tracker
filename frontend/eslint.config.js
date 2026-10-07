@@ -18,6 +18,10 @@ export default defineConfigWithVueTs(
   vueTsConfigs.recommended,
   {
     rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { ignoreRestSiblings: true, argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
       "vue/component-api-style": ["error", ["options", "composition"]],
       "vue/no-v-html": "warn",
       "vue/require-explicit-emits": "error",

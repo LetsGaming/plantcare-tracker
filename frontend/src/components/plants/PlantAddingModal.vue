@@ -21,7 +21,7 @@ import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 export default defineComponent({
   name: "PlantAddingModal",
-  components: { BaseFormModal, SubstrateContainer },
+  components: { BaseFormModal },
   emits: ["close", "save"],
   props: {
     isOpen: { type: Boolean, required: true },

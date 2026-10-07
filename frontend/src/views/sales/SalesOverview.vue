@@ -125,7 +125,7 @@ export default defineComponent({
       );
     },
 
-    onSegmentChange(value: string) {
+    onSegmentChange(_value: string) {
       // no-op
     },
 

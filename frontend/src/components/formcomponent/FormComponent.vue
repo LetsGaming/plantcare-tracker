@@ -244,7 +244,7 @@ export default defineComponent({
     },
     submitDelete() {
       this.showDeleteModal = false;
-      this.onDeleteClick && this.onDeleteClick();
+      if (this.onDeleteClick) this.onDeleteClick();
     },
   },
 });

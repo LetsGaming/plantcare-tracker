@@ -55,7 +55,7 @@ async function initializeApp() {
   // We create a global helper that explicitly depends on the reactive locale
   app.config.globalProperties.$t = (key: string, vars?: any, fallback?: string) => {
     // Accessing .value here registers this function in Vue's dependency tracker
-    const _ = localizationService.locale.value;
+    void localizationService.locale.value;
     return localizationService.t(key, vars, fallback);
   };
 

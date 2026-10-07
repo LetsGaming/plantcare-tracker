@@ -125,7 +125,7 @@ export default defineComponent({
             },
           });
         }
-      } catch (error) {
+      } catch {
         this.substrates = [];
         ToastService.showError({ key: "substrate.fetch_error" });
       }

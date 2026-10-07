@@ -15,13 +15,7 @@ export class AppError extends Error {
     this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.isOperational = isOperational;
-    const errorConstructor = Error as ErrorConstructor & {
-      captureStackTrace?: (targetObject: object, constructorOpt?: Function) => void;
-    };
-
-    if (errorConstructor.captureStackTrace) {
-      errorConstructor.captureStackTrace(this, this.constructor);
-    }
+    Error.captureStackTrace(this, this.constructor);
   }
 }
 

@@ -19,6 +19,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SelectFieldComponent",
+  emits: ["update:modelValue"],
   components: { IonItem, IonSelect, IonSelectOption, RequiredNote },
   props: {
     field: {

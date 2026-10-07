@@ -46,10 +46,6 @@ const toDateTime = (input: string | number | Date): DateTime => {
   return DateTime.invalid("Unsupported input");
 };
 
-const getLocalDate = (dateString: string): DateTime => {
-  return DateTime.fromISO(dateString).toLocal();
-};
-
 const Utils = {
   getConfig() {
     return ACTIVE_CONFIG;

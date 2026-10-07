@@ -31,15 +31,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import {
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonBackButton,
-  IonLabel,
-  IonIcon,
-} from "@ionic/vue";
+import { IonHeader, IonToolbar, IonButtons, IonBackButton, IonIcon } from "@ionic/vue";
 import { create, cloudUpload } from "ionicons/icons";
 import UserService from "@/services/UserService";
 import localizationService from "@/services/general/LocalizationService";
@@ -49,10 +41,8 @@ export default defineComponent({
   components: {
     IonHeader,
     IonToolbar,
-    IonTitle,
     IonButtons,
     IonBackButton,
-    IonLabel,
     IonIcon,
   },
   props: {

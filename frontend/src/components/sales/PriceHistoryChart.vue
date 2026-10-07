@@ -30,9 +30,6 @@ export default defineComponent({
     const sorted = [...props.history].sort((a, b) => a.timestamp - b.timestamp);
 
     const prices = sorted.map((p) => p.price);
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    const padding = Math.max((max - min) * 0.2, 0.5);
 
     const chartData = computed(() => ({
       labels: sorted.map((p) => {
