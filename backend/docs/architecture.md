@@ -45,7 +45,7 @@ src/modules/plants/
 │   └── SQLiteSpeciesCatalog.ts  # Implements SpeciesCatalog
 └── presentation/
     ├── plantsController.ts      # Thin HTTP adapter (typed responses)
-    └── plantsRoutes.ts          # Express Router, middleware wiring (composition root)
+    └── plantsRoutes.ts          # Fastify plugin, hook wiring (composition root)
 ```
 
 Two modules have additional ports beyond the repository:
@@ -56,14 +56,14 @@ Two modules have additional ports beyond the repository:
 
 ## Dependency Injection
 
-Dependencies are injected via constructors, using plain factory functions and `new` (no DI container). Since the database connection is a process-wide singleton (`core/database/db.ts`), each **router factory is its own composition root**:
+Dependencies are injected via constructors, using plain factory functions and `new` (no DI container). Since the database connection is a process-wide singleton (`core/database/db.ts`), each **route plugin is its own composition root**:
 
 ```typescript
-// server.ts — mounts the routers, nothing else
-app.use(`${V}/plants`, createPlantsRouter());
+// app.ts: registers the plugins, nothing else
+await app.register(plantsRoutes, { prefix: `${V}/plants` });
 
 // plantsRoutes.ts — composition root of the module
-export const createPlantsRouter = (): Router => {
+export const plantsRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLitePlantRepository();     // concrete infra (uses db singleton)
   const ctrl = createPlantsController(repo);    // use cases injected with the port
   // ...
@@ -123,8 +123,10 @@ Framework-free authentication primitives, importable from application code: the 
 
 ### `core/middleware/`
 
-- **`auth.ts`**: Express adapters over `core/auth`: `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `guestReadOnly`, `makeAuthenticateSSE({ loadUserFromDb })`
-- **`rateLimit.ts`**: `createRateLimiter` / `perUserKey`
+- **`auth.ts`**: Fastify hooks over `core/auth`: `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `makeGuestReadOnly(basePath)`, `makeAuthenticateSSE({ loadUserFromDb })`. Hooks throw AppErrors.
+- **`rateLimit.ts`**: `createLimiter(app, options)` returns a `preHandler` hook with its own bucket (several limiters can guard one route); `perUserKey`
+- **`requestId.ts`**: request id generation (a client id is honored only when short and URL-safe) and the `AsyncLocalStorage` request context
+- **`types.ts`**: `Handler`, `Hook`, `numericParam`, and the `request.user` augmentation
 - **`errorHandler.ts`** — `globalErrorHandler` (maps `AppError` to the JSON error envelope) + `notFoundHandler`
 - **`requestId.ts`** — assigns UUID per request, stores in `AsyncLocalStorage`
 

@@ -116,10 +116,10 @@ PM2 sends `SIGTERM` before killing a process, so graceful shutdown works automat
 
 ## Static File Serving
 
-Uploaded images are served from the `uploads/` directory (or `NAS_PATH` if set) via Express's built-in static middleware:
+Uploaded images are served from the `uploads/` directory (or `NAS_PATH` if set) via `@fastify/static`:
 
 ```typescript
-app.use('/uploads', express.static(uploadDir));
+await app.register(fastifyStatic, { root: uploadDir, prefix: '/uploads/', decorateReply: false });
 ```
 
 For production, consider serving uploads through **nginx** instead:

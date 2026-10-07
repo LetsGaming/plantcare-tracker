@@ -5,7 +5,7 @@
 ```bash
 # Im backend-Ordner:
 pnpm add zod
-pnpm add -D typescript tsx @types/node @types/express @types/bcryptjs @types/jsonwebtoken @types/cookie-parser @types/cors @types/multer
+pnpm add -D typescript tsx @types/node @types/bcryptjs @types/jsonwebtoken
 ```
 
 ## 2. Starten

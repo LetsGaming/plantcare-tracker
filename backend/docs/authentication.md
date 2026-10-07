@@ -109,7 +109,7 @@ Sessions are stored in a `Map<userId, Session[]>` in memory, where a session is 
 
 ## Middleware Reference
 
-The Express middleware lives in `src/core/middleware/auth.ts`; tokens and stores live in `src/core/auth/`.
+The Fastify hooks live in `src/core/middleware/auth.ts`; tokens and stores live in `src/core/auth/`.
 
 ### `authenticateToken`
 
@@ -135,12 +135,12 @@ Requires `req.user.role === 'admin'`. Must be placed after `authenticateToken`.
 router.post('/admin', authenticateToken, isAdmin, handler);
 ```
 
-### `guestReadOnly`
+### `makeGuestReadOnly`
 
-Global middleware. Blocks unsafe methods from a live `guest` session with `403`. Mounted in `createApp` before the routers.
+Global hook. Blocks unsafe methods from a live `guest` session with `403`. Registered in `buildApp` as an `onRequest` hook before the routes.
 
 ```typescript
-app.use(apiBase, guestReadOnly);
+app.addHook("onRequest", makeGuestReadOnly(apiBase));
 ```
 
 ### `makeAuthenticateSSE(options)`

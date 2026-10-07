@@ -1,6 +1,6 @@
 # Plantcare Tracker — Backend
 
-> REST API built with Node.js, Express, and TypeScript following Clean Architecture principles.
+> REST API built with Node.js, Fastify, and TypeScript following Clean Architecture principles.
 > V2 is a full replacement for V1.
 
 ---

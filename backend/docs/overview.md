@@ -1,6 +1,6 @@
 # Overview
 
-The Plantcare Tracker Backend is a Node.js/Express REST API built with clean architecture principles. V2 is a **full replacement for V1** — V1 has been removed in favour of this rewrite.
+The Plantcare Tracker Backend is a Node.js/Fastify REST API built with clean architecture principles. V2 is a **full replacement for V1**; V1 has been removed in favour of this rewrite.
 
 ## What's New in V2
 
@@ -33,7 +33,7 @@ server.ts  →  /api/v2/auth
 | Layer | Technology |
 |-------|-----------|
 | Runtime | Node.js ≥ 18 |
-| Framework | Express 5 |
+| Framework | Fastify 5 |
 | Language | TypeScript 5 (strict) |
 | Database | SQLite via `better-sqlite3` (WAL mode) |
 | Validation | Zod |
@@ -43,7 +43,7 @@ server.ts  →  /api/v2/auth
 | AI | OpenAI GPT-4o-mini |
 | Logging | Winston |
 | Caching | node-cache |
-| Testing | Vitest, Supertest |
+| Testing | Vitest, Fastify `inject` |
 
 ## Project Structure
 

@@ -5,13 +5,13 @@
 | Tool | Role |
 |------|------|
 | [Vitest](https://vitest.dev) | Test runner, assertions, mocks |
-| [Supertest](https://github.com/ladjs/supertest) | HTTP integration testing |
+| Fastify `inject` | In-process HTTP requests, no sockets |
 | `@vitest/coverage-v8` | Native V8 coverage reports |
 
 ## Setup
 
 ```bash
-pnpm add -D vitest @vitest/coverage-v8 supertest @types/supertest
+pnpm add -D vitest @vitest/coverage-v8
 ```
 
 ## Running Tests
@@ -29,11 +29,11 @@ pnpm run test tests/unit/core
 
 ## Contract tests (HTTP level)
 
-`tests/contract/` drives the whole application through its public HTTP interface against a **real SQLite file** built by the migrations. Only the network-facing collaborators are replaced: sales sources, the OpenAI guide streamer and the link searchers are injected through `createApp({ sales, moreInfo })`. Nothing in the database layer is mocked, so these tests see real constraints, the real body parser, real Sharp processing and the real error pipeline.
+`tests/contract/` drives the whole application through its public HTTP interface against a **real SQLite file** built by the migrations. Only the network-facing collaborators are replaced: sales sources, the OpenAI guide streamer and the link searchers are injected through `buildApp({ sales, moreInfo })`. Nothing in the database layer is mocked, so these tests see real constraints, the real body parser, real Sharp processing and the real error pipeline.
 
 ```
 tests/contract/
-├── harness.ts                 # TestClient interface, supertest adapter, createContractApp()
+├── harness.ts                 # TestClient interface, Fastify inject adapter, createContractApp()
 ├── support.ts                 # fixtures (createPlant, ...) and the SSE frame parser
 ├── platform.contract.test.ts  # health, 404, X-Request-Id, CORS, body parser edge cases
 ├── auth.contract.test.ts      # register, login, guest, refresh, ticket, logout, profile
@@ -45,7 +45,7 @@ tests/contract/
 
 Rules for contract tests:
 
-- Talk to `TestClient.request({ method, url, json | rawBody | multipart, headers, cookies })` only. Never import Express, supertest or any framework in a test file: `harness.ts` is the single place that knows the transport, so the same test files can run unchanged against another server implementation.
+- Talk to `TestClient.request({ method, url, json | rawBody | multipart, headers, cookies })` only. Never import Fastify or any HTTP library in a test file: `harness.ts` is the single place that knows the transport, so the same test files can run unchanged against another server implementation.
 - Create users with `app.signIn(role)` (inserts a row and mints a session without HTTP). Use the real `/auth/register` and `/auth/login` endpoints only where those endpoints are under test; the auth routes are rate limited to 50 requests per IP and 10 per account in 15 minutes.
 - Each test file builds its own app and temp database (`createContractApp()`); use unique names instead of resetting state.
 - Behavior that is wrong today but pinned on purpose lives in a `known defects` block and names the audit finding (for example `SEC-01`). Fixing the behavior means flipping that test in the same change.

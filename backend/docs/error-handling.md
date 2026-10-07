@@ -1,6 +1,6 @@
 # Error Handling
 
-All errors in V2 flow through a single centralized handler. Controllers never write error responses directly — they call `next(err)` and the global handler takes care of the rest.
+All errors in V2 flow through a single centralized handler. Controllers never write error responses directly; they throw and the global handler takes care of the rest.
 
 ## The AppError Hierarchy
 
@@ -22,12 +22,12 @@ All classes live in `src/core/errors/AppError.ts` and are re-exported from `src/
 
 ## Reaching the Handler
 
-Express 5 forwards a rejected promise from a route handler to the global handler, so async controllers need no try/catch or wrapper. A handler that is invoked manually from another middleware must return or await the promise itself:
+Fastify forwards an error thrown or a promise rejected in a hook or route handler to the global handler, so async controllers need no try/catch or wrapper. A handler that is invoked manually from another handler must return or await the promise itself:
 
 ```typescript
-getPlant: async (req, res) => {
-  const plant = await getOne.execute(Number(req.params.id)); // may throw NotFoundError
-  res.json({ data: plant.toJSON() });
+getPlant: async (req) => {
+  const plant = await getOne.execute(numericParam(req, 'id')); // may throw NotFoundError
+  return { data: plant.toJSON() };
 },
 ```
 
@@ -68,11 +68,11 @@ Third-party failures that stem from client input are mapped to `AppError`s by `t
 
 ## The Global Handler
 
-`src/core/middleware/errorHandler.ts` — registered last in `server.ts`:
+`src/core/middleware/errorHandler.ts`, registered in `app.ts`:
 
 ```typescript
-app.use(notFoundHandler);   // catches unmatched routes → 404
-app.use(globalErrorHandler); // catches everything thrown via next(err)
+app.setNotFoundHandler(notFoundHandler);   // unmatched routes → 404
+app.setErrorHandler(globalErrorHandler);   // everything thrown in hooks and handlers
 ```
 
 The handler distinguishes two categories:
