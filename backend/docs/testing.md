@@ -27,6 +27,29 @@ pnpm run test tests/integration
 pnpm run test tests/unit/core
 ```
 
+## Contract tests (HTTP level)
+
+`tests/contract/` drives the whole application through its public HTTP interface against a **real SQLite file** built from the shipped schema. Only the network-facing collaborators are replaced: sales sources, the OpenAI guide streamer and the link searchers are injected through `createApp({ sales, moreInfo })`. Nothing in the database layer is mocked, so these tests see real constraints, the real body parser, real Sharp processing and the real error pipeline.
+
+```
+tests/contract/
+├── harness.ts                 # TestClient interface, supertest adapter, createContractApp()
+├── support.ts                 # fixtures (createPlant, ...) and the SSE frame parser
+├── platform.contract.test.ts  # health, 404, X-Request-Id, CORS, body parser edge cases
+├── auth.contract.test.ts      # register, login, guest, refresh, ticket, logout, profile
+├── plants / substrates / components / watering / images .contract.test.ts
+├── sales.contract.test.ts     # SSE stream, source health endpoints
+├── moreInfo.contract.test.ts  # SSE stream, ticket handling, validation
+└── routes.contract.test.ts    # 401 and guest 403 matrix over every authenticated route
+```
+
+Rules for contract tests:
+
+- Talk to `TestClient.request({ method, url, json | rawBody | multipart, headers, cookies })` only. Never import Express, supertest or any framework in a test file: `harness.ts` is the single place that knows the transport, so the same test files can run unchanged against another server implementation.
+- Create users with `app.signIn(role)` (inserts a row and mints a session without HTTP). Use the real `/auth/register` and `/auth/login` endpoints only where those endpoints are under test; the auth routes are rate limited to 50 requests per IP and 10 per account in 15 minutes.
+- Each test file builds its own app and temp database (`createContractApp()`); use unique names instead of resetting state.
+- Behavior that is wrong today but pinned on purpose lives in a `known defects` block and names the audit finding (for example `SEC-01`). Fixing the behavior means flipping that test in the same change.
+
 ## Test Structure
 
 ```
@@ -90,7 +113,7 @@ Full HTTP cycle against a real Express app with the `core/database/db` module mo
 
 ## Coverage Thresholds
 
-Configured in `vitest.config.ts`:
+Configured in `vitest.config.ts` and enforced in CI through `pnpm run test:coverage`:
 
 | Metric | Target |
 |--------|--------|

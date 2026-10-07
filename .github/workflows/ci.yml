@@ -65,8 +65,8 @@ jobs:
 
       # The test suite mocks the database module; these values only need
       # to exist for the config validation — they are not real secrets.
-      - name: Tests
-        run: pnpm test
+      - name: Tests with coverage gate
+        run: pnpm run test:coverage
         env:
           JWT_SECRET: ci-only-test-secret
           JWT_REFRESH_SECRET: ci-only-test-refresh-secret
