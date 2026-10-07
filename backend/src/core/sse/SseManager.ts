@@ -10,7 +10,7 @@
  * the shared endpoint lifecycle in sseEndpoint.ts.
  */
 
-import type { Response } from 'express';
+import type { ServerResponse } from 'node:http';
 import { SSE } from '../config';
 
 export class SseManager {
@@ -20,7 +20,7 @@ export class SseManager {
   private readonly maxChunkSize: number;
 
   constructor(
-    private readonly res: Response,
+    private readonly res: ServerResponse,
     maxChunkSize: number = SSE.MAX_CHUNK_BYTES,
   ) {
     this.maxChunkSize = maxChunkSize;
@@ -120,7 +120,7 @@ export class SseManager {
   private emit<T>(data: T): Promise<void> {
     return new Promise((resolve) => {
       const canWrite = this.res.write(`data: ${JSON.stringify(data)}\n\n`);
-      (this.res as Response & { flush?: () => void }).flush?.();
+      (this.res as ServerResponse & { flush?: () => void }).flush?.();
 
       if (!canWrite) {
         this.res.once('drain', resolve);

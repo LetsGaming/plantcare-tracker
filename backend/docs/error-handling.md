@@ -20,15 +20,15 @@ AppError
 
 All classes live in `src/core/errors/AppError.ts` and are re-exported from `src/core/errors/index.ts`.
 
-## Reaching the Handler: asyncHandler
+## Reaching the Handler
 
-Every async controller is wrapped in `asyncHandler` (`core/middleware`, a re-export of `express-async-handler`), so a rejected promise lands in the global handler without try/catch boilerplate:
+Express 5 forwards a rejected promise from a route handler to the global handler, so async controllers need no try/catch or wrapper. A handler that is invoked manually from another middleware must return or await the promise itself:
 
 ```typescript
-getPlant: asyncHandler(async (req, res) => {
+getPlant: async (req, res) => {
   const plant = await getOne.execute(Number(req.params.id)); // may throw NotFoundError
   res.json({ data: plant.toJSON() });
-}),
+},
 ```
 
 ## Validation: parseOrThrow

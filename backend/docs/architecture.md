@@ -36,13 +36,15 @@ Every module mirrors this tree — plants, watering, substrate, components, imag
 ```
 src/modules/plants/
 ├── domain/
-│   └── Plant.ts                 # Plant entity + PlantRepository port
+│   ├── Plant.ts                 # Plant entity + PlantRepository port
+│   └── SpeciesResolver.ts       # Species matching service + SpeciesCatalog port
 ├── application/
 │   └── PlantUseCases.ts         # GetAll, GetOne, Create, Update, Delete + zod schemas
 ├── infrastructure/
-│   └── SQLitePlantRepository.ts # Implements PlantRepository with SQL
+│   ├── SQLitePlantRepository.ts # Implements PlantRepository with SQL
+│   └── SQLiteSpeciesCatalog.ts  # Implements SpeciesCatalog
 └── presentation/
-    ├── plantsController.ts      # Thin HTTP adapter (asyncHandler + typed responses)
+    ├── plantsController.ts      # Thin HTTP adapter (typed responses)
     └── plantsRoutes.ts          # Express Router, middleware wiring (composition root)
 ```
 
@@ -90,8 +92,9 @@ Create and update use cases return the **full, freshly-read resource** (create �
 Single source of truth for values that must agree across files:
 
 - **`constants.ts`**: `HTTP_STATUS` (success codes used by controllers), `AUTH` (bcrypt cost, session limits, refresh cookie name/lifetimes, SSE ticket TTL), `AUTH_RATE_LIMIT`, `USER_RATE_LIMIT`, `SSE` (heartbeat interval, chunk size, event names)
-- **`apiVersion.ts`** — `getApiVersionPath()` / `getApiBasePath()`: resolves `/api/vX` from `API_VERSION_PATH` or package.json (used by `server.ts` and the auth module's cookie scoping)
-- **`uploads.ts`** — `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`: the static mount in `server.ts` and the URL builder in the images module resolve from the same place
+- **`env.ts`**: the only reader of `process.env`. `loadConfig()` returns a typed, validated `AppConfig` (ports, origins, database and upload paths, JWT settings, OpenAI key, headless flag) and throws when `JWT_SECRET` or `JWT_REFRESH_SECRET` is missing; `getConfig()` memoizes it. `server.ts` resolves it first thing so a misconfigured process fails at boot.
+- **`apiVersion.ts`**: `getApiVersionPath()` / `getApiBasePath()` resolve `/api/vX` from `API_VERSION_PATH` or package.json (used by `app.ts` and the auth module's cookie scoping)
+- **`uploads.ts`**: `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`; the static mount in `app.ts` and the URL builder in the images module resolve from the same place
 
 Error status codes are **not** listed here — each `AppError` subclass owns its code (see [Error Handling](./error-handling.md)).
 
@@ -113,10 +116,14 @@ AppError (base)
 └── InternalError      500
 ```
 
+### `core/auth/`
+
+Framework-free authentication primitives, importable from application code: the session store and policies, the one-time ticket store, token signing and verification (`issueSession`, `signAccessToken`, `verifyRefreshToken`, `readAccessSession`) and the `AuthUser` / `TokenIdentity` / `JwtPayload` types.
+
 ### `core/middleware/`
 
-- **`auth.ts`**: JWT verification, session store, ticket store, `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `guestReadOnly`, `makeAuthenticateSSE({ loadUserFromDb })`
-- **`asyncHandler.ts`** — re-export of `express-async-handler`; wraps every async controller so rejections reach the global error handler
+- **`auth.ts`**: Express adapters over `core/auth`: `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `guestReadOnly`, `makeAuthenticateSSE({ loadUserFromDb })`
+- **`rateLimit.ts`**: `createRateLimiter` / `perUserKey`
 - **`errorHandler.ts`** — `globalErrorHandler` (maps `AppError` to the JSON error envelope) + `notFoundHandler`
 - **`requestId.ts`** — assigns UUID per request, stores in `AsyncLocalStorage`
 

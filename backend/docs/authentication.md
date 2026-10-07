@@ -105,11 +105,11 @@ Sessions are stored in a `Map<userId, Session[]>` in memory, where a session is 
 - **No persistence:** sessions are lost on server restart.
 - **Invalidation:** `POST /logout` ends the session named by the refresh token, including its access token. `UpdateProfileUseCase` removes **all** sessions for the user after a password change.
 
-> ⚠️ **Production recommendation:** Replace the in-memory store with Redis. The `sessionStore` interface (create, has, count, end, deleteAll) makes this straightforward; update only `core/middleware/auth.ts`.
+> ⚠️ **Production recommendation:** Replace the in-memory store with Redis. The `sessionStore` interface (create, has, count, end, deleteAll) makes this straightforward; update only `core/auth/sessions.ts`.
 
 ## Middleware Reference
 
-All middleware lives in `src/core/middleware/auth.ts`.
+The Express middleware lives in `src/core/middleware/auth.ts`; tokens and stores live in `src/core/auth/`.
 
 ### `authenticateToken`
 
