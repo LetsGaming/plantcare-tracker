@@ -23,14 +23,23 @@ import {
 
 import { createAuthRouter } from './modules/auth/presentation/authRoutes';
 import { createSalesRouter } from './modules/sales/presentation/salesRoutes';
+import type { SalesRouterDeps } from './modules/sales/presentation/salesRoutes';
 import { createPlantsRouter } from './modules/plants/presentation/plantsRoutes';
 import { createWateringRouter } from './modules/watering/presentation/wateringRoutes';
 import { createSubstrateRouter } from './modules/substrate/presentation/substrateRoutes';
 import { createComponentRouter } from './modules/components/presentation/componentRoutes';
 import { createImageRouter } from './modules/images/presentation/imageRoutes';
 import { createMoreInfoRouter } from './modules/moreInfo/presentation/moreInfoRoutes';
+import type { MoreInfoRouterDeps } from './modules/moreInfo/presentation/moreInfoRoutes';
 
-export const createApp = (): express.Express => {
+export interface AppDeps {
+  /** Replaces the scraper set of the sales module. */
+  sales?: SalesRouterDeps;
+  /** Replaces the AI client and link searchers of the more-info module. */
+  moreInfo?: MoreInfoRouterDeps;
+}
+
+export const createApp = (deps: AppDeps = {}): express.Express => {
   const app = express();
   const isDev = process.env.NODE_ENV !== 'production';
 
@@ -68,13 +77,13 @@ export const createApp = (): express.Express => {
 
   // Routes: each router is its own composition root
   app.use(`${V}/auth`, createAuthRouter());
-  app.use(`${V}/sales`, createSalesRouter());
+  app.use(`${V}/sales`, createSalesRouter(deps.sales));
   app.use(`${V}/plants`, createPlantsRouter());
   app.use(`${V}/watering`, createWateringRouter());
   app.use(`${V}/substrates`, createSubstrateRouter());
   app.use(`${V}/components`, createComponentRouter());
   app.use(`${V}/images`, createImageRouter());
-  app.use(`${V}/more-info`, createMoreInfoRouter());
+  app.use(`${V}/more-info`, createMoreInfoRouter(deps.moreInfo));
 
   app.get(`${V}/health`, (_req, res) => {
     try {

@@ -14,18 +14,25 @@ import { createSseEndpoint } from '../../../core/sse';
 import { OpenAIPlantClient } from '../infrastructure/OpenAIClient';
 import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
 import { StreamPlantInfoUseCase, parsePlantInfoQuery } from '../application/StreamPlantInfo';
-import type { PlantInfoRequest } from '../domain/PlantInfo';
+import type { PlantGuideStreamer, PlantInfoRequest, PlantLinkSearcher } from '../domain/PlantInfo';
 
 /** AI care guides are cached for 12 hours (matches V1). */
 const AI_GUIDE_CACHE_TTL_SECONDS = 43_200;
 
-export const createMoreInfoRouter = (): Router => {
+export interface MoreInfoRouterDeps {
+  /** Replaces the OpenAI care-guide client. */
+  guideStreamer?: PlantGuideStreamer;
+  /** Replaces the plant link searchers. */
+  linkSearchers?: PlantLinkSearcher[];
+}
+
+export const createMoreInfoRouter = (deps: MoreInfoRouterDeps = {}): Router => {
   const router = Router();
 
   const cache = new NodeCacheAdapter(AI_GUIDE_CACHE_TTL_SECONDS);
-  const aiClient = new OpenAIPlantClient(cache);
+  const aiClient = deps.guideStreamer ?? new OpenAIPlantClient(cache);
   const health = new SourceHealthTracker(new SQLiteSourceHealthRepository());
-  const searchers = createPlantLinkSearchers(cache, health);
+  const searchers = deps.linkSearchers ?? createPlantLinkSearchers(cache, health);
   const useCase = new StreamPlantInfoUseCase(aiClient, searchers);
 
   router.get(
