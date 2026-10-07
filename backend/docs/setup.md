@@ -69,7 +69,7 @@ See [Database](./database.md) for full schema reference.
 
 ### Development
 
-Uses `tsx` for direct TypeScript execution with hot reload via `nodemon`:
+Uses `tsx` for direct TypeScript execution with hot reload via `tsx watch`:
 
 ```bash
 pnpm run dev
@@ -98,7 +98,7 @@ pnpm run typecheck
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `dev` | `nodemon --exec tsx server.ts` | Development server with hot reload |
+| `dev` | `tsx watch server.ts` | Development server with hot reload |
 | `build` | `tsc -p tsconfig.build.json` | Compile to `./dist/` |
 | `start` | `node scripts/start.js` | Build if needed, then run compiled server |
 | `typecheck` | `tsc -p tsconfig.json --noEmit` | Type check sources and tests without output |
