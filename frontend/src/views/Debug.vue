@@ -186,7 +186,6 @@ import {
 import ToastService from "@/services/general/ToastService";
 import { useSessionStore } from "@/stores/session";
 import { usePlantsStore } from "@/stores/plants";
-import ApiUtils from "@/utils/apiUtils";
 import StorageService from "@/services/general/StorageService";
 
 export default defineComponent({
@@ -333,7 +332,8 @@ export default defineComponent({
 
     async triggerApiError() {
       try {
-        await ApiUtils.get("/api/debug/trigger-error");
+        // A plant that cannot exist: the request fails with a 404.
+        await usePlantsStore().fetchOne(-1);
       } catch (err) {
         this.pushLog("API Error (expected)", err);
         ToastService.showError("API error triggered");

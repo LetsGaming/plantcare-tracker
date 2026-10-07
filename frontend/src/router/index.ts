@@ -28,6 +28,7 @@ const AdminDashboard = () => import("@/views/admin/AdminDashboard.vue");
 const ScraperHealth = () => import("@/views/admin/ScraperHealth.vue");
 
 const Debug = () => import("@/views/Debug.vue");
+const isDevelopment = import.meta.env.MODE === "development";
 
 const authMeta = { requiresAuth: true };
 const adminMeta = { requiresAuth: true, requiresAdmin: true };
@@ -62,12 +63,10 @@ const routes: Array<RouteRecordRaw> = [
     name: "tabs",
     redirect: "/tabs/plants",
     children: [
-      {
-        name: "debug",
-        path: "debug",
-        meta: authMeta,
-        component: Debug,
-      },
+      // The debug tools exist only in development builds.
+      ...(isDevelopment
+        ? [{ name: "debug", path: "debug", meta: authMeta, component: Debug }]
+        : []),
       {
         name: "plant-overview",
         path: "plants",

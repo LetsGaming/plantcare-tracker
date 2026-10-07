@@ -1,5 +1,5 @@
 <template>
-  <IonModal v-model:isOpen="isOpen" @did-dismiss="onClose">
+  <IonModal :is-open="isOpen" @did-dismiss="onClose">
     <IonHeader>
       <IonToolbar>
         <IonTitle>{{ cardTitle }}</IonTitle>

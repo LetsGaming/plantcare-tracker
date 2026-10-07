@@ -56,8 +56,9 @@ describe("route table", () => {
     expect(byName("not-found")?.meta.requiresAuth).toBe(false);
   });
 
-  it("registers the debug view in every build (SEC-10)", () => {
-    expect(byName("debug")).toBeDefined();
+  it("registers the debug view only in development builds (SEC-10)", () => {
+    expect(import.meta.env.MODE).not.toBe("development");
+    expect(byName("debug")).toBeUndefined();
   });
 
   it("redirects the root path to the login page", async () => {

@@ -20,7 +20,6 @@ describe("component conventions", () => {
 
   it("keeps views and components off the transport layer", () => {
     const offenders = Object.entries(components)
-      .filter(([path]) => !path.endsWith("views/Debug.vue"))
       .filter(([, source]) => /@\/utils\/(apiUtils|tokenUtils)/.test(source as string))
       .map(([path]) => path);
     expect(offenders).toEqual([]);

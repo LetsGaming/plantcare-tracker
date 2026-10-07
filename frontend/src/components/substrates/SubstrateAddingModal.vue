@@ -22,6 +22,7 @@
           :selectedComponentIds="selectedComponentIds"
           :componentParts="componentParts"
           @toggle-component="toggleComponent"
+          @update-part="setPart"
         />
 
         <div class="action-buttons">
@@ -112,6 +113,10 @@ export default defineComponent({
   methods: {
     t(key: string) {
       return localizationService.t(key, undefined, key);
+    },
+
+    setPart(id: number, value: number | string) {
+      this.componentParts[id] = value as number;
     },
 
     toggleComponent(id: number) {

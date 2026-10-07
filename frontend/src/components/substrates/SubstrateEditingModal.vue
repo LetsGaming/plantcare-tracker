@@ -23,6 +23,7 @@
           :selectedComponentIds="selectedComponentIds"
           :componentParts="componentParts"
           @toggle-component="toggleComponent"
+          @update-part="setPart"
         />
 
         <div class="action-buttons">
@@ -152,6 +153,10 @@ export default defineComponent({
       );
 
       this.step = 1;
+    },
+
+    setPart(id: number, value: number | string) {
+      this.componentParts[id] = value as number;
     },
 
     toggleComponent(id: number) {

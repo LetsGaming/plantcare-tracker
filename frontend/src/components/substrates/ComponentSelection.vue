@@ -31,7 +31,8 @@
                 />
                 <IonInput
                   :disabled="!selectedComponentIds.includes(component.id)"
-                  v-model="componentParts[component.id]"
+                  :value="componentParts[component.id]"
+                  @ionInput="updatePart(component.id, $event)"
                   type="number"
                   :placeholder="t('component.selection.placeholder')"
                   min="0.1"
@@ -64,7 +65,7 @@ import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ComponentSelection",
-  emits: ["toggle-component"],
+  emits: ["toggle-component", "update-part"],
   components: {
     IonCard,
     IonCardHeader,
@@ -127,6 +128,9 @@ export default defineComponent({
   methods: {
     toggleSelectedComponent(id: number) {
       this.$emit("toggle-component", id);
+    },
+    updatePart(id: number, event: CustomEvent) {
+      this.$emit("update-part", id, event.detail.value);
     },
     filterComponents(query: string) {
       this.searchQuery = query;

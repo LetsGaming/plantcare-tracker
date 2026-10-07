@@ -24,26 +24,6 @@
       "count": 8
     }
   },
-  "src/components/images/ImageEditingModal.vue": {
-    "vue/no-mutating-props": {
-      "count": 1
-    }
-  },
-  "src/components/images/ImageUploadModal.vue": {
-    "vue/no-mutating-props": {
-      "count": 1
-    }
-  },
-  "src/components/substrates/ComponentSelection.vue": {
-    "vue/no-mutating-props": {
-      "count": 1
-    }
-  },
-  "src/views/Debug.vue": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
   "src/views/Login.vue": {
     "vue/multi-word-component-names": {
       "count": 1

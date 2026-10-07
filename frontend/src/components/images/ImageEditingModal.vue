@@ -1,5 +1,5 @@
 <template>
-  <IonModal v-model:isOpen="isOpen" @did-dismiss="$emit('close')">
+  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
     <ModalHeader :headerTitle="t('image.edit.title')" @close="$emit('close')" />
     <IonContent>
       <div class="modal-card-container">
