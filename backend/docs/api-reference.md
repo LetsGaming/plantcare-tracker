@@ -8,6 +8,8 @@
 
 ## Response Format
 
+All timestamps on plants, substrates, watering records and image lists are Unix epoch **seconds** (integers). The upload response's `date` is a formatted UTC string, and the sales and source-health timestamps are ISO strings.
+
 All endpoints return a consistent JSON envelope:
 
 ```json
@@ -180,11 +182,11 @@ A rename onto an existing username answers `409`. Any profile change invalidates
   "plant_name": "Monstera deliciosa",
   "plant_species": "Monstera deliciosa",
   "is_public": true,
-  "plant_created_at": "2024-01-01T00:00:00.000Z",
+  "plant_created_at": 1704067200,
   "image_url": "http://localhost:5000/uploads/plant/img-a1b2.webp",
   "substrate": { "substrate_id": 1, "substrate_name": "Aroid Mix" },
   "images": [
-    { "id": 3, "url": "http://...", "date": "2024-06-01 10:00:00" }
+    { "id": 3, "url": "http://...", "date": 1717236000 }
   ]
 }
 ```
@@ -248,7 +250,7 @@ All reads and writes are scoped to plants the caller owns. Mutations answer `403
 ```json
 {
   "record_id": 1,
-  "watering_date": "2024-06-01 10:00:00",
+  "watering_date": 1717236000,
   "used_fertilizer": true,
   "fertilizer_type_id": 1,
   "fertilizer_type": "organic",
@@ -320,7 +322,7 @@ Errors: `400` (invalid body or date, with `fields`), `401`, `403` (guest), `404`
   "substrate_user_id": 2,
   "substrate_name": "Aroid Mix",
   "is_public": true,
-  "substrate_created_at": "2024-01-01T00:00:00.000Z",
+  "substrate_created_at": 1704067200,
   "image_url": null,
   "images": [],
   "components": [

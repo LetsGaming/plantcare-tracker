@@ -19,16 +19,14 @@ pnpm exec playwright install chromium
 
 ## Environment Variables
 
-Create a `.env` file in the project root. All variables are optional unless marked **required**.
+Copy `.env.example` to `.env` in the `backend` folder and fill it in. `core/config/env.ts` reads and validates the environment once at startup. Everything is optional except the two JWT secrets.
 
 ```env
-# ── Database (required) ────────────────────────────────────────────────────────
-DB_HOST=localhost
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-DB_NAME=plantcare
+# ── Database ───────────────────────────────────────────────────────────────────
+# SQLite file; defaults to ./data/plantcare.db. Use :memory: for throwaway runs.
+DB_PATH=./data/plantcare.db
 
-# ── JWT (required in production) ───────────────────────────────────────────────
+# ── JWT (required: the server refuses to start without both secrets) ───────────
 # Generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 JWT_SECRET=your-secure-secret-min-32-chars
 JWT_REFRESH_SECRET=your-secure-refresh-secret
@@ -44,7 +42,7 @@ NAS_PATH=/mnt/nas/plantcare/uploads
 PUBLIC_BASE_URL=https://api.example.com
 
 # ── OpenAI ─────────────────────────────────────────────────────────────────────
-# Optional — the /more-info endpoint returns nothing without this
+# Optional: without it /more-info ends its stream with an error event
 OPENAI_API_KEY=sk-...
 
 # ── Server ─────────────────────────────────────────────────────────────────────
@@ -65,7 +63,7 @@ ALLOWED_ORIGINS=https://your-frontend.com
 # To import existing data: pnpm run db:import -- path/to/dump.sql
 ```
 
-The first start applies the migrations in `src/core/database/migrations/`: it creates all tables, inserts seed data (roles, guest user, fertilizer types, fineness levels), and applies all 12 performance indexes.
+The first start applies the migrations in `src/core/database/migrations/`: it creates all tables, inserts seed data (roles, guest user, fertilizer types, fineness levels) and creates the indexes.
 
 See [Database](./database.md) for full schema reference.
 
@@ -103,6 +101,7 @@ pnpm run typecheck
 | Script | Command | Description |
 |--------|---------|-------------|
 | `dev` | `tsx watch server.ts` | Development server with hot reload |
+| `db:import` | `tsx src/tools/importMysqlDumpCli.ts` | Import a MySQL dump into a fresh SQLite file |
 | `build` | `tsc -p tsconfig.build.json` | Compile to `./dist/` |
 | `start` | `node scripts/start.js` | Build if needed, then run compiled server |
 | `typecheck` | `tsc -p tsconfig.json --noEmit` | Type check sources and tests without output |

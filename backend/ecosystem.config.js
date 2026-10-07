@@ -13,11 +13,11 @@ module.exports = {
       error_file: './logs/pm2-error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        NODE_ENV: 'development',
+        NODE_ENV: 'production',
         PORT: 5000,
       },
-      env_production: {
-        NODE_ENV: 'production',
+      env_development: {
+        NODE_ENV: 'development',
         PORT: 5000,
       },
     },

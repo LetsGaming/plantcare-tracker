@@ -48,7 +48,7 @@ Rules for contract tests:
 - Talk to `TestClient.request({ method, url, json | rawBody | multipart, headers, cookies })` only. Never import Fastify or any HTTP library in a test file: `harness.ts` is the single place that knows the transport, so the same test files can run unchanged against another server implementation.
 - Create users with `app.signIn(role)` (inserts a row and mints a session without HTTP). Use the real `/auth/register` and `/auth/login` endpoints only where those endpoints are under test; the auth routes are rate limited to 50 requests per IP and 10 per account in 15 minutes.
 - Each test file builds its own app and temp database (`createContractApp()`); use unique names instead of resetting state.
-- Behavior that is wrong today but pinned on purpose lives in a `known defects` block and names the audit finding (for example `SEC-01`). Fixing the behavior means flipping that test in the same change.
+- Behavior that is wrong today but pinned on purpose lives in a `known defects` block that names the finding. Fixing the behavior means flipping that test in the same change. A few remain: public `/uploads` files are served without authentication, and the access token cookie is ignored by design.
 
 ## Test Structure
 
@@ -61,7 +61,9 @@ tests/
 │   ├── core/
 │   │   ├── utils.test.ts       # formatToDBDate, ensureArray, filterDuplicatesById
 │   │   ├── errors.test.ts      # AppError hierarchy, isAppError guard
-│   │   └── auth.test.ts        # generateTokens, sessionStore, ticketStore, middleware
+│   │   ├── auth.test.ts        # tokens, sessionStore, ticketStore, auth hooks
+│   │   ├── rateLimit.test.ts   # Limiter hooks on a Fastify instance
+│   │   └── publicImageUrl.test.ts # Stored image paths and public urls
 │   └── modules/
 │       ├── plants.test.ts      # Plant entity + all 5 PlantUseCases
 │       ├── watering.test.ts    # toEpochSeconds + all 6 WateringUseCases
@@ -71,10 +73,14 @@ tests/
 │       ├── moreInfo.test.ts    # parsePlantInfoQuery + StreamPlantInfo orchestration
 │       ├── auth.test.ts        # All 8 AuthUseCases (register, login, logout, …)
 │       ├── sales.test.ts       # Sale entity, scrapeHelpers, FetchSalesOverview
+│       ├── BaseScraper.test.ts, scraperStrategies.test.ts, shopSearchers.test.ts
+│       ├── openAiClient.test.ts # Stream errors surface, cached output is escaped
+│       ├── imageCleanup.test.ts # Image removal when an entity is deleted
 │       └── speciesResolver.test.ts # Fuzzy species matching over an in-memory catalog
 │
 └── integration/
     ├── repositories.test.ts    # Every SQLite repository against an in-memory database
+    ├── migrations.test.ts      # Baseline, adopting a legacy database, image data migrations
     └── importMysqlDump.test.ts # Legacy dump import on a fixture dump
 ```
 
@@ -94,7 +100,7 @@ Exports `makeUserRow`, the user row used by the auth use case tests.
 **`integration/repositories.test.ts`**  
 Runs every repository against a real in-memory SQLite database built by the migrations (`DB_PATH=:memory:`), so queries, constraints and the baseline migration are exercised together:
 - Migrations: baseline recorded once, seed rows present, re-running changes nothing
-- Plants: JOIN collapsing, close species reuse, ownership-scoped update and delete, Windows separators in image urls
+- Plants: JOIN collapsing, close species reuse, no stray species when the insert fails, ownership-scoped update and delete, images oldest first with absolute urls
 - Watering: ownership-checked insert, boolean mapping, clearing the fertilizer type
 - Substrates: component and image collapsing, rounding, transactional batch rollback, upsert, delete
 - Users: unique names ignoring case, column whitelist, guest account protected

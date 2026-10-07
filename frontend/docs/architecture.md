@@ -2,15 +2,19 @@
 
 ## Overview
 
-The frontend is a Vue 3 + Ionic mobile-first PWA. The data layer follows a
-**service-centric architecture** with a two-tier cache (L1 in-memory + L2 persistent)
-that mirrors the backend's clean separation of concerns.
+The frontend is a Vue 3 + Ionic mobile-first PWA written with the **Options API**
+(no `<script setup>`; a test enforces it). State lives in **Pinia stores**, one per
+data domain. Stores are the single reactive source of truth: components bind to
+store state and getters, so there is no event bus and no per-component copy of
+server data.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Views / Components      Ionic Vue, Vue Router              │
+│  Views / Components      Ionic Vue, Vue Router, Options API │
+│                          mapState / mapActions              │
 ├─────────────────────────────────────────────────────────────┤
-│  Services                Business logic, cache, mutations   │
+│  Stores                  Pinia: state, getters, actions,    │
+│                          optimistic helper, L2 persistence  │
 ├─────────────────────────────────────────────────────────────┤
 │  Mappers                 V2 API shapes → frontend models    │
 ├─────────────────────────────────────────────────────────────┤
@@ -26,105 +30,104 @@ that mirrors the backend's clean separation of concerns.
 |-------|-------|----------------|
 | Views | `src/views/**/*.vue` | Page-level routing and layout |
 | Components | `src/components/**/*.vue` | Reusable UI components |
-| Services | `src/services/*.ts` | Data fetching, caching, mutations |
-| Base | `src/services/base/BaseService.ts` | Two-tier cache, event bus, request dedup |
+| Stores | `src/stores/*.ts` | Data fetching, caching, mutations (see [Stores](./stores.md)) |
+| Store infrastructure | `src/stores/{pinia,persistence,optimistic,resource}.ts` | App pinia, L2 persistence plugin, optimistic helper, loading state and request coalescing |
+| Services | `src/services/**` | Stateless helpers: `ImageService`, `StorageService` (L2 driver), `ToastService`, `LocalizationService` |
 | Mappers | `src/mapping/*.ts` | Transform V2 API responses to frontend types |
 | Types | `src/types/*.d.ts` | TypeScript interfaces for both API and frontend |
 | ApiUtils | `src/utils/apiUtils.ts` | Fetch wrapper, error handling, SSE streams |
-| Utils | `src/utils/utils.ts` | Date formatting, search, config |
+| Utils | `src/utils/*.ts` | Dates, search, config, `requestFeedback` (error toast wrapper), `markdown` (guide renderer) |
 
-## Service Pattern
+Dependencies point downwards only. The transport (`ApiUtils`) never imports a store: the
+session store hands it a refresh/teardown bridge at startup (`ApiUtils.configureAuth`).
+`import-x/no-cycle` enforces the absence of import cycles in lint.
 
-Every entity service extends `BaseService` and follows the same pattern:
+## Store pattern
+
+Every collection store (`plants`, `substrates`, `components`, `watering`, `sales`,
+`moreInfo`) follows the same shape:
 
 ```
-getAllXxx(forceUpdate?)      → cache-first fetch, full list
-getXxxById(id, forceUpdate?) → cache-first fetch, single item
-addXxx(data)                 → mutation, cache updated with the result
-editXxx(id, data)            → mutation, cache updated with the result
-deleteXxx(id)                → mutation, item removed from the cache
+state:    items (or a dictionary), status: idle | loading | ready | error, fetchedAt
+getters:  derived lists (personal, public, byId), isStale
+actions:  ensureLoaded({ force })   cache-first load, concurrent callers share one request
+          getXxx(id, force?)        one item, fetched when missing
+          addXxx / editXxx / deleteXxx
 ```
 
-Services emit DOM `CustomEvent`s **whenever their cache changes** — a fetch,
-an optimistic paint, a reconcile, or a rollback. The cache is the single
-source of truth; mutations never leave it stale.
+Components use the stores through the Options API helpers:
+
+```typescript
+computed: {
+  ...mapState(usePlantsStore, ["personalPlants", "publicPlants"]),
+  plants(): Plant[] {
+    return this.isPublic ? this.publicPlants : this.personalPlants;
+  },
+},
+methods: {
+  ...mapActions(usePlantsStore, ["ensureLoaded"]),
+},
+```
+
+A view loads in `ionViewWillEnter` (Ionic keeps pages mounted) and renders from getters.
+Every change, including an optimistic paint or a rollback, repaints through reactivity;
+views never refetch after a mutation.
 
 ### Mutation strategy
 
-Two strategies exist, chosen per domain:
-
 | Strategy | Used by | Behaviour |
 |----------|---------|-----------|
-| **Optimistic** | Plants (create/edit/delete), Watering (add/edit/delete) | The expected outcome is painted into the cache immediately (creates use a temporary **negative id**). The request runs; on success the painted item is swapped in place for the server resource (reconcile), on failure only the affected item is rolled back — concurrent changes to siblings survive. Implemented once in `BaseService` (`optimisticListUpsert/Remove` + dictionary variants). |
-| **Pessimistic** | Substrates (multi-request create/edit with components), admin Components, Profile | The request runs first; the server-confirmed resource is then upserted into the cache. |
+| **Optimistic** | Plants and watering (create/edit/delete) | The expected outcome is painted into the store at once (creates use a temporary **negative id**). The request runs; on success the item is swapped in place for the server resource, on failure only that item is restored. Implemented once in `stores/optimistic.ts`. |
+| **Pessimistic** | Substrates, admin components, profile | The request runs first; the server-confirmed resource is then upserted. |
 
-In both cases the V2 backend returns the **full resource** from every
-mutation, so the cache is updated from server truth without follow-up
-fetches. `handleRequest` owns the single error toast for a failed request;
-views never add a second one.
+The V2 backend returns the **full resource** from every mutation, so no follow-up fetch
+is needed. `handleRequest` (`utils/requestFeedback.ts`) owns the single error toast for a
+failed request; views never add a second one.
 
-### View pattern
-
-Views and data-bearing components subscribe in `mounted` and unsubscribe in
-`beforeUnmount` (Ionic keeps pages alive, so the ionView hooks are the wrong
-place for listeners):
-
-```typescript
-mounted() {
-  document.addEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
-},
-beforeUnmount() {
-  document.removeEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
-},
-methods: {
-  // Handlers only READ the cache and re-derive via the service getters —
-  // they never mutate and never refetch after a mutation.
-  async handlePlantsUpdated() {
-    this.plants = await PlantService.getPersonalPlants();
-  },
-},
-```
-
-Because every optimistic paint fires the event, mutation handlers in views
-reduce to: fire the service call, close the modal, let the event repaint the
-page. There are no manual post-mutation refreshes.
-
-## Two-Tier Cache
+## Two-tier cache
 
 ```
-Request
-  │
-  ├──▶ L1 (Map<string, { data, timestamp }>)
-  │       Fast in-memory lookup
-  │       Evicted FIFO (insertion order) when > 500 entries
-  │       Shared across all services
-  │
-  └──▶ L2 (@ionic/storage — IndexedDB / SQLite)
-          Survives page reloads and app restarts
-          Expiry configurable per environment (config.json)
-          Entries carry keepOnClear flag for sales data
+Component ── getter ──▶ Pinia state (L1, reactive, in memory)
+                            │  ensureLoaded: hydrate once, fetch when missing or stale
+                            ▼
+                        l2Persistence plugin ──▶ @ionic/storage (L2, survives restarts)
 ```
 
-On a cache miss, the service fetches from the API, writes to both L1 and L2,
-and emits a DOM event so all listening views refresh.
+- Stores opt in with a `persist` option listing entries `{ key, pick, apply, timestamp, keepOnClear, allowExpired }`.
+  Entries use the envelope `{ data, timestamp, keepOnClear }`.
+- Hydration is explicit and on demand (`store.$hydrate()`, called by `ensureLoaded`). Expired
+  entries are skipped unless the entry sets `allowExpired` (sales, calendar settings).
+- Writes are debounced and **only for changed data**. An entry with a fetch time is written only
+  once it has one, so a store that is merely loading cannot replace a good snapshot with an empty one.
+- `$reset` cancels pending writes. Ending a session calls `resetAllStores()` and clears the
+  non-persistent storage, so the next account cannot see the previous one's data.
+- `keepOnClear` entries (sales, calendar) survive logout; only an account deletion wipes them.
 
-**Request deduplication:** If two components call the same `getCachedData` key
-simultaneously, `BaseService` coalesces them into a single in-flight request.
+## Session
+
+`stores/session.ts` owns the access token, the identity getters (`isAdmin`, `isGuest`,
+`username`, `userId`), login, guest login, logout, profile changes and `refresh`. Refresh is
+**single flight**: concurrent 401s share one request. A 401 from the refresh endpoint is final;
+other failures are retried three times. The router guard reads the store and tears the local
+session down through an injected redirect.
 
 ## SSE Streaming
 
-Sales and MoreInfo data arrive via Server-Sent Events. The flow is:
+Sales and MoreInfo data arrive via Server-Sent Events:
 
 ```
 1. POST /auth/ticket           → { ticket: string }  (no body required in V2)
 2. GET  /sales?ticket=…        → EventSource
-3. message events              → single APISale per event
+3. message events              → APISale[] batch per event
 4. done event                  → { total: number }
 5. EventSource closed
 ```
 
-MoreInfo follows the same pattern with `{ type: "link"|"ai_chunk", value }` events
-and a `done` event with `{ status: "completed" }`.
+MoreInfo follows the same pattern with `{ type: "link"|"ai_chunk", value }` events and a `done`
+event with `{ status: "completed" }`. The stores accumulate a **draft** while a stream runs
+(`incoming` for sales, `drafts` for more-info) and commit it on `done`. A failed stream leaves the
+previous data untouched and never persists partial results. AI text is HTML-escaped by
+`utils/markdown.ts` before it is rendered.
 
 ## Error Handling
 
@@ -141,5 +144,6 @@ err.errorType   // "ValidationError"
 err.fields      // { fieldName: "reason" }
 ```
 
-`BaseService.handleRequest` catches all `ApiError` instances, shows a translated
-toast notification, and re-throws so views can react.
+`handleRequest` catches failures, shows a translated toast and re-throws so views can react.
+Only a `401` triggers the refresh cycle; a `403` (for example a guest attempting a write) is shown
+as a normal error. `describeUserFixableError` turns `400`/`409` answers into the text for a form.

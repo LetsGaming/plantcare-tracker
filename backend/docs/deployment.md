@@ -12,7 +12,7 @@ pnpm run start
 # → node dist/server.js (via scripts/start.js)
 ```
 
-Set `NODE_ENV=production` before starting. This disables debug logging, removes stack traces from error responses, and enables production CORS enforcement.
+Set `NODE_ENV=production` before starting. This disables debug logging, removes stack traces from error responses, and enables production CORS enforcement. The PM2 ecosystem file defaults to production.
 
 ## Environment Checklist
 
@@ -21,12 +21,12 @@ Go through this before every production deployment:
 - [ ] `NODE_ENV=production`
 - [ ] `JWT_SECRET` — at least 32 random characters, never committed to version control
 - [ ] `JWT_REFRESH_SECRET` — separate value from `JWT_SECRET`
-- [ ] `DB_PASSWORD` — stored in secrets manager or environment, not in `.env` files in the repo
+- [ ] `DB_PATH`: points to persistent storage; back up the database file and the uploads folder before each release (some releases add data migrations)
 - [ ] `ALLOWED_ORIGINS` — restricted to your actual frontend domain(s)
 - [ ] `NAS_PATH` — points to persistent storage, not ephemeral container filesystem
 - [ ] `PUBLIC_BASE_URL`: set to the public API origin when a proxy rewrites the Host header
 - [ ] `OPENAI_API_KEY` — set if the `/more-info` endpoint is needed
-- [ ] DB indexes applied — run `database/migration_v2_indexes.sql` if upgrading from an older installation
+- [ ] Migrations: they are applied automatically at startup; check the log for `Applied migration` lines after an upgrade
 - [ ] Playwright Chromium installed — run `pnpm exec playwright install chromium` if using the sales scraper
 
 Generate secrets:
@@ -70,32 +70,32 @@ pm2 reload plantcare --update-env
 Two endpoints are available for monitoring and orchestration:
 
 ```
-GET /health
-→ { "status": "ok", "uptime": 1234.5, "db": "connected", "version": "v2" }
+GET /api/v2/health
+→ { "status": "ok", "uptime": "0d 0h 20m 34s", "uptime_s": 1234, "db": "connected", "version": "v2" }
 → 503 if DB is unreachable
 
-GET /health/ready
+GET /api/v2/health/ready
 → { "ready": true }
 → 503 if DB is unreachable
 ```
 
 **Kubernetes / Docker usage:**
-- Use `/health/ready` for **readiness probes** — prevents traffic before the DB is reachable
-- Use `/health` for **liveness probes** — restarts the container if the server is stuck
+- Use `/api/v2/health/ready` for **readiness probes** — prevents traffic before the DB is reachable
+- Use `/api/v2/health` for **liveness probes** — restarts the container if the server is stuck
 
 **Example Kubernetes probe config:**
 
 ```yaml
 readinessProbe:
   httpGet:
-    path: /health/ready
+    path: /api/v2/health/ready
     port: 5000
   initialDelaySeconds: 5
   periodSeconds: 10
 
 livenessProbe:
   httpGet:
-    path: /health
+    path: /api/v2/health
     port: 5000
   initialDelaySeconds: 15
   periodSeconds: 30
@@ -183,4 +183,4 @@ Every log line includes the `requestId` from `AsyncLocalStorage`, making it poss
 
 ---
 
-← [Testing](./testing.md) · **Next:** [Migration from V1](./migration.md)
+← [Testing](./testing.md) · **Next:** [Roadmap](./roadmap.md)

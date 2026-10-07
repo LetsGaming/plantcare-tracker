@@ -208,7 +208,7 @@ Requires a one-time ticket from `POST /auth/ticket`.
 
 | Event name | Data shape | Description |
 |------------|------------|-------------|
-| `message` | `APISale` | A single sale item |
+| `message` | `APISale[]` | A batch of sale items |
 | `done` | `{ total: number }` | Stream complete |
 | `error` | `{ message: string }` | Stream error |
 

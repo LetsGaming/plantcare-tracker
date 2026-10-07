@@ -9,7 +9,7 @@ The repository is a two-package monorepo:
 
 ```
 plantcare/
-├── backend/     Express 5 + TypeScript + SQLite REST/SSE API
+├── backend/     Fastify 5 + TypeScript + SQLite REST/SSE API
 ├── frontend/    Ionic + Vue 3 app (Vite, Capacitor-ready)
 └── .github/
     └── workflows/ci.yml   CI for both packages
@@ -19,10 +19,10 @@ plantcare/
 
 | | Backend | Frontend |
 |---|---|---|
-| Runtime / framework | Node 22, Express 5, TypeScript | Vue 3 (Options API), Ionic, Vite |
+| Runtime / framework | Node 22, Fastify 5, TypeScript | Vue 3 (Options API), Ionic, Vite |
 | Data | SQLite via better-sqlite3 | Two-tier cache: in-memory L1 + `@ionic/storage` L2 |
 | Auth | JWT access token + refresh-token cookie, guest accounts | Token handling in `ApiUtils` with automatic refresh |
-| Images | Multer (10 MB cap) + Sharp processing | Upload/gallery components per entity |
+| Images | @fastify/multipart (10 MB cap) + Sharp processing | Upload/gallery components per entity |
 | AI / streaming | OpenAI care guides over SSE, one-time tickets | EventSource consumers for guides and sales |
 | Tests | Vitest — 222 tests | Vitest + @vue/test-utils (jsdom) — 103 tests |
 

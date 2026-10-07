@@ -6,133 +6,68 @@
 |------|---------|
 | [Vitest](https://vitest.dev) | Unit test runner (matches backend) |
 | [@vue/test-utils](https://test-utils.vuejs.org) | Vue component mounting |
-| [jsdom](https://github.com/jsdom/jsdom) | DOM environment for service tests |
+| [@pinia/testing](https://pinia.vuejs.org/cookbook/testing.html) | `createTestingPinia` for component tests |
+| [jsdom](https://github.com/jsdom/jsdom) | DOM environment |
 
 ## Running Tests
 
 ```bash
-# Run all tests once
-pnpm test
-
-# Watch mode during development
-pnpm test --watch
-
-# Coverage report
-pnpm test --coverage
+pnpm test              # watch mode
+pnpm exec vitest run   # run once
+pnpm exec vitest run --coverage
 ```
 
-## Test Structure
+CI runs lint, format check, `vue-tsc --noEmit`, `vitest run --coverage` and the build. The coverage
+gate lives in `vite.config.ts`; raise it when coverage rises.
+
+## Test structure
 
 ```
 src/tests/
-├── mapping.test.ts        Unit tests for all mapper classes
-├── apiUtils.test.ts       Unit tests for ApiError, handleResponse, auth retry gate
-├── utils.test.ts          Unit tests for Utils helper functions
-├── baseService.test.ts    Cache helpers + optimistic wrappers (paint / reconcile / rollback)
-└── viewReactivity.test.ts Event-driven views via @vue/test-utils
+├── helpers.ts                    In-memory storage, toast and localization mocks, JWT builder, createInstalledPinia()
+├── sessionStore.test.ts          Login, logout, single-flight refresh, identity getters
+├── plantsStore.test.ts           Reads, staleness, optimistic add/edit/delete, image refresh, persistence
+├── wateringStore.test.ts         Records per plant, 404 as empty, optimistic mutations, persistence
+├── substratesStore.test.ts       List, owner/public views, pessimistic mutations
+├── componentsStore.test.ts       Catalogue, fineness levels, admin mutations
+├── salesStore.test.ts            SSE accumulation, new flags, price history, persistence
+├── moreInfoStore.test.ts         SSE draft/commit, language keys, persistence
+├── calendarAndAdminStores.test.ts Settings store and live source health
+├── persistence.test.ts           The L2 plugin on its own
+├── optimistic.test.ts            The optimistic helper
+├── markdown.test.ts              Guide renderer, escaping
+├── apiUtils.test.ts, apiRequest.test.ts   ApiError, response handling, auth bridge, SSE ticket handshake
+├── apiErrorMessage.test.ts       Form-ready text for 400/409 answers
+├── routerGuard.test.ts           Route table, guard decisions, dev-only debug route
+├── viewReactivity.test.ts        Views and components rendering from stores
+├── formComponents.test.ts        Form field components
+├── mapping.test.ts, sourceHealth.test.ts, utils.test.ts
+└── conventions.test.ts           No <script setup>; views stay off the transport layer
 ```
 
-## What is Tested
+## Patterns
 
-### Mappers (`mapping.test.ts`)
-
-Mappers are pure functions — zero dependencies, fully deterministic. Every
-mapper is covered for:
-
-- **Happy path**: all fields correctly mapped
-- **Null safety**: `null` API values → `undefined` frontend values
-- **Optional fields**: absent optional fields handled gracefully
-- **Derived values**: `description` from `fineness`, name truncation in SaleMapper
-- **Array / single-item**: `convertToXxx` handles both shapes
-- **V2-specific**: `SubstrateRef` from plant response, `plant_name` in watering records
-
-### ApiUtils (`apiUtils.test.ts`)
-
-- `ApiError` constructor: message extraction from V2 envelope
-- `ApiError.errorType` populated from `error.type`
-- `ApiError.fields` populated from `error.fields` (ValidationError)
-- `handleResponse`: success path returns `data`
-- `handleResponse`: error path throws `ApiError` with correct status
-- `isApiError` type guard
-
-### BaseService (`baseService.test.ts`)
-
-StorageService is mocked with an in-memory map; unique cache keys per case
-keep the static L1 cache from bleeding between tests.
-
-- `upsertInto/removeFrom/replaceInListCache`: order preservation, temp-id swap, silent no-op
-- `optimisticListUpsert`: immediate paint (asserted before the request settles via a deferred promise), reconcile swaps the temporary negative id in place, edit failure restores the snapshot
-- **Item-scoped rollback**: a concurrent change to a sibling item while the request is in flight survives the rollback
-- `optimisticListRemove`: instant removal, re-insert at the original index on failure
-- Dictionary variants: only the addressed entry is touched; sibling entries survive paint and rollback
-- `clearMemoryCache`: proves the logout leak scenario — after wiping L2 the static L1 still serves the previous account's data until the memory cache is cleared as well
-
-### View reactivity (`viewReactivity.test.ts`)
-
-Components are `shallowMount`ed with all services mocked (no network, no
-Ionic storage):
-
-- A cache `CustomEvent` triggers exactly one re-derivation through the
-  service getter; mutation methods are never called by the handler
-- The listener is removed on unmount — later events are ignored
-- Optimistic UX: the watering add-modal closes before the request settles
-- `addPlant` resolves with the reconciled server plant; the dependent image
-  upload receives the real id (never a raw snake_case field)
-
-### Utils (`utils.test.ts`)
-
-- `convertDateString`: ISO → localized string, non-ISO passthrough
-- `convertToMillis`: chronological ordering
-- `isCacheExpired`: fresh vs. stale timestamps
-- `capitalizeFirstLetter`: edge cases
-- `baseSearchFilter`: multi-field, case-insensitive, whitespace trimming
-- `debounce`: coalescing, timer reset
-
-## Writing New Tests
-
-Follow this pattern for mapper tests:
+**Store tests** mock `ApiUtils` (and any service the store calls) and use an in-memory map for storage:
 
 ```typescript
-// 1. Define a factory function for the API fixture
-const makeAPIPlant = (overrides: Partial<APIPlant> = {}): APIPlant => ({
-  plant_id: 1,
-  plant_name: "Monstera",
-  // ... required fields ...
-  ...overrides,
-});
+vi.mock("@/services/general/StorageService", async () =>
+  (await import("./helpers")).storageModule(),
+);
+vi.mock("@/utils/apiUtils", () => ({ default: { get: vi.fn(), post: vi.fn() /* ... */ } }));
 
-// 2. Test the happy path
-it("maps scalar fields", () => {
-  const result = PlantMapper.mapPlant(makeAPIPlant());
-  expect(result.id).toBe(1);
-  expect(result.name).toBe("Monstera");
-});
-
-// 3. Test null/optional field handling
-it("converts null image_url to undefined", () => {
-  const result = PlantMapper.mapPlant(makeAPIPlant({ image_url: null }));
-  expect(result.imageUrl).toBeUndefined();
-});
+const store = (await createInstalledPinia(), usePlantsStore());
+await store.ensureLoaded();
 ```
 
-For service tests, mock `ApiUtils` and `storageService`:
+`createInstalledPinia()` installs the app's plugins (persistence) on a throwaway app; plain
+`createPinia()` would skip them. Persistence is debounced, so tests that read storage use fake
+timers and advance them by about 500 ms.
 
-```typescript
-import { vi } from "vitest";
-import ApiUtils from "@/utils/apiUtils";
+**Optimistic behavior** is asserted in the middle of a request with a deferred promise: the painted
+state is checked before the request settles, then again after it resolves or rejects.
 
-vi.mock("@/utils/apiUtils", () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-    patch: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
+**Component tests** use `shallowMount` with `createTestingPinia({ createSpy: vi.fn })`: actions are
+stubbed, state and getters are real, so a test sets store state and checks what the component derives.
 
-it("calls correct endpoint", async () => {
-  vi.mocked(ApiUtils.get).mockResolvedValue([makeAPIPlant()]);
-  await PlantService.getAllPlants(true);
-  expect(ApiUtils.get).toHaveBeenCalledWith("/plants");
-});
-```
+**Mapper tests** are pure: build an API fixture with a factory, assert the mapped shape, null
+handling and optional fields.

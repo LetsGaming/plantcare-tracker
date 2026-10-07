@@ -21,7 +21,7 @@ export default defineConfig({
       reporter: ["text-summary", "lcov"],
       include: ["src/**/*.{ts,vue}"],
       exclude: ["src/**/*.d.ts", "src/tests/**", "src/locales/**", "src/main.ts"],
-      thresholds: { lines: 28, statements: 27, functions: 22, branches: 24 },
+      thresholds: { lines: 55, statements: 54, functions: 45, branches: 42 },
     },
   },
 });
