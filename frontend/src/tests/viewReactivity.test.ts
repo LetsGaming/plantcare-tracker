@@ -10,23 +10,12 @@
  * storage.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
 import { createTestingPinia } from "@pinia/testing";
 
-// ── Hoisted service spies ────────────────────────────────────────────────────
-
-const spies = vi.hoisted(() => ({
-  // Calendar helper used during mount
-  getWateringCategories: vi.fn(async (): Promise<unknown[]> => []),
-}));
-
 vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({ isGuest: false, userId: 1 }),
-}));
-
-vi.mock("@/services/CalendarService", () => ({
-  default: { getWateringCategories: spies.getWateringCategories },
 }));
 
 vi.mock("@/services/general/ToastService", () => ({
@@ -49,10 +38,6 @@ const record = (id: number, millis: number) => ({
   date: new Date(millis).toISOString(),
   date_millis: millis,
   usedFertilizer: false,
-});
-
-beforeEach(() => {
-  Object.values(spies).forEach((s) => s.mockClear());
 });
 
 // ── WateringRecords component ────────────────────────────────────────────────

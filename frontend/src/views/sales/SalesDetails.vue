@@ -118,7 +118,8 @@ import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import PriceHistoryChart from "@/components/sales/PriceHistoryChart.vue";
 
-import SalesService from "@/services/SalesServices";
+import { mapActions, mapState } from "pinia";
+import { useSalesStore } from "@/stores/sales";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -144,20 +145,24 @@ export default defineComponent({
       required: true,
     },
   },
-  data() {
-    return {
-      sale: null as Sale | null,
-      priceHistory: [] as { price: number; timestamp: number }[],
-    };
-  },
   setup() {
     return { storefrontOutline };
   },
-  mounted() {
-    this.fetchSaleDetails();
-    this.fetchPriceHistory();
+  async mounted() {
+    try {
+      await this.loadSales();
+    } catch (error) {
+      console.error("Error loading sale details:", error);
+    }
   },
   computed: {
+    ...mapState(useSalesStore, ["byId", "historyOf"]),
+    sale(): Sale | null {
+      return this.byId(this.id) ?? null;
+    },
+    priceHistory(): { price: number; timestamp: number }[] {
+      return this.historyOf(this.id);
+    },
     saleSubtitle(): string {
       if (!this.sale) return "";
       return `${this.sale.seller} · ${this.sale.price.toFixed(2)} €`;
@@ -195,14 +200,9 @@ export default defineComponent({
     },
   },
   methods: {
+    ...mapActions(useSalesStore, { loadSales: "load" }),
     t(key: string) {
       return localizationService.t(key, undefined, key);
-    },
-    async fetchSaleDetails() {
-      this.sale = await SalesService.getSaleById(this.id);
-    },
-    async fetchPriceHistory() {
-      this.priceHistory = await SalesService.getPriceHistory(this.id);
     },
   },
 });

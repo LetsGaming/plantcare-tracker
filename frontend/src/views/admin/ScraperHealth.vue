@@ -92,7 +92,8 @@ import { checkmarkCircle, warning, alertCircle } from "ionicons/icons";
 import { DateTime } from "luxon";
 
 import PullToRefresh from "@/components/PullToRefresh.vue";
-import AdminService from "@/services/AdminService";
+import { mapActions, mapState } from "pinia";
+import { useAdminHealthStore } from "@/stores/adminHealth";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -128,12 +129,11 @@ export default defineComponent({
   },
   data() {
     return {
-      sources: [] as SourceHealth[],
-      loaded: false,
       checking: null as string | null,
     };
   },
   computed: {
+    ...mapState(useAdminHealthStore, ["sources", "loaded"]),
     groups(): { kind: SourceKind; sources: SourceHealth[] }[] {
       return KIND_ORDER.map((kind) => ({
         kind,
@@ -172,6 +172,7 @@ export default defineComponent({
     await this.load();
   },
   methods: {
+    ...mapActions(useAdminHealthStore, { loadHealth: "load", recheckSource: "recheck" }),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
@@ -180,24 +181,21 @@ export default defineComponent({
     },
     async load(): Promise<void> {
       try {
-        this.sources = await AdminService.getSourceHealth();
+        await this.loadHealth();
       } catch (error) {
         // handleRequest has already shown the error toast.
         console.error("Loading source health failed:", error);
-      } finally {
-        this.loaded = true;
       }
     },
     async recheck(source: SourceHealth): Promise<void> {
       this.checking = source.key;
       try {
-        await AdminService.recheckSource(source.key);
+        await this.recheckSource(source.key);
         ToastService.showSuccess({
           key: "admin.scrapers.rechecked",
           vars: { seller: source.seller },
           fallback: `${source.seller} checked.`,
         });
-        await this.load();
       } catch (error) {
         console.error("Source re-check failed:", error);
       } finally {

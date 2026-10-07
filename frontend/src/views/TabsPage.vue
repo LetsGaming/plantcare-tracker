@@ -48,8 +48,9 @@
   </ion-page>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+<script lang="ts">
+import { defineComponent } from "vue";
+import { mapActions, mapState } from "pinia";
 import {
   IonTabBar,
   IonTabButton,
@@ -64,63 +65,56 @@ import {
 } from "@ionic/vue";
 import { cube, grid, leaf, pricetag, bug, warning } from "ionicons/icons";
 import localizationService from "@/services/general/LocalizationService";
-import SalesService, { SaleEvents } from "@/services/SalesServices";
-import AdminService, { AdminEvents } from "@/services/AdminService";
 import { useSessionStore } from "@/stores/session";
+import { useSalesStore } from "@/stores/sales";
+import { useAdminHealthStore } from "@/stores/adminHealth";
 
-const t = (k: string, v?: Record<string, string | number>, f?: string) =>
-  localizationService.t(k, v, f);
-
-const salesCount = ref<number>(0);
-
-/**
- * Loads the current count of unseen sales.
- */
-const loadNewSalesCount = async () => {
-  salesCount.value = await SalesService.getNewSalesCount();
-};
-
-/**
- * Handle the custom event emitted by SalesService
- */
-const handleSaleSeenEvent = () => {
-  loadNewSalesCount();
-};
-
-const isDev = import.meta.env.MODE === "development";
-
-/** Admin-only count of scrape sources that currently return no usable data. */
-const failingSources = ref<number>(0);
-
-const handleSourceHealthUpdated = (event: Event) => {
-  failingSources.value = AdminService.countNeedingAttention(
-    (event as CustomEvent<SourceHealth[]>).detail,
-  );
-};
-
-const loadSourceHealth = async () => {
-  if (!useSessionStore().isAdmin) return;
-  try {
-    // The service announces the result, which updates failingSources
-    await AdminService.getSourceHealth();
-  } catch (error) {
-    console.error("Loading source health failed:", error);
-  }
-};
-
-onMounted(() => {
-  loadNewSalesCount();
-  loadSourceHealth();
-
-  // Listen for the event name defined in SalesService
-  document.addEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
-  document.addEventListener(AdminEvents.SOURCE_HEALTH_UPDATED, handleSourceHealthUpdated);
-});
-
-onUnmounted(() => {
-  // Clean up standard DOM listener
-  document.removeEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
-  document.removeEventListener(AdminEvents.SOURCE_HEALTH_UPDATED, handleSourceHealthUpdated);
+export default defineComponent({
+  name: "TabsPage",
+  components: {
+    IonTabBar,
+    IonTabButton,
+    IonTabs,
+    IonLabel,
+    IonIcon,
+    IonPage,
+    IonRouterOutlet,
+    IonFab,
+    IonFabButton,
+    IonBadge,
+  },
+  setup() {
+    return {
+      cube,
+      grid,
+      leaf,
+      pricetag,
+      bug,
+      warning,
+      isDev: import.meta.env.MODE === "development",
+    };
+  },
+  computed: {
+    ...mapState(useSessionStore, ["isAdmin"]),
+    ...mapState(useSalesStore, { salesCount: "newCount" }),
+    ...mapState(useAdminHealthStore, { failingSources: "needingAttention" }),
+  },
+  async mounted() {
+    await this.restoreSales();
+    if (!this.isAdmin) return;
+    try {
+      await this.loadSourceHealth();
+    } catch (error) {
+      console.error("Loading source health failed:", error);
+    }
+  },
+  methods: {
+    ...mapActions(useSalesStore, { restoreSales: "restore" }),
+    ...mapActions(useAdminHealthStore, { loadSourceHealth: "load" }),
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback);
+    },
+  },
 });
 </script>
 

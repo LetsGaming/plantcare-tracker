@@ -20,7 +20,6 @@ vi.mock("@/utils/apiUtils", () => ({
 }));
 
 import ApiUtils from "@/utils/apiUtils";
-import { BaseService } from "@/services/base/BaseService";
 import { setLoginRedirect, useSessionStore } from "@/stores/session";
 
 const redirect = vi.fn(async () => undefined);
@@ -91,12 +90,10 @@ describe("logout and local logout", () => {
     expect(memoryStore.has("authToken")).toBe(false);
   });
 
-  it("empties the token in memory and the legacy memory cache", async () => {
-    const clear = vi.spyOn(BaseService, "clearMemoryCache");
+  it("empties the token in memory", async () => {
     const session = useSessionStore();
     await session.storeToken(fakeJwt({ id: 1, username: "a", role: "user" }));
     await session.localLogout();
-    expect(clear).toHaveBeenCalledOnce();
     expect(session.token).toBeNull();
     expect(session.isAuthenticated).toBe(false);
   });

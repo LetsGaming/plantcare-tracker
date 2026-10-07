@@ -3,7 +3,6 @@ import ApiUtils from "@/utils/apiUtils";
 import TokenUtils from "@/utils/tokenUtils";
 import Utils from "@/utils/utils";
 import storageService from "@/services/general/StorageService";
-import { BaseService } from "@/services/base/BaseService";
 import { handleRequest } from "@/utils/requestFeedback";
 import { pinia as appPinia, resetAllStores } from "./pinia";
 
@@ -124,7 +123,6 @@ export const useSessionStore = defineStore("session", {
 
     /** Drops every trace of the account from memory and storage and leaves the app. */
     async localLogout(): Promise<void> {
-      BaseService.clearMemoryCache();
       resetAllStores();
       await TokenUtils.clearToken();
       await storageService.clear();

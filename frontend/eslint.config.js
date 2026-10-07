@@ -1,6 +1,8 @@
 import pluginVue from "eslint-plugin-vue";
 import { defineConfigWithVueTs, vueTsConfigs } from "@vue/eslint-config-typescript";
 import prettier from "eslint-config-prettier/flat";
+import importX from "eslint-plugin-import-x";
+import { createTypeScriptImportResolver } from "eslint-import-resolver-typescript";
 
 export default defineConfigWithVueTs(
   {
@@ -17,7 +19,12 @@ export default defineConfigWithVueTs(
   pluginVue.configs["flat/essential"],
   vueTsConfigs.recommended,
   {
+    plugins: { "import-x": importX },
+    settings: {
+      "import-x/resolver-next": [createTypeScriptImportResolver({ project: "./tsconfig.json" })],
+    },
     rules: {
+      "import-x/no-cycle": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { ignoreRestSiblings: true, argsIgnorePattern: "^_", varsIgnorePattern: "^_" },

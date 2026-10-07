@@ -17,6 +17,8 @@ export interface PersistEntry<S extends StateTree> {
   pick: (state: S) => unknown;
   /** Puts a stored snapshot back into the state; `timestamp` is when it was saved. */
   apply: (state: S, data: any, timestamp: number) => void;
+  /** Hydrate even after the cache lifetime, for settings and data that must outlive it. */
+  allowExpired?: boolean;
   /** Time stored with the snapshot (when the data was fetched). Defaults to now. */
   timestamp?: (state: S) => number | null;
 }
@@ -58,6 +60,17 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
     return;
   }
 
+  // What each entry last looked like in storage (or in the untouched initial
+  // state), so only real changes are written and a store that is merely
+  // loading never overwrites a good snapshot with an empty one.
+  const serialized = (entry: PersistEntry<StateTree>, state: StateTree): string =>
+    JSON.stringify(entry.pick(state));
+  const last = new Map<PersistEntry<StateTree>, string>();
+  const rememberAll = (): void => {
+    for (const entry of persist.entries) last.set(entry, serialized(entry, store.$state));
+  };
+  rememberAll();
+
   store.$hydrate = async () => {
     const stored = await Promise.all(
       persist.entries.map(async (entry) => ({
@@ -70,8 +83,10 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
     suppressed = true;
     try {
       for (const { entry, value } of stored) {
-        if (!value || value.data == null || Utils.isCacheExpired(value.timestamp)) continue;
+        if (!value || value.data == null) continue;
+        if (!entry.allowExpired && Utils.isCacheExpired(value.timestamp)) continue;
         store.$patch((state) => entry.apply(state, value.data, value.timestamp));
+        last.set(entry, serialized(entry, store.$state));
         applied = true;
       }
     } finally {
@@ -91,6 +106,23 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
     } finally {
       suppressed = false;
     }
+    rememberAll();
+  };
+
+  const flush = (state: StateTree): void => {
+    for (const entry of persist.entries) {
+      // Entries with a snapshot time are only worth storing once they have one.
+      const timestamp = entry.timestamp ? entry.timestamp(state) : Date.now();
+      if (timestamp == null) continue;
+      const json = serialized(entry, state);
+      if (json === last.get(entry)) continue;
+      last.set(entry, json);
+      void storageService.set(entry.key, {
+        data: JSON.parse(json),
+        keepOnClear: entry.keepOnClear ?? false,
+        timestamp,
+      });
+    }
   };
 
   store.$subscribe(
@@ -99,13 +131,7 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
       store.$cancelPersist();
       timer = setTimeout(() => {
         timer = undefined;
-        for (const entry of persist.entries) {
-          void storageService.set(entry.key, {
-            data: JSON.parse(JSON.stringify(entry.pick(state))),
-            keepOnClear: entry.keepOnClear ?? false,
-            timestamp: entry.timestamp?.(state) ?? Date.now(),
-          });
-        }
+        flush(state);
       }, persist.debounceMs ?? DEFAULT_DEBOUNCE_MS);
     },
     { detached: true, flush: "sync" },

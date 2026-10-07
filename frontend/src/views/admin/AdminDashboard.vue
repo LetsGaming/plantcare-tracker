@@ -49,7 +49,8 @@ import {
 } from "@ionic/vue";
 import { pulseOutline } from "ionicons/icons";
 
-import AdminService from "@/services/AdminService";
+import { mapActions, mapState } from "pinia";
+import { useAdminHealthStore } from "@/stores/adminHealth";
 import localizationService from "@/services/general/LocalizationService";
 
 interface AdminTool {
@@ -78,12 +79,8 @@ export default defineComponent({
     IonIcon,
     IonBadge,
   },
-  data() {
-    return {
-      failingSources: 0,
-    };
-  },
   computed: {
+    ...mapState(useAdminHealthStore, { failingSources: "needingAttention" }),
     tools(): AdminTool[] {
       return [
         {
@@ -98,15 +95,14 @@ export default defineComponent({
   },
   async mounted() {
     try {
-      this.failingSources = AdminService.countNeedingAttention(
-        await AdminService.getSourceHealth(),
-      );
+      await this.loadHealth();
     } catch (error) {
       // handleRequest has already shown the error toast.
       console.error("Loading source health failed:", error);
     }
   },
   methods: {
+    ...mapActions(useAdminHealthStore, { loadHealth: "load" }),
     t(key: string) {
       return localizationService.t(key, undefined, key);
     },

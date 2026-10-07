@@ -55,7 +55,8 @@ import {
 } from "@ionic/vue";
 import { settings } from "ionicons/icons";
 import Popover from "@/components/Popover.vue";
-import CalendarService, { CalendarEvents } from "@/services/CalendarService";
+import { mapActions, mapState } from "pinia";
+import { useCalendarStore } from "@/stores/calendar";
 import CalendarLegend from "./CalendarLegend.vue";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -103,7 +104,6 @@ export default defineComponent({
   data() {
     return {
       selectedDate: "",
-      firstDayOfWeek: 1,
       changedEvent: null as CustomEvent | null,
     };
   },
@@ -113,15 +113,10 @@ export default defineComponent({
     };
   },
   async mounted() {
-    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
-
-    // Add listener for firstDayOfWeek changes
-    document.addEventListener(CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED, (event: Event) => {
-      const customEvent = event as CustomEvent;
-      this.firstDayOfWeek = customEvent.detail;
-    });
+    await this.ensureCalendarLoaded();
   },
   computed: {
+    ...mapState(useCalendarStore, ["firstDayOfWeek"]),
     legendItems(): { label: string; color: string }[] {
       const seen = new Set<string>();
 
@@ -148,6 +143,7 @@ export default defineComponent({
     },
   },
   methods: {
+    ...mapActions(useCalendarStore, { ensureCalendarLoaded: "ensureLoaded" }),
     t(key: string) {
       return localizationService.t(key, undefined, key);
     },

@@ -108,7 +108,7 @@ import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 
 import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
-import CalendarService from "@/services/CalendarService";
+import { useCalendarStore } from "@/stores/calendar";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -136,8 +136,6 @@ export default defineComponent({
   },
   data() {
     return {
-      wateringCategories: [] as Category[],
-
       selectedDate: null as string | null,
       selectedRecord: null as WateringRecord | null,
 
@@ -163,12 +161,11 @@ export default defineComponent({
     this.isLoading = true;
     try {
       // Parallel loading to optimize speed while remaining safe
-      const [categories] = await Promise.all([
-        CalendarService.getWateringCategories(),
+      await Promise.all([
+        this.ensureCalendarLoaded(),
         this.ensureFertilizerTypes(),
         this.ensureRecords(this.plantId),
       ]);
-      this.wateringCategories = categories || [];
     } catch (error) {
       console.error("Critical error in WateringRecords mounted:", error);
     } finally {
@@ -177,6 +174,7 @@ export default defineComponent({
   },
   computed: {
     ...mapState(useSessionStore, ["isGuest"]),
+    ...mapState(useCalendarStore, ["wateringCategories"]),
     ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
     /** This plant's records, straight from the store so every update repaints. */
     records(): WateringRecord[] {
@@ -303,6 +301,7 @@ export default defineComponent({
     },
   },
   methods: {
+    ...mapActions(useCalendarStore, { ensureCalendarLoaded: "ensureLoaded" }),
     ...mapActions(useWateringStore, {
       ensureRecords: "ensureRecords",
       ensureFertilizerTypes: "ensureFertilizerTypes",

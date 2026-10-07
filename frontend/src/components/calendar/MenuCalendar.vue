@@ -32,7 +32,8 @@
 import { defineComponent } from "vue";
 import Calendar from "@/components/calendar/Calendar.vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
-import CalendarService, { CalendarEvents } from "@/services/CalendarService";
+import { mapActions, mapState } from "pinia";
+import { useCalendarStore } from "@/stores/calendar";
 
 export default defineComponent({
   name: "MenuCalendar",
@@ -51,8 +52,6 @@ export default defineComponent({
   data() {
     return {
       selectedDate: "",
-      reminderDates: [] as CalendarDates[],
-      categories: [] as Category[],
 
       isPopoverOpen: false,
       isModalOpen: false,
@@ -82,15 +81,18 @@ export default defineComponent({
   },
 
   async mounted() {
-    this.attachListeners();
-    await this.loadInitialState();
+    await this.ensureCalendarLoaded();
+    this.syncCategoryOptions();
   },
 
-  beforeUnmount() {
-    this.detachListeners();
+  watch: {
+    categories() {
+      this.syncCategoryOptions();
+    },
   },
 
   computed: {
+    ...mapState(useCalendarStore, { reminderDates: "dates", categories: "categories" }),
     popoverItem(): PopoverItem | undefined {
       const item = this.reminderDates.find((d) => d.date === this.selectedDate);
 
@@ -108,40 +110,10 @@ export default defineComponent({
   },
 
   methods: {
-    /* =============================================================
-       Lifecycle helpers
-       ============================================================= */
-
-    async loadInitialState() {
-      this.reminderDates = await CalendarService.getDates();
-      this.categories = await CalendarService.getCategories();
-      this.syncCategoryOptions();
-    },
-
-    attachListeners() {
-      document.addEventListener(CalendarEvents.DATES_CHANGED, this.onDatesChanged);
-      document.addEventListener(CalendarEvents.CATEGORIES_CHANGED, this.onCategoriesChanged);
-    },
-
-    detachListeners() {
-      document.removeEventListener(CalendarEvents.DATES_CHANGED, this.onDatesChanged);
-      document.removeEventListener(CalendarEvents.CATEGORIES_CHANGED, this.onCategoriesChanged);
-    },
-
-    /* =============================================================
-       Event handlers
-       ============================================================= */
-
-    onDatesChanged(event: Event) {
-      const e = event as CustomEvent<CalendarDates[]>;
-      this.reminderDates = e.detail;
-    },
-
-    onCategoriesChanged(event: Event) {
-      const e = event as CustomEvent<Category[]>;
-      this.categories = e.detail;
-      this.syncCategoryOptions();
-    },
+    ...mapActions(useCalendarStore, {
+      ensureCalendarLoaded: "ensureLoaded",
+      saveDates: "saveDates",
+    }),
 
     /* =============================================================
        UI interactions
@@ -205,7 +177,7 @@ export default defineComponent({
           },
         });
 
-        await CalendarService.saveDates(updated);
+        this.saveDates(updated);
         this.isModalOpen = false;
       } finally {
         this.isLoading = false;
@@ -219,7 +191,7 @@ export default defineComponent({
         (d) => new Date(d.date).getTime() !== this.formData.date,
       );
 
-      await CalendarService.saveDates(updated);
+      this.saveDates(updated);
       this.isModalOpen = false;
     },
 

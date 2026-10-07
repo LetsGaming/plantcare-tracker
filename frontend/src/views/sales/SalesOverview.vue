@@ -31,7 +31,8 @@ import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import localizationService from "@/services/general/LocalizationService";
 
-import SalesService from "@/services/SalesServices";
+import { mapActions, mapState } from "pinia";
+import { useSalesStore } from "@/stores/sales";
 
 export default defineComponent({
   name: "SalesOverview",
@@ -43,9 +44,7 @@ export default defineComponent({
   },
   data() {
     return {
-      sales: [] as Sale[],
-      allSales: [] as Sale[],
-      stopStream: null as null | (() => void),
+      searchQuery: "",
       loading: true,
     };
   },
@@ -53,6 +52,14 @@ export default defineComponent({
     return { pricetag };
   },
   computed: {
+    ...mapState(useSalesStore, { allSales: "visibleSales" }),
+    /** Sales matching the search; the store adds streamed sales as they arrive. */
+    sales(): Sale[] {
+      const query = this.searchQuery.toLowerCase();
+      return query
+        ? this.allSales.filter((sale: Sale) => sale.name.toLowerCase().includes(query))
+        : this.allSales;
+    },
     mappedSales(): Array<{
       id: string;
       name: string;
@@ -70,47 +77,17 @@ export default defineComponent({
     },
   },
   mounted() {
-    this.initSales();
-  },
-  beforeUnmount() {
-    // stop the SSE stream when leaving the page
-    this.stopStream?.();
+    void this.fetchSales(false);
   },
   methods: {
+    ...mapActions(useSalesStore, { loadSales: "load", markSeen: "markSeen" }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
-    async initSales() {
+    async fetchSales(force = true) {
       this.loading = true;
       try {
-        const all = await SalesService.getAllSales({
-          onUpdate: (chunk: Sale[]) => {
-            chunk.forEach((sale) => {
-              if (!this.sales.find((s) => s.id === sale.id)) {
-                this.sales.push(sale);
-              }
-            });
-            this.allSales = this.sales;
-          },
-        });
-
-        // initial / final resolved result
-        this.sales = all;
-        this.allSales = all;
-      } catch (err) {
-        console.error("Error fetching sales:", err);
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async fetchSales() {
-      // explicit fetch without streaming
-      this.loading = true;
-      try {
-        const all = await SalesService.getAllSales({ forceUpdate: true });
-        this.sales = all;
-        this.allSales = all;
+        await this.loadSales({ force });
       } catch (err) {
         console.error("Error fetching sales:", err);
       } finally {
@@ -119,10 +96,7 @@ export default defineComponent({
     },
 
     handleSearch(query: string) {
-      const lowerQuery = query.toLowerCase();
-      this.sales = this.allSales.filter((sale: Sale) =>
-        sale.name.toLowerCase().includes(lowerQuery),
-      );
+      this.searchQuery = query;
     },
 
     onSegmentChange(_value: string) {
@@ -130,20 +104,10 @@ export default defineComponent({
     },
 
     async onItemClick(id: string) {
-      const sale = this.sales.find((s) => s.id === id);
-      if (!sale) return;
+      if (!this.sales.find((s) => s.id === id)) return;
 
       await this.$router.push({ name: "sales-details", params: { id } });
-
-      // mark as seen first
-      await SalesService.markSaleAsSeen(sale.id);
-
-      // update local state from cache reactively
-      const cached = await SalesService.getCachedSales();
-      if (cached) {
-        this.sales = [...cached];
-        this.allSales = [...cached];
-      }
+      this.markSeen(id);
     },
   },
 });

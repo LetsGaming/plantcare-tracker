@@ -91,7 +91,8 @@ import CalendarSettingsModal from "./calendar/CalendarSettingsModal.vue";
 
 import storageService from "@/services/general/StorageService";
 import localizationService from "@/services/general/LocalizationService";
-import CalendarService from "@/services/CalendarService";
+import { mapActions, mapState } from "pinia";
+import { useCalendarStore } from "@/stores/calendar";
 
 const LOCALE_LABELS: Record<string, string> = {
   en: "English",
@@ -131,12 +132,6 @@ export default defineComponent({
 
       // Localization
       selectedLocale: localizationService.getLocale(),
-
-      // Calendar state
-      firstDayOfWeek: 0,
-      doDeleteAfterThirty: false,
-      categories: [] as Category[],
-      wateringCategories: [] as Category[],
     };
   },
 
@@ -153,16 +148,17 @@ export default defineComponent({
     }
 
     /* ---------- Calendar settings ---------- */
-    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(() => 0);
-    this.doDeleteAfterThirty = await CalendarService.getDeleteAfterThirty();
-
-    await CalendarService.deleteOldDates();
-
-    this.categories = await CalendarService.getCategories();
-    this.wateringCategories = await CalendarService.getWateringCategories();
+    await this.ensureCalendarLoaded();
+    this.deleteOldDates();
   },
 
   computed: {
+    ...mapState(useCalendarStore, {
+      firstDayOfWeek: "firstDayOfWeek",
+      doDeleteAfterThirty: "deleteAfterThirty",
+      categories: "categories",
+      wateringCategories: "wateringCategories",
+    }),
     availableLocales() {
       return localizationService.availableLocales();
     },
@@ -172,6 +168,16 @@ export default defineComponent({
   },
 
   methods: {
+    ...mapActions(useCalendarStore, {
+      ensureCalendarLoaded: "ensureLoaded",
+      deleteOldDates: "deleteOldDates",
+      saveFirstDayOfWeek: "saveFirstDayOfWeek",
+      saveDeleteAfterThirty: "saveDeleteAfterThirty",
+      saveCategories: "saveCategories",
+      saveWateringCategories: "saveWateringCategories",
+      resetWateringCategories: "resetWateringCategories",
+    }),
+
     /* ---------- Localization ---------- */
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
@@ -203,38 +209,28 @@ export default defineComponent({
     },
 
     /* ---------- Calendar logic ---------- */
-    async updateFirstDayOfWeek(value: number) {
-      this.firstDayOfWeek = value;
-      await CalendarService.saveFirstDayOfWeek(value);
+    updateFirstDayOfWeek(value: number) {
+      this.saveFirstDayOfWeek(value);
     },
 
-    async updateDeleteAfterThirty(value: boolean) {
-      this.doDeleteAfterThirty = value;
-      await CalendarService.saveDeleteAfterThirty(value);
+    updateDeleteAfterThirty(value: boolean) {
+      this.saveDeleteAfterThirty(value);
     },
 
-    async updateCategories(categories: Category[]) {
-      this.categories = categories;
-      await CalendarService.saveCategories(categories);
+    updateCategories(categories: Category[]) {
+      this.saveCategories(categories);
     },
 
-    async updateWateringCategories(categories: Category[]) {
-      this.wateringCategories = categories;
-      await CalendarService.saveWateringCategories(categories);
+    updateWateringCategories(categories: Category[]) {
+      this.saveWateringCategories(categories);
     },
 
-    async resetWateringCategories() {
-      this.wateringCategories = await CalendarService.resetWateringCategories();
+    addCategory(category: Category) {
+      this.saveCategories([...this.categories, category]);
     },
 
-    async addCategory(category: Category) {
-      this.categories.push(category);
-      await CalendarService.saveCategories(this.categories);
-    },
-
-    async deleteCategory(index: number) {
-      this.categories.splice(index, 1);
-      await CalendarService.saveCategories(this.categories);
+    deleteCategory(index: number) {
+      this.saveCategories(this.categories.filter((_, i) => i !== index));
     },
   },
 });

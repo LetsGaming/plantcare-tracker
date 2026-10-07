@@ -73,7 +73,8 @@ import {
   IonSpinner,
 } from "@ionic/vue";
 import InfoNote from "@/components/InfoNote.vue";
-import MoreInfoService from "@/services/MoreInfoService";
+import { mapActions, mapState } from "pinia";
+import { useMoreInfoStore } from "@/stores/moreInfo";
 import { openOutline } from "ionicons/icons";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -105,7 +106,6 @@ export default defineComponent({
   },
   data() {
     return {
-      infos: [] as any[],
       loading: true,
       notFound: false,
     };
@@ -118,24 +118,24 @@ export default defineComponent({
   async mounted() {
     await this.getLinks();
   },
+  computed: {
+    ...mapState(useMoreInfoStore, ["infoFor"]),
+    /** The guide for this plant; the store updates it while the stream runs. */
+    infos(): MoreInfo[] {
+      return this.infoFor(this.plantName);
+    },
+  },
   methods: {
+    ...mapActions(useMoreInfoStore, ["ensureInfo"]),
     t(key: string) {
       return localizationService.t(key, undefined, key);
     },
     async getLinks() {
       this.loading = true;
       this.notFound = false;
-      this.infos = [];
 
       try {
-        this.infos = await MoreInfoService.getMoreInfo(this.plantName, {
-          forceUpdate: false,
-          onUpdate: (updatedInfos: any[]) => {
-            // Update the data silently in the background
-            this.infos = updatedInfos;
-            this.notFound = false;
-          },
-        });
+        await this.ensureInfo(this.plantName);
 
         if (this.infos.length === 0) {
           this.notFound = true;
