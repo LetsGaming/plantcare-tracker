@@ -106,8 +106,8 @@ jobs:
         run: pnpm run format:check
 
       # Explicit `vitest run`: the package script starts watch mode.
-      - name: Tests
-        run: pnpm exec vitest run
+      - name: Tests with coverage gate
+        run: pnpm exec vitest run --coverage
 
       # `pnpm run build` runs vue-tsc first, so this single step covers
       # both the typecheck and the production bundle.
