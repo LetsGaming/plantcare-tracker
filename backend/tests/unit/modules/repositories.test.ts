@@ -29,6 +29,7 @@ vi.mock('../../../src/core/database/db', () => ({
 // ── Imports (after mock registration) ────────────────────────────────────────
 
 import { SQLitePlantRepository } from '../../../src/modules/plants/infrastructure/SQLitePlantRepository';
+import { SpeciesResolver } from '../../../src/modules/plants/domain/SpeciesResolver';
 import { SQLiteWateringRepository } from '../../../src/modules/watering/infrastructure/SQLiteWateringRepository';
 import { SQLiteSubstrateRepository } from '../../../src/modules/substrate/infrastructure/SQLiteSubstrateRepository';
 import { SQLiteUserRepository } from '../../../src/modules/auth/infrastructure/SQLiteUserRepository';
@@ -47,10 +48,13 @@ beforeEach(() => {
 
 // ── SQLitePlantRepository ─────────────────────────────────────────────────────
 
+const newPlantRepository = () =>
+  new SQLitePlantRepository(new SpeciesResolver({ all: () => [], add: () => 7 }));
+
 describe('SQLitePlantRepository', () => {
   it('findAllPublic returns mapped Plant entities', async () => {
     mockQuery.mockReturnValue([makePlantRow()]);
-    const plants = await new SQLitePlantRepository().findAllPublic();
+    const plants = await newPlantRepository().findAllPublic();
     expect(plants).toHaveLength(1);
     expect(plants[0].name).toBe('Monstera deliciosa');
     expect(plants[0].isPublic).toBe(true);
@@ -61,20 +65,20 @@ describe('SQLitePlantRepository', () => {
       makePlantRow({ image_id: 1, image_url: 'http://img1.jpg' }),
       makePlantRow({ image_id: 2, image_url: 'http://img2.jpg' }),
     ]);
-    const plants = await new SQLitePlantRepository().findAllPublic();
+    const plants = await newPlantRepository().findAllPublic();
     expect(plants).toHaveLength(1);
     expect(plants[0].images).toHaveLength(2);
   });
 
   it('findById returns null when no rows returned', async () => {
     mockQuery.mockReturnValue([]);
-    const plant = await new SQLitePlantRepository().findById(999);
+    const plant = await newPlantRepository().findById(999);
     expect(plant).toBeNull();
   });
 
   it('create inserts and returns insertId', async () => {
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 42 });
-    const id = await new SQLitePlantRepository().create({
+    const id = await newPlantRepository().create({
       name: 'Fern',
       species: 'Nephrolepis',
       substrateId: 1,
@@ -86,19 +90,19 @@ describe('SQLitePlantRepository', () => {
 
   it('update returns true when affectedRows > 0', async () => {
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 0 });
-    const result = await new SQLitePlantRepository().update(1, 2, { name: 'Updated' });
+    const result = await newPlantRepository().update(1, 2, { name: 'Updated' });
     expect(result).toBe(true);
   });
 
   it('update returns false when affectedRows is 0', async () => {
     mockExecute.mockReturnValue({ affectedRows: 0, insertId: 0 });
-    const result = await new SQLitePlantRepository().update(999, 2, { name: 'x' });
+    const result = await newPlantRepository().update(999, 2, { name: 'x' });
     expect(result).toBe(false);
   });
 
   it('delete returns false when affectedRows is 0', async () => {
     mockExecute.mockReturnValue({ affectedRows: 0, insertId: 0 });
-    expect(await new SQLitePlantRepository().delete(999, 2)).toBe(false);
+    expect(await newPlantRepository().delete(999, 2)).toBe(false);
   });
 });
 

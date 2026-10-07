@@ -7,12 +7,14 @@
 
 import { Router } from 'express';
 import { SQLitePlantRepository } from '../infrastructure/SQLitePlantRepository';
+import { SQLiteSpeciesCatalog } from '../infrastructure/SQLiteSpeciesCatalog';
+import { SpeciesResolver } from '../domain/SpeciesResolver';
 import { createPlantsController } from './plantsController';
 import { authenticateToken, optionalAuthenticateToken } from '../../../core/middleware';
 
 export const createPlantsRouter = (): Router => {
   const router = Router();
-  const repo = new SQLitePlantRepository();
+  const repo = new SQLitePlantRepository(new SpeciesResolver(new SQLiteSpeciesCatalog()));
   const ctrl = createPlantsController(repo);
 
   // Optional auth on reads: public plants are visible without login,
