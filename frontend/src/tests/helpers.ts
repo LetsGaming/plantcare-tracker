@@ -61,3 +61,16 @@ export const fakeJwt = (payload: Record<string, unknown>): string => {
 export const resetStore = () => {
   memoryStore.clear();
 };
+
+/** A pinia with the app's plugins, installed on a throwaway app so the plugins run. */
+export const createInstalledPinia = async () => {
+  const [{ createApp }, { setActivePinia }, { createAppPinia }] = await Promise.all([
+    import("vue"),
+    import("pinia"),
+    import("@/stores/pinia"),
+  ]);
+  const pinia = createAppPinia();
+  createApp({}).use(pinia);
+  setActivePinia(pinia);
+  return pinia;
+};

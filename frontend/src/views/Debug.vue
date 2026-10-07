@@ -185,7 +185,7 @@ import {
 
 import ToastService from "@/services/general/ToastService";
 import { useSessionStore } from "@/stores/session";
-import PlantService from "@/services/PlantService";
+import { usePlantsStore } from "@/stores/plants";
 import ApiUtils from "@/utils/apiUtils";
 import StorageService from "@/services/general/StorageService";
 
@@ -318,7 +318,8 @@ export default defineComponent({
 
     async getPlants() {
       try {
-        const res = await PlantService.getAllPlants();
+        await usePlantsStore().ensureLoaded({ force: true });
+        const res = usePlantsStore().items;
         this.pushLog("Get Plants", res);
       } catch (err) {
         this.pushLog("Get Plants Error", err);

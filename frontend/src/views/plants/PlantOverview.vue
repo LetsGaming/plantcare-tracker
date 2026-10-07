@@ -38,7 +38,8 @@ import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 
-import PlantService, { PlantEvents } from "@/services/PlantService";
+import { mapActions, mapState } from "pinia";
+import { usePlantsStore } from "@/stores/plants";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -54,7 +55,6 @@ export default defineComponent({
 
   data() {
     return {
-      plants: [] as Plant[],
       showPublic: "private",
       showAddingModal: false,
       isAddingLoading: false,
@@ -70,21 +70,14 @@ export default defineComponent({
     await this.fetchPlants();
   },
 
-  // Cache subscription lives in mounted/beforeUnmount (not the ionView
-  // hooks): Ionic keeps pages alive when navigating away, and the list
-  // must keep reacting to mutations made elsewhere (e.g. plant deleted
-  // from its details page).
-  mounted() {
-    document.addEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
-  },
-
-  beforeUnmount() {
-    document.removeEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
-  },
-
   computed: {
+    ...mapState(usePlantsStore, ["publicPlants", "personalPlants"]),
     isPublic() {
       return this.showPublic === "public";
+    },
+    /** The segment's plants; the store repaints this on every change, optimistic ones included. */
+    plants(): Plant[] {
+      return this.isPublic ? this.publicPlants : this.personalPlants;
     },
   },
 
@@ -93,6 +86,12 @@ export default defineComponent({
       return localizationService.t(key, vars, fallback);
     },
 
+    ...mapActions(usePlantsStore, {
+      ensureLoaded: "ensureLoaded",
+      addPlantToStore: "addPlant",
+      uploadPlantImage: "uploadPlantImage",
+    }),
+
     /* -------------------- PLANTS -------------------- */
     async loadPlants(isRefresh = false) {
       const typeLabel = this.isPublic
@@ -100,11 +99,7 @@ export default defineComponent({
         : this.t("plants.type_private");
 
       try {
-        const data = this.isPublic
-          ? await PlantService.getPublicPlants(isRefresh)
-          : await PlantService.getPersonalPlants(isRefresh);
-
-        this.plants = data || [];
+        await this.ensureLoaded({ force: isRefresh });
 
         if (this.plants.length === 0) {
           this.showWarning();
@@ -116,7 +111,6 @@ export default defineComponent({
           });
         }
       } catch (error) {
-        this.plants = [];
         ToastService.showError({
           key: "plants.update_failed",
           vars: { type: typeLabel },
@@ -128,17 +122,6 @@ export default defineComponent({
 
     async fetchPlants() {
       await this.loadPlants();
-    },
-
-    /**
-     * Reacts to PLANTS_UPDATED (fired by every optimistic paint,
-     * reconcile, and rollback). Re-derives the visible list from the
-     * cache via the service getters — never triggers a network request.
-     */
-    async handlePlantsUpdated() {
-      this.plants = this.isPublic
-        ? await PlantService.getPublicPlants()
-        : await PlantService.getPersonalPlants();
     },
 
     async refreshPlants() {
@@ -190,13 +173,13 @@ export default defineComponent({
       try {
         this.isAddingLoading = true;
 
-        // Optimistic: the plant is already painted into the cache and the
-        // list has re-rendered via PLANTS_UPDATED. The resolved value is
-        // the reconciled server plant, carrying the real id for the upload.
-        const plant = await PlantService.addPlant(plantData);
+        // Optimistic: the plant is already painted into the store and the
+        // list has re-rendered. The resolved value is the reconciled server
+        // plant, carrying the real id for the upload.
+        const plant = await this.addPlantToStore(plantData);
 
         if (plantData.image) {
-          await PlantService.uploadPlantImage(plant.id, plantData.image);
+          await this.uploadPlantImage(plant.id, plantData.image);
           ToastService.showSuccess({
             key: "plant.add.upload_success",
             fallback: "Image uploaded successfully.",
@@ -206,7 +189,7 @@ export default defineComponent({
         this.closeAddModal();
       } catch (error) {
         // handleRequest has already shown the error toast; the optimistic
-        // wrapper has rolled the cache back. Keep the modal open for retry.
+        // wrapper has rolled the store back. Keep the modal open for retry.
         console.error("Add plant failed:", error);
       } finally {
         this.isAddingLoading = false;

@@ -74,7 +74,8 @@
 import { IonPage, IonContent, IonText } from "@ionic/vue";
 import { defineComponent } from "vue";
 
-import PlantService, { PlantEvents } from "@/services/PlantService";
+import { mapActions, mapState } from "pinia";
+import { usePlantsStore } from "@/stores/plants";
 import SubstrateService from "@/services/SubstrateService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -113,7 +114,6 @@ export default defineComponent({
 
   data() {
     return {
-      plant: null as Plant | null,
       substrates: [] as Substrate[],
       /** Full substrate object, fetched separately after plant loads (V2 only sends substrate ref) */
       fullSubstrate: null as Substrate | null,
@@ -131,15 +131,18 @@ export default defineComponent({
   },
 
   async mounted() {
-    document.addEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
     await Promise.all([this.loadPlantData(), this.fetchSubstrates()]);
   },
 
-  beforeUnmount() {
-    document.removeEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
-  },
-
   computed: {
+    ...mapState(usePlantsStore, ["byId"]),
+    /** This page's plant, straight from the store so every update repaints it. */
+    plant(): Plant | null {
+      return this.byId(this.plantId) ?? null;
+    },
+    substrateRefId(): number | undefined {
+      return this.plant?.substrate?.id;
+    },
     plantId() {
       return Number.parseInt(this.id);
     },
@@ -148,7 +151,25 @@ export default defineComponent({
     },
   },
 
+  watch: {
+    // Only the full substrate is refetched, and only when the referenced one changed.
+    async substrateRefId(refId: number | undefined) {
+      if (!refId) {
+        this.fullSubstrate = null;
+      } else if (this.fullSubstrate?.id !== refId) {
+        this.fullSubstrate = await SubstrateService.getSubstrateById(refId).catch(() => null);
+      }
+    },
+  },
+
   methods: {
+    ...mapActions(usePlantsStore, {
+      loadPlant: "getPlant",
+      savePlant: "editPlant",
+      removePlant: "deletePlant",
+      uploadPlantImage: "uploadPlantImage",
+    }),
+
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
@@ -158,8 +179,7 @@ export default defineComponent({
     async loadPlantData() {
       this.isLoading = true;
       try {
-        const response = await PlantService.getPlantById(this.plantId);
-        this.plant = response || null;
+        await this.loadPlant(this.plantId);
 
         // V2 only sends a lightweight substrate reference { id, name } on the plant.
         // We need to fetch the full substrate separately to get its components.
@@ -175,29 +195,10 @@ export default defineComponent({
           this.fullSubstrate = null;
         }
       } catch (error) {
-        this.plant = null;
         this.fullSubstrate = null;
         console.error("Error fetching plant details:", error);
       } finally {
         this.isLoading = false;
-      }
-    },
-
-    /**
-     * Reacts to PLANTS_UPDATED (optimistic paints, reconciles, rollbacks,
-     * and image-triggered refreshes). Re-derives this page's plant from the
-     * cache — never triggers a plant fetch. Only the full substrate is
-     * (re)fetched, and only when the referenced substrate actually changed.
-     */
-    async handlePlantsUpdated() {
-      const plants = await PlantService.getAllPlants();
-      this.plant = plants.find((p) => p.id === this.plantId) ?? null;
-
-      const refId = this.plant?.substrate?.id;
-      if (!refId) {
-        this.fullSubstrate = null;
-      } else if (this.fullSubstrate?.id !== refId) {
-        this.fullSubstrate = await SubstrateService.getSubstrateById(refId).catch(() => null);
       }
     },
 
@@ -220,13 +221,13 @@ export default defineComponent({
 
       this.isEditLoading = true;
       try {
-        // Optimistic: the page has already re-rendered via PLANTS_UPDATED.
-        await PlantService.editPlant(this.plant.id, payload);
+        // Optimistic: the page has already re-rendered from the store.
+        await this.savePlant(this.plant.id, payload);
         ToastService.showSuccess({ key: "plant.edit.success" });
         this.showEditModal = false;
       } catch (error) {
-        // handleRequest has shown the toast; the cache was rolled back and
-        // the page re-derived the previous state. Keep the modal open.
+        // handleRequest has shown the toast; the store was rolled back and
+        // the page shows the previous state. Keep the modal open.
         console.error("Edit plant failed:", error);
       } finally {
         this.isEditLoading = false;
@@ -243,7 +244,7 @@ export default defineComponent({
       this.$router.push({ name: "plant-overview" });
 
       try {
-        await PlantService.deletePlant(plantId);
+        await this.removePlant(plantId);
         ToastService.showSuccess({ key: "plant.delete.success" });
       } catch (error) {
         // handleRequest has shown the toast; the rollback re-inserted the
@@ -259,9 +260,8 @@ export default defineComponent({
 
       try {
         this.isImageLoading = true;
-        // uploadPlantImage refreshes this plant's cache entry itself;
-        // the gallery re-renders via PLANTS_UPDATED.
-        await PlantService.uploadPlantImage(this.plant.id, fileItem.file, fileItem.date);
+        // The store refreshes this plant itself; the gallery re-renders from it.
+        await this.uploadPlantImage(this.plant.id, fileItem.file, fileItem.date);
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);
@@ -277,9 +277,8 @@ export default defineComponent({
 
     async handleImageEdited() {
       // Images are edited via ImageService and are embedded in the plant
-      // object — force-refresh this plant's cache entry; PLANTS_UPDATED
-      // then re-derives the gallery.
-      await PlantService.getPlantById(this.plantId, true).catch(() => undefined);
+      // object: force-refresh this plant; the gallery re-renders from the store.
+      await this.loadPlant(this.plantId, true).catch(() => undefined);
       this.showImageEditModal = false;
     },
   },

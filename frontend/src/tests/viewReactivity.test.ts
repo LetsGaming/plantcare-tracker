@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
+import { createTestingPinia } from "@pinia/testing";
 
 // ── Hoisted service spies ────────────────────────────────────────────────────
 
@@ -22,10 +23,6 @@ const spies = vi.hoisted(() => ({
   addWateringRecord: vi.fn(),
   editWateringRecord: vi.fn(),
   deleteWateringRecord: vi.fn(),
-  // PlantService
-  getPersonalPlants: vi.fn(async (): Promise<unknown[]> => []),
-  getPublicPlants: vi.fn(async (): Promise<unknown[]> => []),
-  addPlant: vi.fn(),
   // Substrate/Component/User/Calendar helpers used during mount
   getAllSubstrates: vi.fn(async (): Promise<unknown[]> => []),
   getWateringCategories: vi.fn(async (): Promise<unknown[]> => []),
@@ -45,22 +42,13 @@ vi.mock("@/services/WateringService", () => ({
   },
 }));
 
-vi.mock("@/services/PlantService", () => ({
-  default: {
-    getPersonalPlants: spies.getPersonalPlants,
-    getPublicPlants: spies.getPublicPlants,
-    addPlant: spies.addPlant,
-  },
-  PlantEvents: { PLANTS_UPDATED: "plants-updated" },
-}));
-
 vi.mock("@/services/SubstrateService", () => ({
   default: { getAllSubstrates: spies.getAllSubstrates },
   SubstrateEvents: { SUBSTRATES_UPDATED: "substrates-updated" },
 }));
 
 vi.mock("@/stores/session", () => ({
-  useSessionStore: () => ({ isGuest: false }),
+  useSessionStore: () => ({ isGuest: false, userId: 1 }),
 }));
 
 vi.mock("@/services/CalendarService", () => ({
@@ -77,6 +65,7 @@ vi.mock("@/services/general/LocalizationService", () => ({
 
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import PlantOverview from "@/views/plants/PlantOverview.vue";
+import { usePlantsStore } from "@/stores/plants";
 
 const record = (id: number, millis: number) => ({
   id,
@@ -90,8 +79,6 @@ const record = (id: number, millis: number) => ({
 beforeEach(() => {
   Object.values(spies).forEach((s) => s.mockClear());
   spies.getWateringRecords.mockResolvedValue([]);
-  spies.getPersonalPlants.mockResolvedValue([]);
-  spies.getPublicPlants.mockResolvedValue([]);
 });
 
 // ── WateringRecords component ────────────────────────────────────────────────
@@ -166,39 +153,40 @@ describe("WateringRecords — event-driven re-derivation", () => {
 
 // ── PlantOverview view ───────────────────────────────────────────────────────
 
-describe("PlantOverview — event-driven re-derivation", () => {
-  it("re-derives the private segment from the getter on PLANTS_UPDATED", async () => {
-    const wrapper = shallowMount(PlantOverview);
-    await flushPromises();
+const mountOverview = () => {
+  const pinia = createTestingPinia({ createSpy: vi.fn });
+  const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
+  return { wrapper, store: usePlantsStore(pinia) };
+};
 
-    // No ionViewWillEnter in the test harness → nothing loaded yet.
+const plant = (id: number, userId: number, isPublic: boolean) =>
+  ({ id, userId, name: `plant ${id}`, isPublic }) as Plant;
+
+describe("PlantOverview: store-driven lists", () => {
+  it("shows the active segment's plants and repaints when the store changes", async () => {
+    const { wrapper, store } = mountOverview();
+    await flushPromises();
     expect((wrapper.vm as any).plants).toEqual([]);
 
-    spies.getPersonalPlants.mockResolvedValue([{ id: -100, name: "optimistic", isPublic: false }]);
-    document.dispatchEvent(new CustomEvent("plants-updated"));
+    store.items = [plant(1, 1, false), plant(2, 1, true), plant(3, 9, true)];
     await flushPromises();
+    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2]);
 
-    expect(spies.getPersonalPlants).toHaveBeenCalledTimes(1);
-    // default segment is "private" — the public getter is never used
-    expect(spies.getPublicPlants).not.toHaveBeenCalled();
-    expect((wrapper.vm as any).plants).toEqual([{ id: -100, name: "optimistic", isPublic: false }]);
+    // an optimistic paint elsewhere shows up without any event or refetch
+    store.items.push(plant(-100, 1, false));
+    await flushPromises();
+    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2, -100]);
 
+    (wrapper.vm as any).handleSegmentChange("public");
+    await flushPromises();
+    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([2, 3]);
     wrapper.unmount();
-    document.dispatchEvent(new CustomEvent("plants-updated"));
-    await flushPromises();
-    expect(spies.getPersonalPlants).toHaveBeenCalledTimes(1);
   });
 
   it("uses the reconciled plant id for the dependent image upload", async () => {
-    const uploadPlantImage = vi.fn(async () => ({}));
-    // augment the mocked default export for this case
-    const PlantService = (await import("@/services/PlantService")).default as any;
-    PlantService.uploadPlantImage = uploadPlantImage;
-
-    spies.addPlant.mockResolvedValue({ id: 7, name: "Monstera" });
-
-    const wrapper = shallowMount(PlantOverview);
+    const { wrapper, store } = mountOverview();
     await flushPromises();
+    vi.mocked(store.addPlant).mockResolvedValue({ id: 7, name: "Monstera" } as Plant);
 
     const image = new File(["x"], "img.jpg", { type: "image/jpeg" });
     await (wrapper.vm as any).addPlant({
@@ -209,9 +197,9 @@ describe("PlantOverview — event-driven re-derivation", () => {
     });
     await flushPromises();
 
-    // The upload received the SERVER id from the reconciled plant —
+    // The upload received the SERVER id from the reconciled plant,
     // never a raw snake_case field off the response.
-    expect(uploadPlantImage).toHaveBeenCalledWith(7, image);
+    expect(store.uploadPlantImage).toHaveBeenCalledWith(7, image);
     wrapper.unmount();
   });
 });
