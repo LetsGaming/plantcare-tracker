@@ -37,6 +37,7 @@ export default tseslint.config(
   {
     files: [
       'server.ts',
+      'src/app.ts',
       'src/modules/*/presentation/**',
       'src/core/middleware/**',
       'src/core/sse/**',
