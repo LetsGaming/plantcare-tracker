@@ -8,7 +8,6 @@
 import { defineComponent, PropType } from "vue";
 import { Pie } from "vue-chartjs";
 import { Chart as ChartJS, Title, Tooltip, ArcElement, TooltipItem } from "chart.js";
-import { IonCardTitle } from "@ionic/vue";
 
 interface ChartData {
   name: string;
