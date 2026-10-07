@@ -13,7 +13,7 @@ import type { JwtPayload } from '../../src/core/middleware/auth';
 export const createDbMock = () => {
   const mockQuery    = vi.fn().mockReturnValue([]);
   const mockExecute  = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
-  const mockTx       = vi.fn().mockImplementation((fn: Function) =>
+  const mockTx       = vi.fn().mockImplementation((fn: (helpers: unknown) => unknown) =>
     fn({ query: mockQuery, execute: mockExecute }),
   );
   const mockGetDb   = vi.fn().mockReturnValue({ prepare: vi.fn().mockReturnValue({ get: vi.fn(), run: vi.fn() }) });

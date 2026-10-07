@@ -16,7 +16,7 @@ import type { Application } from 'express';
 
 const mockQuery   = vi.fn().mockReturnValue([]);
 const mockExecute = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
-const mockTx      = vi.fn().mockImplementation((fn: Function) =>
+const mockTx      = vi.fn().mockImplementation((fn: (helpers: unknown) => unknown) =>
   fn({ query: mockQuery, execute: mockExecute }),
 );
 
@@ -71,7 +71,7 @@ const makeAuthHeader = (role = 'user', id = USER_ID) => {
 beforeEach(() => {
   mockQuery.mockReset().mockReturnValue([]);
   mockExecute.mockReset().mockReturnValue({ affectedRows: 1, insertId: 1 });
-  mockTx.mockReset().mockImplementation((fn: Function) =>
+  mockTx.mockReset().mockImplementation((fn: (helpers: unknown) => unknown) =>
     fn({ query: mockQuery, execute: mockExecute }),
   );
 });

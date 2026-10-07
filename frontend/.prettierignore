@@ -1,0 +1,6 @@
+dist
+coverage
+android
+ios
+pnpm-lock.yaml
+public

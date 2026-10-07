@@ -60,7 +60,7 @@ describe('GetAllSubstratesUseCase', () => {
   it('merges public and own substrates, deduplicating by substrate_id', async () => {
     const repo = makeMockRepo();
     const shared = makeSubstrate({ substrate_id: 1 });
-    const own = makeSubstrate({ substrate_id: 2, is_public: 0 });
+    const own = makeSubstrate({ substrate_id: 2, is_public: false });
     asMock(repo.findAllPublic).mockResolvedValue([shared]);
     asMock(repo.findAllByUser).mockResolvedValue([shared, own]);
 

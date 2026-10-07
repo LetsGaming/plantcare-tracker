@@ -4,7 +4,7 @@
  * Tests for Plant domain entity and use cases.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Plant } from '../../../src/modules/plants/domain/Plant';
 import type { PlantRepository } from '../../../src/modules/plants/domain/Plant';
 import {
@@ -24,7 +24,7 @@ const makePlantData = (overrides = {}) => ({
   plant_name: 'Monstera deliciosa',
   plant_species: 'Monstera deliciosa',
   is_public: true,
-  plant_created_at: '2024-01-01',
+  plant_created_at: 1704067200,
   image_url: null,
   substrate: { substrate_id: 1, substrate_name: 'Aroid Mix' },
   images: [],
