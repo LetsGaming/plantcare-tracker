@@ -50,9 +50,6 @@
     }
   },
   "src/views/Login.vue": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "vue/multi-word-component-names": {
       "count": 1
     }

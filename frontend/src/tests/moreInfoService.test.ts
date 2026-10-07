@@ -1,6 +1,6 @@
 /**
  * Characterization tests for MoreInfoService: the zero-dependency markdown
- * converter (including its lack of escaping, SEC-07), the SSE accumulation
+ * converter (including escaping of model output), the SSE accumulation
  * flow, and the cache-shape inconsistency around invalidateInfoCache (BUG-06).
  */
 
@@ -102,9 +102,18 @@ describe("parseMarkdown", () => {
     expect(parse("## Lig")).toContain("Lig");
   });
 
-  it("passes raw HTML through unescaped (SEC-07)", () => {
-    const html = parse('<img src=x onerror="alert(1)">');
-    expect(html).toContain('<img src=x onerror="alert(1)">');
+  it("escapes raw HTML in model output", () => {
+    const html = parse('<img src=x onerror="alert(1)"> & <script>x</script>');
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<script");
+    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(html).toContain("&amp;");
+  });
+
+  it("still applies markdown after escaping", () => {
+    expect(parse("## **Light** <b>")).toContain(
+      '<h2 class="info-header"><strong>Light</strong> &lt;b&gt;</h2>',
+    );
   });
 });
 

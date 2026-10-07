@@ -118,7 +118,7 @@ import { personOutline, lockClosedOutline, eyeOffOutline, eyeOutline } from "ion
 import UserService from "@/services/UserService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
-import ApiUtils from "@/utils/apiUtils";
+import { describeUserFixableError } from "@/utils/apiErrorMessage";
 
 export default defineComponent({
   name: "Login",
@@ -272,17 +272,10 @@ export default defineComponent({
 
         this.isRegisterMode = false;
       } catch (error) {
-        if (ApiUtils.isApiError(error)) {
-          const message = error.data?.message;
-          const requirements = error.data?.data?.requirements;
-
-          let errorMessage = message;
-
-          if (Array.isArray(requirements)) {
-            errorMessage += requirements.map((r) => `• ${r}`).join("\n");
-            ToastService.showError(errorMessage, undefined, "top", "auth-button");
-            return;
-          }
+        const fixable = describeUserFixableError(error);
+        if (fixable) {
+          ToastService.showError(fixable, undefined, "top", "auth-button");
+          return;
         }
         // Fallback for other errors
         this.showAuthError({

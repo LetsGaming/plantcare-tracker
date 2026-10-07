@@ -8,6 +8,16 @@ const BASE_ENDPOINT = "/more-info";
 const CACHE_KEY = "more_info_data";
 const RESOURCE_KEY = "moreinfo.title";
 
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+
 export enum MoreInfoEvents {
   MORE_INFO_UPDATED = "more-info-updated",
 }
@@ -123,7 +133,9 @@ export default class MoreInfoService extends BaseService {
   private static parseMarkdown(markdown: string): string {
     if (!markdown) return "";
 
-    const text = markdown.replace(/([a-z0-9])(###|##|#)/g, "$1\n\n$2").replace(/(\n- )/g, "\n\n- ");
+    const text = escapeHtml(markdown)
+      .replace(/([a-z0-9])(###|##|#)/g, "$1\n\n$2")
+      .replace(/(\n- )/g, "\n\n- ");
 
     const blocks = text.split(/\n\n+/);
     let html = "";
