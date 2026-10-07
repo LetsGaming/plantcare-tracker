@@ -133,8 +133,8 @@ export interface ContractApp {
   client: TestClient;
   /** Direct database access for seeding fixtures that have no API. */
   db: {
-    query: typeof import('../../src/core/database/db').query;
-    execute: typeof import('../../src/core/database/db').execute;
+    query: <T extends object>(sql: string, params?: SqlParam[]) => T[];
+    execute: (sql: string, params?: SqlParam[]) => { affectedRows: number; insertId: number };
   };
   /** Issues a signed access token and registers the session, like a login. */
   session: (user: { id: number; username: string; role: string }) => {
@@ -155,8 +155,10 @@ export interface ContractApp {
   }>;
   /** Encoded 8x8 PNG, usable as an upload fixture. */
   png: () => Promise<Buffer>;
-  close: () => void;
+  close: () => Promise<void>;
 }
+
+type SqlParam = string | number | boolean | null | Buffer;
 
 const ROLE_ID = { admin: 1, user: 2, guest: 3 } as const;
 
@@ -173,9 +175,23 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
   const dbModule = await import('../../src/core/database/db');
   const authModule = await import('../../src/core/auth');
   (await import('../../src/core/logging')).logger.silent = true;
-  dbModule.getDb();
+  await dbModule.initDatabase();
 
   const app = createApp(deps);
+  const db: ContractApp['db'] = {
+    query: <T extends object>(sql: string, params: SqlParam[] = []) =>
+      dbModule
+        .getSqlite()
+        .prepare(sql)
+        .all(...params) as T[],
+    execute: (sql, params = []) => {
+      const result = dbModule
+        .getSqlite()
+        .prepare(sql)
+        .run(...params);
+      return { affectedRows: result.changes, insertId: Number(result.lastInsertRowid) };
+    },
+  };
   const hash = await bcrypt.hash('contract-password', 4);
 
   const session: ContractApp['session'] = (user) => {
@@ -191,16 +207,17 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
   const createUser: ContractApp['createUser'] = async (role = 'user') => {
     counter += 1;
     const username = `${role}-${counter}-${Math.random().toString(36).slice(2, 6)}`;
-    const result = dbModule.execute(
-      'INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)',
-      [username, hash, ROLE_ID[role]],
-    );
+    const result = db.execute('INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)', [
+      username,
+      hash,
+      ROLE_ID[role],
+    ]);
     return { id: result.insertId, username, role };
   };
 
   return {
     client: createSupertestClient(app),
-    db: { query: dbModule.query, execute: dbModule.execute },
+    db,
     session,
     createUser,
     signIn: async (role = 'user') => {
@@ -212,8 +229,8 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
       sharp({ create: { width: 8, height: 8, channels: 3, background: '#2a8a4a' } })
         .png()
         .toBuffer(),
-    close: () => {
-      dbModule.closeDb();
+    close: async () => {
+      await dbModule.closeDb();
       // Sharp can keep uploaded files open on Windows; the OS temp dir is cleaned up later.
       try {
         fs.rmSync(workDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });

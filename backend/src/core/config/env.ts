@@ -34,6 +34,15 @@ export interface AppConfig {
 export const isProductionEnv = (env: NodeJS.ProcessEnv = process.env): boolean =>
   env.NODE_ENV === 'production';
 
+const IN_MEMORY_DB = ':memory:';
+
+const resolveDbPath = (configured: string | undefined): string => {
+  if (configured === IN_MEMORY_DB) return configured;
+  return configured
+    ? path.resolve(configured)
+    : path.resolve(process.cwd(), 'data', 'plantcare.db');
+};
+
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const missing = ['JWT_SECRET', 'JWT_REFRESH_SECRET'].filter((key) => !env[key]);
   if (missing.length) {
@@ -53,9 +62,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
           .filter(Boolean)
       : [],
     apiVersionPath: env.API_VERSION_PATH || null,
-    dbPath: env.DB_PATH
-      ? path.resolve(env.DB_PATH)
-      : path.resolve(process.cwd(), 'data', 'plantcare.db'),
+    dbPath: resolveDbPath(env.DB_PATH),
     uploadsDir: env.NAS_PATH ? path.resolve(env.NAS_PATH) : path.resolve(process.cwd(), 'uploads'),
     jwt: {
       secret: env.JWT_SECRET as string,

@@ -14,8 +14,8 @@ export interface SpeciesEntry {
 
 /** Persistence port for the species catalogue. */
 export interface SpeciesCatalog {
-  all(): SpeciesEntry[];
-  add(name: string): number;
+  all(): Promise<SpeciesEntry[]>;
+  add(name: string): Promise<number>;
 }
 
 interface IndexedSpecies extends SpeciesEntry {
@@ -68,11 +68,11 @@ export class SpeciesResolver {
    * Returns the id of the matching species, inserting a new one when no
    * existing entry is close enough. Blank names resolve to null.
    */
-  resolve(name: string | null | undefined): number | null {
+  async resolve(name: string | null | undefined): Promise<number | null> {
     const trimmed = name?.trim();
     if (!trimmed) return null;
 
-    const index = this.load();
+    const index = await this.load();
     const lower = trimmed.toLowerCase();
     const exact = index.find((entry) => entry.lower === lower);
     if (exact) return exact.id;
@@ -93,13 +93,13 @@ export class SpeciesResolver {
       if (bestId !== null) return bestId;
     }
 
-    const id = this.catalog.add(trimmed);
+    const id = await this.catalog.add(trimmed);
     this.index = null;
     return id;
   }
 
-  private load(): IndexedSpecies[] {
-    this.index ??= this.catalog.all().map((entry) => ({
+  private async load(): Promise<IndexedSpecies[]> {
+    this.index ??= (await this.catalog.all()).map((entry) => ({
       ...entry,
       lower: entry.name.toLowerCase(),
       normalised: normaliseSpecies(entry.name),

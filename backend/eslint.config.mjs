@@ -4,7 +4,7 @@ import globals from 'globals';
 import importX from 'eslint-plugin-import-x';
 import prettier from 'eslint-config-prettier/flat';
 
-const HTTP_AND_DB = ['express', 'better-sqlite3'];
+const HTTP_AND_DB = ['express', 'better-sqlite3', 'kysely', 'kysely/*'];
 
 export default tseslint.config(
   {
@@ -45,7 +45,7 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': 'off' },
   },
   {
-    files: ['src/modules/*/infrastructure/**', 'src/core/database/**'],
+    files: ['src/modules/*/infrastructure/**', 'src/core/database/**', 'src/tools/**'],
     rules: { 'no-restricted-imports': ['error', { patterns: ['express'] }] },
   },
   {

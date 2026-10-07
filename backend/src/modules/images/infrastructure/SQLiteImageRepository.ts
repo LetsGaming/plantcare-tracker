@@ -5,7 +5,8 @@
  * Single table `images`: id, image_url, entity_type, entity_id, upload_date.
  */
 
-import { query, execute, transaction } from '../../../core/database/db';
+import { sql } from 'kysely';
+import { getKysely } from '../../../core/database/db';
 import type {
   ImageRepository,
   ImageRecord,
@@ -14,39 +15,26 @@ import type {
   UpdateImageDTO,
 } from '../domain/Image';
 
-type SqlParam = string | number | boolean | null;
-
-interface ImageRow {
-  id: number;
-  url: string;
-  date: number;
-  entityType: EntityType;
-}
-
-interface StoredImageRow extends ImageRow {
-  entityId: number;
-}
+const imageRecords = () =>
+  getKysely()
+    .selectFrom('images')
+    .select(['id', 'image_url as url', 'upload_date as date', 'entity_type as entityType']);
 
 export class SQLiteImageRepository implements ImageRepository {
   async findByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
-    return query<ImageRow>(
-      `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType"
-       FROM images
-       WHERE entity_type = ? AND entity_id = ?
-       ORDER BY upload_date ASC`,
-      [entityType, entityId],
-    );
+    return imageRecords()
+      .where('entity_type', '=', entityType)
+      .where('entity_id', '=', entityId)
+      .orderBy('upload_date', 'asc')
+      .execute();
   }
 
   async findById(imageId: number): Promise<StoredImage | null> {
-    const rows = query<StoredImageRow>(
-      `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType",
-              entity_id AS "entityId"
-       FROM images
-       WHERE id = ?`,
-      [imageId],
-    );
-    return rows[0] ?? null;
+    const row = await imageRecords()
+      .select('entity_id as entityId')
+      .where('id', '=', imageId)
+      .executeTakeFirst();
+    return row ?? null;
   }
 
   async create(
@@ -55,32 +43,28 @@ export class SQLiteImageRepository implements ImageRepository {
     imageUrl: string,
     uploadDate?: number,
   ): Promise<number> {
-    const result = execute(
-      `INSERT INTO images (image_url, entity_type, entity_id, upload_date)
-       VALUES (?, ?, ?, COALESCE(?, strftime('%s','now')))`,
-      [imageUrl, entityType, entityId, uploadDate ?? null],
-    );
-    return result.insertId;
+    const result = await getKysely()
+      .insertInto('images')
+      .values({
+        image_url: imageUrl,
+        entity_type: entityType,
+        entity_id: entityId,
+        upload_date: sql<number>`COALESCE(${uploadDate ?? null}, strftime('%s','now'))`,
+      })
+      .executeTakeFirstOrThrow();
+    return Number(result.insertId);
   }
 
   async update(imageId: number, fields: UpdateImageDTO): Promise<void> {
-    const updates: string[] = [];
-    const params: SqlParam[] = [];
-    if (fields.imageUrl !== undefined) {
-      updates.push('image_url = ?');
-      params.push(fields.imageUrl);
-    }
-    if (fields.uploadDate !== undefined) {
-      updates.push('upload_date = ?');
-      params.push(fields.uploadDate);
-    }
-    if (!updates.length) return;
-    params.push(imageId);
-    execute(`UPDATE images SET ${updates.join(', ')} WHERE id = ?`, params);
+    const changes: { image_url?: string; upload_date?: number } = {};
+    if (fields.imageUrl !== undefined) changes.image_url = fields.imageUrl;
+    if (fields.uploadDate !== undefined) changes.upload_date = fields.uploadDate;
+    if (!Object.keys(changes).length) return;
+    await getKysely().updateTable('images').set(changes).where('id', '=', imageId).execute();
   }
 
   async delete(imageId: number): Promise<void> {
-    execute(`DELETE FROM images WHERE id = ?`, [imageId]);
+    await getKysely().deleteFrom('images').where('id', '=', imageId).execute();
   }
 
   /**
@@ -88,14 +72,27 @@ export class SQLiteImageRepository implements ImageRepository {
    * the deleted records so the caller can clean up the files.
    */
   async deleteByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
-    const images = await this.findByEntity(entityType, entityId);
-
-    transaction(({ execute: exec }) => {
-      for (const img of images) {
-        exec(`DELETE FROM images WHERE id = ?`, [img.id]);
-      }
-    });
-
-    return images;
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const images = await trx
+          .selectFrom('images')
+          .select(['id', 'image_url as url', 'upload_date as date', 'entity_type as entityType'])
+          .where('entity_type', '=', entityType)
+          .where('entity_id', '=', entityId)
+          .orderBy('upload_date', 'asc')
+          .execute();
+        if (images.length) {
+          await trx
+            .deleteFrom('images')
+            .where(
+              'id',
+              'in',
+              images.map((i) => i.id),
+            )
+            .execute();
+        }
+        return images;
+      });
   }
 }

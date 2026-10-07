@@ -1,10 +1,9 @@
-import { query, execute } from '../../../core/database/db';
+import { sql } from 'kysely';
+import { getKysely } from '../../../core/database/db';
 import type { SpeciesResolver } from '../domain/SpeciesResolver';
 import type { PlantRepository, CreatePlantDTO, UpdatePlantDTO } from '../domain/Plant';
 import { Plant } from '../domain/Plant';
 import type { SubstrateRef, ImageRef } from '../domain/Plant';
-
-type SqlParam = string | number | boolean | null;
 
 // ── Raw DB row ────────────────────────────────────────────────────────────────
 interface PlantRow {
@@ -22,96 +21,102 @@ interface PlantRow {
   upload_date: number | null;
 }
 
-// ── Base query using consolidated images ───────────────────────────────────────
-const BASE_QUERY = `
-  SELECT
-    p.id            AS plant_id,
-    p.user_id       AS plant_user_id,
-    p.name          AS plant_name,
-    p.species_id    AS plant_species_id,
-    p.created_at    AS plant_created_at,
-    p.is_public     AS is_public,
-    species.name    AS plant_species_name,
-    s.id            AS substrate_id,
-    s.name          AS substrate_name,
-    img.id          AS image_id,
-    REPLACE(img.image_url, '\\', '/') AS image_url,
-    img.upload_date
-  FROM plants p
-  LEFT JOIN species           ON p.species_id = species.id
-  LEFT JOIN substrates s      ON p.substrate_id = s.id
-  LEFT JOIN images img        ON img.entity_type = 'plant' AND img.entity_id = p.id
-`;
+/** Image URLs stored by older releases may contain Windows path separators. */
+const WINDOWS_SEPARATOR = '\\';
+
+const plantRows = () =>
+  getKysely()
+    .selectFrom('plants as p')
+    .leftJoin('species', 'p.species_id', 'species.id')
+    .leftJoin('substrates as s', 'p.substrate_id', 's.id')
+    .leftJoin('images as img', (join) =>
+      join.onRef('img.entity_id', '=', 'p.id').on('img.entity_type', '=', 'plant'),
+    )
+    .select([
+      'p.id as plant_id',
+      'p.user_id as plant_user_id',
+      'p.name as plant_name',
+      'p.species_id as plant_species_id',
+      'p.created_at as plant_created_at',
+      'p.is_public as is_public',
+      'species.name as plant_species_name',
+      's.id as substrate_id',
+      's.name as substrate_name',
+      'img.id as image_id',
+      sql<string | null>`REPLACE(img.image_url, ${WINDOWS_SEPARATOR}, '/')`.as('image_url'),
+      'img.upload_date',
+    ]);
 
 // ── Repository ───────────────────────────────────────────────────────────────
 export class SQLitePlantRepository implements PlantRepository {
   constructor(private readonly species: SpeciesResolver) {}
 
   async findAllPublic(): Promise<Plant[]> {
-    const rows = query<PlantRow>(`${BASE_QUERY} WHERE p.is_public = 1 ORDER BY p.created_at DESC`);
+    const rows = await plantRows()
+      .where('p.is_public', '=', 1)
+      .orderBy('p.created_at', 'desc')
+      .execute();
     return this.groupRows(rows);
   }
 
   async findAllByUser(userId: number): Promise<Plant[]> {
-    const rows = query<PlantRow>(`${BASE_QUERY} WHERE p.user_id = ? ORDER BY p.created_at DESC`, [
-      userId,
-    ]);
+    const rows = await plantRows()
+      .where('p.user_id', '=', userId)
+      .orderBy('p.created_at', 'desc')
+      .execute();
     return this.groupRows(rows);
   }
 
   async findById(id: number): Promise<Plant | null> {
-    const rows = query<PlantRow>(`${BASE_QUERY} WHERE p.id = ?`, [id]);
-    const plants = this.groupRows(rows);
-    return plants[0] ?? null;
+    const rows = await plantRows().where('p.id', '=', id).execute();
+    return this.groupRows(rows)[0] ?? null;
   }
 
   async create(dto: CreatePlantDTO): Promise<number> {
-    const speciesId = this.species.resolve(dto.species);
-    const result = execute(
-      `INSERT INTO plants (name, species_id, substrate_id, is_public, user_id, created_at)
-       VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'))`,
-      [dto.name, speciesId, dto.substrateId ?? null, dto.isPublic ? 1 : 0, dto.userId],
-    );
-
-    return result.insertId as number;
+    const speciesId = await this.species.resolve(dto.species);
+    const result = await getKysely()
+      .insertInto('plants')
+      .values({
+        name: dto.name,
+        species_id: speciesId,
+        substrate_id: dto.substrateId ?? null,
+        is_public: dto.isPublic ? 1 : 0,
+        user_id: dto.userId,
+        created_at: sql<number>`strftime('%s', 'now')`,
+      })
+      .executeTakeFirstOrThrow();
+    return Number(result.insertId);
   }
 
   async update(id: number, userId: number, dto: UpdatePlantDTO): Promise<boolean> {
-    const updates: string[] = [];
-    const params: SqlParam[] = [];
+    const changes: {
+      name?: string;
+      species_id?: number | null;
+      substrate_id?: number;
+      is_public?: number;
+    } = {};
+    if (dto.name !== undefined) changes.name = dto.name;
+    if (dto.species !== undefined) changes.species_id = await this.species.resolve(dto.species);
+    if (dto.substrateId !== undefined) changes.substrate_id = dto.substrateId;
+    if (dto.isPublic !== undefined) changes.is_public = dto.isPublic ? 1 : 0;
+    if (Object.keys(changes).length === 0) return false;
 
-    if (dto.name !== undefined) {
-      updates.push('name = ?');
-      params.push(dto.name);
-    }
-    if (dto.species !== undefined) {
-      updates.push('species_id = ?');
-      params.push(this.species.resolve(dto.species));
-    }
-    if (dto.substrateId !== undefined) {
-      updates.push('substrate_id = ?');
-      params.push(dto.substrateId);
-    }
-    if (dto.isPublic !== undefined) {
-      updates.push('is_public = ?');
-      params.push(dto.isPublic ? 1 : 0);
-    }
-
-    if (updates.length === 0) return false;
-
-    params.push(id, userId);
-
-    const result = execute(
-      `UPDATE plants SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
-      params,
-    );
-
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .updateTable('plants')
+      .set(changes)
+      .where('id', '=', id)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+    return Number(result.numUpdatedRows) > 0;
   }
 
   async delete(id: number, userId: number): Promise<boolean> {
-    const result = execute('DELETE FROM plants WHERE id = ? AND user_id = ?', [id, userId]);
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .deleteFrom('plants')
+      .where('id', '=', id)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+    return Number(result.numDeletedRows) > 0;
   }
 
   // ── Collapse JOIN rows into Plant entities ────────────────────────────────

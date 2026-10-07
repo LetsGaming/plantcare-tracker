@@ -10,12 +10,11 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
+import type { Server } from 'http';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-// Open (and initialise) the SQLite database before anything else imports it.
-import { getDb, closeDb } from './src/core/database/db';
-getDb(); // singleton: schema auto-applied on first run
+import { initDatabase, closeDb } from './src/core/database/db';
 
 import { logger } from './src/core/logging';
 import { createApp } from './src/app';
@@ -23,16 +22,19 @@ import { getConfig } from './src/core/config';
 import { closeBrowser } from './src/modules/sales/infrastructure/HttpFetcher';
 
 const { port: PORT } = getConfig();
-const app = createApp();
+let server: Server | undefined;
 
-const server = app.listen(PORT, () => {
-  logger.info(`V2 server running on port ${PORT}`); // stays info — visible in both dev and prod on startup
-});
+const start = async (): Promise<void> => {
+  await initDatabase();
+  server = createApp().listen(PORT, () => {
+    logger.info(`V2 server running on port ${PORT}`);
+  });
+};
 
 const releaseResources = async (): Promise<void> => {
   try {
     await closeBrowser();
-    closeDb(); // flushes WAL checkpoint and closes the SQLite file
+    await closeDb(); // flushes WAL checkpoint and closes the SQLite file
     logger.debug('Shutdown complete.');
   } catch (err) {
     logger.error('Error during shutdown', { err });
@@ -41,9 +43,9 @@ const releaseResources = async (): Promise<void> => {
 
 const handleShutdown = (signal: string): void => {
   logger.debug(`${signal}: shutting down gracefully...`);
-  server.close(() => {
-    void releaseResources().then(() => process.exit(0));
-  });
+  const finish = (): void => void releaseResources().then(() => process.exit(0));
+  if (server) server.close(finish);
+  else finish();
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');
     process.exit(1);
@@ -69,3 +71,8 @@ process.on('uncaughtException', (err) => {
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+start().catch((err: unknown) => {
+  logger.error('Failed to start', { err });
+  process.exit(1);
+});

@@ -12,11 +12,11 @@ const makeCatalog = (names: string[]) => {
   const entries: SpeciesEntry[] = names.map((name, i) => ({ id: i + 1, name }));
   let reads = 0;
   const catalog: SpeciesCatalog = {
-    all: () => {
+    all: async () => {
       reads += 1;
       return [...entries];
     },
-    add: (name) => {
+    add: async (name) => {
       const id = entries.length + 1;
       entries.push({ id, name });
       return id;
@@ -42,45 +42,45 @@ describe('helpers', () => {
 });
 
 describe('SpeciesResolver', () => {
-  it('returns null for blank names', () => {
+  it('returns null for blank names', async () => {
     const { catalog } = makeCatalog([]);
     const resolver = new SpeciesResolver(catalog);
-    expect(resolver.resolve(undefined)).toBeNull();
-    expect(resolver.resolve('   ')).toBeNull();
+    expect(await resolver.resolve(undefined)).toBeNull();
+    expect(await resolver.resolve('   ')).toBeNull();
   });
 
-  it('reuses an exact match ignoring case', () => {
+  it('reuses an exact match ignoring case', async () => {
     const { catalog, entries } = makeCatalog(['Monstera deliciosa']);
-    expect(new SpeciesResolver(catalog).resolve('monstera DELICIOSA')).toBe(1);
+    expect(await new SpeciesResolver(catalog).resolve('monstera DELICIOSA')).toBe(1);
     expect(entries).toHaveLength(1);
   });
 
-  it('reuses the closest entry within the threshold', () => {
+  it('reuses the closest entry within the threshold', async () => {
     const { catalog, entries } = makeCatalog(['Monstera deliciosa', 'Monstera adansonii']);
-    expect(new SpeciesResolver(catalog).resolve('Monstera delicosa')).toBe(1);
+    expect(await new SpeciesResolver(catalog).resolve('Monstera delicosa')).toBe(1);
     expect(entries).toHaveLength(2);
   });
 
-  it('requires exact matches for short names', () => {
+  it('requires exact matches for short names', async () => {
     const { catalog, entries } = makeCatalog(['Aloe']);
-    expect(new SpeciesResolver(catalog).resolve('Alo')).toBe(2);
+    expect(await new SpeciesResolver(catalog).resolve('Alo')).toBe(2);
     expect(entries.map((e) => e.name)).toEqual(['Aloe', 'Alo']);
   });
 
-  it('inserts a trimmed new species and sees it on the next call', () => {
+  it('inserts a trimmed new species and sees it on the next call', async () => {
     const { catalog, entries, reads } = makeCatalog(['Pilea peperomioides']);
     const resolver = new SpeciesResolver(catalog);
-    const id = resolver.resolve('  Hoya carnosa ');
+    const id = await resolver.resolve('  Hoya carnosa ');
     expect(entries.at(-1)).toEqual({ id, name: 'Hoya carnosa' });
-    expect(resolver.resolve('hoya carnosa')).toBe(id);
+    expect(await resolver.resolve('hoya carnosa')).toBe(id);
     expect(reads()).toBe(2);
   });
 
-  it('reads the catalogue once while nothing is inserted', () => {
+  it('reads the catalogue once while nothing is inserted', async () => {
     const { catalog, reads } = makeCatalog(['Pilea peperomioides']);
     const resolver = new SpeciesResolver(catalog);
-    resolver.resolve('Pilea peperomioides');
-    resolver.resolve('pilea peperomioides');
+    await resolver.resolve('Pilea peperomioides');
+    await resolver.resolve('pilea peperomioides');
     expect(reads()).toBe(1);
   });
 });

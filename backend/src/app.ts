@@ -11,7 +11,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 
-import { getDb } from './core/database/db';
+import { getSqlite } from './core/database/db';
 import {
   requestIdMiddleware,
   globalErrorHandler,
@@ -95,7 +95,7 @@ export const createApp = (deps: AppDeps = {}): express.Express => {
   app.get(`${V}/health`, (_req, res) => {
     try {
       // Synchronous ping: better-sqlite3 throws immediately if the DB is closed
-      getDb().prepare('SELECT 1').get();
+      getSqlite().prepare('SELECT 1').get();
       const uptimeSeconds = process.uptime();
       const d = Math.floor(uptimeSeconds / 86400);
       const h = Math.floor((uptimeSeconds % 86400) / 3600);
@@ -117,7 +117,7 @@ export const createApp = (deps: AppDeps = {}): express.Express => {
 
   app.get(`${V}/health/ready`, (_req, res) => {
     try {
-      getDb().prepare('SELECT 1').get();
+      getSqlite().prepare('SELECT 1').get();
       res.json({ ready: true });
     } catch {
       res.status(503).json({ ready: false });

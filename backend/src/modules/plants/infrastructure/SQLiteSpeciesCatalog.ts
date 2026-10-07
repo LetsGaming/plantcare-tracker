@@ -1,12 +1,16 @@
-import { query, execute } from '../../../core/database/db';
+import { getKysely } from '../../../core/database/db';
 import type { SpeciesCatalog, SpeciesEntry } from '../domain/SpeciesResolver';
 
 export class SQLiteSpeciesCatalog implements SpeciesCatalog {
-  all(): SpeciesEntry[] {
-    return query<SpeciesEntry>('SELECT id, name FROM species ORDER BY id');
+  async all(): Promise<SpeciesEntry[]> {
+    return getKysely().selectFrom('species').select(['id', 'name']).orderBy('id').execute();
   }
 
-  add(name: string): number {
-    return execute('INSERT INTO species (name) VALUES (?)', [name]).insertId;
+  async add(name: string): Promise<number> {
+    const result = await getKysely()
+      .insertInto('species')
+      .values({ name })
+      .executeTakeFirstOrThrow();
+    return Number(result.insertId);
   }
 }

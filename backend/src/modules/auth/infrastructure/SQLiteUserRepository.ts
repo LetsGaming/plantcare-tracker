@@ -2,80 +2,75 @@
  * modules/auth/infrastructure/SQLiteUserRepository.ts
  */
 
-import { query, execute } from '../../../core/database/db';
+import { sql } from 'kysely';
+import { getKysely } from '../../../core/database/db';
 import type { UserRepository, UserData } from '../domain/User';
 
-interface UserRow {
-  id: number;
-  username: string;
-  password: string;
-  role: string;
-}
-
 /** The shared guest account is never edited or removed through the API. */
-const NOT_GUEST = `role_id <> COALESCE((SELECT id FROM roles WHERE name = 'guest' COLLATE NOCASE), -1)`;
+const notGuest = sql<boolean>`role_id <> COALESCE((SELECT id FROM roles WHERE name = 'guest' COLLATE NOCASE), -1)`;
 
 export class SQLiteUserRepository implements UserRepository {
   async findByUsername(username: string): Promise<UserData | null> {
-    const rows = query<UserRow>(
-      `SELECT users.id, username, password, roles.name AS role
-       FROM users LEFT JOIN roles ON users.role_id = roles.id
-       WHERE username = ?`,
-      [username],
-    );
-    return rows[0] ?? null;
+    const row = await getKysely()
+      .selectFrom('users')
+      .leftJoin('roles', 'users.role_id', 'roles.id')
+      .select(['users.id', 'users.username', 'users.password', 'roles.name as role'])
+      .where('users.username', '=', username)
+      .executeTakeFirst();
+    return row ? { ...row, role: row.role ?? '' } : null;
   }
 
   async create(
     username: string,
     hashedPassword: string,
   ): Promise<{ id: number; username: string }> {
-    // Resolve the lowest-privilege role at runtime rather than relying on
-    // the column DEFAULT (3). On a fresh database the roles table may not
-    // yet contain that row, which would fire a FOREIGN KEY constraint error.
-    //
-    // Strategy: prefer the role named 'user' (case-insensitive); fall back
-    // to the role with the highest id (last inserted = least privileged by
-    // convention). Two separate queries avoids the invalid SQLite syntax
-    // of placing LIMIT on individual UNION ALL arms.
-    let roleRow = query<{ id: number }>(
-      `SELECT id FROM roles WHERE name = 'user' COLLATE NOCASE LIMIT 1`,
-    );
-    if (!roleRow.length) {
-      roleRow = query<{ id: number }>(`SELECT id FROM roles ORDER BY id DESC LIMIT 1`);
-    }
+    const db = getKysely();
 
-    if (!roleRow.length) {
-      // No roles exist at all — the schema seed hasn't run yet.
+    // Prefer the role named 'user'; fall back to the highest role id (the
+    // least privileged by convention) so registration works on databases
+    // whose role names differ.
+    const named = await db
+      .selectFrom('roles')
+      .select('id')
+      .where(sql<boolean>`name = 'user' COLLATE NOCASE`)
+      .limit(1)
+      .executeTakeFirst();
+    const role =
+      named ?? (await db.selectFrom('roles').select('id').orderBy('id', 'desc').executeTakeFirst());
+    if (!role) {
       throw new Error(
         'Cannot register: no roles found in the database. Run the schema seed first.',
       );
     }
 
-    const roleId = roleRow[0].id;
-    const result = execute('INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)', [
-      username,
-      hashedPassword,
-      roleId,
-    ]);
-    return { id: result.insertId, username };
+    const result = await db
+      .insertInto('users')
+      .values({ username, password: hashedPassword, role_id: role.id })
+      .executeTakeFirstOrThrow();
+    return { id: Number(result.insertId), username };
   }
 
   async update(userId: number, fields: Partial<Record<string, unknown>>): Promise<boolean> {
-    const ALLOWED_COLUMNS = new Set(['username', 'password']);
-    const keys = Object.keys(fields).filter(
-      (k) => k !== 'passwordConfirmation' && ALLOWED_COLUMNS.has(k),
-    );
-    if (!keys.length) return false;
+    const changes: { username?: string; password?: string } = {};
+    if (typeof fields['username'] === 'string') changes.username = fields['username'];
+    if (typeof fields['password'] === 'string') changes.password = fields['password'];
+    if (!Object.keys(changes).length) return false;
 
-    const setClause = keys.map((k) => `${k} = ?`).join(', ');
-    const values = [...keys.map((k) => fields[k] as string | number | boolean | null), userId];
-    const result = execute(`UPDATE users SET ${setClause} WHERE id = ? AND ${NOT_GUEST}`, values);
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .updateTable('users')
+      .set(changes)
+      .where('id', '=', userId)
+      .where(notGuest)
+      .executeTakeFirst();
+    return Number(result.numUpdatedRows) > 0;
   }
 
   async delete(userId: number): Promise<boolean> {
-    const result = execute(`DELETE FROM users WHERE id = ? AND ${NOT_GUEST}`, [userId]);
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .deleteFrom('users')
+      .where('id', '=', userId)
+      .where(notGuest)
+      .executeTakeFirst();
+    return Number(result.numDeletedRows) > 0;
   }
 }

@@ -6,27 +6,28 @@
  * by (entity_type, entity_id) and carry no foreign key.
  */
 
-import { query } from '../../../core/database/db';
+import { getKysely } from '../../../core/database/db';
 import type { EntityType, ImageEntityInfo, ImageEntityLookup } from '../domain/Image';
-
-const OWNED_ENTITY_TABLE = {
-  plant: 'plants',
-  substrate: 'substrates',
-} as const;
 
 export class SQLiteImageEntityLookup implements ImageEntityLookup {
   async find(entityType: EntityType, entityId: number): Promise<ImageEntityInfo | null> {
+    const db = getKysely();
+
     if (entityType === 'component') {
-      const rows = query<{ id: number }>('SELECT id FROM components WHERE id = ?', [entityId]);
-      return rows[0] ? { ownerId: null, isPublic: true } : null;
+      const row = await db
+        .selectFrom('components')
+        .select('id')
+        .where('id', '=', entityId)
+        .executeTakeFirst();
+      return row ? { ownerId: null, isPublic: true } : null;
     }
 
-    const table = OWNED_ENTITY_TABLE[entityType];
-    const rows = query<{ ownerId: number; isPublic: number }>(
-      `SELECT user_id AS ownerId, is_public AS isPublic FROM ${table} WHERE id = ?`,
-      [entityId],
-    );
-    const row = rows[0];
+    const table = entityType === 'plant' ? 'plants' : 'substrates';
+    const row = await db
+      .selectFrom(table)
+      .select(['user_id as ownerId', 'is_public as isPublic'])
+      .where('id', '=', entityId)
+      .executeTakeFirst();
     return row ? { ownerId: row.ownerId, isPublic: Boolean(row.isPublic) } : null;
   }
 }

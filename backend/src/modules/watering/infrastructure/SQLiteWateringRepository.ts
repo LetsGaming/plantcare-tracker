@@ -1,4 +1,5 @@
-import { query, execute } from '../../../core/database/db';
+import { sql } from 'kysely';
+import { getKysely } from '../../../core/database/db';
 import type {
   WateringRepository,
   WateringRecordData,
@@ -6,8 +7,6 @@ import type {
   CreateWateringDTO,
   UpdateWateringDTO,
 } from '../domain/WateringRecord';
-
-type SqlParam = string | number | boolean | null;
 
 interface WateringRow {
   record_id: number;
@@ -20,93 +19,84 @@ interface WateringRow {
   owner_id: number;
 }
 
-// Added JOIN plants p to allow filtering by user_id
-const BASE_QUERY = `
-  SELECT wr.id AS record_id, wr.plant_id, wr.date AS watering_date, wr.used_fertilizer,
-    ft.id AS fertilizer_type_id, ft.name AS fertilizer_type,
-    p.name AS plant_name, p.user_id AS owner_id
-  FROM watering_records wr
-  JOIN plants p ON wr.plant_id = p.id
-  LEFT JOIN fertilizer_types ft ON wr.fertilizer_type_id = ft.id
-`;
+const wateringRows = () =>
+  getKysely()
+    .selectFrom('watering_records as wr')
+    .innerJoin('plants as p', 'wr.plant_id', 'p.id')
+    .leftJoin('fertilizer_types as ft', 'wr.fertilizer_type_id', 'ft.id')
+    .select([
+      'wr.id as record_id',
+      'wr.plant_id',
+      'wr.date as watering_date',
+      'wr.used_fertilizer',
+      'ft.id as fertilizer_type_id',
+      'ft.name as fertilizer_type',
+      'p.name as plant_name',
+      'p.user_id as owner_id',
+    ]);
+
+const ownedPlantIds = (userId: number) =>
+  getKysely().selectFrom('plants').select('id').where('user_id', '=', userId);
 
 export class SQLiteWateringRepository implements WateringRepository {
   async findByPlant(plantId: number, userId: number): Promise<WateringRecordData[]> {
-    const rows = query<WateringRow>(`${BASE_QUERY} WHERE wr.plant_id = ? AND p.user_id = ?`, [
-      plantId,
-      userId,
-    ]);
+    const rows = await wateringRows()
+      .where('wr.plant_id', '=', plantId)
+      .where('p.user_id', '=', userId)
+      .execute();
     return rows.map(mapRow);
   }
 
   async findById(recordId: number, userId: number): Promise<WateringRecordData | null> {
-    const rows = query<WateringRow>(`${BASE_QUERY} WHERE wr.id = ? AND p.user_id = ?`, [
-      recordId,
-      userId,
-    ]);
-    return rows[0] ? mapRow(rows[0]) : null;
+    const row = await wateringRows()
+      .where('wr.id', '=', recordId)
+      .where('p.user_id', '=', userId)
+      .executeTakeFirst();
+    return row ? mapRow(row) : null;
   }
 
   async findFertilizerTypes(): Promise<FertilizerType[]> {
-    const rows = query<{ id: number; name: string }>('SELECT id, name FROM fertilizer_types');
+    const rows = await getKysely().selectFrom('fertilizer_types').select(['id', 'name']).execute();
     return rows.map((r) => ({ fertilizer_id: r.id, fertilizer_name: r.name }));
   }
 
+  /** Inserts only when the plant belongs to the user; returns 0 otherwise. */
   async create(dto: CreateWateringDTO, userId: number): Promise<number> {
-    const result = execute(
-      `INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)
-       SELECT ?, ?, ?, ? WHERE EXISTS (
-         SELECT 1 FROM plants WHERE id = ? AND user_id = ?
-       )`,
-      [
-        dto.plantId,
-        dto.date,
-        dto.usedFertilizer ? 1 : 0,
-        dto.fertilizerTypeId ?? null,
-        dto.plantId,
-        userId,
-      ],
-    );
-    return result.affectedRows === 0 ? 0 : result.insertId;
+    const result = await sql`
+      INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)
+      SELECT ${dto.plantId}, ${dto.date}, ${dto.usedFertilizer ? 1 : 0}, ${dto.fertilizerTypeId ?? null}
+      WHERE EXISTS (SELECT 1 FROM plants WHERE id = ${dto.plantId} AND user_id = ${userId})
+    `.execute(getKysely());
+    return Number(result.numAffectedRows ?? 0) === 0 ? 0 : Number(result.insertId);
   }
 
   async update(recordId: number, userId: number, dto: UpdateWateringDTO): Promise<boolean> {
-    const updates: string[] = [];
-    const params: SqlParam[] = [];
+    const changes: {
+      date?: number;
+      used_fertilizer?: number;
+      fertilizer_type_id?: number | null;
+    } = {};
+    if (dto.date !== undefined && dto.date !== null) changes.date = dto.date;
+    if (dto.usedFertilizer !== undefined) changes.used_fertilizer = dto.usedFertilizer ? 1 : 0;
+    if (dto.fertilizerTypeId !== undefined) changes.fertilizer_type_id = dto.fertilizerTypeId;
+    if (!Object.keys(changes).length) return false;
 
-    if (dto.date !== undefined) {
-      updates.push('date = ?');
-      params.push(dto.date);
-    }
-    if (dto.usedFertilizer !== undefined) {
-      updates.push('used_fertilizer = ?');
-      params.push(dto.usedFertilizer ? 1 : 0);
-    }
-    if (dto.fertilizerTypeId !== undefined) {
-      updates.push('fertilizer_type_id = ?');
-      params.push(dto.fertilizerTypeId);
-    }
-
-    if (!updates.length) return false;
-
-    // Order of params: updates..., recordId, userId
-    params.push(recordId, userId);
-
-    const result = execute(
-      `UPDATE watering_records SET ${updates.join(', ')}
-       WHERE id = ? AND plant_id IN (SELECT id FROM plants WHERE user_id = ?)`,
-      params,
-    );
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .updateTable('watering_records')
+      .set(changes)
+      .where('id', '=', recordId)
+      .where('plant_id', 'in', ownedPlantIds(userId))
+      .executeTakeFirst();
+    return Number(result.numUpdatedRows) > 0;
   }
 
   async delete(recordId: number, userId: number): Promise<boolean> {
-    const result = execute(
-      `DELETE FROM watering_records WHERE id = ?
-       AND plant_id IN (SELECT id FROM plants WHERE user_id = ?)`,
-      [recordId, userId],
-    );
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .deleteFrom('watering_records')
+      .where('id', '=', recordId)
+      .where('plant_id', 'in', ownedPlantIds(userId))
+      .executeTakeFirst();
+    return Number(result.numDeletedRows) > 0;
   }
 }
 
@@ -115,7 +105,7 @@ function mapRow(row: WateringRow): WateringRecordData {
     record_id: row.record_id,
     plant_id: row.plant_id,
     plant_name: row.plant_name,
-    watering_date: row.watering_date, // already a Unix epoch integer from SQLite
+    watering_date: row.watering_date,
     used_fertilizer: Boolean(row.used_fertilizer),
     fertilizer_type_id: row.fertilizer_type_id,
     fertilizer_type: row.fertilizer_type,

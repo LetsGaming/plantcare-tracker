@@ -98,18 +98,16 @@ export const makeAuthenticateSSE =
     try {
       // Imported lazily so unit tests can exercise the no-DB path
       // without the db module (and its native binding) ever loading.
-      const { query } = await import('../database/db');
-      const rows = query<{ id: number; username: string; role: string }>(
-        `SELECT users.id, username, roles.name AS role
-         FROM users LEFT JOIN roles ON users.role_id = roles.id
-         WHERE users.id = ?`,
-        [userId],
-      );
-
-      const user = rows[0];
+      const { getKysely } = await import('../database/db');
+      const user = await getKysely()
+        .selectFrom('users')
+        .leftJoin('roles', 'users.role_id', 'roles.id')
+        .select(['users.id', 'users.username', 'roles.name as role'])
+        .where('users.id', '=', userId)
+        .executeTakeFirst();
       if (!user) return next(new UnauthorizedError('User not found'));
 
-      req.user = { id: user.id, username: user.username, role: user.role };
+      req.user = { id: user.id, username: user.username, role: user.role ?? '' };
       next();
     } catch (err) {
       next(err);
