@@ -5,3 +5,4 @@ ios
 pnpm-lock.yaml
 public
 *.md
+eslint-suppressions.json

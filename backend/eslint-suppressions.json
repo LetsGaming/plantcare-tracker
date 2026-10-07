@@ -1,0 +1,7 @@
+{
+  "src/modules/auth/application/AuthUseCases.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  }
+}

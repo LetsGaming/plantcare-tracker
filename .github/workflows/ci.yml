@@ -10,10 +10,10 @@
 # Both jobs run independently and in parallel; a failure in one does not
 # cancel the other, so a red run always shows the full picture.
 #
-# NOTE: There is intentionally no lint step yet. ESLint 10 is installed in
-# the frontend but the config is still in the legacy .eslintrc format,
-# which v10 no longer supports — add a lint step here once the config has
-# been migrated to flat config (eslint.config.js) or ESLint is pinned to v8.
+# Lint and format checks run in both jobs. Pre-existing violations that need
+# behavior changes are baselined in each package's eslint-suppressions.json;
+# new violations fail the build and the baseline only shrinks
+# (`eslint . --prune-suppressions`).
 
 name: CI
 
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend — typecheck & tests
+    name: Backend (lint, typecheck, tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,6 +54,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Format check
+        run: pnpm run format:check
+
       - name: Typecheck
         run: pnpm run typecheck
 
@@ -66,7 +72,7 @@ jobs:
           JWT_REFRESH_SECRET: ci-only-test-refresh-secret
 
   frontend:
-    name: Frontend — tests & production build
+    name: Frontend (lint, tests, production build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,6 +98,12 @@ jobs:
         run: pnpm install --frozen-lockfile
         env:
           CYPRESS_INSTALL_BINARY: "0"
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Format check
+        run: pnpm run format:check
 
       # Explicit `vitest run`: the package script starts watch mode.
       - name: Tests

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node.js** ≥ 18
+- **Node.js** ≥ 22
 - **pnpm** (or npm / yarn)
 - **SQLite** — bundled via `better-sqlite3`, no separate server required
 - **Playwright Chromium** — only required for the sales scraper (5 of 9 scrapers use it)
@@ -99,9 +99,11 @@ pnpm run typecheck
 | Script | Command | Description |
 |--------|---------|-------------|
 | `dev` | `nodemon --exec tsx server.ts` | Development server with hot reload |
-| `build` | `tsc -p tsconfig.json` | Compile to `./dist/` |
+| `build` | `tsc -p tsconfig.build.json` | Compile to `./dist/` |
 | `start` | `node scripts/start.js` | Build if needed, then run compiled server |
-| `typecheck` | `tsc -p tsconfig.json --noEmit` | Type check without output |
+| `typecheck` | `tsc -p tsconfig.json --noEmit` | Type check sources and tests without output |
+| `lint` / `lint:fix` | `eslint .` | ESLint flat config (`eslint.config.mjs`) |
+| `format` / `format:check` | `prettier --write .` / `--check .` | Prettier (`.prettierrc.json`) |
 | `test` | `vitest run` | Run all tests once |
 | `test:watch` | `vitest` | Watch mode |
 | `test:coverage` | `vitest run --coverage` | With coverage report |

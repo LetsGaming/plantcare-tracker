@@ -61,13 +61,17 @@ set your domain in the `production` block before building.
 ```bash
 # Backend
 cd backend
-pnpm run typecheck               # tsc --noEmit
-pnpm test                        # 222 tests (JWT_SECRET/JWT_REFRESH_SECRET must be set)
+pnpm run lint                    # ESLint (flat config)
+pnpm run format:check            # Prettier
+pnpm run typecheck               # tsc --noEmit (sources and tests)
+pnpm test                        # JWT_SECRET/JWT_REFRESH_SECRET must be set
 
 # Frontend
 cd frontend
+pnpm run lint                    # ESLint (flat config)
+pnpm run format:check            # Prettier
 pnpm exec vue-tsc --noEmit       # typecheck
-pnpm exec vitest run             # 103 tests
+pnpm exec vitest run
 pnpm run build                   # vue-tsc + production bundle
 ```
 
@@ -79,14 +83,19 @@ SQLite file or native build.
 `.github/workflows/ci.yml` runs two parallel jobs on every push and pull
 request:
 
-- **Backend** — `pnpm install --frozen-lockfile`, typecheck, full test suite
-  (with CI-only JWT values).
-- **Frontend** — `pnpm install --frozen-lockfile` (Cypress binary skipped —
-  no e2e in CI yet), full test suite, then `pnpm run build`, which covers
-  both the `vue-tsc` typecheck and the production bundle.
+- **Backend**: `pnpm install --frozen-lockfile`, lint, format check,
+  typecheck, full test suite (with CI-only JWT values).
+- **Frontend**: `pnpm install --frozen-lockfile` (Cypress binary skipped,
+  no e2e in CI yet), lint, format check, full test suite, then
+  `pnpm run build`, which covers both the `vue-tsc` typecheck and the
+  production bundle.
 
-There is no lint step yet: the ESLint config predates ESLint 10's flat-config
-requirement and needs migration first (see the note in the workflow file).
+Both packages use an ESLint flat config (`eslint.config.*`) and Prettier
+(`.prettierrc.json`). Violations that need behavior changes are baselined in
+`eslint-suppressions.json`; new violations fail CI and the baseline only
+shrinks (`pnpm exec eslint . --prune-suppressions`). The formatting commit is
+listed in `.git-blame-ignore-revs`
+(`git config blame.ignoreRevsFile .git-blame-ignore-revs`).
 
 ## API in one paragraph
 
