@@ -26,8 +26,9 @@ import type { Request, Response, NextFunction } from 'express';
 import { isAppError, ValidationError } from '../errors';
 import { translateError } from '../errors/translateError';
 import { logger } from '../logging/logger';
+import { isProductionEnv } from '../config';
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = !isProductionEnv();
 
 /** Pull every useful field out of an unknown thrown value into a plain object. */
 function serializeError(err: unknown): Record<string, unknown> {

@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import type { AuthUser } from '../../src/core/middleware/auth';
+import type { AuthUser } from '../../src/core/auth';
 
 // ── SQLite db-module mock factory ─────────────────────────────────────────────
 export const createDbMock = () => {

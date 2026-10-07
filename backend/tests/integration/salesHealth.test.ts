@@ -33,7 +33,7 @@ import {
   globalErrorHandler,
   notFoundHandler,
 } from '../../src/core/middleware';
-import { issueSession } from '../../src/core/middleware/auth';
+import { issueSession } from '../../src/core/auth';
 import { createSalesRouter } from '../../src/modules/sales/presentation/salesRoutes';
 
 const buildApp = (): Application => {

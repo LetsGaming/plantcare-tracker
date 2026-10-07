@@ -11,6 +11,7 @@ import { OpenAI } from 'openai';
 import type { CacheService } from '../../../core/cache/CacheService';
 import type { PlantGuideStreamer } from '../domain/PlantInfo';
 import { createModuleLogger } from '../../../core/logging';
+import { getConfig } from '../../../core/config';
 
 const log = createModuleLogger('OpenAIClient');
 
@@ -37,10 +38,11 @@ const formatToHTML = (text: string, htmlFormatting: boolean): string => {
 export class OpenAIPlantClient implements PlantGuideStreamer {
   private readonly client: OpenAI | null;
 
-  constructor(private readonly cache: CacheService) {
-    this.client = process.env.OPENAI_API_KEY
-      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-      : null;
+  constructor(
+    private readonly cache: CacheService,
+    apiKey: string | null = getConfig().openAiApiKey,
+  ) {
+    this.client = apiKey ? new OpenAI({ apiKey }) : null;
     if (!this.client) log.warn('OPENAI_API_KEY not set — AI responses disabled');
   }
 

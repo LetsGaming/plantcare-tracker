@@ -171,7 +171,7 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
 
   const { createApp } = await import('../../src/app');
   const dbModule = await import('../../src/core/database/db');
-  const authModule = await import('../../src/core/middleware/auth');
+  const authModule = await import('../../src/core/auth');
   (await import('../../src/core/logging')).logger.silent = true;
   dbModule.getDb();
 

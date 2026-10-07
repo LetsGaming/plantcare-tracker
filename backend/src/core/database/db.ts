@@ -27,6 +27,7 @@ import type { Database as BetterSqlite3DB } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../logging';
+import { getConfig } from '../config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,9 +43,7 @@ export interface RunResult {
 let _instance: BetterSqlite3DB | null = null;
 
 function openDb(): BetterSqlite3DB {
-  const dbPath = process.env.DB_PATH
-    ? path.resolve(process.env.DB_PATH)
-    : path.resolve(process.cwd(), 'data', 'plantcare.db');
+  const { dbPath } = getConfig();
 
   // Ensure the directory exists
   const dbDir = path.dirname(dbPath);

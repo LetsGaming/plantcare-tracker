@@ -31,7 +31,6 @@ import {
 import {
   authenticateToken,
   isAdmin,
-  asyncHandler,
   createRateLimiter,
   perUserKey,
 } from '../../../core/middleware';
@@ -103,67 +102,50 @@ export const createAuthRouter = (): Router => {
     '/register',
     authIpLimiter,
     authAccountLimiter,
-    asyncHandler(async (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
       const user = await register.execute(req.body);
       res.status(HTTP_STATUS.CREATED).location('/auth/me').json({ data: user });
-    }),
+    },
   );
 
   // POST /login → 200 + accessToken (refresh token in scoped cookie)
-  router.post(
-    '/login',
-    authIpLimiter,
-    authAccountLimiter,
-    asyncHandler(async (req: Request, res: Response) => {
-      const { accessToken, refreshToken } = await login.execute(req.body);
-      res.cookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
-        ...COOKIE_BASE,
-        secure: isHttpsRequest(req),
-        maxAge: AUTH.REFRESH_COOKIE_MAX_AGE_MS,
-        path: refreshCookiePath,
-      });
-      res.json({ data: { accessToken } });
-    }),
-  );
+  router.post('/login', authIpLimiter, authAccountLimiter, async (req: Request, res: Response) => {
+    const { accessToken, refreshToken } = await login.execute(req.body);
+    res.cookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
+      ...COOKIE_BASE,
+      secure: isHttpsRequest(req),
+      maxAge: AUTH.REFRESH_COOKIE_MAX_AGE_MS,
+      path: refreshCookiePath,
+    });
+    res.json({ data: { accessToken } });
+  });
 
   // POST /login/guest → 200 + accessToken
-  router.post(
-    '/login/guest',
-    authIpLimiter,
-    asyncHandler(async (req: Request, res: Response) => {
-      const { accessToken, refreshToken } = await guestLogin.execute();
-      res.cookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
-        ...COOKIE_BASE,
-        secure: isHttpsRequest(req),
-        maxAge: AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS,
-        // Same scope as the regular login — without it the cookie lands on
-        // path "/" and the logout clearCookie (attribute-matched) never
-        // removes it, so guests could not actually sign out.
-        path: refreshCookiePath,
-      });
-      res.json({ data: { accessToken } });
-    }),
-  );
+  router.post('/login/guest', authIpLimiter, async (req: Request, res: Response) => {
+    const { accessToken, refreshToken } = await guestLogin.execute();
+    res.cookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
+      ...COOKIE_BASE,
+      secure: isHttpsRequest(req),
+      maxAge: AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS,
+      // Same scope as the regular login — without it the cookie lands on
+      // path "/" and the logout clearCookie (attribute-matched) never
+      // removes it, so guests could not actually sign out.
+      path: refreshCookiePath,
+    });
+    res.json({ data: { accessToken } });
+  });
 
   // POST /refresh-token → 200 + accessToken
-  router.post(
-    '/refresh-token',
-    asyncHandler(async (req: Request, res: Response) => {
-      const accessToken = refresh.execute(req.cookies?.refreshToken);
-      res.json({ data: { accessToken } });
-    }),
-  );
+  router.post('/refresh-token', async (req: Request, res: Response) => {
+    const accessToken = refresh.execute(req.cookies?.refreshToken);
+    res.json({ data: { accessToken } });
+  });
 
   // POST /ticket → 200 + one-time SSE ticket
-  router.post(
-    '/ticket',
-    authenticateToken,
-    ticketLimiter,
-    asyncHandler(async (req: Request, res: Response) => {
-      const ticket = requestTicket.execute(req.user!.id);
-      res.json({ data: { ticket } });
-    }),
-  );
+  router.post('/ticket', authenticateToken, ticketLimiter, async (req: Request, res: Response) => {
+    const ticket = requestTicket.execute(req.user!.id);
+    res.json({ data: { ticket } });
+  });
 
   // POST /logout → 204 No Content
   router.post('/logout', (req: Request, res: Response) => {
@@ -181,37 +163,24 @@ export const createAuthRouter = (): Router => {
   });
 
   // PATCH /me — own profile
-  router.patch(
-    '/me',
-    authenticateToken,
-    asyncHandler(async (req: Request, res: Response) => {
-      await updateProfile.execute(req.user!.id, req.body);
-      // Sessions are invalidated after a profile change — the client
-      // must re-authenticate. data: null signals "log out cleanly".
-      res.json({ data: null });
-    }),
-  );
+  router.patch('/me', authenticateToken, async (req: Request, res: Response) => {
+    await updateProfile.execute(req.user!.id, req.body);
+    // Sessions are invalidated after a profile change — the client
+    // must re-authenticate. data: null signals "log out cleanly".
+    res.json({ data: null });
+  });
 
   // PATCH /:id — admin profile override
-  router.patch(
-    '/:id',
-    authenticateToken,
-    isAdmin,
-    asyncHandler(async (req: Request, res: Response) => {
-      await updateProfile.execute(Number(req.params.id), req.body);
-      res.json({ data: null });
-    }),
-  );
+  router.patch('/:id', authenticateToken, isAdmin, async (req: Request, res: Response) => {
+    await updateProfile.execute(Number(req.params.id), req.body);
+    res.json({ data: null });
+  });
 
   // DELETE /me — own account
-  router.delete(
-    '/me',
-    authenticateToken,
-    asyncHandler(async (req: Request, res: Response) => {
-      await deleteProfile.execute(req.user!.id);
-      res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
-  );
+  router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
+    await deleteProfile.execute(req.user!.id);
+    res.status(HTTP_STATUS.NO_CONTENT).end();
+  });
 
   return router;
 };

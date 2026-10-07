@@ -15,6 +15,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { getConfig } from './env';
 
 const DEFAULT_VERSION = 'v2';
 
@@ -23,8 +24,9 @@ let cachedVersion: string | null = null;
 export function getApiVersionPath(): string {
   if (cachedVersion) return cachedVersion;
 
-  if (process.env.API_VERSION_PATH) {
-    cachedVersion = process.env.API_VERSION_PATH;
+  const configured = getConfig().apiVersionPath;
+  if (configured) {
+    cachedVersion = configured;
     return cachedVersion;
   }
 

@@ -19,9 +19,10 @@ getDb(); // singleton: schema auto-applied on first run
 
 import { logger } from './src/core/logging';
 import { createApp } from './src/app';
+import { getConfig } from './src/core/config';
 import { closeBrowser } from './src/modules/sales/infrastructure/HttpFetcher';
 
-const PORT = Number(process.env.PORT ?? 5000);
+const { port: PORT } = getConfig();
 const app = createApp();
 
 const server = app.listen(PORT, () => {

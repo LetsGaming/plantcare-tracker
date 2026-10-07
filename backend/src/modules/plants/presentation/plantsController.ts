@@ -2,8 +2,8 @@
  * modules/plants/presentation/plantsController.ts
  *
  * Thin controller: parses HTTP request → calls use case → sends response.
- * asyncHandler forwards any rejection to the global error handler, so
- * handler bodies contain only the happy path.
+ * Express 5 forwards rejected handler promises to the global error handler,
+ * so handler bodies contain only the happy path.
  *
  * REST compliance:
  *  - GET    → 200 + resource
@@ -21,7 +21,6 @@ import {
   DeletePlantUseCase,
 } from '../application/PlantUseCases';
 import type { PlantRepository, PlantData } from '../domain/Plant';
-import { asyncHandler } from '../../../core/middleware';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
@@ -57,37 +56,37 @@ export const createPlantsController = (repo: PlantRepository): PlantsController 
   const remove = new DeletePlantUseCase(repo);
 
   return {
-    getAllPlants: asyncHandler(async (req: Request, res: Response) => {
+    getAllPlants: async (req: Request, res: Response) => {
       const userId = req.user?.id ?? null;
       const plants = await getAll.execute(userId);
       const body: PlantListResponse = { data: plants.map((p) => p.toJSON()) };
       res.json(body);
-    }),
+    },
 
-    getPlant: asyncHandler(async (req: Request, res: Response) => {
+    getPlant: async (req: Request, res: Response) => {
       const plant = await getOne.execute(Number(req.params.id), req.user?.id ?? null);
       const body: PlantResponse = { data: plant.toJSON() };
       res.json(body);
-    }),
+    },
 
-    addPlant: asyncHandler(async (req: Request, res: Response) => {
+    addPlant: async (req: Request, res: Response) => {
       const userId = req.user!.id;
       const plant = await create.execute(req.body, userId);
       const body: PlantResponse = { data: plant.toJSON() };
       res.status(HTTP_STATUS.CREATED).location(`/plants/${plant.id}`).json(body);
-    }),
+    },
 
-    editPlant: asyncHandler(async (req: Request, res: Response) => {
+    editPlant: async (req: Request, res: Response) => {
       const userId = req.user!.id;
       const plant = await update.execute(Number(req.params.id), userId, req.body);
       const body: PlantResponse = { data: plant.toJSON() };
       res.json(body);
-    }),
+    },
 
-    deletePlant: asyncHandler(async (req: Request, res: Response) => {
+    deletePlant: async (req: Request, res: Response) => {
       const userId = req.user!.id;
       await remove.execute(Number(req.params.id), userId);
       res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    },
   };
 };

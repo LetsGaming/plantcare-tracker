@@ -10,6 +10,7 @@ import axios from 'axios';
 import { chromium, type Browser } from 'playwright';
 import dns from 'node:dns';
 import { createModuleLogger } from '../../../core/logging';
+import { getConfig } from '../../../core/config';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -23,7 +24,7 @@ const getBrowser = async (): Promise<Browser> => {
     browserPromise = chromium
       .launch({
         // launch headless in prod but headed in dev for easier debugging
-        headless: process.env.headless_browser === 'true' || process.env.NODE_ENV === 'production',
+        headless: getConfig().headlessBrowser,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
       })
       .then((b) => {

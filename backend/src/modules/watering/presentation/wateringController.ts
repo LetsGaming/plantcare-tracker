@@ -24,7 +24,6 @@ import type {
   WateringRecordData,
   FertilizerType,
 } from '../domain/WateringRecord';
-import { asyncHandler } from '../../../core/middleware';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
@@ -65,39 +64,39 @@ export const createWateringController = (repo: WateringRepository): WateringCont
   const remove = new DeleteWateringRecordUseCase(repo);
 
   return {
-    getFertilizerTypes: asyncHandler(async (_req: Request, res: Response) => {
+    getFertilizerTypes: async (_req: Request, res: Response) => {
       const types = await getTypes.execute();
       const body: FertilizerTypeListResponse = { data: types };
       res.json(body);
-    }),
+    },
 
-    getRecordsForPlant: asyncHandler(async (req: Request, res: Response) => {
+    getRecordsForPlant: async (req: Request, res: Response) => {
       const records = await getForPlant.execute(Number(req.params.plantId), req.user!.id);
       const body: WateringRecordListResponse = { data: records };
       res.json(body);
-    }),
+    },
 
-    getRecord: asyncHandler(async (req: Request, res: Response) => {
+    getRecord: async (req: Request, res: Response) => {
       const record = await getOne.execute(Number(req.params.id), req.user!.id);
       const body: WateringRecordResponse = { data: record };
       res.json(body);
-    }),
+    },
 
-    addRecord: asyncHandler(async (req: Request, res: Response) => {
+    addRecord: async (req: Request, res: Response) => {
       const record = await create.execute(Number(req.params.plantId), req.user!.id, req.body);
       const body: WateringRecordResponse = { data: record };
       res.status(HTTP_STATUS.CREATED).location(`/watering/${record.record_id}`).json(body);
-    }),
+    },
 
-    editRecord: asyncHandler(async (req: Request, res: Response) => {
+    editRecord: async (req: Request, res: Response) => {
       const record = await update.execute(Number(req.params.id), req.user!.id, req.body);
       const body: WateringRecordResponse = { data: record };
       res.json(body);
-    }),
+    },
 
-    deleteRecord: asyncHandler(async (req: Request, res: Response) => {
+    deleteRecord: async (req: Request, res: Response) => {
       await remove.execute(Number(req.params.id), req.user!.id);
       res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    },
   };
 };

@@ -24,7 +24,7 @@ import {
   sessionStore,
   ticketStore,
   verifyRefreshToken,
-} from '../../../core/middleware/auth';
+} from '../../../core/auth';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 

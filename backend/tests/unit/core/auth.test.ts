@@ -6,16 +6,23 @@ import {
   generateTokens,
   issueSession,
   verifyRefreshToken,
-  authenticateToken,
-  optionalAuthenticateToken,
-  guestReadOnly,
   sessionStore,
   ticketStore,
-  jwtConfig,
   GUEST_SESSION_POLICY,
   type JwtPayload,
   type TokenIdentity,
+} from '../../../src/core/auth';
+import {
+  authenticateToken,
+  optionalAuthenticateToken,
+  guestReadOnly,
 } from '../../../src/core/middleware/auth';
+import { getConfig } from '../../../src/core/config';
+
+const jwtConfig = {
+  JWT_SECRET: getConfig().jwt.secret,
+  JWT_REFRESH_SECRET: getConfig().jwt.refreshSecret,
+};
 import { UnauthorizedError, ForbiddenError } from '../../../src/core/errors';
 
 const user: TokenIdentity = { id: 1, username: 'testuser', role: 'user' };

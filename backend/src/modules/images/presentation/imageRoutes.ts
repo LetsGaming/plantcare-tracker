@@ -98,12 +98,12 @@ export const createImageRouter = (): Router => {
   router.delete(
     '/:id',
     authenticateToken,
-    (req: Request, res: Response, next: NextFunction): void => {
+    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
       // Non-numeric ids fall through to /:entityType/:entityId below —
       // this route only owns numeric image ids.
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return next('route');
-      ctrl.deleteImage(req, res, next);
+      await ctrl.deleteImage(req, res, next);
     },
   );
 

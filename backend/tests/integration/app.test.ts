@@ -46,7 +46,7 @@ import { createWateringRouter } from '../../src/modules/watering/presentation/wa
 import { createSubstrateRouter } from '../../src/modules/substrate/presentation/substrateRoutes';
 import { createComponentRouter } from '../../src/modules/components/presentation/componentRoutes';
 import { makePlantRow, makeWateringRow, makeSubstrateRow } from '../helpers/mockFactory';
-import { issueSession, sessionStore } from '../../src/core/middleware/auth';
+import { issueSession, sessionStore } from '../../src/core/auth';
 import bcrypt from 'bcryptjs';
 
 // ── App factory ───────────────────────────────────────────────────────────────

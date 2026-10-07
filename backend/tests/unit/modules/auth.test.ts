@@ -22,7 +22,7 @@ import {
   NotFoundError,
   ConflictError,
 } from '../../../src/core/errors';
-import { issueSession, sessionStore, verifyRefreshToken } from '../../../src/core/middleware/auth';
+import { issueSession, sessionStore, verifyRefreshToken } from '../../../src/core/auth';
 import { makeUserRow } from '../../helpers/mockFactory';
 
 const makeMockRepo = (): UserRepository => ({

@@ -7,7 +7,7 @@
  * hazard, since the static mount and the URL builder must agree.
  */
 
-import path from 'path';
+import { getConfig } from './env';
 
 /** Public route prefix under which uploads are statically served. */
 export const STATIC_UPLOADS_ROUTE = '/uploads';
@@ -17,7 +17,5 @@ export const STATIC_UPLOADS_ROUTE = '/uploads';
  * (production NAS mount), otherwise ./uploads under the working dir.
  */
 export function getUploadsDirectory(): string {
-  return process.env.NAS_PATH
-    ? path.resolve(process.env.NAS_PATH)
-    : path.resolve(process.cwd(), 'uploads');
+  return getConfig().uploadsDir;
 }

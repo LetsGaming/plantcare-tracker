@@ -36,9 +36,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      express-async-handler:
-        specifier: ^1.2.0
-        version: 1.2.0
       express-rate-limit:
         specifier: ^8.7.1
         version: 8.7.1(express@5.2.1)
@@ -1383,9 +1380,6 @@ packages:
   expect-type@1.4.0:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
-
-  express-async-handler@1.2.0:
-    resolution: {integrity: sha512-rCSVtPXRmQSW8rmik/AIb2P0op6l7r1fMW538yyvTMltCO4xQEWMmobfrIxN2V1/mVrgxB8Az3reYF6yUZw37w==}
 
   express-rate-limit@8.7.1:
     resolution: {integrity: sha512-2FXbqkygil3mZiXzEtM0IjE/UBmBNot0J1GEVrJT4JbrvwOSoEtqtO+wHbiMQELWe1eNvHoYRg2dkjOid+6JkA==}
@@ -3449,8 +3443,6 @@ snapshots:
   expand-template@2.0.3: {}
 
   expect-type@1.4.0: {}
-
-  express-async-handler@1.2.0: {}
 
   express-rate-limit@8.7.1(express@5.2.1):
     dependencies:

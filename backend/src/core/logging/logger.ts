@@ -22,6 +22,7 @@ import path from 'path';
 import fs from 'fs';
 import { createLogger, format, transports, Logger } from 'winston';
 import { AsyncLocalStorage } from 'async_hooks';
+import { isProductionEnv } from '../config/env';
 
 // ── Request-ID store ──────────────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ const prodConsoleFormat = format.printf(
 
 // ── Logger instance ───────────────────────────────────────────────────────────
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = !isProductionEnv();
 
 export const logger: Logger = createLogger({
   // Always log at 'info' or above; control verbosity per-transport below.

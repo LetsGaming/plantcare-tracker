@@ -25,21 +25,19 @@ const streamOf = (...parts: string[]) =>
 
 beforeEach(() => {
   create.mockReset();
-  process.env.OPENAI_API_KEY = 'test-key';
 });
 
 describe('OpenAIPlantClient', () => {
   it('rethrows a failing completion so the SSE endpoint can emit an error event', async () => {
     create.mockRejectedValue(new Error('rate limited'));
-    const client = new OpenAIPlantClient(makeCache());
+    const client = new OpenAIPlantClient(makeCache(), 'test-key');
     await expect(client.streamPlantCare('Aloe', false, async () => {})).rejects.toThrow(
       'rate limited',
     );
   });
 
   it('fails instead of ending silently when no API key is configured', async () => {
-    delete process.env.OPENAI_API_KEY;
-    const client = new OpenAIPlantClient(makeCache());
+    const client = new OpenAIPlantClient(makeCache(), null);
     await expect(client.streamPlantCare('Aloe', false, async () => {})).rejects.toThrow(
       'OPENAI_API_KEY',
     );
@@ -47,7 +45,7 @@ describe('OpenAIPlantClient', () => {
 
   it('escapes cached model output before building HTML', async () => {
     create.mockResolvedValue(streamOf('## Light <img src=x onerror=alert(1)>\n'));
-    const client = new OpenAIPlantClient(makeCache());
+    const client = new OpenAIPlantClient(makeCache(), 'test-key');
     await client.streamPlantCare('Aloe', false, async () => {});
     const chunks: string[] = [];
     await client.streamPlantCare('Aloe', true, async (c) => {

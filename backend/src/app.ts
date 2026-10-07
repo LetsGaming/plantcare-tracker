@@ -22,6 +22,7 @@ import { logger } from './core/logging';
 import {
   getApiBasePath,
   getApiVersionPath,
+  getConfig,
   getUploadsDirectory,
   STATIC_UPLOADS_ROUTE,
 } from './core/config';
@@ -46,11 +47,7 @@ export interface AppDeps {
 
 export const createApp = (deps: AppDeps = {}): express.Express => {
   const app = express();
-  const isDev = process.env.NODE_ENV !== 'production';
-
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : [];
+  const { isProduction, allowedOrigins } = getConfig();
 
   app.set('trust proxy', 1); // trust exactly one upstream proxy (e.g. nginx);
   // "true" would trust all hops and let clients spoof X-Forwarded-For,
@@ -59,7 +56,8 @@ export const createApp = (deps: AppDeps = {}): express.Express => {
   app.use(
     cors({
       origin: (origin, cb) => {
-        const isLocalhost = isDev && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin ?? '');
+        const isLocalhost =
+          !isProduction && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin ?? '');
         if (!origin || isLocalhost || allowedOrigins.includes(origin)) cb(null, true);
         else cb(null, false);
       },

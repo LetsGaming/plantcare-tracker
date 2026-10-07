@@ -20,7 +20,6 @@ import {
   DeleteComponentUseCase,
 } from '../application/ComponentUseCases';
 import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
-import { asyncHandler } from '../../../core/middleware';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
@@ -61,39 +60,39 @@ export const createComponentController = (repo: ComponentRepository): ComponentC
   const remove = new DeleteComponentUseCase(repo);
 
   return {
-    getAllComponents: asyncHandler(async (_req: Request, res: Response) => {
+    getAllComponents: async (_req: Request, res: Response) => {
       const components = await getAll.execute();
       const body: ComponentListResponse = { data: components };
       res.json(body);
-    }),
+    },
 
-    getFinenessLevels: asyncHandler(async (_req: Request, res: Response) => {
+    getFinenessLevels: async (_req: Request, res: Response) => {
       const levels = await getLevels.execute();
       const body: FinenessLevelListResponse = { data: levels };
       res.json(body);
-    }),
+    },
 
-    getComponent: asyncHandler(async (req: Request, res: Response) => {
+    getComponent: async (req: Request, res: Response) => {
       const component = await getOne.execute(Number(req.params.id));
       const body: ComponentResponse = { data: component };
       res.json(body);
-    }),
+    },
 
-    addComponent: asyncHandler(async (req: Request, res: Response) => {
+    addComponent: async (req: Request, res: Response) => {
       const component = await create.execute(req.body);
       const body: ComponentResponse = { data: component };
       res.status(HTTP_STATUS.CREATED).location(`/components/${component.component_id}`).json(body);
-    }),
+    },
 
-    editComponent: asyncHandler(async (req: Request, res: Response) => {
+    editComponent: async (req: Request, res: Response) => {
       const component = await update.execute(Number(req.params.id), req.body);
       const body: ComponentResponse = { data: component };
       res.json(body);
-    }),
+    },
 
-    deleteComponent: asyncHandler(async (req: Request, res: Response) => {
+    deleteComponent: async (req: Request, res: Response) => {
       await remove.execute(Number(req.params.id));
       res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    },
   };
 };

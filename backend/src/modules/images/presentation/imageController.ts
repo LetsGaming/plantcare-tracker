@@ -7,7 +7,7 @@
  * application layer.
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import {
   UploadImageUseCase,
   ListEntityImagesUseCase,
@@ -25,7 +25,6 @@ import type {
   EntityType,
   UploadedFile,
 } from '../domain/Image';
-import { asyncHandler } from '../../../core/middleware';
 import { HTTP_STATUS } from '../../../core/config';
 import { formatToDBDate } from '../../../core/utils';
 
@@ -68,13 +67,15 @@ const uploadedFile = (req: Request): UploadedFile => ({
  * not reachable by name under pnpm's non-hoisted node_modules
  * layout (TS2883).
  */
+export type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
 export interface ImageController {
-  uploadImage: RequestHandler;
-  listEntityImages: RequestHandler;
-  serveEntityImage: RequestHandler;
-  updateImage: RequestHandler;
-  deleteImage: RequestHandler;
-  deleteEntityImages: RequestHandler;
+  uploadImage: AsyncHandler;
+  listEntityImages: AsyncHandler;
+  serveEntityImage: AsyncHandler;
+  updateImage: AsyncHandler;
+  deleteImage: AsyncHandler;
+  deleteEntityImages: AsyncHandler;
 }
 
 export const createImageController = (
@@ -90,7 +91,7 @@ export const createImageController = (
   const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access);
 
   return {
-    uploadImage: asyncHandler(async (req: Request, res: Response) => {
+    uploadImage: async (req: Request, res: Response) => {
       const entityType = entityTypeParam(req);
       const entityId = Number(req.params.entityId);
 
@@ -106,9 +107,9 @@ export const createImageController = (
         data: { path: url, date: formatToDBDate(capturedAt.getTime()) },
       };
       res.status(HTTP_STATUS.CREATED).location(`/images/${entityType}/${entityId}`).json(body);
-    }),
+    },
 
-    listEntityImages: asyncHandler(async (req: Request, res: Response) => {
+    listEntityImages: async (req: Request, res: Response) => {
       const images = await list.execute(
         entityTypeParam(req),
         Number(req.query.entityId),
@@ -116,9 +117,9 @@ export const createImageController = (
       );
       const body: ImageListResponse = { data: images };
       res.json(body);
-    }),
+    },
 
-    serveEntityImage: asyncHandler(async (req: Request, res: Response) => {
+    serveEntityImage: async (req: Request, res: Response) => {
       const sizeParam = req.query.size as string | undefined;
       const width = sizeParam ? parseInt(sizeParam, 10) : undefined;
 
@@ -132,9 +133,9 @@ export const createImageController = (
       res.set('Content-Type', SERVED_IMAGE_CONTENT_TYPE);
       res.set('Cache-Control', SERVED_IMAGE_CACHE_CONTROL);
       res.send(buffer);
-    }),
+    },
 
-    updateImage: asyncHandler(async (req: Request, res: Response) => {
+    updateImage: async (req: Request, res: Response) => {
       const record = await update.execute({
         actor: actorOf(req),
         imageId: Number(req.params.id),
@@ -144,20 +145,20 @@ export const createImageController = (
       });
       const body: ImageResponse = { data: record };
       res.json(body);
-    }),
+    },
 
-    deleteImage: asyncHandler(async (req: Request, res: Response) => {
+    deleteImage: async (req: Request, res: Response) => {
       await remove.execute(Number(req.params.id), actorOf(req));
       res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    },
 
-    deleteEntityImages: asyncHandler(async (req: Request, res: Response) => {
+    deleteEntityImages: async (req: Request, res: Response) => {
       await removeForEntity.execute(
         entityTypeParam(req),
         Number(req.params.entityId),
         actorOf(req),
       );
       res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    },
   };
 };
