@@ -63,7 +63,7 @@ import {
 } from "@ionic/vue";
 import { logOutOutline } from "ionicons/icons";
 import UserService from "@/services/UserService";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "OverviewHeader",
@@ -133,9 +133,7 @@ export default defineComponent({
 
     if (this.isGuest) {
       // If the user is a guest, and the starting segment is hidden, find the first visible segment
-      const visibleSegments = this.segments.filter(
-        (segment) => !segment.hideFromGuests
-      );
+      const visibleSegments = this.segments.filter((segment) => !segment.hideFromGuests);
       if (visibleSegments.length > 0) {
         this.segmentValue = visibleSegments[0].value; // Select the first visible segment for guests
         // Manually trigger the segment change to emit the value change
@@ -154,10 +152,10 @@ export default defineComponent({
       this.onSegmentChange(value); // Emit the segment change
     },
     translateTitle(value: string) {
-      return localizationService.t(value, undefined, value)
+      return localizationService.t(value, undefined, value);
     },
     translateSegmentLabel(value: string) {
-      return localizationService.t(value, undefined, value)
+      return localizationService.t(value, undefined, value);
     },
   },
 });

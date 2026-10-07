@@ -14,23 +14,13 @@
 
       <ion-card>
         <ion-list lines="none">
-          <ion-item
-            v-for="tool in tools"
-            :key="tool.route"
-            button
-            detail
-            :router-link="tool.route"
-          >
+          <ion-item v-for="tool in tools" :key="tool.route" button detail :router-link="tool.route">
             <ion-icon slot="start" :icon="tool.icon" />
             <ion-label class="ion-text-wrap">
               <h2>{{ t(tool.titleKey) }}</h2>
               <p>{{ t(tool.descriptionKey) }}</p>
             </ion-label>
-            <ion-badge
-              v-if="tool.badge && tool.badge() > 0"
-              slot="end"
-              color="danger"
-            >
+            <ion-badge v-if="tool.badge && tool.badge() > 0" slot="end" color="danger">
               {{ tool.badge() }}
             </ion-badge>
           </ion-item>

@@ -3,7 +3,17 @@ import { defineConfigWithVueTs, vueTsConfigs } from "@vue/eslint-config-typescri
 import prettier from "eslint-config-prettier/flat";
 
 export default defineConfigWithVueTs(
-  { ignores: ["dist/**", "coverage/**", "android/**", "ios/**", "src/locales/**", "serve.js", "scripts/**"] },
+  {
+    ignores: [
+      "dist/**",
+      "coverage/**",
+      "android/**",
+      "ios/**",
+      "src/locales/**",
+      "serve.js",
+      "scripts/**",
+    ],
+  },
   pluginVue.configs["flat/essential"],
   vueTsConfigs.recommended,
   {

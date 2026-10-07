@@ -52,60 +52,72 @@ const injectRequestId = format((info) => {
 
 // ── Human-readable console format (dev only) ──────────────────────────────────
 
-const devConsoleFormat = format.printf(({
-  level, message, timestamp, stack, requestId, module: mod,
-  sqliteCode, sqliteOffset, method, path: routePath, body,
-  ...meta
-}) => {
-  const rid      = requestId  ? ` [${requestId}]`    : '';
-  const modLabel = mod        ? ` {${mod}}`           : '';
-  const route    = (method && routePath) ? ` ${method} ${routePath}` : '';
-  const sqlite   = sqliteCode ? ` [${sqliteCode}${sqliteOffset != null ? ` @${sqliteOffset}` : ''}]` : '';
+const devConsoleFormat = format.printf(
+  ({
+    level,
+    message,
+    timestamp,
+    stack,
+    requestId,
+    module: mod,
+    sqliteCode,
+    sqliteOffset,
+    method,
+    path: routePath,
+    body,
+    ...meta
+  }) => {
+    const rid = requestId ? ` [${requestId}]` : '';
+    const modLabel = mod ? ` {${mod}}` : '';
+    const route = method && routePath ? ` ${method} ${routePath}` : '';
+    const sqlite = sqliteCode
+      ? ` [${sqliteCode}${sqliteOffset != null ? ` @${sqliteOffset}` : ''}]`
+      : '';
 
-  let line = `${timestamp} | [${level}]${rid}${modLabel}${route}${sqlite}: ${message}`;
+    let line = `${timestamp} | [${level}]${rid}${modLabel}${route}${sqlite}: ${message}`;
 
-  // Stack on its own indented lines — easier to read than embedded in JSON
-  if (stack && typeof stack === 'string') {
-    const frames = stack
-      .split('\n')
-      .slice(1) // drop the redundant "ErrorType: message" first line
-      .map((f) => `    ${f.trim()}`)
-      .join('\n');
-    line += `\n${frames}`;
-  }
+    // Stack on its own indented lines — easier to read than embedded in JSON
+    if (stack && typeof stack === 'string') {
+      const frames = stack
+        .split('\n')
+        .slice(1) // drop the redundant "ErrorType: message" first line
+        .map((f) => `    ${f.trim()}`)
+        .join('\n');
+      line += `\n${frames}`;
+    }
 
-  // Remaining metadata, excluding fields already rendered above
-  const skip = new Set(['splat']);
-  const remaining = Object.entries(meta).filter(([k]) => !skip.has(k));
-  if (remaining.length > 0) {
-    line += `\n  ${JSON.stringify(Object.fromEntries(remaining), null, 2).replace(/\n/g, '\n  ')}`;
-  }
+    // Remaining metadata, excluding fields already rendered above
+    const skip = new Set(['splat']);
+    const remaining = Object.entries(meta).filter(([k]) => !skip.has(k));
+    if (remaining.length > 0) {
+      line += `\n  ${JSON.stringify(Object.fromEntries(remaining), null, 2).replace(/\n/g, '\n  ')}`;
+    }
 
-  // Request body — only present in dev (errorHandler guards the field)
-  if (body !== undefined) {
-    line += `\n  body: ${JSON.stringify(body)}`;
-  }
+    // Request body — only present in dev (errorHandler guards the field)
+    if (body !== undefined) {
+      line += `\n  body: ${JSON.stringify(body)}`;
+    }
 
-  return line;
-});
+    return line;
+  },
+);
 
 // ── Minimal JSON console format (prod) ───────────────────────────────────────
 // One compact JSON line per entry — easy to grep, pipe into jq, or ingest
 // into a log aggregator. Intentionally omits stack traces and request bodies:
 // stacks belong in error.log only, bodies must never leave the server.
 
-const prodConsoleFormat = format.printf(({
-  level, message, timestamp, requestId, module: mod, method, path: routePath,
-  sqliteCode,
-}) => {
-  const entry: Record<string, unknown> = { timestamp, level, message };
-  if (requestId)  entry['requestId'] = requestId;
-  if (mod)        entry['module']    = mod;
-  if (method)     entry['method']    = method;
-  if (routePath)  entry['path']      = routePath;
-  if (sqliteCode) entry['sqliteCode'] = sqliteCode;
-  return JSON.stringify(entry);
-});
+const prodConsoleFormat = format.printf(
+  ({ level, message, timestamp, requestId, module: mod, method, path: routePath, sqliteCode }) => {
+    const entry: Record<string, unknown> = { timestamp, level, message };
+    if (requestId) entry['requestId'] = requestId;
+    if (mod) entry['module'] = mod;
+    if (method) entry['method'] = method;
+    if (routePath) entry['path'] = routePath;
+    if (sqliteCode) entry['sqliteCode'] = sqliteCode;
+    return JSON.stringify(entry);
+  },
+);
 
 // ── Logger instance ───────────────────────────────────────────────────────────
 
@@ -159,5 +171,4 @@ export const logger: Logger = createLogger({
  * Returns a child logger that automatically tags every line with the
  * module name, e.g. `createModuleLogger('SalesController')`.
  */
-export const createModuleLogger = (moduleName: string) =>
-  logger.child({ module: moduleName });
+export const createModuleLogger = (moduleName: string) => logger.child({ module: moduleName });

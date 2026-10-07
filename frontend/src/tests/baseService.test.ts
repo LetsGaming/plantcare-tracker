@@ -195,9 +195,7 @@ describe("optimisticListUpsert", () => {
     });
 
     // paint happened before the request settled
-    await vi.waitFor(() =>
-      expect(readStored(key)).toEqual([{ id: -100, name: "Monstera" }]),
-    );
+    await vi.waitFor(() => expect(readStored(key)).toEqual([{ id: -100, name: "Monstera" }]));
     expect(listener.events.length).toBe(1);
 
     server.resolve({ plant_id: 7, plant_name: "Monstera" });
@@ -248,9 +246,7 @@ describe("optimisticListUpsert", () => {
       reconcile: () => ({ id: 5, name: "" }),
     });
 
-    await vi.waitFor(() =>
-      expect(readStored(key)).toEqual([{ id: 5, name: "optimistic-edit" }]),
-    );
+    await vi.waitFor(() => expect(readStored(key)).toEqual([{ id: 5, name: "optimistic-edit" }]));
 
     server.reject(new Error("boom"));
     await expect(pending).rejects.toThrow("boom");
@@ -275,9 +271,7 @@ describe("optimisticListRemove", () => {
       request: () => server.promise,
     });
 
-    await vi.waitFor(() =>
-      expect(readStored(key)).toEqual([{ id: 2, name: "b" }]),
-    );
+    await vi.waitFor(() => expect(readStored(key)).toEqual([{ id: 2, name: "b" }]));
 
     server.resolve();
     await pending;
@@ -331,9 +325,7 @@ describe("optimistic dictionary-list wrappers", () => {
       reconcile: () => ({ id: 0, name: "" }),
     });
 
-    await vi.waitFor(() =>
-      expect(readStoredDict(key)["1"]).toHaveLength(2),
-    );
+    await vi.waitFor(() => expect(readStoredDict(key)["1"]).toHaveLength(2));
     // sibling entry untouched by the paint
     expect(readStoredDict(key)["2"]).toEqual([{ id: 20, name: "r20" }]);
 
@@ -359,9 +351,7 @@ describe("optimistic dictionary-list wrappers", () => {
       reconcile: (res) => ({ id: res.record_id, name: "painted" }),
     });
 
-    await vi.waitFor(() =>
-      expect(readStoredDict(key)["7"]).toEqual([{ id: -1, name: "painted" }]),
-    );
+    await vi.waitFor(() => expect(readStoredDict(key)["7"]).toEqual([{ id: -1, name: "painted" }]));
 
     server.resolve({ record_id: 15 });
     await pending;
@@ -372,7 +362,12 @@ describe("optimistic dictionary-list wrappers", () => {
   it("optimisticDictionaryListRemove removes and restores within one entry", async () => {
     const key = nextKey();
     store.set(key, {
-      data: { "3": [{ id: 30, name: "x" }, { id: 31, name: "y" }] },
+      data: {
+        "3": [
+          { id: 30, name: "x" },
+          { id: 31, name: "y" },
+        ],
+      },
       timestamp: Date.now(),
     });
 
@@ -385,9 +380,7 @@ describe("optimistic dictionary-list wrappers", () => {
       request: () => server.promise,
     });
 
-    await vi.waitFor(() =>
-      expect(readStoredDict(key)["3"]).toEqual([{ id: 31, name: "y" }]),
-    );
+    await vi.waitFor(() => expect(readStoredDict(key)["3"]).toEqual([{ id: 31, name: "y" }]));
 
     server.reject(new Error("offline"));
     await expect(pending).rejects.toThrow("offline");
@@ -403,24 +396,18 @@ describe("clearMemoryCache", () => {
     const key = nextKey();
 
     // Prime both cache tiers via the normal read path.
-    const first = await TestService.getCached(key, async () => [
-      { id: 1, name: "user-A" },
-    ]);
+    const first = await TestService.getCached(key, async () => [{ id: 1, name: "user-A" }]);
     expect(first).toEqual([{ id: 1, name: "user-A" }]);
 
     // Simulate a logout that only wipes L2 storage: the static L1 map
     // still serves the previous account's data …
     store.clear();
-    const l1Hit = await TestService.getCached(key, async () => [
-      { id: 2, name: "user-B" },
-    ]);
+    const l1Hit = await TestService.getCached(key, async () => [{ id: 2, name: "user-B" }]);
     expect(l1Hit).toEqual([{ id: 1, name: "user-A" }]);
 
     // … unless the memory cache is cleared as well (handleLocalLogout).
     TestService.clearMemoryCache();
-    const fresh = await TestService.getCached(key, async () => [
-      { id: 2, name: "user-B" },
-    ]);
+    const fresh = await TestService.getCached(key, async () => [{ id: 2, name: "user-B" }]);
     expect(fresh).toEqual([{ id: 2, name: "user-B" }]);
   });
 });

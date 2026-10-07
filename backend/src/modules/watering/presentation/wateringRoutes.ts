@@ -18,12 +18,12 @@ export const createWateringRouter = (): Router => {
   const repo = new SQLiteWateringRepository();
   const ctrl = createWateringController(repo);
 
-  router.get('/fertilizer-types', authenticateToken,                        ctrl.getFertilizerTypes);
-  router.get('/plant/:plantId',   authenticateToken,                        ctrl.getRecordsForPlant);
-  router.get('/:id',              authenticateToken,                        ctrl.getRecord);
-  router.post('/:plantId',        authenticateToken, checkGuestPermission,  ctrl.addRecord);
-  router.patch('/:id',            authenticateToken, checkGuestPermission,  ctrl.editRecord);
-  router.delete('/:id',           authenticateToken, checkGuestPermission,  ctrl.deleteRecord);
+  router.get('/fertilizer-types', authenticateToken, ctrl.getFertilizerTypes);
+  router.get('/plant/:plantId', authenticateToken, ctrl.getRecordsForPlant);
+  router.get('/:id', authenticateToken, ctrl.getRecord);
+  router.post('/:plantId', authenticateToken, checkGuestPermission, ctrl.addRecord);
+  router.patch('/:id', authenticateToken, checkGuestPermission, ctrl.editRecord);
+  router.delete('/:id', authenticateToken, checkGuestPermission, ctrl.deleteRecord);
 
   return router;
 };

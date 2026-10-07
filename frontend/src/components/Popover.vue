@@ -4,12 +4,7 @@
       <div>
         <ion-toolbar>
           <ion-title class="record-header">{{ title }}</ion-title>
-          <ion-icon
-            v-if="showEditButton"
-            slot="end"
-            :icon="create"
-            @click="onEditClick"
-          />
+          <ion-icon v-if="showEditButton" slot="end" :icon="create" @click="onEditClick" />
         </ion-toolbar>
 
         <!-- Custom slot content -->
@@ -17,11 +12,11 @@
 
         <!-- Fallback to dynamic field rendering -->
         <template v-else>
-          <span v-for="(field, index) in fields" :key="index" style="display: flex;">
-            <p style="width: 50%;">
+          <span v-for="(field, index) in fields" :key="index" style="display: flex">
+            <p style="width: 50%">
               <strong>{{ field.label }}:</strong>
             </p>
-            <p style="width: 50%; text-align: right;">
+            <p style="width: 50%; text-align: right">
               {{ field.value }}
             </p>
           </span>
@@ -32,13 +27,7 @@
 </template>
 
 <script lang="ts">
-import {
-  IonPopover,
-  IonContent,
-  IonToolbar,
-  IonTitle,
-  IonIcon,
-} from "@ionic/vue";
+import { IonPopover, IonContent, IonToolbar, IonTitle, IonIcon } from "@ionic/vue";
 import { create } from "ionicons/icons";
 import { defineComponent } from "vue";
 
@@ -92,7 +81,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-ion-popover  {
+ion-popover {
   --width: 350px;
 }
 

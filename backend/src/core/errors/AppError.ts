@@ -16,10 +16,7 @@ export class AppError extends Error {
     this.statusCode = statusCode;
     this.isOperational = isOperational;
     const errorConstructor = Error as ErrorConstructor & {
-      captureStackTrace?: (
-        targetObject: object,
-        constructorOpt?: Function,
-      ) => void;
+      captureStackTrace?: (targetObject: object, constructorOpt?: Function) => void;
     };
 
     if (errorConstructor.captureStackTrace) {
@@ -42,7 +39,7 @@ export class ValidationError extends AppError {
 // ── 401 ──────────────────────────────────────────────────────────────────────
 
 export class UnauthorizedError extends AppError {
-  constructor(message = "Authentication required") {
+  constructor(message = 'Authentication required') {
     super(message, 401);
   }
 }
@@ -50,7 +47,7 @@ export class UnauthorizedError extends AppError {
 // ── 403 ──────────────────────────────────────────────────────────────────────
 
 export class ForbiddenError extends AppError {
-  constructor(message = "You do not have permission to perform this action") {
+  constructor(message = 'You do not have permission to perform this action') {
     super(message, 403);
   }
 }
@@ -74,12 +71,11 @@ export class ConflictError extends AppError {
 // ── 500 ──────────────────────────────────────────────────────────────────────
 
 export class InternalError extends AppError {
-  constructor(message = "An unexpected error occurred") {
+  constructor(message = 'An unexpected error occurred') {
     super(message, 500, false);
   }
 }
 
 // ── Type guard ────────────────────────────────────────────────────────────────
 
-export const isAppError = (error: unknown): error is AppError =>
-  error instanceof AppError;
+export const isAppError = (error: unknown): error is AppError => error instanceof AppError;

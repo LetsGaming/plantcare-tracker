@@ -36,9 +36,7 @@ for (const path in localeLoaders) {
 
   if (match) {
     const localeKey = match[1];
-    localizationService.registerLoader(localeKey, () =>
-      loader().then((mod) => mod.default),
-    );
+    localizationService.registerLoader(localeKey, () => loader().then((mod) => mod.default));
   }
 }
 
@@ -55,20 +53,13 @@ async function initializeApp() {
   app.config.globalProperties.$i18n = localizationService;
 
   // We create a global helper that explicitly depends on the reactive locale
-  app.config.globalProperties.$t = (
-    key: string,
-    vars?: any,
-    fallback?: string,
-  ) => {
+  app.config.globalProperties.$t = (key: string, vars?: any, fallback?: string) => {
     // Accessing .value here registers this function in Vue's dependency tracker
     const _ = localizationService.locale.value;
     return localizationService.t(key, vars, fallback);
   };
 
-  await Promise.all([
-    router.isReady(),
-    localizationService.resolveInitialLocale(),
-  ]);
+  await Promise.all([router.isReady(), localizationService.resolveInitialLocale()]);
 
   app.mount("#app");
 }

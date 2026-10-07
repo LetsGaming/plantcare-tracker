@@ -5,8 +5,7 @@ import config from "@/config.json";
 /** Environment identifiers */
 type Environment = "development" | "production";
 
-const ENV: Environment =
-  import.meta.env.MODE === "production" ? "production" : "development";
+const ENV: Environment = import.meta.env.MODE === "production" ? "production" : "development";
 
 const ACTIVE_CONFIG = config[ENV];
 
@@ -77,10 +76,7 @@ const Utils = {
     return toFilter.filter((item) => {
       for (const key in item) {
         const value = item[key];
-        if (
-          typeof value === "string" &&
-          value.toLowerCase().includes(lowerQuery)
-        ) {
+        if (typeof value === "string" && value.toLowerCase().includes(lowerQuery)) {
           return true;
         }
       }
@@ -91,10 +87,7 @@ const Utils = {
   /**
    * NEW: Flexible date converter
    */
-  convertDate(
-    input: string | number | Date,
-    options?: { format?: "readable" | "iso" }
-  ): string {
+  convertDate(input: string | number | Date, options?: { format?: "readable" | "iso" }): string {
     const dt = toDateTime(input);
 
     if (!dt.isValid) {

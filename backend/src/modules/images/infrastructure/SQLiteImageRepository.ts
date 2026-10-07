@@ -5,13 +5,8 @@
  * Single table `images`: id, image_url, entity_type, entity_id, upload_date.
  */
 
-import { query, execute, transaction } from "../../../core/database/db";
-import type {
-  ImageRepository,
-  ImageRecord,
-  EntityType,
-  UpdateImageDTO,
-} from "../domain/Image";
+import { query, execute, transaction } from '../../../core/database/db';
+import type { ImageRepository, ImageRecord, EntityType, UpdateImageDTO } from '../domain/Image';
 
 type SqlParam = string | number | boolean | null;
 
@@ -23,10 +18,7 @@ interface ImageRow {
 }
 
 export class SQLiteImageRepository implements ImageRepository {
-  async findByEntity(
-    entityType: EntityType,
-    entityId: number,
-  ): Promise<ImageRecord[]> {
+  async findByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
     return query<ImageRow>(
       `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType"
        FROM images
@@ -64,16 +56,16 @@ export class SQLiteImageRepository implements ImageRepository {
     const updates: string[] = [];
     const params: SqlParam[] = [];
     if (fields.imageUrl !== undefined) {
-      updates.push("image_url = ?");
+      updates.push('image_url = ?');
       params.push(fields.imageUrl);
     }
     if (fields.uploadDate !== undefined) {
-      updates.push("upload_date = ?");
+      updates.push('upload_date = ?');
       params.push(fields.uploadDate);
     }
     if (!updates.length) return;
     params.push(imageId);
-    execute(`UPDATE images SET ${updates.join(", ")} WHERE id = ?`, params);
+    execute(`UPDATE images SET ${updates.join(', ')} WHERE id = ?`, params);
   }
 
   async delete(imageId: number): Promise<void> {
@@ -84,10 +76,7 @@ export class SQLiteImageRepository implements ImageRepository {
    * Deletes all images of an entity inside one transaction and returns
    * the deleted records so the caller can clean up the files.
    */
-  async deleteByEntity(
-    entityType: EntityType,
-    entityId: number,
-  ): Promise<ImageRecord[]> {
+  async deleteByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
     const images = await this.findByEntity(entityType, entityId);
 
     transaction(({ execute: exec }) => {

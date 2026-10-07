@@ -1,11 +1,7 @@
-import { query, execute } from "../../../core/database/db";
-import type {
-  PlantRepository,
-  CreatePlantDTO,
-  UpdatePlantDTO,
-} from "../domain/Plant";
-import { Plant } from "../domain/Plant";
-import type { SubstrateRef, ImageRef } from "../domain/Plant";
+import { query, execute } from '../../../core/database/db';
+import type { PlantRepository, CreatePlantDTO, UpdatePlantDTO } from '../domain/Plant';
+import { Plant } from '../domain/Plant';
+import type { SubstrateRef, ImageRef } from '../domain/Plant';
 
 // ── Species helpers ───────────────────────────────────────────────────────────
 
@@ -19,8 +15,8 @@ import type { SubstrateRef, ImageRef } from "../domain/Plant";
 function normaliseSpecies(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\.\s*/g, " ") // "sp." → "sp "
-    .replace(/\s+/g, " ")
+    .replace(/\.\s*/g, ' ') // "sp." → "sp "
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -38,9 +34,9 @@ function levenshtein(a: string, b: string): number {
     for (let j = 1; j <= n; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
       curr[j] = Math.min(
-        curr[j - 1] + 1,       // insertion
-        prev[j] + 1,           // deletion
-        prev[j - 1] + cost,    // substitution
+        curr[j - 1] + 1, // insertion
+        prev[j] + 1, // deletion
+        prev[j - 1] + cost, // substitution
       );
     }
     prev = curr;
@@ -100,7 +96,7 @@ function fuzzyThreshold(normalised: string): number {
 
 interface SpeciesCacheEntry {
   id: number;
-  name: string;       // original casing, used for exact NOCASE comparison
+  name: string; // original casing, used for exact NOCASE comparison
   normalised: string; // pre-computed, used for fuzzy comparison
 }
 
@@ -109,9 +105,7 @@ let speciesCache: SpeciesCacheEntry[] | null = null;
 /** Load (or reuse) the in-memory species cache. */
 function loadSpeciesCache(): SpeciesCacheEntry[] {
   if (speciesCache !== null) return speciesCache;
-  const rows = query<{ id: number; name: string }>(
-    "SELECT id, name FROM species ORDER BY id",
-  );
+  const rows = query<{ id: number; name: string }>('SELECT id, name FROM species ORDER BY id');
   speciesCache = rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -175,7 +169,7 @@ function upsertSpecies(name: string | null | undefined): number | null {
   }
 
   // 3. No match found — insert as a new species and invalidate the cache
-  const result = execute("INSERT INTO species (name) VALUES (?)", [trimmed]);
+  const result = execute('INSERT INTO species (name) VALUES (?)', [trimmed]);
   invalidateSpeciesCache();
   return result.insertId;
 }
@@ -222,17 +216,14 @@ const BASE_QUERY = `
 // ── Repository ───────────────────────────────────────────────────────────────
 export class SQLitePlantRepository implements PlantRepository {
   async findAllPublic(): Promise<Plant[]> {
-    const rows = query<PlantRow>(
-      `${BASE_QUERY} WHERE p.is_public = 1 ORDER BY p.created_at DESC`,
-    );
+    const rows = query<PlantRow>(`${BASE_QUERY} WHERE p.is_public = 1 ORDER BY p.created_at DESC`);
     return this.groupRows(rows);
   }
 
   async findAllByUser(userId: number): Promise<Plant[]> {
-    const rows = query<PlantRow>(
-      `${BASE_QUERY} WHERE p.user_id = ? ORDER BY p.created_at DESC`,
-      [userId],
-    );
+    const rows = query<PlantRow>(`${BASE_QUERY} WHERE p.user_id = ? ORDER BY p.created_at DESC`, [
+      userId,
+    ]);
     return this.groupRows(rows);
   }
 
@@ -247,40 +238,30 @@ export class SQLitePlantRepository implements PlantRepository {
     const result = execute(
       `INSERT INTO plants (name, species_id, substrate_id, is_public, user_id, created_at)
        VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'))`,
-      [
-        dto.name,
-        speciesId,
-        dto.substrateId ?? null,
-        dto.isPublic ? 1 : 0,
-        dto.userId,
-      ],
+      [dto.name, speciesId, dto.substrateId ?? null, dto.isPublic ? 1 : 0, dto.userId],
     );
 
     return result.insertId as number;
   }
 
-  async update(
-    id: number,
-    userId: number,
-    dto: UpdatePlantDTO,
-  ): Promise<boolean> {
+  async update(id: number, userId: number, dto: UpdatePlantDTO): Promise<boolean> {
     const updates: string[] = [];
     const params: SqlParam[] = [];
 
     if (dto.name !== undefined) {
-      updates.push("name = ?");
+      updates.push('name = ?');
       params.push(dto.name);
     }
     if (dto.species !== undefined) {
-      updates.push("species_id = ?");
+      updates.push('species_id = ?');
       params.push(upsertSpecies(dto.species));
     }
     if (dto.substrateId !== undefined) {
-      updates.push("substrate_id = ?");
+      updates.push('substrate_id = ?');
       params.push(dto.substrateId);
     }
     if (dto.isPublic !== undefined) {
-      updates.push("is_public = ?");
+      updates.push('is_public = ?');
       params.push(dto.isPublic ? 1 : 0);
     }
 
@@ -289,7 +270,7 @@ export class SQLitePlantRepository implements PlantRepository {
     params.push(id, userId);
 
     const result = execute(
-      `UPDATE plants SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
+      `UPDATE plants SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
       params,
     );
 
@@ -297,10 +278,7 @@ export class SQLitePlantRepository implements PlantRepository {
   }
 
   async delete(id: number, userId: number): Promise<boolean> {
-    const result = execute("DELETE FROM plants WHERE id = ? AND user_id = ?", [
-      id,
-      userId,
-    ]);
+    const result = execute('DELETE FROM plants WHERE id = ? AND user_id = ?', [id, userId]);
     return result.affectedRows > 0;
   }
 
@@ -325,18 +303,17 @@ export class SQLitePlantRepository implements PlantRepository {
       const substrate: SubstrateRef | null = data.substrate_id
         ? {
             substrate_id: data.substrate_id,
-            substrate_name: data.substrate_name ?? "",
+            substrate_name: data.substrate_name ?? '',
           }
         : null;
 
-      const latestImage =
-        images.length > 0 ? images[images.length - 1].url : null;
+      const latestImage = images.length > 0 ? images[images.length - 1].url : null;
 
       return new Plant({
         plant_id: data.plant_id,
         plant_user_id: data.plant_user_id,
         plant_name: data.plant_name,
-        plant_species: data.plant_species_name ?? "Unknown",
+        plant_species: data.plant_species_name ?? 'Unknown',
         is_public: Boolean(data.is_public),
         plant_created_at: data.plant_created_at,
         image_url: latestImage,

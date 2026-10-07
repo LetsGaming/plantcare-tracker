@@ -23,7 +23,10 @@ export class SQLiteUserRepository implements UserRepository {
     return rows[0] ?? null;
   }
 
-  async create(username: string, hashedPassword: string): Promise<{ id: number; username: string }> {
+  async create(
+    username: string,
+    hashedPassword: string,
+  ): Promise<{ id: number; username: string }> {
     // Resolve the lowest-privilege role at runtime rather than relying on
     // the column DEFAULT (3). On a fresh database the roles table may not
     // yet contain that row, which would fire a FOREIGN KEY constraint error.
@@ -36,9 +39,7 @@ export class SQLiteUserRepository implements UserRepository {
       `SELECT id FROM roles WHERE name = 'user' COLLATE NOCASE LIMIT 1`,
     );
     if (!roleRow.length) {
-      roleRow = query<{ id: number }>(
-        `SELECT id FROM roles ORDER BY id DESC LIMIT 1`,
-      );
+      roleRow = query<{ id: number }>(`SELECT id FROM roles ORDER BY id DESC LIMIT 1`);
     }
 
     if (!roleRow.length) {
@@ -49,10 +50,11 @@ export class SQLiteUserRepository implements UserRepository {
     }
 
     const roleId = roleRow[0].id;
-    const result = execute(
-      'INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)',
-      [username, hashedPassword, roleId],
-    );
+    const result = execute('INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)', [
+      username,
+      hashedPassword,
+      roleId,
+    ]);
     return { id: result.insertId, username };
   }
 
@@ -65,10 +67,7 @@ export class SQLiteUserRepository implements UserRepository {
 
     const setClause = keys.map((k) => `${k} = ?`).join(', ');
     const values = [...keys.map((k) => fields[k] as string | number | boolean | null), userId];
-    const result = execute(
-      `UPDATE users SET ${setClause} WHERE id = ?`,
-      values,
-    );
+    const result = execute(`UPDATE users SET ${setClause} WHERE id = ?`, values);
     return result.affectedRows > 0;
   }
 

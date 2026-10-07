@@ -1,9 +1,6 @@
 <template>
   <ion-modal :is-open="isOpen" @didDismiss="$emit('close')">
-    <modal-header
-      :header-title="t('calendar.settings.title')"
-      @close="$emit('close')"
-    />
+    <modal-header :header-title="t('calendar.settings.title')" @close="$emit('close')" />
 
     <ion-content>
       <!-- GENERAL SETTINGS -->
@@ -35,9 +32,7 @@
           <ion-item>
             <ion-toggle
               :checked="doDeleteAfterThirty"
-              @ionChange="
-                $emit('update:deleteAfterThirty', $event.detail.checked)
-              "
+              @ionChange="$emit('update:deleteAfterThirty', $event.detail.checked)"
             >
               {{ t("calendar.settings.auto_delete_label") }}
             </ion-toggle>
@@ -53,11 +48,7 @@
               {{ t("calendar.settings.watering_categories") }}
             </ion-title>
             <ion-buttons slot="end">
-              <ion-button
-                fill="clear"
-                color="warning"
-                @click="$emit('reset-watering-categories')"
-              >
+              <ion-button fill="clear" color="warning" @click="$emit('reset-watering-categories')">
                 <ion-icon :icon="refreshCircle" />
               </ion-button>
             </ion-buttons>
@@ -66,10 +57,7 @@
 
         <ion-card-content>
           <ion-list>
-            <ion-item
-              v-for="(category, index) in wateringCategories"
-              :key="index"
-            >
+            <ion-item v-for="(category, index) in wateringCategories" :key="index">
               <ion-label>{{ t(category.name) }}</ion-label>
               <input
                 type="color"
@@ -108,11 +96,7 @@
                 @input="debouncedUpdateCategories(index)"
               />
 
-              <ion-button
-                fill="clear"
-                color="danger"
-                @click="$emit('delete-category', index)"
-              >
+              <ion-button fill="clear" color="danger" @click="$emit('delete-category', index)">
                 <ion-icon :icon="trash" />
               </ion-button>
             </ion-item>
@@ -223,10 +207,10 @@ export default defineComponent({
         backgroundColor: "#FFFFFF",
       } as Category,
       debouncedUpdateCategories: ((index: number) => {
-        console.warn('debouncedUpdateCategories called before initialization');
+        console.warn("debouncedUpdateCategories called before initialization");
       }) as (index: number) => void,
       debouncedUpdateWateringCategories: ((index: number) => {
-        console.warn('debouncedUpdateWateringCategories called before initialization');
+        console.warn("debouncedUpdateWateringCategories called before initialization");
       }) as (index: number) => void,
     };
   },

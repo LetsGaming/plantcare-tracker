@@ -119,25 +119,13 @@ export default defineComponent({
     },
 
     attachListeners() {
-      document.addEventListener(
-        CalendarEvents.DATES_CHANGED,
-        this.onDatesChanged
-      );
-      document.addEventListener(
-        CalendarEvents.CATEGORIES_CHANGED,
-        this.onCategoriesChanged
-      );
+      document.addEventListener(CalendarEvents.DATES_CHANGED, this.onDatesChanged);
+      document.addEventListener(CalendarEvents.CATEGORIES_CHANGED, this.onCategoriesChanged);
     },
 
     detachListeners() {
-      document.removeEventListener(
-        CalendarEvents.DATES_CHANGED,
-        this.onDatesChanged
-      );
-      document.removeEventListener(
-        CalendarEvents.CATEGORIES_CHANGED,
-        this.onCategoriesChanged
-      );
+      document.removeEventListener(CalendarEvents.DATES_CHANGED, this.onDatesChanged);
+      document.removeEventListener(CalendarEvents.CATEGORIES_CHANGED, this.onCategoriesChanged);
     },
 
     /* =============================================================
@@ -182,9 +170,7 @@ export default defineComponent({
     },
 
     onEditClick() {
-      const existing = this.reminderDates.find(
-        (d) => d.date === this.selectedDate
-      );
+      const existing = this.reminderDates.find((d) => d.date === this.selectedDate);
       if (!existing) return;
 
       this.formData = {
@@ -203,14 +189,10 @@ export default defineComponent({
       this.isLoading = true;
 
       try {
-        const category = this.categories.find(
-          (c) => c.name === this.formData.category
-        );
+        const category = this.categories.find((c) => c.name === this.formData.category);
         if (!category || !this.formData.date) return;
 
-        const dateIso = new Date(this.formData.date)
-          .toISOString()
-          .split("T")[0];
+        const dateIso = new Date(this.formData.date).toISOString().split("T")[0];
 
         const updated = this.reminderDates.filter((d) => d.date !== dateIso);
 
@@ -234,7 +216,7 @@ export default defineComponent({
       if (!this.formData.date) return;
 
       const updated = this.reminderDates.filter(
-        (d) => new Date(d.date).getTime() !== this.formData.date
+        (d) => new Date(d.date).getTime() !== this.formData.date,
       );
 
       await CalendarService.saveDates(updated);
@@ -247,7 +229,7 @@ export default defineComponent({
 
     syncCategoryOptions() {
       const field = this.formFields.find(
-        (f) => f.modelKey === "category" && f.type === "select"
+        (f) => f.modelKey === "category" && f.type === "select",
       ) as SelectField | undefined;
 
       if (!field) return;

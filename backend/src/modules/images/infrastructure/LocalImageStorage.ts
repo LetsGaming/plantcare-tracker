@@ -13,12 +13,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
 import ExifParser from 'exif-parser';
-import type {
-  ImageStorage,
-  ProcessedUpload,
-  UploadedFile,
-  EntityType,
-} from '../domain/Image';
+import type { ImageStorage, ProcessedUpload, UploadedFile, EntityType } from '../domain/Image';
 import { NotFoundError } from '../../../core/errors';
 import { getUploadsDirectory } from '../../../core/config';
 import { createModuleLogger } from '../../../core/logging';
@@ -98,7 +93,11 @@ const anonymizeImageName = (fileName: string, contextKeywords: string[] = []): s
     .replace(/[^a-zA-Z0-9 ]/g, '')
     .toLowerCase()
     .split(/\s+/)
-    .filter((t) => t.length >= 2 && !PII_REDLIST.includes(t) && !/^\d+$/.test(t) || contextKeywords.includes(t));
+    .filter(
+      (t) =>
+        (t.length >= 2 && !PII_REDLIST.includes(t) && !/^\d+$/.test(t)) ||
+        contextKeywords.includes(t),
+    );
 
   const base = tokens.length > 0 ? tokens.join('-') : 'image';
   const hash = Math.random().toString(36).substring(2, 6);
@@ -114,15 +113,11 @@ export class LocalImageStorage implements ImageStorage {
     this.rootDir = rootDir;
   }
 
-  async processUpload(
-    file: UploadedFile,
-    entityType: EntityType,
-  ): Promise<ProcessedUpload> {
+  async processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload> {
     const uploadPath = path.join(this.rootDir, entityType);
     await fs.mkdir(uploadPath, { recursive: true });
 
-    const baseName = anonymizeImageName(file.originalName, [entityType])
-      .replace(/\.[^/.]+$/, '');
+    const baseName = anonymizeImageName(file.originalName, [entityType]).replace(/\.[^/.]+$/, '');
     const filename = `${Date.now()}-${baseName}.webp`;
     const outputPath = path.join(uploadPath, filename);
 
@@ -137,11 +132,7 @@ export class LocalImageStorage implements ImageStorage {
     return { filename, capturedAt };
   }
 
-  async readAsWebp(
-    entityType: string,
-    imageUrl: string,
-    resizeWidth?: number,
-  ): Promise<Buffer> {
+  async readAsWebp(entityType: string, imageUrl: string, resizeWidth?: number): Promise<Buffer> {
     const localPath = this.resolveLocalPath(entityType, imageUrl);
     // No fs.access() pre-check — it creates a TOCTOU race (file can
     // disappear between the check and the open). Let sharp throw ENOENT

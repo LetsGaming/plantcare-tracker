@@ -10,9 +10,7 @@ const COLUMNS = `source_key, kind, seller, status, active_strategy, last_item_co
 
 export class SQLiteSourceHealthRepository implements SourceHealthRepository {
   findAll(): SourceHealth[] {
-    return query<SourceHealth>(
-      `SELECT ${COLUMNS} FROM scrape_source_health ORDER BY source_key`,
-    );
+    return query<SourceHealth>(`SELECT ${COLUMNS} FROM scrape_source_health ORDER BY source_key`);
   }
 
   findByKey(key: string): SourceHealth | null {

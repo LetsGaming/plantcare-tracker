@@ -45,10 +45,7 @@
                   })
                 }}
               </p>
-              <p
-                v-if="source.status !== 'ok' && source.lastError"
-                class="source-error"
-              >
+              <p v-if="source.status !== 'ok' && source.lastError" class="source-error">
                 {{ source.lastError }}
               </p>
             </ion-label>

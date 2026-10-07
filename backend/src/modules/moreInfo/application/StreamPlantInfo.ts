@@ -35,10 +35,7 @@ const PlantInfoQuerySchema = z.object({
   plantName: z
     .string()
     .min(1, 'plantName query parameter is required.')
-    .max(
-      MAX_PLANT_NAME_LENGTH,
-      `plantName must be at most ${MAX_PLANT_NAME_LENGTH} characters.`,
-    ),
+    .max(MAX_PLANT_NAME_LENGTH, `plantName must be at most ${MAX_PLANT_NAME_LENGTH} characters.`),
   htmlFormatting: z.string().optional(),
   lang: z.string().max(MAX_LANGUAGE_TAG_LENGTH).optional(),
 });
@@ -68,10 +65,7 @@ export function parsePlantInfoQuery(
   return {
     plantName: cleanPlantName(parsed.plantName),
     htmlFormatting: parsed.htmlFormatting === 'true',
-    language:
-      parsed.lang ??
-      acceptLanguageHeader?.split(',')[0] ??
-      DEFAULT_LANGUAGE,
+    language: parsed.lang ?? acceptLanguageHeader?.split(',')[0] ?? DEFAULT_LANGUAGE,
   };
 }
 

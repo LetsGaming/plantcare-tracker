@@ -5,10 +5,7 @@ import Utils from "@/utils/utils";
 import { isProxy, toRaw } from "vue";
 
 export abstract class BaseService {
-  private static l1Cache = new Map<
-    string,
-    { data: unknown; timestamp: number }
-  >();
+  private static l1Cache = new Map<string, { data: unknown; timestamp: number }>();
   private static ongoingRequests = new Map<string, Promise<unknown>>();
   private static readonly L1_MAX_ENTRIES = 500;
 
@@ -169,8 +166,7 @@ export abstract class BaseService {
     try {
       return await request;
     } catch (error: any) {
-      if (error?.name === "RefreshError" || error?.name === "RegisterError")
-        throw error;
+      if (error?.name === "RefreshError" || error?.name === "RegisterError") throw error;
       ToastService.showError({
         key: actionKey,
         vars: {
@@ -188,12 +184,8 @@ export abstract class BaseService {
     return cached?.data ? [...cached.data] : [];
   }
 
-  private static async readDictionary<T>(
-    cacheKey: string,
-  ): Promise<Record<string, T[]>> {
-    const cached = await storageService.get<{ data: Record<string, T[]> }>(
-      cacheKey,
-    );
+  private static async readDictionary<T>(cacheKey: string): Promise<Record<string, T[]>> {
+    const cached = await storageService.get<{ data: Record<string, T[]> }>(cacheKey);
     return cached?.data ? { ...cached.data } : {};
   }
 
@@ -247,9 +239,7 @@ export abstract class BaseService {
   // ("watering_records_data" keyed by plantId). Only the addressed entry
   // is touched; sibling entries are preserved.
 
-  protected static async upsertIntoDictionaryListCache<
-    T extends { id: number | string },
-  >(
+  protected static async upsertIntoDictionaryListCache<T extends { id: number | string }>(
     cacheKey: string,
     entryKey: string,
     eventKey: string,
@@ -263,9 +253,7 @@ export abstract class BaseService {
     await this.saveAndNotify(cacheKey, eventKey, { ...dict, [entryKey]: list });
   }
 
-  protected static async removeFromDictionaryListCache<
-    T extends { id: number | string },
-  >(
+  protected static async removeFromDictionaryListCache<T extends { id: number | string }>(
     cacheKey: string,
     entryKey: string,
     eventKey: string,
@@ -282,9 +270,7 @@ export abstract class BaseService {
     });
   }
 
-  protected static async replaceInDictionaryListCache<
-    T extends { id: number | string },
-  >(
+  protected static async replaceInDictionaryListCache<T extends { id: number | string }>(
     cacheKey: string,
     entryKey: string,
     eventKey: string,
@@ -305,10 +291,7 @@ export abstract class BaseService {
   // the affected item is snapshotted and restored, so concurrent changes
   // to other items in the same list survive a failed request.
 
-  private static async runOptimisticUpsert<
-    T extends { id: number | string },
-    R,
-  >(
+  private static async runOptimisticUpsert<T extends { id: number | string }, R>(
     io: { read: () => Promise<T[]>; write: (list: T[]) => Promise<void> },
     optimisticItem: T,
     request: () => Promise<R>,
@@ -322,9 +305,7 @@ export abstract class BaseService {
     // 2. Optimistic paint.
     const painted = [...before];
     const paintIndex = painted.findIndex((x) => x.id === optimisticItem.id);
-    paintIndex === -1
-      ? painted.push(optimisticItem)
-      : (painted[paintIndex] = optimisticItem);
+    paintIndex === -1 ? painted.push(optimisticItem) : (painted[paintIndex] = optimisticItem);
     await io.write(painted);
 
     try {
@@ -351,10 +332,7 @@ export abstract class BaseService {
     }
   }
 
-  private static async runOptimisticRemove<
-    T extends { id: number | string },
-    R,
-  >(
+  private static async runOptimisticRemove<T extends { id: number | string }, R>(
     io: { read: () => Promise<T[]>; write: (list: T[]) => Promise<void> },
     itemId: number | string,
     request: () => Promise<R>,
@@ -389,10 +367,7 @@ export abstract class BaseService {
    * `reconcile` maps the server response to the final item that replaces it.
    * Returns the raw response so callers can chain on server data.
    */
-  protected static optimisticListUpsert<
-    T extends { id: number | string },
-    R,
-  >(options: {
+  protected static optimisticListUpsert<T extends { id: number | string }, R>(options: {
     cacheKey: string;
     eventKey: string;
     optimisticItem: T;
@@ -404,8 +379,7 @@ export abstract class BaseService {
     return this.runOptimisticUpsert(
       {
         read: () => this.readList<T>(cacheKey),
-        write: (list) =>
-          this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear),
+        write: (list) => this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear),
       },
       options.optimisticItem,
       options.request,
@@ -414,10 +388,7 @@ export abstract class BaseService {
   }
 
   /** Optimistic removal from a flat list cache (re-inserts at the original index on failure). */
-  protected static optimisticListRemove<
-    T extends { id: number | string },
-    R,
-  >(options: {
+  protected static optimisticListRemove<T extends { id: number | string }, R>(options: {
     cacheKey: string;
     eventKey: string;
     itemId: number | string;
@@ -428,8 +399,7 @@ export abstract class BaseService {
     return this.runOptimisticRemove<T, R>(
       {
         read: () => this.readList<T>(cacheKey),
-        write: (list) =>
-          this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear),
+        write: (list) => this.saveAndNotify(cacheKey, eventKey, list, "data", keepOnClear),
       },
       options.itemId,
       options.request,
@@ -437,10 +407,7 @@ export abstract class BaseService {
   }
 
   /** Optimistic upsert on one entry of a dictionary-list cache. */
-  protected static optimisticDictionaryListUpsert<
-    T extends { id: number | string },
-    R,
-  >(options: {
+  protected static optimisticDictionaryListUpsert<T extends { id: number | string }, R>(options: {
     cacheKey: string;
     entryKey: string;
     eventKey: string;
@@ -457,10 +424,7 @@ export abstract class BaseService {
   }
 
   /** Optimistic removal from one entry of a dictionary-list cache. */
-  protected static optimisticDictionaryListRemove<
-    T extends { id: number | string },
-    R,
-  >(options: {
+  protected static optimisticDictionaryListRemove<T extends { id: number | string }, R>(options: {
     cacheKey: string;
     entryKey: string;
     eventKey: string;

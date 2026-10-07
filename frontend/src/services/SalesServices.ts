@@ -29,10 +29,7 @@ export default class SalesService extends BaseService {
         const cached = await this.getCachedSales();
         const existingIds = new Set(cached?.map((s) => s.id) || []);
 
-        return this.handleRequest(
-          this.streamSales(existingIds, options?.onUpdate),
-          RESOURCE_KEY,
-        );
+        return this.handleRequest(this.streamSales(existingIds, options?.onUpdate), RESOURCE_KEY);
       },
       forceUpdate,
       true, // keepOnClear
@@ -171,9 +168,7 @@ export default class SalesService extends BaseService {
     );
   }
 
-  static async getPriceHistory(
-    saleId: string,
-  ): Promise<{ price: number; timestamp: number }[]> {
+  static async getPriceHistory(saleId: string): Promise<{ price: number; timestamp: number }[]> {
     const cached = await storageService.get<{
       data: {
         id: string;

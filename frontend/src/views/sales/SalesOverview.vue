@@ -64,9 +64,7 @@ export default defineComponent({
         id: sale.id,
         name: sale.name,
         imageUrl: sale.imageUrl,
-        description: `${sale.seller ?? ""}${
-          sale.price ? " - " + sale.price + "€" : ""
-        }`,
+        description: `${sale.seller ?? ""}${sale.price ? " - " + sale.price + "€" : ""}`,
         isNew: sale.isNew,
       }));
     },
@@ -123,7 +121,7 @@ export default defineComponent({
     handleSearch(query: string) {
       const lowerQuery = query.toLowerCase();
       this.sales = this.allSales.filter((sale: Sale) =>
-        sale.name.toLowerCase().includes(lowerQuery)
+        sale.name.toLowerCase().includes(lowerQuery),
       );
     },
 
@@ -136,7 +134,7 @@ export default defineComponent({
       if (!sale) return;
 
       await this.$router.push({ name: "sales-details", params: { id } });
-      
+
       // mark as seen first
       await SalesService.markSaleAsSeen(sale.id);
 
@@ -146,7 +144,6 @@ export default defineComponent({
         this.sales = [...cached];
         this.allSales = [...cached];
       }
-
     },
   },
 });

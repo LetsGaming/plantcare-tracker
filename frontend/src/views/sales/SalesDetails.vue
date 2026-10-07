@@ -13,11 +13,7 @@
         <section class="sale-info">
           <!-- PRIMARY CARD: minimal info + CTA -->
           <ion-card class="sale-card align-middle">
-            <ion-badge
-              v-if="discountPercentage"
-              color="danger"
-              class="sale-badge round-badge"
-            >
+            <ion-badge v-if="discountPercentage" color="danger" class="sale-badge round-badge">
               {{ discountPercentage }}
             </ion-badge>
 
@@ -27,11 +23,7 @@
               </ion-card-title>
 
               <div class="seller-info">
-                <ion-icon
-                  :icon="storefrontOutline"
-                  color="medium"
-                  style="cursor: unset"
-                />
+                <ion-icon :icon="storefrontOutline" color="medium" style="cursor: unset" />
                 <ion-card-subtitle class="sale-seller">
                   {{ t("sales.sold_by") }}
                   <span class="seller-name">{{ sale.seller }}</span>
@@ -43,19 +35,14 @@
               <!-- Minimal price info -->
               <div class="price-section">
                 <div class="price-row">
-                  <span class="current-price">
-                    {{ sale.price.toFixed(2) }} €
-                  </span>
+                  <span class="current-price"> {{ sale.price.toFixed(2) }} € </span>
 
                   <span v-if="sale.oldPrice" class="old-price">
                     {{ sale.oldPrice.toFixed(2) }} €
                   </span>
                 </div>
 
-                <div
-                  v-if="discountPercentage && savings"
-                  class="savings-container"
-                >
+                <div v-if="discountPercentage && savings" class="savings-container">
                   <span class="savings-amount">
                     {{ discountPercentage }} · {{ savings }} € {{ t("sales.savings") }}
                   </span>
@@ -77,10 +64,7 @@
           </ion-card>
 
           <!-- SECONDARY CARD: optional deep info -->
-          <ion-card
-            v-if="priceHistory.length"
-            class="sale-card align-middle secondary-card"
-          >
+          <ion-card v-if="priceHistory.length" class="sale-card align-middle secondary-card">
             <ion-card-header>
               <ion-card-title class="chart-header">
                 {{ t("sales.price_history") }}
@@ -96,10 +80,7 @@
               </div>
 
               <!-- 2 points -->
-              <div
-                v-else-if="priceHistory.length === 2"
-                class="history-fallback"
-              >
+              <div v-else-if="priceHistory.length === 2" class="history-fallback">
                 <p class="history-meta">
                   {{ priceTrendLabel }}
                 </p>
@@ -107,10 +88,7 @@
 
               <!-- 3+ points -->
               <div v-else class="chart-wrapper">
-                <PriceHistoryChart
-                  :history="priceHistory"
-                  :reference-price="sale.oldPrice"
-                />
+                <PriceHistoryChart :history="priceHistory" :reference-price="sale.oldPrice" />
               </div>
             </ion-card-content>
           </ion-card>
@@ -193,17 +171,14 @@ export default defineComponent({
       if (!this.sale?.oldPrice || this.sale.oldPrice <= this.sale.price) {
         return null;
       }
-      const pct =
-        ((this.sale.oldPrice - this.sale.price) / this.sale.oldPrice) * 100;
+      const pct = ((this.sale.oldPrice - this.sale.price) / this.sale.oldPrice) * 100;
       return `-${Math.round(pct)}%`;
     },
     priceTrendLabel(): string {
       if (!this.priceHistory || this.priceHistory.length === 0) return "";
 
       // Sort by timestamp ascending
-      const sorted = [...this.priceHistory].sort(
-        (a, b) => a.timestamp - b.timestamp,
-      );
+      const sorted = [...this.priceHistory].sort((a, b) => a.timestamp - b.timestamp);
       const [first, last] = sorted;
 
       const diff = last.price - first.price; // positive if increased

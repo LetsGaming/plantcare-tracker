@@ -37,7 +37,7 @@ export default defineConfig({
       exclude: [
         'src/**/*.d.ts',
         'src/types/**',
-        'src/**/index.ts',  // barrel files
+        'src/**/index.ts', // barrel files
         'src/**/*.test.ts',
       ],
       thresholds: {

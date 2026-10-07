@@ -1,6 +1,6 @@
 <template>
   <IonModal v-model:isOpen="isOpen" @did-dismiss="$emit('close')">
-  <ModalHeader :headerTitle="t('image.edit.title')" @close="$emit('close')" />
+    <ModalHeader :headerTitle="t('image.edit.title')" @close="$emit('close')" />
     <IonContent>
       <div class="modal-card-container">
         <form-component
@@ -102,14 +102,17 @@ export default defineComponent({
     async submitForm() {
       try {
         if (!this.imageEditData.file && !this.imageEditData.date) {
-          ToastService.showError({ key: 'image.edit.min_field', fallback: 'Please fill at least one field' });
+          ToastService.showError({
+            key: "image.edit.min_field",
+            fallback: "Please fill at least one field",
+          });
           return;
         }
         this.isLoading = true;
         const response = await ImageService.editImage(
           this.image.id,
           this.imageEditData.date,
-          this.imageEditData.file
+          this.imageEditData.file,
         );
         if (response) {
           this.isLoading = false;

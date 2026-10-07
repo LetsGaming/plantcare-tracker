@@ -35,17 +35,21 @@ const SERVED_IMAGE_CACHE_CONTROL = 'public, max-age=86400';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface UploadImageResponse { data: { path: string; date: string } }
-export interface ImageListResponse { data: ImageRecord[] }
-export interface ImageResponse { data: ImageRecord }
+export interface UploadImageResponse {
+  data: { path: string; date: string };
+}
+export interface ImageListResponse {
+  data: ImageRecord[];
+}
+export interface ImageResponse {
+  data: ImageRecord;
+}
 
 // ── HTTP input helpers ────────────────────────────────────────────────────────
 
-const entityTypeParam = (req: Request): EntityType =>
-  req.params.entityType as EntityType; // validated by validateEntityType middleware
+const entityTypeParam = (req: Request): EntityType => req.params.entityType as EntityType; // validated by validateEntityType middleware
 
-const publicBaseUrl = (req: Request): string =>
-  `${req.protocol}://${req.get('host')}`;
+const publicBaseUrl = (req: Request): string => `${req.protocol}://${req.get('host')}`;
 
 const uploadedFile = (req: Request): UploadedFile => ({
   buffer: req.file!.buffer,
@@ -95,17 +99,11 @@ export const createImageController = (
       const body: UploadImageResponse = {
         data: { path: url, date: formatToDBDate(capturedAt.getTime()) },
       };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/images/${entityType}/${entityId}`)
-        .json(body);
+      res.status(HTTP_STATUS.CREATED).location(`/images/${entityType}/${entityId}`).json(body);
     }),
 
     listEntityImages: asyncHandler(async (req: Request, res: Response) => {
-      const images = await list.execute(
-        entityTypeParam(req),
-        Number(req.query.entityId),
-      );
+      const images = await list.execute(entityTypeParam(req), Number(req.query.entityId));
       const body: ImageListResponse = { data: images };
       res.json(body);
     }),
@@ -142,10 +140,7 @@ export const createImageController = (
     }),
 
     deleteEntityImages: asyncHandler(async (req: Request, res: Response) => {
-      await removeForEntity.execute(
-        entityTypeParam(req),
-        Number(req.params.entityId),
-      );
+      await removeForEntity.execute(entityTypeParam(req), Number(req.params.entityId));
       res.status(HTTP_STATUS.NO_CONTENT).end();
     }),
   };

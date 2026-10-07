@@ -36,13 +36,7 @@
       <div v-else-if="!isLoading" class="ion-padding ion-text-center">
         <ion-text color="medium">
           <p>
-            {{
-              t(
-                "error.plant_not_found",
-                {},
-                "Pflanze konnte nicht geladen werden."
-              )
-            }}
+            {{ t("error.plant_not_found", {}, "Pflanze konnte nicht geladen werden.") }}
           </p>
         </ion-text>
       </div>
@@ -172,9 +166,7 @@ export default defineComponent({
         // This is best-effort: a substrate failure must not hide plant details.
         if (this.plant?.substrate?.id) {
           try {
-            this.fullSubstrate = await SubstrateService.getSubstrateById(
-              this.plant.substrate.id,
-            );
+            this.fullSubstrate = await SubstrateService.getSubstrateById(this.plant.substrate.id);
           } catch (substrateError) {
             this.fullSubstrate = null;
             console.error("Error fetching substrate details:", substrateError);
@@ -205,9 +197,7 @@ export default defineComponent({
       if (!refId) {
         this.fullSubstrate = null;
       } else if (this.fullSubstrate?.id !== refId) {
-        this.fullSubstrate = await SubstrateService.getSubstrateById(refId).catch(
-          () => null,
-        );
+        this.fullSubstrate = await SubstrateService.getSubstrateById(refId).catch(() => null);
       }
     },
 
@@ -271,11 +261,7 @@ export default defineComponent({
         this.isImageLoading = true;
         // uploadPlantImage refreshes this plant's cache entry itself;
         // the gallery re-renders via PLANTS_UPDATED.
-        await PlantService.uploadPlantImage(
-          this.plant.id,
-          fileItem.file,
-          fileItem.date
-        );
+        await PlantService.uploadPlantImage(this.plant.id, fileItem.file, fileItem.date);
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);

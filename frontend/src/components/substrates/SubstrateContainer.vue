@@ -2,7 +2,7 @@
   <ion-card v-if="substrate">
     <ion-card-header>
       <ion-toolbar>
-        <ion-title>{{ t('substrate.title') }}</ion-title>
+        <ion-title>{{ t("substrate.title") }}</ion-title>
       </ion-toolbar>
     </ion-card-header>
 
@@ -16,16 +16,13 @@
         <ion-accordion-group>
           <ion-accordion>
             <ion-item slot="header" class="component-header">
-              <ion-label>{{ t('component.details.title', undefined, 'Components') }}</ion-label>
+              <ion-label>{{ t("component.details.title", undefined, "Components") }}</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper align-middle">
               <PieChart :data="chartData" v-if="chartData.length > 0" />
               <div class="component-list">
                 <div class="ion-padding">
-                  <SearchBar
-                    placeholder="Search components..."
-                    @search="filterComponents"
-                  />
+                  <SearchBar placeholder="Search components..." @search="filterComponents" />
                 </div>
 
                 <AccordionList :items="filteredComponents" />
@@ -55,7 +52,7 @@ import {
 import PieChart from "@/components/charts/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import AccordionList from "@/components/accordion/AccordionList.vue";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
 
 export default defineComponent({
@@ -119,8 +116,12 @@ export default defineComponent({
       this.filteredComponents = this.mapComponentsToAccordion(sortedFiltered);
     },
     mapComponentsToAccordion(components: SubstrateComponent[]) {
-      const partsLabel = localizationService.t('component.details.parts', undefined, 'Parts')
-      const finenessLabel = localizationService.t('component.details.fineness', undefined, 'Fineness')
+      const partsLabel = localizationService.t("component.details.parts", undefined, "Parts");
+      const finenessLabel = localizationService.t(
+        "component.details.fineness",
+        undefined,
+        "Fineness",
+      );
       return components.map((component) => ({
         id: component.id,
         name: component.name,
@@ -131,7 +132,7 @@ export default defineComponent({
       }));
     },
     t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback)
+      return localizationService.t(key, vars, fallback);
     },
     toggleDetails(id: number) {
       this.detailsVisibility = {
@@ -151,7 +152,9 @@ export default defineComponent({
   background: var(--ion-color-white);
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 .card:hover {
   transform: translateY(-5px);

@@ -62,8 +62,7 @@ class ApiError extends Error {
     message?: string,
   ) {
     const errorObj = data?.error ?? null;
-    const finalMessage =
-      message || errorObj?.message || data?.message || "API error";
+    const finalMessage = message || errorObj?.message || data?.message || "API error";
 
     super(finalMessage);
     this.name = "ApiError";
@@ -95,11 +94,7 @@ class ApiError extends Error {
 
 // ── Response handler ──────────────────────────────────────────────────────────
 
-const NO_REFRESH_ENDPOINTS = [
-  "/auth/refresh-token",
-  "/auth/login",
-  "/auth/logout",
-];
+const NO_REFRESH_ENDPOINTS = ["/auth/refresh-token", "/auth/login", "/auth/logout"];
 
 /**
  * Processes the raw Fetch Response into a typed data object.
@@ -127,8 +122,8 @@ const handleResponse = async (response: Response): Promise<any> => {
   // Success path: HTTP 2xx — return .data if present, else the full body.
   // Guard against null / primitive JSON bodies before using the `in` operator.
   if (response.ok) {
-    if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
-      return 'data' in responseData ? responseData.data : responseData;
+    if (responseData && typeof responseData === "object" && !Array.isArray(responseData)) {
+      return "data" in responseData ? responseData.data : responseData;
     }
     return responseData ?? null;
   }
@@ -136,9 +131,7 @@ const handleResponse = async (response: Response): Promise<any> => {
   // Error path: extract the best human-readable message.
   // Handles V2 { error: { message } }, V1 { error: "string" }, and { message }.
   const errObj =
-    responseData.error && typeof responseData.error === "object"
-      ? responseData.error
-      : null;
+    responseData.error && typeof responseData.error === "object" ? responseData.error : null;
   const message =
     errObj?.message ||
     (typeof responseData.error === "string" ? responseData.error : undefined) ||
@@ -150,9 +143,7 @@ const handleResponse = async (response: Response): Promise<any> => {
 
 // ── Headers ───────────────────────────────────────────────────────────────────
 
-const getHeaders = async (
-  isFileUpload: boolean = false,
-): Promise<HeadersInit> => {
+const getHeaders = async (isFileUpload: boolean = false): Promise<HeadersInit> => {
   const token = await TokenUtils.getToken();
   const headers: Record<string, string> = {};
 
@@ -169,9 +160,7 @@ const getHeaders = async (
 
 // ── Auth retry ────────────────────────────────────────────────────────────────
 
-const handleNoAuth = async (
-  requestFn: () => Promise<Response>,
-): Promise<Response> => {
+const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Response> => {
   try {
     await UserService.refreshToken();
     return await requestFn();
@@ -213,24 +202,15 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
       headers,
       signal,
       credentials: "include",
-      body: isFileUpload
-        ? data
-        : data !== undefined
-          ? JSON.stringify(data)
-          : undefined,
+      body: isFileUpload ? data : data !== undefined ? JSON.stringify(data) : undefined,
     });
   };
 
   let response = await requestFn();
 
-  const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) =>
-    endpoint.startsWith(e),
-  );
+  const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) => endpoint.startsWith(e));
 
-  if (
-    (response.status === 401 || response.status === 403) &&
-    !shouldSkipRefresh
-  ) {
+  if ((response.status === 401 || response.status === 403) && !shouldSkipRefresh) {
     // Only enter the refresh/teardown cycle if the request was actually
     // made while signed in. A 401 on an unauthenticated call (anything
     // fired while the user is still on the login screen) must never
@@ -326,9 +306,7 @@ const ApiUtils = {
   ): Promise<() => void> {
     try {
       // V2: POST /auth/ticket requires no request body
-      const { ticket } = await this.post<null, { ticket: string }>(
-        "/auth/ticket",
-      );
+      const { ticket } = await this.post<null, { ticket: string }>("/auth/ticket");
 
       if (!ticket) throw new Error("SSE Ticket Missing");
 

@@ -2,11 +2,7 @@
   <div class="field-wrapper">
     <IonItem>
       <IonLabel class="date-label">{{ translateFieldLabel() }}</IonLabel>
-      <IonInput
-        v-model="localValue"
-        type="datetime-local"
-        class="custom-datetime"
-      />
+      <IonInput v-model="localValue" type="datetime-local" class="custom-datetime" />
       <RequiredNote v-if="field.required" />
     </IonItem>
   </div>
@@ -41,9 +37,7 @@ export default defineComponent({
     localValue: {
       get() {
         let value = this.modelValue;
-        return this.formatDateForInput(
-          value !== undefined ? value : Date.now()
-        );
+        return this.formatDateForInput(value !== undefined ? value : Date.now());
       },
       set(val: string) {
         // Convert the local input back to the user's local timezone
@@ -73,11 +67,7 @@ export default defineComponent({
     },
     translateFieldLabel(): string {
       // Placeholder for localization logic if needed
-      return localizationService.t(
-        this.field.label,
-        undefined,
-        this.field.label
-      );
+      return localizationService.t(this.field.label, undefined, this.field.label);
     },
   },
 });

@@ -44,21 +44,13 @@
             <label>{{ t("auth.password.label") }}</label>
           </div>
 
-          <ion-button
-            fill="clear"
-            size="small"
-            slot="end"
-            @click="toggle('showPassword')"
-          >
+          <ion-button fill="clear" size="small" slot="end" @click="toggle('showPassword')">
             <ion-icon :icon="showPassword ? eyeOffOutline : eyeOutline" />
           </ion-button>
         </ion-item>
 
         <!-- Confirm Password -->
-        <ion-item
-          v-if="isRegisterMode"
-          class="ion-margin-bottom custom-input-item"
-        >
+        <ion-item v-if="isRegisterMode" class="ion-margin-bottom custom-input-item">
           <ion-icon :icon="lockClosedOutline" slot="start" />
 
           <div class="input-wrapper">
@@ -72,12 +64,7 @@
             <label>{{ t("auth.confirm_password.label") }}</label>
           </div>
 
-          <ion-button
-            fill="clear"
-            size="small"
-            slot="end"
-            @click="toggle('showPassword')"
-          >
+          <ion-button fill="clear" size="small" slot="end" @click="toggle('showPassword')">
             <ion-icon :icon="showPassword ? eyeOffOutline : eyeOutline" />
           </ion-button>
         </ion-item>
@@ -97,17 +84,9 @@
         </ion-button>
 
         <!-- Toggle login/register -->
-        <ion-text
-          class="ion-margin-top"
-          color="primary"
-          @click="toggle('isRegisterMode')"
-        >
+        <ion-text class="ion-margin-top" color="primary" @click="toggle('isRegisterMode')">
           <p>
-            {{
-              isRegisterMode
-                ? t("auth.already_have_account")
-                : t("auth.no_account_register")
-            }}
+            {{ isRegisterMode ? t("auth.already_have_account") : t("auth.no_account_register") }}
           </p>
         </ion-text>
 
@@ -134,12 +113,7 @@ import {
   IonSpinner,
   IonText,
 } from "@ionic/vue";
-import {
-  personOutline,
-  lockClosedOutline,
-  eyeOffOutline,
-  eyeOutline,
-} from "ionicons/icons";
+import { personOutline, lockClosedOutline, eyeOffOutline, eyeOutline } from "ionicons/icons";
 
 import UserService from "@/services/UserService";
 import ToastService from "@/services/general/ToastService";
@@ -223,10 +197,7 @@ export default defineComponent({
       }
     },
 
-    async runAuth<T>(
-      action: () => Promise<T>,
-      error: { key: string; fallback: string },
-    ) {
+    async runAuth<T>(action: () => Promise<T>, error: { key: string; fallback: string }) {
       this.loading = true;
       try {
         await action();
@@ -308,12 +279,7 @@ export default defineComponent({
 
           if (Array.isArray(requirements)) {
             errorMessage += requirements.map((r) => `• ${r}`).join("\n");
-            ToastService.showError(
-              errorMessage,
-              undefined,
-              "top",
-              "auth-button",
-            );
+            ToastService.showError(errorMessage, undefined, "top", "auth-button");
             return;
           }
         }

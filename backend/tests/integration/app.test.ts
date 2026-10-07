@@ -14,26 +14,34 @@ import type { Application } from 'express';
 
 // ── Mock the db singleton BEFORE any repository imports ───────────────────────
 
-const mockQuery   = vi.fn().mockReturnValue([]);
+const mockQuery = vi.fn().mockReturnValue([]);
 const mockExecute = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
-const mockTx      = vi.fn().mockImplementation((fn: (helpers: unknown) => unknown) =>
-  fn({ query: mockQuery, execute: mockExecute }),
-);
+const mockTx = vi
+  .fn()
+  .mockImplementation((fn: (helpers: unknown) => unknown) =>
+    fn({ query: mockQuery, execute: mockExecute }),
+  );
 
 vi.mock('../../src/core/database/db', () => ({
-  query:       (...args: unknown[]) => mockQuery(...args),
-  execute:     (...args: unknown[]) => mockExecute(...args),
+  query: (...args: unknown[]) => mockQuery(...args),
+  execute: (...args: unknown[]) => mockExecute(...args),
   transaction: (...args: unknown[]) => mockTx(...args),
-  getDb:       vi.fn().mockReturnValue({ prepare: vi.fn().mockReturnValue({ get: vi.fn(), run: vi.fn() }) }),
-  closeDb:     vi.fn(),
+  getDb: vi
+    .fn()
+    .mockReturnValue({ prepare: vi.fn().mockReturnValue({ get: vi.fn(), run: vi.fn() }) }),
+  closeDb: vi.fn(),
 }));
 
 // ── Imports (after mock) ──────────────────────────────────────────────────────
 
-import { requestIdMiddleware, globalErrorHandler, notFoundHandler } from '../../src/core/middleware';
-import { createAuthRouter }      from '../../src/modules/auth/presentation/authRoutes';
-import { createPlantsRouter }    from '../../src/modules/plants/presentation/plantsRoutes';
-import { createWateringRouter }  from '../../src/modules/watering/presentation/wateringRoutes';
+import {
+  requestIdMiddleware,
+  globalErrorHandler,
+  notFoundHandler,
+} from '../../src/core/middleware';
+import { createAuthRouter } from '../../src/modules/auth/presentation/authRoutes';
+import { createPlantsRouter } from '../../src/modules/plants/presentation/plantsRoutes';
+import { createWateringRouter } from '../../src/modules/watering/presentation/wateringRoutes';
 import { createSubstrateRouter } from '../../src/modules/substrate/presentation/substrateRoutes';
 import { createComponentRouter } from '../../src/modules/components/presentation/componentRoutes';
 import { makePlantRow, makeWateringRow, makeSubstrateRow } from '../helpers/mockFactory';
@@ -47,9 +55,9 @@ const buildTestApp = (): Application => {
   app.use(express.json());
   app.use(cookieParser());
   app.use(requestIdMiddleware);
-  app.use('/api/v2/auth',       createAuthRouter());
-  app.use('/api/v2/plants',     createPlantsRouter());
-  app.use('/api/v2/watering',   createWateringRouter());
+  app.use('/api/v2/auth', createAuthRouter());
+  app.use('/api/v2/plants', createPlantsRouter());
+  app.use('/api/v2/watering', createWateringRouter());
   app.use('/api/v2/substrates', createSubstrateRouter());
   app.use('/api/v2/components', createComponentRouter());
   app.use(notFoundHandler);
@@ -59,7 +67,7 @@ const buildTestApp = (): Application => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const USER_ID  = 10;
+const USER_ID = 10;
 const ADMIN_ID = 1;
 
 const makeAuthHeader = (role = 'user', id = USER_ID) => {
@@ -71,9 +79,11 @@ const makeAuthHeader = (role = 'user', id = USER_ID) => {
 beforeEach(() => {
   mockQuery.mockReset().mockReturnValue([]);
   mockExecute.mockReset().mockReturnValue({ affectedRows: 1, insertId: 1 });
-  mockTx.mockReset().mockImplementation((fn: (helpers: unknown) => unknown) =>
-    fn({ query: mockQuery, execute: mockExecute }),
-  );
+  mockTx
+    .mockReset()
+    .mockImplementation((fn: (helpers: unknown) => unknown) =>
+      fn({ query: mockQuery, execute: mockExecute }),
+    );
 });
 
 // ── Auth routes ───────────────────────────────────────────────────────────────
@@ -83,8 +93,8 @@ describe('POST /api/v2/auth/register', () => {
     // Call 1: findByUsername → no existing user
     // Call 2: find role by name 'user' → return a role row
     mockQuery
-      .mockReturnValueOnce([])                  // findByUsername: no conflict
-      .mockReturnValueOnce([{ id: 3 }]);        // role lookup: 'user' role exists
+      .mockReturnValueOnce([]) // findByUsername: no conflict
+      .mockReturnValueOnce([{ id: 3 }]); // role lookup: 'user' role exists
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 5 });
     const app = buildTestApp();
     const res = await request(app)
@@ -126,7 +136,9 @@ describe('POST /api/v2/auth/login', () => {
     const hash = await bcrypt.hash('correct', 10);
     mockQuery.mockReturnValue([{ id: 1, username: 'alice', password: hash, role: 'user' }]);
     const app = buildTestApp();
-    const res = await request(app).post('/api/v2/auth/login').send({ username: 'alice', password: 'wrong' });
+    const res = await request(app)
+      .post('/api/v2/auth/login')
+      .send({ username: 'alice', password: 'wrong' });
     expect(res.status).toBe(401);
   });
 });
@@ -179,8 +191,8 @@ describe('POST /api/v2/plants', () => {
     // finds an exact match (no extra execute). The default fallback then
     // serves the plant row for the subsequent findById call.
     mockQuery
-      .mockReturnValueOnce([{ id: 1, name: 'Nephrolepis' }])  // species cache (if cold)
-      .mockReturnValue([makePlantRow({ plant_id: 7 })]);       // findById (always needed)
+      .mockReturnValueOnce([{ id: 1, name: 'Nephrolepis' }]) // species cache (if cold)
+      .mockReturnValue([makePlantRow({ plant_id: 7 })]); // findById (always needed)
     const res = await request(buildTestApp())
       .post('/api/v2/plants')
       .set('Authorization', makeAuthHeader())
@@ -205,7 +217,10 @@ describe('POST /api/v2/plants', () => {
 
 describe('GET /api/v2/watering/fertilizer-types', () => {
   it('returns fertilizer types', async () => {
-    mockQuery.mockReturnValue([{ id: 1, name: 'organic' }, { id: 2, name: 'synthetic' }]);
+    mockQuery.mockReturnValue([
+      { id: 1, name: 'organic' },
+      { id: 2, name: 'synthetic' },
+    ]);
     const res = await request(buildTestApp())
       .get('/api/v2/watering/fertilizer-types')
       .set('Authorization', makeAuthHeader());
@@ -294,12 +309,8 @@ describe('Error handling', () => {
 describe('auth session lifecycle', () => {
   const loginAlice = async (app: Application) => {
     const hash = await bcrypt.hash('pass123', 10);
-    mockQuery.mockReturnValue([
-      { id: 1, username: 'alice', password: hash, role: 'user' },
-    ]);
-    return request(app)
-      .post('/api/v2/auth/login')
-      .send({ username: 'alice', password: 'pass123' });
+    mockQuery.mockReturnValue([{ id: 1, username: 'alice', password: hash, role: 'user' }]);
+    return request(app).post('/api/v2/auth/login').send({ username: 'alice', password: 'pass123' });
   };
 
   const setCookies = (res: request.Response): string[] =>
@@ -322,9 +333,7 @@ describe('auth session lifecycle', () => {
   });
 
   it('scopes the guest refresh cookie identically (it must be clearable on logout)', async () => {
-    mockQuery.mockReturnValue([
-      { id: 99, username: 'guest', password: 'x', role: 'guest' },
-    ]);
+    mockQuery.mockReturnValue([{ id: 99, username: 'guest', password: 'x', role: 'guest' }]);
     const res = await request(buildTestApp()).post('/api/v2/auth/login/guest');
     expect(res.status).toBe(200);
     // Previously the guest cookie was set without a path (landing on "/"),
@@ -339,22 +348,16 @@ describe('auth session lifecycle', () => {
     const cookie = extractRefreshCookie(await loginAlice(app));
 
     // Sanity: the refresh token works before logout.
-    const before = await request(app)
-      .post('/api/v2/auth/refresh-token')
-      .set('Cookie', cookie);
+    const before = await request(app).post('/api/v2/auth/refresh-token').set('Cookie', cookie);
     expect(before.status).toBe(200);
     expect(before.body.data.accessToken).toBeTruthy();
 
     // The browser now sends the cookie to /logout (same /auth scope).
-    const logoutRes = await request(app)
-      .post('/api/v2/auth/logout')
-      .set('Cookie', cookie);
+    const logoutRes = await request(app).post('/api/v2/auth/logout').set('Cookie', cookie);
     expect(logoutRes.status).toBe(204);
 
     // The very same refresh token must be dead server-side afterwards.
-    const after = await request(app)
-      .post('/api/v2/auth/refresh-token')
-      .set('Cookie', cookie);
+    const after = await request(app).post('/api/v2/auth/refresh-token').set('Cookie', cookie);
     expect(after.status).toBe(403);
     sessionStore.deleteAll(1);
   });

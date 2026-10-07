@@ -14,15 +14,11 @@ const NotFound = () => import("@/views/NotFound.vue");
 const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
 const PlantDetails = () => import("@/views/plants/PlantDetails.vue");
 
-const SubstrateOverview = () =>
-  import("@/views/substrates/SubstrateOverview.vue");
-const SubstrateDetails = () =>
-  import("@/views/substrates/SubstrateDetails.vue");
+const SubstrateOverview = () => import("@/views/substrates/SubstrateOverview.vue");
+const SubstrateDetails = () => import("@/views/substrates/SubstrateDetails.vue");
 
-const ComponentOverview = () =>
-  import("@/views/components/ComponentOverview.vue");
-const ComponentDetails = () =>
-  import("@/views/components/ComponentDetails.vue");
+const ComponentOverview = () => import("@/views/components/ComponentOverview.vue");
+const ComponentDetails = () => import("@/views/components/ComponentDetails.vue");
 
 const SalesOverview = () => import("@/views/sales/SalesOverview.vue");
 const SalesDetails = () => import("@/views/sales/SalesDetails.vue");

@@ -185,8 +185,7 @@ export default class PlantService extends BaseService {
       // user just used has warmed this cache in practice.
       SubstrateService.getAllSubstrates().catch(() => [] as Substrate[]),
     ]);
-    const substrateName =
-      substrates.find((s) => s.id === plantToAdd.substrateId)?.name ?? "";
+    const substrateName = substrates.find((s) => s.id === plantToAdd.substrateId)?.name ?? "";
 
     const optimistic: Plant = {
       id: -Date.now(), // temp id — replaced by the server id on reconcile
@@ -225,22 +224,15 @@ export default class PlantService extends BaseService {
    *
    * @returns The mapped server plant.
    */
-  static async editPlant(
-    plantId: number,
-    updatedPlantData: EditPlant,
-  ): Promise<Plant> {
+  static async editPlant(plantId: number, updatedPlantData: EditPlant): Promise<Plant> {
     const existing = (await this.getAllPlants()).find((p) => p.id === plantId);
 
     let substrate = existing?.substrate ?? null;
     if (updatedPlantData.substrateId !== undefined) {
-      const substrates = await SubstrateService.getAllSubstrates().catch(
-        () => [] as Substrate[],
-      );
+      const substrates = await SubstrateService.getAllSubstrates().catch(() => [] as Substrate[]);
       substrate = {
         id: updatedPlantData.substrateId,
-        name:
-          substrates.find((s) => s.id === updatedPlantData.substrateId)?.name ??
-          "",
+        name: substrates.find((s) => s.id === updatedPlantData.substrateId)?.name ?? "",
       };
     }
 
@@ -264,10 +256,7 @@ export default class PlantService extends BaseService {
       request: async () =>
         PlantMapper.mapPlant(
           await this.handleRequest(
-            ApiUtils.patch<EditPlant, APIPlant>(
-              `${BASE_ENDPOINT}/${plantId}`,
-              updatedPlantData,
-            ),
+            ApiUtils.patch<EditPlant, APIPlant>(`${BASE_ENDPOINT}/${plantId}`, updatedPlantData),
             RESOURCE_KEY,
             "error.action_failed",
           ),
@@ -305,11 +294,7 @@ export default class PlantService extends BaseService {
    * GET /plants/:id so the new image metadata lands in the cache without
    * discarding the rest of the list or the watering history.
    */
-  static async uploadPlantImage(
-    plantId: number,
-    image: File,
-    date?: string | Date,
-  ): Promise<any> {
+  static async uploadPlantImage(plantId: number, image: File, date?: string | Date): Promise<any> {
     const response = await ImageService.uploadImage(image, "plant", plantId, date);
     await this.handleRequest(this.fetchFromApi(plantId), RESOURCE_KEY);
     return response;

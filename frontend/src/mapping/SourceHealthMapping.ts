@@ -33,8 +33,7 @@ export default class SourceHealthMapper {
       .map((row) => this.mapSourceHealth(row))
       .sort(
         (a, b) =>
-          STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
-          a.seller.localeCompare(b.seller),
+          STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.seller.localeCompare(b.seller),
       );
   }
 }

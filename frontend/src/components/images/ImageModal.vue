@@ -106,18 +106,13 @@ export default defineComponent({
         const newDistance = getDistance(event.touches);
         if (startDistance > 0) {
           const scaleChange = newDistance / startDistance;
-          zoomScale.value = Math.min(
-            Math.max(1, zoomScale.value * scaleChange),
-            3
-          );
+          zoomScale.value = Math.min(Math.max(1, zoomScale.value * scaleChange), 3);
 
           // Find the pinch center
           const centerX =
-            (event.touches[0].clientX + event.touches[1].clientX) / 2 -
-            window.innerWidth / 2;
+            (event.touches[0].clientX + event.touches[1].clientX) / 2 - window.innerWidth / 2;
           const centerY =
-            (event.touches[0].clientY + event.touches[1].clientY) / 2 -
-            window.innerHeight / 2;
+            (event.touches[0].clientY + event.touches[1].clientY) / 2 - window.innerHeight / 2;
 
           // Adjust offsets based on zoom center
           offsetX.value = startOffsetX + centerX * (zoomScale.value - 1);
@@ -138,9 +133,7 @@ export default defineComponent({
 
       const zoomFactor = 1.2;
       const newScale =
-        event.deltaY < 0
-          ? zoomScale.value * zoomFactor
-          : zoomScale.value / zoomFactor;
+        event.deltaY < 0 ? zoomScale.value * zoomFactor : zoomScale.value / zoomFactor;
       const limitedScale = Math.min(Math.max(1, newScale), 3);
 
       // Get image bounding box
@@ -152,10 +145,8 @@ export default defineComponent({
 
       // Adjust offsets dynamically when zooming
       if (limitedScale > 1) {
-        offsetX.value -=
-          (mouseX - rect.width / 2) * (limitedScale - zoomScale.value);
-        offsetY.value -=
-          (mouseY - rect.height / 2) * (limitedScale - zoomScale.value);
+        offsetX.value -= (mouseX - rect.width / 2) * (limitedScale - zoomScale.value);
+        offsetY.value -= (mouseY - rect.height / 2) * (limitedScale - zoomScale.value);
       } else {
         // Reset position when zooming out completely
         offsetX.value = 0;

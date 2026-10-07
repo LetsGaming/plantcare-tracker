@@ -16,7 +16,8 @@ const log = createModuleLogger('OpenAIClient');
 
 const formatToHTML = (text: string, htmlFormatting: boolean): string => {
   if (!htmlFormatting) return text;
-  let t = text.trim()
+  let t = text
+    .trim()
     .replace(/^## (.*)$/gm, '<h2>$1</h2>')
     .replace(/^### (.*)$/gm, '<h3>$1</h3>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -75,7 +76,10 @@ export class OpenAIPlantClient implements PlantGuideStreamer {
       const stream = await this.client.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: `You are a professional horticulturist and botanical scientist. You communicate exclusively in ${language}.` },
+          {
+            role: 'system',
+            content: `You are a professional horticulturist and botanical scientist. You communicate exclusively in ${language}.`,
+          },
           { role: 'user', content: prompt },
         ],
         temperature: 0.3,

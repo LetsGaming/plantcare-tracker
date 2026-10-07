@@ -22,18 +22,11 @@ import { ValidationError } from '../errors';
  * carries one message per offending path — exactly the shape the
  * frontend consumes from the `{ error: { fields } }` envelope.
  */
-export function parseOrThrow<T>(
-  schema: ZodType<T>,
-  input: unknown,
-  message: string,
-): T {
+export function parseOrThrow<T>(schema: ZodType<T>, input: unknown, message: string): T {
   const result = schema.safeParse(input);
   if (!result.success) {
     const fields = Object.fromEntries(
-      result.error.issues.map((issue) => [
-        issue.path.join('.') || '_',
-        issue.message,
-      ]),
+      result.error.issues.map((issue) => [issue.path.join('.') || '_', issue.message]),
     );
     throw new ValidationError(message, fields);
   }

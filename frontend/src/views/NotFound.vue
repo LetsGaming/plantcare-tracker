@@ -59,9 +59,7 @@ export default defineComponent({
     },
     navigateHome() {
       // Replace the current NotFound page with the home page
-      this.$router
-        .replace({ name: "tabs" })
-        .then(() => window.location.reload());
+      this.$router.replace({ name: "tabs" }).then(() => window.location.reload());
     },
   },
 });

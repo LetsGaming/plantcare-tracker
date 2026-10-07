@@ -18,9 +18,7 @@
             <ion-grid>
               <ion-row>
                 <ion-col>
-                  <ion-label class="profile-label">{{
-                    t("profile.username.label")
-                  }}</ion-label>
+                  <ion-label class="profile-label">{{ t("profile.username.label") }}</ion-label>
                 </ion-col>
                 <ion-col>
                   <ion-label>{{ username }}</ion-label>
@@ -32,9 +30,7 @@
             <ion-grid>
               <ion-row>
                 <ion-col>
-                  <ion-label class="profile-label">{{
-                    t("profile.role.label")
-                  }}</ion-label>
+                  <ion-label class="profile-label">{{ t("profile.role.label") }}</ion-label>
                 </ion-col>
                 <ion-col>
                   <ion-label>{{ role }}</ion-label>
@@ -44,19 +40,12 @@
           </ion-item>
         </ion-list>
 
-        <ion-button
-          v-if="showEditButton"
-          expand="full"
-          @click="openEditingModal"
-          >{{ t("profile.edit") }}</ion-button
-        >
-        <ion-button
-          v-if="isAdmin"
-          expand="full"
-          fill="outline"
-          @click="openAdmin"
-          >{{ t("admin.menu.open") }}</ion-button
-        >
+        <ion-button v-if="showEditButton" expand="full" @click="openEditingModal">{{
+          t("profile.edit")
+        }}</ion-button>
+        <ion-button v-if="isAdmin" expand="full" fill="outline" @click="openAdmin">{{
+          t("admin.menu.open")
+        }}</ion-button>
       </ion-card>
 
       <profile-editing-modal
@@ -165,9 +154,7 @@ export default defineComponent({
     this.showEditButton = !(await UserService.isGuest());
     this.isAdmin = await UserService.isAdmin();
     this.username = await UserService.getUsername();
-    this.role = Utils.capitalizeFirstLetter(
-      (await UserService.getUserRole()) || "",
-    ) as string;
+    this.role = Utils.capitalizeFirstLetter((await UserService.getUserRole()) || "") as string;
     this.editProfileData.username = this.username;
   },
   methods: {
@@ -191,10 +178,7 @@ export default defineComponent({
         });
         return;
       }
-      if (
-        profile.password &&
-        profile.password !== profile.passwordConfirmation
-      ) {
+      if (profile.password && profile.password !== profile.passwordConfirmation) {
         ToastService.showError({
           key: "profile.error_password_mismatch",
           fallback: "Passwords do not match",

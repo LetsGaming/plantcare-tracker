@@ -7,19 +7,8 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import { Pie } from "vue-chartjs";
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  ArcElement,
-  TooltipItem,
-} from "chart.js";
-import {
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-} from "@ionic/vue";
+import { Chart as ChartJS, Title, Tooltip, ArcElement, TooltipItem } from "chart.js";
+import { IonCard, IonCardHeader, IonCardTitle, IonCardContent } from "@ionic/vue";
 
 interface ChartData {
   name: string;

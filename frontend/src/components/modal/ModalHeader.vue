@@ -13,16 +13,9 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonHeader,
-  IonButtons,
-  IonButton,
-  IonToolbar,
-  IonTitle,
-  IonIcon,
-} from "@ionic/vue";
+import { IonHeader, IonButtons, IonButton, IonToolbar, IonTitle, IonIcon } from "@ionic/vue";
 import { close } from "ionicons/icons";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 export default defineComponent({
   name: "ModalHeader",
   emits: ["close"],
@@ -42,8 +35,8 @@ export default defineComponent({
   },
   methods: {
     translateHeader(value: string) {
-      return localizationService.t(value, undefined, value)
-    }
+      return localizationService.t(value, undefined, value);
+    },
   },
   setup() {
     return { close };

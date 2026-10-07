@@ -1,29 +1,29 @@
 {
-    "development": {
-        "server": {
-            "base_url": "http://localhost",
-            "port": "5000",
-            "base_path": "/api",
-            "api_version": "/v2"
-        },
-        "frontend": {
-            "app_title": "Plantcare Tracker"
-        },
-        "storage": {
-            "expire_h": 6
-        }
+  "development": {
+    "server": {
+      "base_url": "http://localhost",
+      "port": "5000",
+      "base_path": "/api",
+      "api_version": "/v2"
     },
-    "production": {
-        "server": {
-            "base_url": "https://yourdomain.com",
-            "base_path": "/api",
-            "api_version": "/v2"
-        },
-        "frontend": {
-            "app_title": "Plantcare Tracker"
-        },
-        "storage": {
-            "expire_h": 24
-        }
+    "frontend": {
+      "app_title": "Plantcare Tracker"
+    },
+    "storage": {
+      "expire_h": 6
     }
+  },
+  "production": {
+    "server": {
+      "base_url": "https://yourdomain.com",
+      "base_path": "/api",
+      "api_version": "/v2"
+    },
+    "frontend": {
+      "app_title": "Plantcare Tracker"
+    },
+    "storage": {
+      "expire_h": 24
+    }
+  }
 }

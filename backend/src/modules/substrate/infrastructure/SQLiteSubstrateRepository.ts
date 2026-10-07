@@ -1,9 +1,5 @@
-import { query, execute, transaction } from "../../../core/database/db";
-import type {
-  SubstrateRepository,
-  SubstrateData,
-  ImageRef,
-} from "../domain/Substrate";
+import { query, execute, transaction } from '../../../core/database/db';
+import type { SubstrateRepository, SubstrateData, ImageRef } from '../domain/Substrate';
 
 type SqlParam = string | number | boolean | null;
 
@@ -44,9 +40,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
   }
 
   async findAllByUser(userId: number): Promise<SubstrateData[]> {
-    const rows = query<SubstrateRow>(`${BASE_QUERY} WHERE s.user_id = ?`, [
-      userId,
-    ]);
+    const rows = query<SubstrateRow>(`${BASE_QUERY} WHERE s.user_id = ?`, [userId]);
     return this.groupRows(rows);
   }
 
@@ -56,11 +50,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
     return result[0] ?? null;
   }
 
-  async create(
-    name: string,
-    userId: number,
-    isPublic: boolean,
-  ): Promise<number> {
+  async create(name: string, userId: number, isPublic: boolean): Promise<number> {
     const result = execute(
       "INSERT INTO substrates (name, user_id, is_public, created_at) VALUES (?, ?, ?, strftime('%s','now'))",
       [name, userId, isPublic ? 1 : 0],
@@ -77,28 +67,25 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
     const params: SqlParam[] = [];
 
     if (fields.name !== undefined) {
-      updates.push("name = ?");
+      updates.push('name = ?');
       params.push(fields.name);
     }
     if (fields.isPublic !== undefined) {
-      updates.push("is_public = ?");
+      updates.push('is_public = ?');
       params.push(fields.isPublic ? 1 : 0);
     }
     if (!updates.length) return false;
 
     params.push(id, userId);
     const result = execute(
-      `UPDATE substrates SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
+      `UPDATE substrates SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
       params,
     );
     return result.affectedRows > 0;
   }
 
   async delete(id: number, userId: number): Promise<boolean> {
-    const result = execute(
-      "DELETE FROM substrates WHERE id = ? AND user_id = ?",
-      [id, userId],
-    );
+    const result = execute('DELETE FROM substrates WHERE id = ? AND user_id = ?', [id, userId]);
     return result.affectedRows > 0;
   }
 
@@ -109,7 +96,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
     transaction(({ execute: exec }) => {
       for (const { componentId, parts } of components) {
         exec(
-          "INSERT INTO substrate_components (substrate_id, component_id, parts) VALUES (?, ?, ?)",
+          'INSERT INTO substrate_components (substrate_id, component_id, parts) VALUES (?, ?, ?)',
           [substrateId, componentId, Math.round(parts * 100) / 100],
         );
       }
@@ -131,12 +118,9 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
     });
   }
 
-  async deleteComponents(
-    substrateId: number,
-    componentIds: number[],
-  ): Promise<void> {
+  async deleteComponents(substrateId: number, componentIds: number[]): Promise<void> {
     if (!componentIds.length) return;
-    const placeholders = componentIds.map(() => "?").join(", ");
+    const placeholders = componentIds.map(() => '?').join(', ');
     execute(
       `DELETE FROM substrate_components WHERE substrate_id = ? AND component_id IN (${placeholders})`,
       [substrateId, ...componentIds],
@@ -163,14 +147,11 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
 
       const s = map.get(row.substrate_id)!;
 
-      if (
-        row.component_id &&
-        !s.components.find((c) => c.component_id === row.component_id)
-      ) {
+      if (row.component_id && !s.components.find((c) => c.component_id === row.component_id)) {
         s.components.push({
           component_id: row.component_id,
-          component_name: row.component_name ?? "",
-          component_fineness: row.component_fineness_name ?? "",
+          component_name: row.component_name ?? '',
+          component_fineness: row.component_fineness_name ?? '',
           component_parts: row.component_parts ?? 0,
         });
       }
@@ -178,7 +159,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       if (row.image_id && !s.images.find((i) => i.id === row.image_id)) {
         const imageRef: ImageRef = {
           id: row.image_id,
-          url: row.image_url ?? "",
+          url: row.image_url ?? '',
           date: row.upload_date ?? 0,
         };
         s.images.push(imageRef);

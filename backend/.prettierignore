@@ -6,3 +6,4 @@ uploads
 pnpm-lock.yaml
 .buildcache.json
 tests/fixtures
+*.md

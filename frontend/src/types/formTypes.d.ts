@@ -38,10 +38,4 @@ interface UploadField extends FormFieldBase {
 }
 
 type FormField =
-  | InputField
-  | PasswordField
-  | SelectField
-  | RadioField
-  | SwitchField
-  | DateField
-  | UploadField;
+  InputField | PasswordField | SelectField | RadioField | SwitchField | DateField | UploadField;

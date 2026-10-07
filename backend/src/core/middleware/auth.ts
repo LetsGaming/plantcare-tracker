@@ -8,11 +8,11 @@
  * constants from core/config instead of inline magic numbers.
  */
 
-import jwt, { Secret, SignOptions } from "jsonwebtoken";
-import type { Request, Response, NextFunction } from "express";
-import { UnauthorizedError, ForbiddenError } from "../errors";
-import { AUTH } from "../config";
-import crypto from "crypto";
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
+import type { Request, Response, NextFunction } from 'express';
+import { UnauthorizedError, ForbiddenError } from '../errors';
+import { AUTH } from '../config';
+import crypto from 'crypto';
 
 // ── JWT config ───────────────────────────────────────────────────────────────
 //
@@ -32,7 +32,7 @@ function loadJwtConfig(): JwtConfig {
   if (missing.length) {
     throw new Error(
       `Missing required environment variable(s): ${missing.join(', ')}. ` +
-      'The server cannot start without them.',
+        'The server cannot start without them.',
     );
   }
   return {
@@ -66,9 +66,7 @@ export const sessionStore = {
     return null;
   },
   invalidate(userId: number, refreshToken: string): void {
-    const sessions = (activeSessions.get(userId) ?? []).filter(
-      (t) => t !== refreshToken,
-    );
+    const sessions = (activeSessions.get(userId) ?? []).filter((t) => t !== refreshToken);
     activeSessions.set(userId, sessions);
   },
   deleteAll(userId: number): void {
@@ -82,7 +80,7 @@ const tickets = new Map<string, { userId: number; expires: number }>();
 
 export const ticketStore = {
   create(userId: number): string {
-    const ticket = crypto.randomBytes(32).toString("hex");
+    const ticket = crypto.randomBytes(32).toString('hex');
     tickets.set(ticket, { userId, expires: Date.now() + AUTH.SSE_TICKET_TTL_MS });
     return ticket;
   },
@@ -104,17 +102,14 @@ export interface JwtPayload {
 }
 
 export const generateTokens = (user: JwtPayload) => {
-  const {
-    JWT_SECRET,
-    JWT_REFRESH_SECRET,
-    JWT_EXPIRATION,
-    JWT_REFRESH_EXPIRATION,
-  } = jwtConfig;
+  const { JWT_SECRET, JWT_REFRESH_SECRET, JWT_EXPIRATION, JWT_REFRESH_EXPIRATION } = jwtConfig;
 
   const payload = { id: user.id, username: user.username, role: user.role };
 
   const accessOptions: SignOptions = { expiresIn: JWT_EXPIRATION as SignOptions['expiresIn'] };
-  const refreshOptions: SignOptions = { expiresIn: JWT_REFRESH_EXPIRATION as SignOptions['expiresIn'] };
+  const refreshOptions: SignOptions = {
+    expiresIn: JWT_REFRESH_EXPIRATION as SignOptions['expiresIn'],
+  };
 
   const accessToken = jwt.sign(payload, JWT_SECRET, accessOptions);
   const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, refreshOptions);
@@ -134,34 +129,29 @@ declare global {
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 
-export const authenticateToken = (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-): void => {
+export const authenticateToken = (req: Request, _res: Response, next: NextFunction): void => {
   let token: string | null = null;
 
-  const authHeader = req.headers["authorization"];
-  if (authHeader?.startsWith("Bearer ")) token = authHeader.split(" ")[1];
+  const authHeader = req.headers['authorization'];
+  if (authHeader?.startsWith('Bearer ')) token = authHeader.split(' ')[1];
 
   const cookies = req.cookies as Record<string, string> | undefined;
   if (!token && cookies?.[AUTH.ACCESS_TOKEN_COOKIE]) {
     token = cookies[AUTH.ACCESS_TOKEN_COOKIE];
   }
 
-  if (!token)
-    return next(new UnauthorizedError("Missing authentication token"));
+  if (!token) return next(new UnauthorizedError('Missing authentication token'));
 
   const { JWT_SECRET } = jwtConfig;
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return next(new ForbiddenError("Invalid or expired token"));
+    if (err) return next(new ForbiddenError('Invalid or expired token'));
 
     const user = decoded as JwtPayload;
     const sessions = sessionStore.get(user.id);
 
     if (!sessions.length) {
-      return next(new ForbiddenError("Invalid session. Please log in again."));
+      return next(new ForbiddenError('Invalid session. Please log in again.'));
     }
 
     req.user = user;
@@ -209,18 +199,18 @@ export interface SseAuthOptions {
   loadUserFromDb?: boolean;
 }
 
-export const makeAuthenticateSSE = ({ loadUserFromDb = false }: SseAuthOptions = {}) =>
+export const makeAuthenticateSSE =
+  ({ loadUserFromDb = false }: SseAuthOptions = {}) =>
   async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const { ticket } = req.query as { ticket?: string };
 
-    if (!ticket)
-      return next(new UnauthorizedError("No authentication ticket provided"));
+    if (!ticket) return next(new UnauthorizedError('No authentication ticket provided'));
 
     const userId = ticketStore.validateAndBurn(ticket);
-    if (!userId) return next(new ForbiddenError("Invalid or expired ticket"));
+    if (!userId) return next(new ForbiddenError('Invalid or expired ticket'));
 
     if (!loadUserFromDb) {
-      req.user = { id: userId, username: "", role: "user" };
+      req.user = { id: userId, username: '', role: 'user' };
       return next();
     }
 
@@ -236,7 +226,7 @@ export const makeAuthenticateSSE = ({ loadUserFromDb = false }: SseAuthOptions =
       );
 
       const user = rows[0];
-      if (!user) return next(new ForbiddenError("User not found"));
+      if (!user) return next(new ForbiddenError('User not found'));
 
       req.user = { id: user.id, username: user.username, role: user.role };
       next();
@@ -247,26 +237,16 @@ export const makeAuthenticateSSE = ({ loadUserFromDb = false }: SseAuthOptions =
 
 // ── Role guards ───────────────────────────────────────────────────────────────
 
-export const isAdmin = (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-): void => {
-  if (req.user?.role?.toLowerCase() !== "admin") {
-    return next(new ForbiddenError("Admin access required"));
+export const isAdmin = (req: Request, _res: Response, next: NextFunction): void => {
+  if (req.user?.role?.toLowerCase() !== 'admin') {
+    return next(new ForbiddenError('Admin access required'));
   }
   next();
 };
 
-export const checkGuestPermission = (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-): void => {
-  if (req.user?.role?.toLowerCase() === "guest" && req.method !== "GET") {
-    return next(
-      new ForbiddenError("Guests are not allowed to perform this action"),
-    );
+export const checkGuestPermission = (req: Request, _res: Response, next: NextFunction): void => {
+  if (req.user?.role?.toLowerCase() === 'guest' && req.method !== 'GET') {
+    return next(new ForbiddenError('Guests are not allowed to perform this action'));
   }
   next();
 };

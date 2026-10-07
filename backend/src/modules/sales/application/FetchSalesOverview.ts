@@ -97,9 +97,7 @@ export class FetchSalesOverview {
     };
 
     // Sort by priority, then fan out all jobs
-    const sortedSources = [...this.sources].sort(
-      (a, b) => (a.priority ?? 99) - (b.priority ?? 99),
-    );
+    const sortedSources = [...this.sources].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
     const jobs = sortedSources.flatMap((source) =>
       Array.from({ length: source.maxPages }, (_, i) => {

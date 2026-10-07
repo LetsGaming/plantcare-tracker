@@ -2,13 +2,10 @@
   <ion-card class="component-container align-middle">
     <ion-card-header style="max-width: 100%">
       <ion-title>{{ t(title) }}</ion-title>
-      <SearchBar
-        :placeholder="t('component.search.placeholder')"
-        @search="filterComponents"
-      />
-        <div class="selected-only-toggle">
+      <SearchBar :placeholder="t('component.search.placeholder')" @search="filterComponents" />
+      <div class="selected-only-toggle">
         <IonCheckbox v-model="showSelectedOnly" />
-        <ion-label>{{ t('component.selection.only_selected') }}</ion-label>
+        <ion-label>{{ t("component.selection.only_selected") }}</ion-label>
       </div>
     </ion-card-header>
 
@@ -25,7 +22,7 @@
             <div class="component-content">
               <ion-label>
                 <h3>{{ component.name }}</h3>
-                <p>{{ t('component.fineness_prefix') }} {{ component.fineness }}</p>
+                <p>{{ t("component.fineness_prefix") }} {{ component.fineness }}</p>
               </ion-label>
               <div class="component-selection">
                 <IonCheckbox
@@ -63,7 +60,7 @@ import {
 } from "@ionic/vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ComponentSelection",
@@ -115,9 +112,7 @@ export default defineComponent({
       list = Utils.baseSearchFilter(this.searchQuery, list);
 
       if (this.showSelectedOnly) {
-        list = list.filter((component) =>
-          this.selectedComponentIds.includes(component.id)
-        );
+        list = list.filter((component) => this.selectedComponentIds.includes(component.id));
       }
 
       return list.sort((a, b) => {
@@ -138,7 +133,7 @@ export default defineComponent({
     },
     t(key: string) {
       return localizationService.t(key, undefined, key);
-    }
+    },
   },
 });
 </script>

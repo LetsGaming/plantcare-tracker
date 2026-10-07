@@ -87,10 +87,7 @@ export const createAuthRouter = (): Router => {
 
   // Cookie paths used by earlier releases — logout keeps clearing them so
   // sessions created before the upgrade can still sign out cleanly.
-  const legacyCookiePaths = [
-    `/api/${getApiVersionPath()}/auth/refresh-token`,
-    '/',
-  ];
+  const legacyCookiePaths = [`/api/${getApiVersionPath()}/auth/refresh-token`, '/'];
 
   // POST /register → 201 + user
   router.post(

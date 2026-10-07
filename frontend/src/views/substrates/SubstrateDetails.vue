@@ -10,10 +10,7 @@
 
     <ion-content>
       <div v-if="substrate">
-        <details-banner
-          :banner-title="substrate.name"
-          :image-url="substrate.imageUrl"
-        />
+        <details-banner :banner-title="substrate.name" :image-url="substrate.imageUrl" />
 
         <section class="substrate-info align-middle">
           <SubstrateContainer :substrate="substrate"></SubstrateContainer>
@@ -90,18 +87,12 @@ export default defineComponent({
     },
   },
   async mounted() {
-    document.addEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
+    document.addEventListener(SubstrateEvents.SUBSTRATES_UPDATED, this.handleSubstratesUpdated);
     await Promise.all([this.fetchSubstrate(), this.fetchAvailableComponents()]);
   },
 
   beforeUnmount() {
-    document.removeEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
+    document.removeEventListener(SubstrateEvents.SUBSTRATES_UPDATED, this.handleSubstratesUpdated);
   },
   methods: {
     t(key: string, vars?: Record<string, any>, fallback?: string) {
@@ -110,10 +101,7 @@ export default defineComponent({
 
     async fetchSubstrate(forceUpdate = false) {
       try {
-        this.substrate = await SubstrateService.getSubstrateById(
-          this.substrateId,
-          forceUpdate,
-        );
+        this.substrate = await SubstrateService.getSubstrateById(this.substrateId, forceUpdate);
       } catch (error) {
         console.error("Error fetching substrate:", error);
       }
@@ -126,8 +114,7 @@ export default defineComponent({
      */
     async handleSubstratesUpdated() {
       const substrates = await SubstrateService.getAllSubstrates();
-      this.substrate =
-        substrates.find((sub) => sub.id === this.substrateId) ?? null;
+      this.substrate = substrates.find((sub) => sub.id === this.substrateId) ?? null;
     },
 
     async fetchAvailableComponents() {
@@ -139,9 +126,7 @@ export default defineComponent({
             description: comp.fineness || "",
             parts: 0,
           }))
-          .sort((a: SubstrateComponent, b: SubstrateComponent) =>
-            a.name.localeCompare(b.name),
-          );
+          .sort((a: SubstrateComponent, b: SubstrateComponent) => a.name.localeCompare(b.name));
       } catch (error) {
         console.error("Error fetching available components:", error);
       }
@@ -171,13 +156,7 @@ export default defineComponent({
       try {
         // The service upserts the server-confirmed substrate into the
         // cache; this page re-derives via SUBSTRATES_UPDATED.
-        await this.updateSubstrate(
-          metaChanged,
-          componentsChanged,
-          meta,
-          componentIds,
-          parts,
-        );
+        await this.updateSubstrate(metaChanged, componentsChanged, meta, componentIds, parts);
         this.showEditModal = false;
       } catch (error) {
         // handleRequest has already shown the error toast.
@@ -197,10 +176,7 @@ export default defineComponent({
     },
 
     /** Check if component list changed */
-    haveComponentsChanged(
-      componentIds: number[],
-      parts: Record<number, number>,
-    ): boolean {
+    haveComponentsChanged(componentIds: number[], parts: Record<number, number>): boolean {
       const currentComps = this.sortedComponents(componentIds, parts);
       const oldComps = this.sortedComponentsFromSubstrate();
       return JSON.stringify(currentComps) !== JSON.stringify(oldComps);
@@ -243,7 +219,7 @@ export default defineComponent({
         tasks.push(
           SubstrateService.editSubstrate(this.substrate?.id || -1, {
             name: meta.name,
-            isPublic: meta.isPublic
+            isPublic: meta.isPublic,
           }),
         );
       }

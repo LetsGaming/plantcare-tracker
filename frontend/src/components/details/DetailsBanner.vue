@@ -7,12 +7,7 @@
       @ion-error="($event) => ($event.target.src = '/no-image.png')"
       class="details-banner__image"
     />
-    <ion-img
-      v-else
-      src="/no-image.png"
-      alt="No Image"
-      class="details-banner__image no-image"
-    />
+    <ion-img v-else src="/no-image.png" alt="No Image" class="details-banner__image no-image" />
     <div class="details-banner__content">
       <h2 class="details-banner__title">{{ bannerTitle }}</h2>
       <p class="details-banner__subtitle" v-if="bannerSubtitle">

@@ -17,13 +17,13 @@ export const createSubstrateRouter = (): Router => {
   const repo = new SQLiteSubstrateRepository();
   const ctrl = createSubstrateController(repo);
 
-  router.get('/',                  authenticateToken,                        ctrl.getAllSubstrates);
-  router.get('/:id',               authenticateToken,                        ctrl.getSubstrate);
-  router.post('/',                 authenticateToken, checkGuestPermission,  ctrl.addSubstrate);
-  router.patch('/:id',             authenticateToken, checkGuestPermission,  ctrl.editSubstrate);
-  router.post('/:id/components',   authenticateToken, checkGuestPermission,  ctrl.addComponents);
-  router.patch('/:id/components',  authenticateToken, checkGuestPermission,  ctrl.upsertComponents);
-  router.delete('/:id',            authenticateToken, checkGuestPermission,  ctrl.deleteSubstrate);
+  router.get('/', authenticateToken, ctrl.getAllSubstrates);
+  router.get('/:id', authenticateToken, ctrl.getSubstrate);
+  router.post('/', authenticateToken, checkGuestPermission, ctrl.addSubstrate);
+  router.patch('/:id', authenticateToken, checkGuestPermission, ctrl.editSubstrate);
+  router.post('/:id/components', authenticateToken, checkGuestPermission, ctrl.addComponents);
+  router.patch('/:id/components', authenticateToken, checkGuestPermission, ctrl.upsertComponents);
+  router.delete('/:id', authenticateToken, checkGuestPermission, ctrl.deleteSubstrate);
 
   return router;
 };

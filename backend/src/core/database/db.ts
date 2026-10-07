@@ -58,7 +58,7 @@ function openDb(): BetterSqlite3DB {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
-  db.pragma('cache_size = -64000');   // 64 MB
+  db.pragma('cache_size = -64000'); // 64 MB
   db.pragma('temp_store = MEMORY');
   db.pragma('mmap_size = 134217728'); // 128 MB memory-mapped I/O
 
@@ -116,9 +116,9 @@ function initSchema(db: BetterSqlite3DB): void {
   }
 
   // Check whether the DB has already been initialised by looking for a known table.
-  const tableExists = (db.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
-  ).get() as { name: string } | undefined);
+  const tableExists = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    .get() as { name: string } | undefined;
 
   if (tableExists) {
     logger.debug('SQLite schema already initialised — skipping');
@@ -154,10 +154,7 @@ export function closeDb(): void {
  * T can be any object shape — better-sqlite3 returns plain objects,
  * so there is no RowDataPacket constraint to satisfy.
  */
-export function query<T extends object>(
-  sql: string,
-  params: SqlParam[] = [],
-): T[] {
+export function query<T extends object>(sql: string, params: SqlParam[] = []): T[] {
   const db = getDb();
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];
@@ -168,10 +165,7 @@ export function query<T extends object>(
  * Returns { affectedRows, insertId } — the write-result shape every
  * repository in this codebase is written against.
  */
-export function execute(
-  sql: string,
-  params: SqlParam[] = [],
-): RunResult {
+export function execute(sql: string, params: SqlParam[] = []): RunResult {
   const db = getDb();
   const stmt = db.prepare(sql);
   const result = stmt.run(...params);
@@ -185,7 +179,9 @@ export function execute(
  * Run multiple operations inside a single BEGIN/COMMIT transaction.
  * Automatically rolls back on any thrown error.
  */
-export function transaction<T>(fn: (helpers: { query: typeof query; execute: typeof execute }) => T): T {
+export function transaction<T>(
+  fn: (helpers: { query: typeof query; execute: typeof execute }) => T,
+): T {
   const db = getDb();
   const run = db.transaction(() => fn({ query, execute }));
   return run();

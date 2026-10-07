@@ -79,20 +79,13 @@ export interface ImageStorage {
    * Converts and persists an upload; returns the stored filename and
    * the capture date extracted from its metadata.
    */
-  processUpload(
-    file: UploadedFile,
-    entityType: EntityType,
-  ): Promise<ProcessedUpload>;
+  processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload>;
 
   /**
    * Reads a stored image as webp, optionally resized to resizeWidth.
    * Throws NotFoundError when the file is missing on disk.
    */
-  readAsWebp(
-    entityType: string,
-    imageUrl: string,
-    resizeWidth?: number,
-  ): Promise<Buffer>;
+  readAsWebp(entityType: string, imageUrl: string, resizeWidth?: number): Promise<Buffer>;
 
   /** Deletes the stored file; missing files are ignored. */
   remove(entityType: string, imageUrl: string): Promise<void>;

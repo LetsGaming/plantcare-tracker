@@ -175,18 +175,14 @@ describe("PlantOverview — event-driven re-derivation", () => {
     // No ionViewWillEnter in the test harness → nothing loaded yet.
     expect((wrapper.vm as any).plants).toEqual([]);
 
-    spies.getPersonalPlants.mockResolvedValue([
-      { id: -100, name: "optimistic", isPublic: false },
-    ]);
+    spies.getPersonalPlants.mockResolvedValue([{ id: -100, name: "optimistic", isPublic: false }]);
     document.dispatchEvent(new CustomEvent("plants-updated"));
     await flushPromises();
 
     expect(spies.getPersonalPlants).toHaveBeenCalledTimes(1);
     // default segment is "private" — the public getter is never used
     expect(spies.getPublicPlants).not.toHaveBeenCalled();
-    expect((wrapper.vm as any).plants).toEqual([
-      { id: -100, name: "optimistic", isPublic: false },
-    ]);
+    expect((wrapper.vm as any).plants).toEqual([{ id: -100, name: "optimistic", isPublic: false }]);
 
     wrapper.unmount();
     document.dispatchEvent(new CustomEvent("plants-updated"));

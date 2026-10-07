@@ -34,8 +34,7 @@ export default {
    * Not Found Page
    * ===================================================== */
   "pageNotFound.title": "Seite nicht gefunden",
-  "pageNotFound.message":
-    "Entschuldigung, die von Ihnen gesuchte Seite existiert nicht.",
+  "pageNotFound.message": "Entschuldigung, die von Ihnen gesuchte Seite existiert nicht.",
   "pageNotFound.goHome": "Zur Startseite",
 
   /* =====================================================
@@ -58,8 +57,7 @@ export default {
   "auth.password_mismatch": "Passwörter stimmen nicht überein.",
   "auth.register_success": "Registrierung erfolgreich. Bitte anmelden.",
   "auth.register_failed": "Registrierung fehlgeschlagen.",
-  "auth.login_failed":
-    "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+  "auth.login_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
   "auth.session_expired": "Sitzung abgelaufen. Sie wurden abgemeldet.",
   "auth.refresh_failed": "Token-Aktualisierung fehlgeschlagen. Abmeldung...",
 
@@ -98,10 +96,8 @@ export default {
   "profile.field.password.placeholder": "Neues Passwort",
   "profile.field.confirm_password.placeholder": "Neues Passwort bestätigen",
   "profile.edit.submit": "Profil speichern",
-  "profile.update_failed":
-    "Profilaktualisierung fehlgeschlagen. Bitte versuchen Sie es erneut.",
-  "profile.delete_failed":
-    "Profillöschung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+  "profile.update_failed": "Profilaktualisierung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+  "profile.delete_failed": "Profillöschung fehlgeschlagen. Bitte versuchen Sie es erneut.",
 
   /* =====================================================
    * Plants
@@ -120,8 +116,7 @@ export default {
   "plant.add.title": "Pflanze hinzufügen",
   "plant.add.form_title": "Pflanzen Informationen",
   "plant.add.submit": "Pflanze hinzufügen",
-  "plant.add.error_required":
-    "Bitte füllen Sie alle erforderlichen Felder aus.",
+  "plant.add.error_required": "Bitte füllen Sie alle erforderlichen Felder aus.",
   "plant.add.error_failed": "Fehler beim Hinzufügen der Pflanze.",
   "plant.add.upload_success": "Bild erfolgreich hochgeladen.",
   "plant.add.upload_failed": "Fehler beim Hochladen des Bildes.",
@@ -158,8 +153,7 @@ export default {
   "components.add.title": "Komponente hinzufügen",
   "components.add.form_title": "Komponenten Informationen",
   "components.add.submit": "Komponente hinzufügen",
-  "components.add.error_required":
-    "Bitte füllen Sie alle erforderlichen Felder aus.",
+  "components.add.error_required": "Bitte füllen Sie alle erforderlichen Felder aus.",
   "components.add.error_failed": "Fehler beim Hinzufügen der Komponente.",
   "components.add.upload_success": "Bild erfolgreich hochgeladen.",
   "components.add.upload_failed": "Fehler beim Hochladen des Bildes.",
@@ -210,14 +204,12 @@ export default {
   "substrate.save": "Substrat speichern",
   "substrate.load_components_failed": "Fehler beim Laden der Komponenten",
   "substrate.select_components_title": "Wähle Komponenten für das Substrat",
-  "substrate.select_component_required":
-    "Bitte wählen Sie mindestens eine Komponente aus.",
+  "substrate.select_component_required": "Bitte wählen Sie mindestens eine Komponente aus.",
   "substrate.name_required": "Substratname ist erforderlich.",
   "substrate.no_changes": "Keine Änderungen vorgenommen.",
   "substrate.components_updated": "Komponenten erfolgreich aktualisiert.",
   "substrate.updated": "Substrat erfolgreich aktualisiert.",
-  "substrate.updated_both":
-    "Substrat und Komponenten erfolgreich aktualisiert.",
+  "substrate.updated_both": "Substrat und Komponenten erfolgreich aktualisiert.",
   "substrate.update_error": "Fehler beim Aktualisieren des Substrats.",
   "substrate.deleted": "Substrat erfolgreich gelöscht.",
   "substrate.delete_error": "Fehler beim Löschen des Substrats.",
@@ -297,8 +289,7 @@ export default {
   /* Fertilizer usage frequency */
   "watering.records.fertilizer_usage.every_time": "jede Wässerung",
   "watering.records.fertilizer_usage.mostly": "meistens",
-  "watering.records.fertilizer_usage.about_every_second":
-    "ungefähr jede zweite",
+  "watering.records.fertilizer_usage.about_every_second": "ungefähr jede zweite",
   "watering.records.fertilizer_usage.occasional": "gelegentlich",
   "watering.records.fertilizer_usage.rarely": "selten",
   "watering.records.fertilizer_usage.never": "nie",
@@ -335,8 +326,7 @@ export default {
   "admin.scrapers.title": "Scraper-Status",
   "admin.scrapers.description":
     "Zustand der Shops, aus denen Angebote und Pflanzenlinks gesammelt werden.",
-  "admin.scrapers.summary":
-    "{failing} fehlerhaft, {degraded} eingeschränkt, {ok} in Ordnung",
+  "admin.scrapers.summary": "{failing} fehlerhaft, {degraded} eingeschränkt, {ok} in Ordnung",
   "admin.scrapers.all_ok": "Alle Quellen funktionieren.",
   "admin.scrapers.empty": "Keine Quellen registriert.",
   "admin.scrapers.failing_badge": "{count} Scraper-Quellen fehlerhaft",

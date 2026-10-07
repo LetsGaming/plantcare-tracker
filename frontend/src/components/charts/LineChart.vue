@@ -35,9 +35,7 @@ ChartJS.register(
 );
 
 function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 export default defineComponent({

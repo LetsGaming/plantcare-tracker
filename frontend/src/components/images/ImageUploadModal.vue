@@ -113,7 +113,7 @@ export default defineComponent({
   methods: {
     submitForm() {
       if (!this.fileItem.file) {
-        ToastService.showError({ key: 'image.select_error', fallback: 'Please select an image.' });
+        ToastService.showError({ key: "image.select_error", fallback: "Please select an image." });
       } else {
         this.$emit("submit", this.fileItem);
       }

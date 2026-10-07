@@ -29,10 +29,7 @@ export function getApiVersionPath(): string {
   }
 
   try {
-    const raw = fs.readFileSync(
-      path.resolve(process.cwd(), 'package.json'),
-      'utf-8',
-    );
+    const raw = fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8');
     const pkg = JSON.parse(raw) as { versionPath?: string };
     cachedVersion = pkg.versionPath ?? DEFAULT_VERSION;
   } catch {

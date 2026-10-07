@@ -204,8 +204,7 @@ export default {
   "substrate.save": "Save substrate",
   "substrate.load_components_failed": "Failed to load components",
   "substrate.select_components_title": "Select components for the substrate",
-  "substrate.select_component_required":
-    "Please select at least one component.",
+  "substrate.select_component_required": "Please select at least one component.",
   "substrate.name_required": "Substrate name is required.",
   "substrate.no_changes": "No changes made.",
   "substrate.components_updated": "Components updated successfully.",
@@ -290,8 +289,7 @@ export default {
   /* Fertilizer usage frequency */
   "watering.records.fertilizer_usage.every_time": "every watering",
   "watering.records.fertilizer_usage.mostly": "mostly",
-  "watering.records.fertilizer_usage.about_every_second":
-    "about every second time",
+  "watering.records.fertilizer_usage.about_every_second": "about every second time",
   "watering.records.fertilizer_usage.occasional": "occasionally",
   "watering.records.fertilizer_usage.rarely": "rarely",
   "watering.records.fertilizer_usage.never": "never",

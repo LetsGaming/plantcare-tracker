@@ -30,12 +30,7 @@
             {{ t("action.back") }}
           </IonButton>
 
-          <IonButton
-            expand="full"
-            color="primary"
-            :disabled="isLoading"
-            @click="submit"
-          >
+          <IonButton expand="full" color="primary" :disabled="isLoading" @click="submit">
             {{ t("substrate.save") }}
           </IonButton>
         </div>

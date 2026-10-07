@@ -38,7 +38,7 @@ function serializeError(err: unknown): Record<string, unknown> {
     };
     // better-sqlite3 / SQLite-specific fields
     const e = err as Error & { code?: string; offset?: number };
-    if (e.code)   out['sqliteCode']   = e.code;
+    if (e.code) out['sqliteCode'] = e.code;
     if (e.offset) out['sqliteOffset'] = e.offset;
     return out;
   }
@@ -93,7 +93,7 @@ export const globalErrorHandler = (
     };
 
     if (err instanceof ValidationError && err.fields) {
-      body['error'] = { ...body['error'] as object, fields: err.fields };
+      body['error'] = { ...(body['error'] as object), fields: err.fields };
     }
 
     // Stack only exposed in dev — never leak internals to prod clients

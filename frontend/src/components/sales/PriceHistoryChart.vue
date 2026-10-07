@@ -45,8 +45,7 @@ export default defineComponent({
           borderColor: "#3880ff",
           tension: 0.3,
           fill: true,
-          pointRadius: (ctx: any) =>
-            ctx.dataIndex === prices.length - 1 ? 5 : 3,
+          pointRadius: (ctx: any) => (ctx.dataIndex === prices.length - 1 ? 5 : 3),
           pointBackgroundColor: "#3880ff",
         },
         ...(props.referencePrice

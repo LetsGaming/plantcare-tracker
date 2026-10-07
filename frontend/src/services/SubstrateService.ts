@@ -151,8 +151,11 @@ export default class SubstrateService extends BaseService {
     // Backend returns the full created substrate — upsert it directly
     // instead of clearing the whole cache (which forced every view into
     // a refetch).
-    await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
-      SubstrateMapper.mapSubstrate(response as APISubstrate));
+    await this.upsertIntoListCache(
+      CACHE_KEY_ALL,
+      SubstrateEvents.SUBSTRATES_UPDATED,
+      SubstrateMapper.mapSubstrate(response as APISubstrate),
+    );
     return response;
   }
 
@@ -183,8 +186,11 @@ export default class SubstrateService extends BaseService {
       );
       // The components endpoint answers with the full substrate including
       // its component mix — upsert the final state over the bare create.
-      await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
-        SubstrateMapper.mapSubstrate(withComponents as APISubstrate));
+      await this.upsertIntoListCache(
+        CACHE_KEY_ALL,
+        SubstrateEvents.SUBSTRATES_UPDATED,
+        SubstrateMapper.mapSubstrate(withComponents as APISubstrate),
+      );
     }
 
     return substrateId;
@@ -203,8 +209,11 @@ export default class SubstrateService extends BaseService {
       "error.action_failed",
     );
     // Backend returns the full updated substrate — upsert it directly
-    await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
-      SubstrateMapper.mapSubstrate(response as APISubstrate));
+    await this.upsertIntoListCache(
+      CACHE_KEY_ALL,
+      SubstrateEvents.SUBSTRATES_UPDATED,
+      SubstrateMapper.mapSubstrate(response as APISubstrate),
+    );
     return response;
   }
 
@@ -224,8 +233,11 @@ export default class SubstrateService extends BaseService {
       "substrate.components.edit.title",
     );
     // Backend now returns the updated substrate — upsert it directly into the cache
-    await this.upsertIntoListCache(CACHE_KEY_ALL, SubstrateEvents.SUBSTRATES_UPDATED,
-      SubstrateMapper.mapSubstrate(response as APISubstrate));
+    await this.upsertIntoListCache(
+      CACHE_KEY_ALL,
+      SubstrateEvents.SUBSTRATES_UPDATED,
+      SubstrateMapper.mapSubstrate(response as APISubstrate),
+    );
     return response;
   }
 

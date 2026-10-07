@@ -2,9 +2,7 @@
   <ion-page>
     <overview-header
       :title="t('components.title')"
-      :segments="[
-        { value: 'all', label: t('segment.all'), icon: personCircle },
-      ]"
+      :segments="[{ value: 'all', label: t('segment.all'), icon: personCircle }]"
       :showAddButton="isAdmin"
       :addIcon="addCircle"
       starting-segment="all"
@@ -90,10 +88,7 @@ export default defineComponent({
         this.components = response || [];
       } catch (error) {
         this.components = [];
-        console.error(
-          `Error ${forceUpdate ? "refreshing" : "fetching"} components:`,
-          error
-        );
+        console.error(`Error ${forceUpdate ? "refreshing" : "fetching"} components:`, error);
       }
     },
 
@@ -121,10 +116,7 @@ export default defineComponent({
         const response = await ComponentService.addComponent(componentData);
         if (!response) return;
         if (componentData.image) {
-          await ComponentService.uploadComponentImage(
-            response.component_id,
-            componentData.image
-          );
+          await ComponentService.uploadComponentImage(response.component_id, componentData.image);
         }
         this.showAddingModal = false;
         await this.fetchComponents();

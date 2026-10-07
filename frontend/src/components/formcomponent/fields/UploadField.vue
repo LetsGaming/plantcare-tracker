@@ -35,11 +35,7 @@ export default defineComponent({
       }
     },
     translateLabel(): string {
-      return localizationService.t(
-        this.field.label,
-        undefined,
-        this.field.label
-      );
+      return localizationService.t(this.field.label, undefined, this.field.label);
     },
   },
 });

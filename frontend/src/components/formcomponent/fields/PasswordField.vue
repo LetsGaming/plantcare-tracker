@@ -14,12 +14,7 @@
         </label>
       </div>
 
-      <IonButton
-        fill="clear"
-        size="small"
-        slot="end"
-        @click="togglePasswordVisibility"
-      >
+      <IonButton fill="clear" size="small" slot="end" @click="togglePasswordVisibility">
         <IonIcon :icon="showPassword ? eyeOffOutline : eyeOutline" />
       </IonButton>
     </IonItem>
@@ -77,11 +72,7 @@ export default defineComponent({
       },
     },
     translatedLabel(): string {
-      return localizationService.t(
-        this.field.label,
-        undefined,
-        this.field.label,
-      );
+      return localizationService.t(this.field.label, undefined, this.field.label);
     },
   },
 });

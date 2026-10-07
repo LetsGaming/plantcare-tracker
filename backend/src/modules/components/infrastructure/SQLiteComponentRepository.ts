@@ -1,9 +1,5 @@
-import { query, execute } from "../../../core/database/db";
-import type {
-  ComponentData,
-  FinenessLevel,
-  ComponentRepository,
-} from "../domain/Component";
+import { query, execute } from '../../../core/database/db';
+import type { ComponentData, FinenessLevel, ComponentRepository } from '../domain/Component';
 
 type SqlParam = string | number | boolean | null;
 
@@ -41,47 +37,39 @@ export class SQLiteComponentRepository implements ComponentRepository {
   }
 
   async findFinenessLevels(): Promise<FinenessLevel[]> {
-    const rows = query<{ id: number; name: string }>(
-      "SELECT id, name FROM fineness_levels",
-    );
+    const rows = query<{ id: number; name: string }>('SELECT id, name FROM fineness_levels');
     return rows.map((r) => ({ fineness_id: r.id, fineness_name: r.name }));
   }
 
   async create(name: string, finenessId: number): Promise<number> {
-    const result = execute(
-      "INSERT INTO components (name, fineness_id) VALUES (?, ?)",
-      [name, finenessId],
-    );
+    const result = execute('INSERT INTO components (name, fineness_id) VALUES (?, ?)', [
+      name,
+      finenessId,
+    ]);
     return result.insertId as number;
   }
 
-  async update(
-    id: number,
-    fields: { name?: string; fineness?: number },
-  ): Promise<boolean> {
+  async update(id: number, fields: { name?: string; fineness?: number }): Promise<boolean> {
     const updates: string[] = [];
     const params: SqlParam[] = [];
 
     if (fields.name !== undefined) {
-      updates.push("name = ?");
+      updates.push('name = ?');
       params.push(fields.name);
     }
     if (fields.fineness !== undefined && Number.isInteger(fields.fineness) && fields.fineness > 0) {
-      updates.push("fineness_id = ?");
+      updates.push('fineness_id = ?');
       params.push(fields.fineness);
     }
     if (!updates.length) return false;
 
     params.push(id);
-    const result = execute(
-      `UPDATE components SET ${updates.join(", ")} WHERE id = ?`,
-      params,
-    );
+    const result = execute(`UPDATE components SET ${updates.join(', ')} WHERE id = ?`, params);
     return result.affectedRows > 0;
   }
 
   async delete(id: number): Promise<boolean> {
-    const result = execute("DELETE FROM components WHERE id = ?", [id]);
+    const result = execute('DELETE FROM components WHERE id = ?', [id]);
     return result.affectedRows > 0;
   }
 
@@ -105,7 +93,7 @@ export class SQLiteComponentRepository implements ComponentRepository {
       if (row.image_id && !c.images.find((i) => i.id === row.image_id)) {
         const imageRef = {
           id: row.image_id,
-          url: row.image_url ?? "",
+          url: row.image_url ?? '',
           date: row.upload_date ?? 0,
         };
         c.images.push(imageRef);

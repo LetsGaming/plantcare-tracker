@@ -1,9 +1,5 @@
 <template>
-  <ion-content
-    ref="contentRef"
-    :scroll-events="true"
-    @ionScroll="handleScroll($event)"
-  >
+  <ion-content ref="contentRef" :scroll-events="true" @ionScroll="handleScroll($event)">
     <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
       <ion-refresher-content
         :pulling-icon="chevronDown"
@@ -13,16 +9,8 @@
       />
     </ion-refresher>
 
-    <div
-      class="refresh-button-container"
-      :style="isRefreshing ? 'right: 93.5%;' : ''"
-    >
-      <ion-button
-        size="small"
-        fill="clear"
-        @click="manualRefresh"
-        :disabled="isRefreshing"
-      >
+    <div class="refresh-button-container" :style="isRefreshing ? 'right: 93.5%;' : ''">
+      <ion-button size="small" fill="clear" @click="manualRefresh" :disabled="isRefreshing">
         <template v-if="isRefreshing">
           <ion-spinner name="dots" />
           {{ t("pullToRefresh.loading") }}
@@ -73,16 +61,10 @@
               class="responsive-col"
             >
               <ion-card class="item-card" @click="navigateToItem(item.id)">
-                <ion-badge
-                  v-if="item.isNew"
-                  class="new-badge round-badge"
-                  color="danger"
-                >
+                <ion-badge v-if="item.isNew" class="new-badge round-badge" color="danger">
                   {{ t("label.new") }}
                 </ion-badge>
-                <div
-                  :class="['item-image-wrapper', { 'image-only': imageOnly }]"
-                >
+                <div :class="['item-image-wrapper', { 'image-only': imageOnly }]">
                   <ProgressiveImage
                     :src="item.imageUrl"
                     :alt="t('image.alt', { name: item.name })"
@@ -94,10 +76,7 @@
                     {{ item.name }}
                   </ion-card-title>
 
-                  <ion-card-subtitle
-                    v-if="item.description"
-                    class="item-description"
-                  >
+                  <ion-card-subtitle v-if="item.description" class="item-description">
                     {{ item.description }}
                   </ion-card-subtitle>
 

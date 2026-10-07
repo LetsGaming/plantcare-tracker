@@ -59,11 +59,7 @@ export default class WateringService extends BaseService {
     delete updated[plantId.toString()];
 
     // We update the full dictionary in storage
-    await this.saveAndNotify(
-      CACHE_KEY_RECORDS,
-      WateringEvents.RECORDS_CHANGED,
-      updated,
-    );
+    await this.saveAndNotify(CACHE_KEY_RECORDS, WateringEvents.RECORDS_CHANGED, updated);
   }
 
   /* =========================================================================
@@ -91,13 +87,9 @@ export default class WateringService extends BaseService {
   /**
    * Internal API fetcher with 404 safety for plants with no history.
    */
-  private static async fetchRecordsFromApi(
-    plantId: number,
-  ): Promise<WateringRecord[]> {
+  private static async fetchRecordsFromApi(plantId: number): Promise<WateringRecord[]> {
     try {
-      const response = await ApiUtils.get<APIWateringRecord[]>(
-        `${BASE_ENDPOINT}/plant/${plantId}`,
-      );
+      const response = await ApiUtils.get<APIWateringRecord[]>(`${BASE_ENDPOINT}/plant/${plantId}`);
       return WateringMapper.convertToWateringRecords(response);
     } catch (error) {
       // V2 returns [] for plants with no history (no 404 for empty lists).
@@ -112,16 +104,12 @@ export default class WateringService extends BaseService {
   /**
    * Fetches the global list of available fertilizer types.
    */
-  static async getFertilizerTypes(
-    forceUpdate: boolean = false,
-  ): Promise<FertilizerType[]> {
+  static async getFertilizerTypes(forceUpdate: boolean = false): Promise<FertilizerType[]> {
     const result = await this.getCachedData(
       CACHE_KEY_FERTILIZER,
       () =>
         this.handleRequest(
-          ApiUtils.get<APIFertilizerType[]>(
-            `${BASE_ENDPOINT}/fertilizer-types`,
-          ).then((res) => {
+          ApiUtils.get<APIFertilizerType[]>(`${BASE_ENDPOINT}/fertilizer-types`).then((res) => {
             const types = WateringMapper.convertToFertilizerTypes(res);
             this.saveAndNotify(
               CACHE_KEY_FERTILIZER,
@@ -202,9 +190,7 @@ export default class WateringService extends BaseService {
     recordId: number,
     data: EditWateringRecord,
   ): Promise<WateringRecord> {
-    const existing = (await this.getWateringRecords(plantId)).find(
-      (r) => r.id === recordId,
-    );
+    const existing = (await this.getWateringRecords(plantId)).find((r) => r.id === recordId);
     const millis = data.date ?? existing?.date_millis ?? Date.now();
     const optimistic: WateringRecord = {
       id: recordId,
@@ -243,10 +229,7 @@ export default class WateringService extends BaseService {
    * The record disappears immediately and is re-inserted at its original
    * position if the request fails.
    */
-  static async deleteWateringRecord(
-    plantId: number,
-    recordId: number,
-  ): Promise<void> {
+  static async deleteWateringRecord(plantId: number, recordId: number): Promise<void> {
     await this.optimisticDictionaryListRemove<WateringRecord, unknown>({
       cacheKey: CACHE_KEY_RECORDS,
       entryKey: plantId.toString(),
@@ -278,9 +261,7 @@ export default class WateringService extends BaseService {
     fertilizerTypeId?: number | null,
   ): Promise<string | undefined> {
     if (fertilizerTypeId == null) return undefined;
-    const stored = await storageService.get<{ data: FertilizerType[] }>(
-      CACHE_KEY_FERTILIZER,
-    );
+    const stored = await storageService.get<{ data: FertilizerType[] }>(CACHE_KEY_FERTILIZER);
     return stored?.data?.find((t) => t.id === fertilizerTypeId)?.name;
   }
 

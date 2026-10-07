@@ -28,7 +28,11 @@ vi.mock('../../src/modules/sales/infrastructure/HttpFetcher', () => ({
   closeBrowser: vi.fn(),
 }));
 
-import { requestIdMiddleware, globalErrorHandler, notFoundHandler } from '../../src/core/middleware';
+import {
+  requestIdMiddleware,
+  globalErrorHandler,
+  notFoundHandler,
+} from '../../src/core/middleware';
 import { generateTokens, sessionStore } from '../../src/core/middleware/auth';
 import { createSalesRouter } from '../../src/modules/sales/presentation/salesRoutes';
 
@@ -88,7 +92,9 @@ describe('GET /api/v2/sales/health', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(9);
     expect(res.body.data.every((r: { status: string }) => r.status === 'unknown')).toBe(true);
-    expect(res.body.data.map((r: { source_key: string }) => r.source_key)).toContain('jungleLeaves');
+    expect(res.body.data.map((r: { source_key: string }) => r.source_key)).toContain(
+      'jungleLeaves',
+    );
   });
 
   it('returns stored health rows', async () => {
@@ -98,8 +104,9 @@ describe('GET /api/v2/sales/health', () => {
       .get('/api/v2/sales/health')
       .set('Authorization', authHeader('admin', 1));
 
-    expect(res.body.data.find((r: { source_key: string }) => r.source_key === 'jungleLeaves'))
-      .toMatchObject({ status: 'failing', last_error: 'selector: No HTML returned' });
+    expect(
+      res.body.data.find((r: { source_key: string }) => r.source_key === 'jungleLeaves'),
+    ).toMatchObject({ status: 'failing', last_error: 'selector: No HTML returned' });
   });
 });
 

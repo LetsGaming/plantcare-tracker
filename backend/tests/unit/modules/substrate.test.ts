@@ -111,9 +111,9 @@ describe('CreateSubstrateUseCase', () => {
 
   it('throws InternalError when the created substrate cannot be read back', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new CreateSubstrateUseCase(repo).execute({ name: 'x' }, 2),
-    ).rejects.toThrow(InternalError);
+    await expect(new CreateSubstrateUseCase(repo).execute({ name: 'x' }, 2)).rejects.toThrow(
+      InternalError,
+    );
   });
 });
 
@@ -122,22 +122,24 @@ describe('CreateSubstrateUseCase', () => {
 describe('UpdateSubstrateUseCase', () => {
   it('throws NotFoundError when the substrate does not exist', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new UpdateSubstrateUseCase(repo).execute(999, 2, { name: 'x' }),
-    ).rejects.toThrow(NotFoundError);
+    await expect(new UpdateSubstrateUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('throws ForbiddenError when the substrate belongs to someone else', async () => {
     const repo = makeMockRepo();
     asMock(repo.findById).mockResolvedValue(makeSubstrate({ substrate_user_id: 99 }));
-    await expect(
-      new UpdateSubstrateUseCase(repo).execute(1, 2, { name: 'x' }),
-    ).rejects.toThrow(ForbiddenError);
+    await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, { name: 'x' })).rejects.toThrow(
+      ForbiddenError,
+    );
   });
 
   it('throws ValidationError when no fields are provided', async () => {
     const repo = makeMockRepo();
-    await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, {})).rejects.toThrow(ValidationError);
+    await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, {})).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('updates metadata without touching components when none are removed', async () => {

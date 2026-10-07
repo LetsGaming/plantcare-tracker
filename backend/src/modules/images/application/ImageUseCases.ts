@@ -29,11 +29,8 @@ import { STATIC_UPLOADS_ROUTE } from '../../../core/config';
 const toEpochSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
 
 /** Builds the absolute public URL a stored file is served under. */
-const buildPublicUrl = (
-  publicBaseUrl: string,
-  entityType: EntityType,
-  filename: string,
-): string => `${publicBaseUrl}${STATIC_UPLOADS_ROUTE}/${entityType}/${filename}`;
+const buildPublicUrl = (publicBaseUrl: string, entityType: EntityType, filename: string): string =>
+  `${publicBaseUrl}${STATIC_UPLOADS_ROUTE}/${entityType}/${filename}`;
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
@@ -57,18 +54,10 @@ export class UploadImageUseCase {
   ) {}
 
   async execute(input: UploadImageInput): Promise<UploadImageResult> {
-    const { filename, capturedAt } = await this.storage.processUpload(
-      input.file,
-      input.entityType,
-    );
+    const { filename, capturedAt } = await this.storage.processUpload(input.file, input.entityType);
 
     const url = buildPublicUrl(input.publicBaseUrl, input.entityType, filename);
-    await this.repo.create(
-      input.entityType,
-      input.entityId,
-      url,
-      toEpochSeconds(capturedAt),
-    );
+    await this.repo.create(input.entityType, input.entityId, url, toEpochSeconds(capturedAt));
 
     return { url, capturedAt };
   }
@@ -79,10 +68,9 @@ export class ListEntityImagesUseCase {
 
   async execute(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
     if (!Number.isInteger(entityId) || entityId <= 0) {
-      throw new ValidationError(
-        'entityId query parameter must be a positive integer',
-        { entityId: 'must be a positive integer' },
-      );
+      throw new ValidationError('entityId query parameter must be a positive integer', {
+        entityId: 'must be a positive integer',
+      });
     }
     return this.repo.findByEntity(entityType, entityId);
   }
@@ -99,11 +87,7 @@ export class ServeEntityImageUseCase {
    * optionally resized. 404 when the entity has no images or the file
    * is gone from disk.
    */
-  async execute(
-    entityType: EntityType,
-    entityId: number,
-    resizeWidth?: number,
-  ): Promise<Buffer> {
+  async execute(entityType: EntityType, entityId: number, resizeWidth?: number): Promise<Buffer> {
     const images = await this.repo.findByEntity(entityType, entityId);
     if (!images.length) throw new NotFoundError('Image');
 
@@ -136,10 +120,7 @@ export class UpdateImageUseCase {
 
     let newUrl: string | undefined;
     if (input.file) {
-      const { filename } = await this.storage.processUpload(
-        input.file,
-        existing.entityType,
-      );
+      const { filename } = await this.storage.processUpload(input.file, existing.entityType);
       newUrl = buildPublicUrl(input.publicBaseUrl, existing.entityType, filename);
     }
 
@@ -191,8 +172,6 @@ export class DeleteEntityImagesUseCase {
 
   async execute(entityType: EntityType, entityId: number): Promise<void> {
     const images = await this.repo.deleteByEntity(entityType, entityId);
-    await Promise.all(
-      images.map((img) => this.storage.remove(entityType, img.url)),
-    );
+    await Promise.all(images.map((img) => this.storage.remove(entityType, img.url)));
   }
 }

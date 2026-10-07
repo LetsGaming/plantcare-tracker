@@ -30,11 +30,7 @@
       <ion-fab-button router-link="/sales">
         <ion-icon :icon="pricetag" />
       </ion-fab-button>
-      <ion-badge
-        v-if="salesCount > 0"
-        color="danger"
-        class="sales-amount-badge"
-      >
+      <ion-badge v-if="salesCount > 0" color="danger" class="sales-amount-badge">
         {{ salesCount }}
       </ion-badge>
       <ion-badge
@@ -118,19 +114,13 @@ onMounted(() => {
 
   // Listen for the event name defined in SalesService
   document.addEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
-  document.addEventListener(
-    AdminEvents.SOURCE_HEALTH_UPDATED,
-    handleSourceHealthUpdated,
-  );
+  document.addEventListener(AdminEvents.SOURCE_HEALTH_UPDATED, handleSourceHealthUpdated);
 });
 
 onUnmounted(() => {
   // Clean up standard DOM listener
   document.removeEventListener(SaleEvents.SALE_SEEN, handleSaleSeenEvent);
-  document.removeEventListener(
-    AdminEvents.SOURCE_HEALTH_UPDATED,
-    handleSourceHealthUpdated,
-  );
+  document.removeEventListener(AdminEvents.SOURCE_HEALTH_UPDATED, handleSourceHealthUpdated);
 });
 </script>
 

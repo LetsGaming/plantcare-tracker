@@ -15,8 +15,12 @@ class InMemoryRepository implements SourceHealthRepository {
   readonly rows = new Map<string, SourceHealth>();
   failOnUpsert = false;
 
-  findAll() { return [...this.rows.values()]; }
-  findByKey(key: string) { return this.rows.get(key) ?? null; }
+  findAll() {
+    return [...this.rows.values()];
+  }
+  findByKey(key: string) {
+    return this.rows.get(key) ?? null;
+  }
   upsert(row: SourceHealth) {
     if (this.failOnUpsert) throw new Error('disk full');
     this.rows.set(row.source_key, row);
@@ -36,7 +40,9 @@ const outcome = (overrides: Partial<ScrapeOutcome> = {}): ScrapeOutcome => ({
 describe('statusFromOutcome', () => {
   it('maps primary, fallback and no strategy to ok, degraded and failing', () => {
     expect(statusFromOutcome(outcome())).toBe('ok');
-    expect(statusFromOutcome(outcome({ strategy: 'selector', usedFallback: true }))).toBe('degraded');
+    expect(statusFromOutcome(outcome({ strategy: 'selector', usedFallback: true }))).toBe(
+      'degraded',
+    );
     expect(statusFromOutcome(outcome({ strategy: null }))).toBe('failing');
   });
 });
@@ -95,7 +101,13 @@ describe('SourceHealthTracker', () => {
   });
 
   it('marks a fallback run as degraded without counting it as a failure', () => {
-    tracker.record(outcome({ strategy: 'selector', usedFallback: true, error: 'shopifyJson: products.json unavailable' }));
+    tracker.record(
+      outcome({
+        strategy: 'selector',
+        usedFallback: true,
+        error: 'shopifyJson: products.json unavailable',
+      }),
+    );
 
     expect(repo.findByKey('jungleLeaves')).toMatchObject({
       status: 'degraded',

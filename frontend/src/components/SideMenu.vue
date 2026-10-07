@@ -21,10 +21,7 @@
         </ion-item>
 
         <ion-item lines="none">
-          <menu-calendar
-            :show-settings-button="true"
-            @settings-click="showDateSettings = true"
-          />
+          <menu-calendar :show-settings-button="true" @settings-click="showDateSettings = true" />
         </ion-item>
       </ion-list>
     </ion-content>
@@ -34,22 +31,14 @@
         <ion-item lines="none">
           <ion-label>{{ localizationLabel }}</ion-label>
           <ion-select :value="selectedLocale" @ionChange="changeLocale">
-            <ion-select-option
-              v-for="loc in availableLocales"
-              :key="loc"
-              :value="loc"
-            >
+            <ion-select-option v-for="loc in availableLocales" :key="loc" :value="loc">
               {{ localeLabel(loc) }}
             </ion-select-option>
           </ion-select>
         </ion-item>
 
         <ion-item lines="none">
-          <ion-toggle
-            label-placement="start"
-            :checked="darkMode"
-            @ionChange="toggleDarkModeEvent"
-          >
+          <ion-toggle label-placement="start" :checked="darkMode" @ionChange="toggleDarkModeEvent">
             {{ t("menu.dark_mode") }}
           </ion-toggle>
         </ion-item>
@@ -156,8 +145,7 @@ export default defineComponent({
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
     try {
       const storedDark = await storageService.get("darkMode");
-      const isDark =
-        typeof storedDark === "boolean" ? storedDark : prefersDark.matches;
+      const isDark = typeof storedDark === "boolean" ? storedDark : prefersDark.matches;
       this.toggleDarkMode(isDark);
     } catch (error) {
       console.error("Failed to retrieve dark mode preference:", error);
@@ -165,9 +153,7 @@ export default defineComponent({
     }
 
     /* ---------- Calendar settings ---------- */
-    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(
-      () => 0
-    );
+    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(() => 0);
     this.doDeleteAfterThirty = await CalendarService.getDeleteAfterThirty();
 
     await CalendarService.deleteOldDates();

@@ -199,11 +199,7 @@ class ToastService {
    */
   static showToastWithAction(
     message: string | LocalizedMessage,
-    actionText: string = localizationService.t(
-      "toast.retry",
-      undefined,
-      "Retry",
-    ),
+    actionText: string = localizationService.t("toast.retry", undefined, "Retry"),
     actionHandler: () => void,
     duration: number = 4000,
     position: ToastPosition = "bottom",
@@ -238,8 +234,7 @@ class ToastService {
       color,
       showCloseButton: true,
       closeButtonText:
-        dismissButtonText ||
-        localizationService.t("toast.dismiss", undefined, "Dismiss"),
+        dismissButtonText || localizationService.t("toast.dismiss", undefined, "Dismiss"),
     });
   }
 

@@ -10,35 +10,39 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mock the db module BEFORE any repository imports ─────────────────────────
 
-const mockQuery    = vi.fn().mockReturnValue([]);
-const mockExecute  = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
-const mockTx       = vi.fn().mockImplementation((fn: (helpers: unknown) => unknown) =>
-  fn({ query: mockQuery, execute: mockExecute }),
-);
+const mockQuery = vi.fn().mockReturnValue([]);
+const mockExecute = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
+const mockTx = vi
+  .fn()
+  .mockImplementation((fn: (helpers: unknown) => unknown) =>
+    fn({ query: mockQuery, execute: mockExecute }),
+  );
 
 vi.mock('../../../src/core/database/db', () => ({
-  query:       (...args: unknown[]) => mockQuery(...args),
-  execute:     (...args: unknown[]) => mockExecute(...args),
+  query: (...args: unknown[]) => mockQuery(...args),
+  execute: (...args: unknown[]) => mockExecute(...args),
   transaction: (...args: unknown[]) => mockTx(...args),
-  getDb:       vi.fn(),
-  closeDb:     vi.fn(),
+  getDb: vi.fn(),
+  closeDb: vi.fn(),
 }));
 
 // ── Imports (after mock registration) ────────────────────────────────────────
 
-import { SQLitePlantRepository }     from '../../../src/modules/plants/infrastructure/SQLitePlantRepository';
-import { SQLiteWateringRepository }  from '../../../src/modules/watering/infrastructure/SQLiteWateringRepository';
+import { SQLitePlantRepository } from '../../../src/modules/plants/infrastructure/SQLitePlantRepository';
+import { SQLiteWateringRepository } from '../../../src/modules/watering/infrastructure/SQLiteWateringRepository';
 import { SQLiteSubstrateRepository } from '../../../src/modules/substrate/infrastructure/SQLiteSubstrateRepository';
-import { SQLiteUserRepository }      from '../../../src/modules/auth/infrastructure/SQLiteUserRepository';
-import { SQLiteImageRepository }     from '../../../src/modules/images/infrastructure/SQLiteImageRepository';
+import { SQLiteUserRepository } from '../../../src/modules/auth/infrastructure/SQLiteUserRepository';
+import { SQLiteImageRepository } from '../../../src/modules/images/infrastructure/SQLiteImageRepository';
 import { makePlantRow, makeWateringRow, makeSubstrateRow } from '../../helpers/mockFactory';
 
 beforeEach(() => {
   mockQuery.mockReset().mockReturnValue([]);
   mockExecute.mockReset().mockReturnValue({ affectedRows: 1, insertId: 1 });
-  mockTx.mockReset().mockImplementation((fn: (helpers: unknown) => unknown) =>
-    fn({ query: mockQuery, execute: mockExecute }),
-  );
+  mockTx
+    .mockReset()
+    .mockImplementation((fn: (helpers: unknown) => unknown) =>
+      fn({ query: mockQuery, execute: mockExecute }),
+    );
 });
 
 // ── SQLitePlantRepository ─────────────────────────────────────────────────────
@@ -71,7 +75,11 @@ describe('SQLitePlantRepository', () => {
   it('create inserts and returns insertId', async () => {
     mockExecute.mockReturnValue({ affectedRows: 1, insertId: 42 });
     const id = await new SQLitePlantRepository().create({
-      name: 'Fern', species: 'Nephrolepis', substrateId: 1, isPublic: false, userId: 2,
+      name: 'Fern',
+      species: 'Nephrolepis',
+      substrateId: 1,
+      isPublic: false,
+      userId: 2,
     });
     expect(id).toBe(42);
   });
@@ -109,7 +117,10 @@ describe('SQLiteWateringRepository', () => {
   });
 
   it('update builds correct SET clause', async () => {
-    await new SQLiteWateringRepository().update(1, 2, { usedFertilizer: false, fertilizerTypeId: null });
+    await new SQLiteWateringRepository().update(1, 2, {
+      usedFertilizer: false,
+      fertilizerTypeId: null,
+    });
     const sql = mockExecute.mock.calls[0][0] as string;
     expect(sql).toContain('used_fertilizer');
     expect(sql).toContain('fertilizer_type_id');
@@ -127,8 +138,18 @@ describe('SQLiteWateringRepository', () => {
 describe('SQLiteSubstrateRepository', () => {
   it('findById collapses components and images from JOIN rows', async () => {
     mockQuery.mockReturnValue([
-      makeSubstrateRow({ component_id: 1, component_name: 'Perlite',   component_fineness_name: 'coarse', component_parts: 2 }),
-      makeSubstrateRow({ component_id: 2, component_name: 'Coco Coir', component_fineness_name: 'fine',   component_parts: 3 }),
+      makeSubstrateRow({
+        component_id: 1,
+        component_name: 'Perlite',
+        component_fineness_name: 'coarse',
+        component_parts: 2,
+      }),
+      makeSubstrateRow({
+        component_id: 2,
+        component_name: 'Coco Coir',
+        component_fineness_name: 'fine',
+        component_parts: 3,
+      }),
     ]);
     const substrate = await new SQLiteSubstrateRepository().findById(1);
     expect(substrate).not.toBeNull();
@@ -163,7 +184,11 @@ describe('SQLiteUserRepository', () => {
   });
 
   it('update only allows whitelisted columns', async () => {
-    await new SQLiteUserRepository().update(1, { username: 'new', role_id: 1, malicious: 'DROP TABLE users' });
+    await new SQLiteUserRepository().update(1, {
+      username: 'new',
+      role_id: 1,
+      malicious: 'DROP TABLE users',
+    });
     const sql = mockExecute.mock.calls[0][0] as string;
     expect(sql).not.toContain('malicious');
     expect(sql).not.toContain('role_id');

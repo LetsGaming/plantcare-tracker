@@ -7,11 +7,7 @@
  */
 
 import { z } from 'zod';
-import type {
-  ComponentRepository,
-  ComponentData,
-  FinenessLevel,
-} from '../domain/Component';
+import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
 import { NotFoundError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
 

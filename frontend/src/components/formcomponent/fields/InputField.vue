@@ -16,7 +16,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonInput } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "InputFieldComponent",
@@ -41,8 +41,8 @@ export default defineComponent({
       },
     },
     translatedLabel(): string {
-      return localizationService.t(this.field.label, undefined, this.field.label)
-    }
+      return localizationService.t(this.field.label, undefined, this.field.label);
+    },
   },
 });
 </script>

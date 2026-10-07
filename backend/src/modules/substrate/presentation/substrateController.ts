@@ -26,8 +26,12 @@ import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface SubstrateListResponse { data: SubstrateData[] }
-export interface SubstrateResponse { data: SubstrateData }
+export interface SubstrateListResponse {
+  data: SubstrateData[];
+}
+export interface SubstrateResponse {
+  data: SubstrateData;
+}
 
 /**
  * HTTP handlers exposed by the substrates module.
@@ -72,33 +76,19 @@ export const createSubstrateController = (repo: SubstrateRepository): SubstrateC
     addSubstrate: asyncHandler(async (req: Request, res: Response) => {
       const substrate = await create.execute(req.body, req.user!.id);
       const body: SubstrateResponse = { data: substrate };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/substrates/${substrate.substrate_id}`)
-        .json(body);
+      res.status(HTTP_STATUS.CREATED).location(`/substrates/${substrate.substrate_id}`).json(body);
     }),
 
     editSubstrate: asyncHandler(async (req: Request, res: Response) => {
-      const substrate = await update.execute(
-        Number(req.params.id),
-        req.user!.id,
-        req.body,
-      );
+      const substrate = await update.execute(Number(req.params.id), req.user!.id, req.body);
       const body: SubstrateResponse = { data: substrate };
       res.json(body);
     }),
 
     addComponents: asyncHandler(async (req: Request, res: Response) => {
-      const substrate = await addComponents.execute(
-        Number(req.params.id),
-        req.user!.id,
-        req.body,
-      );
+      const substrate = await addComponents.execute(Number(req.params.id), req.user!.id, req.body);
       const body: SubstrateResponse = { data: substrate };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/substrates/${substrate.substrate_id}`)
-        .json(body);
+      res.status(HTTP_STATUS.CREATED).location(`/substrates/${substrate.substrate_id}`).json(body);
     }),
 
     upsertComponents: asyncHandler(async (req: Request, res: Response) => {

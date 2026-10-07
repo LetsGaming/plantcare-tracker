@@ -66,7 +66,9 @@ describe("ApiError", () => {
     });
 
     it("sets status code", () => {
-      const err = new ApiError(404, { error: { type: "NotFoundError", message: "Not found", statusCode: 404 } });
+      const err = new ApiError(404, {
+        error: { type: "NotFoundError", message: "Not found", statusCode: 404 },
+      });
       expect(err.status).toBe(404);
     });
 
@@ -149,7 +151,9 @@ describe("handleResponse (via ApiUtils.get)", () => {
 
   it("throws ApiError for V2 error envelope", async () => {
     (globalThis.fetch as any).mockResolvedValue(
-      mockResponse(404, { error: { type: "NotFoundError", message: "Plant not found", statusCode: 404 } }),
+      mockResponse(404, {
+        error: { type: "NotFoundError", message: "Plant not found", statusCode: 404 },
+      }),
     );
     await expect(ApiUtils.get("/test")).rejects.toThrow("Plant not found");
   });
@@ -157,7 +161,12 @@ describe("handleResponse (via ApiUtils.get)", () => {
   it("throws ApiError with correct status and fields for 400 ValidationError", async () => {
     (globalThis.fetch as any).mockResolvedValue(
       mockResponse(400, {
-        error: { type: "ValidationError", message: "Species is required", statusCode: 400, fields: { species: "Required" } },
+        error: {
+          type: "ValidationError",
+          message: "Species is required",
+          statusCode: 400,
+          fields: { species: "Required" },
+        },
       }),
     );
     let caught: ApiError | undefined;
@@ -173,9 +182,7 @@ describe("handleResponse (via ApiUtils.get)", () => {
   });
 
   it("throws ApiError for V1 legacy string error envelope", async () => {
-    (globalThis.fetch as any).mockResolvedValue(
-      mockResponse(400, { error: "Bad request" }),
-    );
+    (globalThis.fetch as any).mockResolvedValue(mockResponse(400, { error: "Bad request" }));
     await expect(ApiUtils.get("/test")).rejects.toThrow("Bad request");
   });
 
@@ -204,7 +211,11 @@ describe("handleResponse (via ApiUtils.get)", () => {
   });
 
   it("returns null for 204 No Content", async () => {
-    (globalThis.fetch as any).mockResolvedValue({ ok: true, status: 204, text: () => Promise.resolve("") });
+    (globalThis.fetch as any).mockResolvedValue({
+      ok: true,
+      status: 204,
+      text: () => Promise.resolve(""),
+    });
     const result = await ApiUtils.get("/test");
     expect(result).toBeNull();
   });
@@ -238,7 +249,6 @@ describe("isApiError type guard", () => {
     expect(ApiUtils.isApiError({ status: 400 })).toBe(false);
   });
 });
-
 
 // ── Auth retry gate (performRequest) ─────────────────────────────────────────
 

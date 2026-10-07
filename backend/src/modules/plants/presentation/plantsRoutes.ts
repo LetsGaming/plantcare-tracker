@@ -21,11 +21,11 @@ export const createPlantsRouter = (): Router => {
 
   // Optional auth on reads: public plants are visible without login,
   // private plants are included when a valid token is present.
-  router.get('/',       optionalAuthenticateToken,                    ctrl.getAllPlants);
-  router.get('/:id',    optionalAuthenticateToken,                    ctrl.getPlant);
-  router.post('/',      authenticateToken, checkGuestPermission,      ctrl.addPlant);
-  router.patch('/:id',  authenticateToken, checkGuestPermission,      ctrl.editPlant);
-  router.delete('/:id', authenticateToken, checkGuestPermission,      ctrl.deletePlant);
+  router.get('/', optionalAuthenticateToken, ctrl.getAllPlants);
+  router.get('/:id', optionalAuthenticateToken, ctrl.getPlant);
+  router.post('/', authenticateToken, checkGuestPermission, ctrl.addPlant);
+  router.patch('/:id', authenticateToken, checkGuestPermission, ctrl.editPlant);
+  router.delete('/:id', authenticateToken, checkGuestPermission, ctrl.deletePlant);
 
   return router;
 };

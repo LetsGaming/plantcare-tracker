@@ -20,18 +20,10 @@ export default class ImageService extends BaseService {
     const url = `${BASE_ENDPOINT}/${entityType}/${entityId}`;
 
     // handleRequest ensures the user gets a Toast if the upload fails
-    return this.handleRequest(
-      ApiUtils.upload(url, formData),
-      RESOURCE_KEY,
-      "image.upload",
-    );
+    return this.handleRequest(ApiUtils.upload(url, formData), RESOURCE_KEY, "image.upload");
   }
 
-  static async editImage(
-    imageId: number,
-    date?: number,
-    image?: File,
-  ) {
+  static async editImage(imageId: number, date?: number, image?: File) {
     const formData = new FormData();
     if (date) formData.append("date", date.toString());
     if (image) formData.append("image", image);
@@ -47,19 +39,11 @@ export default class ImageService extends BaseService {
 
   static async deleteImage(imageId: number) {
     const url = `${BASE_ENDPOINT}/${imageId}`;
-    return this.handleRequest(
-      ApiUtils.delete(url),
-      RESOURCE_KEY,
-      "error.action_failed",
-    );
+    return this.handleRequest(ApiUtils.delete(url), RESOURCE_KEY, "error.action_failed");
   }
 
   static async deleteAllImages(entityType: string, entityId: number) {
     const url = `${BASE_ENDPOINT}/${entityType}/${entityId}`;
-    return this.handleRequest(
-      ApiUtils.delete(url),
-      RESOURCE_KEY,
-      "error.action_failed",
-    );
+    return this.handleRequest(ApiUtils.delete(url), RESOURCE_KEY, "error.action_failed");
   }
 }

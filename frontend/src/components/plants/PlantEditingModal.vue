@@ -64,7 +64,7 @@ export default defineComponent({
     plant: {
       immediate: true,
       deep: true,
-      handler()  {
+      handler() {
         this.resetFromPlant();
       },
     },
@@ -107,9 +107,7 @@ export default defineComponent({
     },
 
     selectedSubstrate() {
-      return this.substrates.find(
-        (s) => s.id === this.editPlantData.substrateId,
-      );
+      return this.substrates.find((s) => s.id === this.editPlantData.substrateId);
     },
   },
 
@@ -131,7 +129,7 @@ export default defineComponent({
         name: this.plant.name,
         species: this.plant.species,
         substrateId: this.plant.substrate?.id,
-        isPublic: this.plant.isPublic
+        isPublic: this.plant.isPublic,
       };
     },
   },

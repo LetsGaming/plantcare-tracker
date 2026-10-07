@@ -48,9 +48,7 @@ const validateEntityType = (req: Request, _res: Response, next: NextFunction): v
   const raw = req.params.entityType;
   const value = Array.isArray(raw) ? raw[0] : raw;
   if (!value || !isEntityType(value)) {
-    return next(
-      new ValidationError(`entityType must be one of: ${IMAGE_ENTITY_TYPES.join(', ')}`),
-    );
+    return next(new ValidationError(`entityType must be one of: ${IMAGE_ENTITY_TYPES.join(', ')}`));
   }
   req.params.entityType = value;
   next();
@@ -84,7 +82,12 @@ export const createImageRouter = (): Router => {
   router.get('/:entityType', authenticateToken, validateEntityType, ctrl.listEntityImages);
 
   // GET /:entityType/:entityId — serve primary image file (optional ?size=)
-  router.get('/:entityType/:entityId', authenticateToken, validateEntityType, ctrl.serveEntityImage);
+  router.get(
+    '/:entityType/:entityId',
+    authenticateToken,
+    validateEntityType,
+    ctrl.serveEntityImage,
+  );
 
   // PATCH /:id — replace file and/or update date
   router.patch(

@@ -53,7 +53,11 @@ describe('shop link searchers', () => {
     expect(mockGet).not.toHaveBeenCalled();
     expect(outcomes).toEqual([
       expect.objectContaining({
-        key: 'search:jungleLeaves', kind: 'search', strategy: 'shopifyJson', usedFallback: false, itemCount: 2,
+        key: 'search:jungleLeaves',
+        kind: 'search',
+        strategy: 'shopifyJson',
+        usedFallback: false,
+        itemCount: 2,
       }),
     ]);
   });

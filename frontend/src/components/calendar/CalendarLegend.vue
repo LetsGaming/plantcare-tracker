@@ -40,11 +40,11 @@ export default defineComponent({
               return h(
                 "div",
                 { style: { color: item.color } },
-                localizationService.t(item.label, undefined, item.label)
+                localizationService.t(item.label, undefined, item.label),
               );
             },
-          })
-        )
+          }),
+        ),
       );
     },
   },

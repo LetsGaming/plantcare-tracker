@@ -1,9 +1,6 @@
 <template>
   <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader
-      :headerTitle="t('substrate.add.title')"
-      @close="$emit('close')"
-    />
+    <ModalHeader :headerTitle="t('substrate.add.title')" @close="$emit('close')" />
 
     <IonContent>
       <!-- STEP 1: META -->
@@ -32,12 +29,7 @@
             {{ t("action.back") }}
           </IonButton>
 
-          <IonButton
-            expand="full"
-            color="primary"
-            :disabled="isLoading"
-            @click="submit"
-          >
+          <IonButton expand="full" color="primary" :disabled="isLoading" @click="submit">
             {{ t("substrate.save") }}
           </IonButton>
         </div>

@@ -1,11 +1,7 @@
 <template>
   <div class="gallery-container">
     <div class="gallery" ref="gallery">
-      <div
-        v-for="(image, index) in sortedImages"
-        :key="index"
-        class="gallery-item"
-      >
+      <div v-for="(image, index) in sortedImages" :key="index" class="gallery-item">
         <ion-img
           :src="image.url"
           alt="Gallery image"
@@ -63,7 +59,7 @@ export default defineComponent({
   computed: {
     sortedImages() {
       return [...this.images].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
     },
   },

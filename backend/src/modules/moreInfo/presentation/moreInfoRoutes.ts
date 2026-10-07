@@ -13,10 +13,7 @@ import { SourceHealthTracker, SQLiteSourceHealthRepository } from '../../../core
 import { createSseEndpoint } from '../../../core/sse';
 import { OpenAIPlantClient } from '../infrastructure/OpenAIClient';
 import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
-import {
-  StreamPlantInfoUseCase,
-  parsePlantInfoQuery,
-} from '../application/StreamPlantInfo';
+import { StreamPlantInfoUseCase, parsePlantInfoQuery } from '../application/StreamPlantInfo';
 import type { PlantInfoRequest } from '../domain/PlantInfo';
 
 /** AI care guides are cached for 12 hours (matches V1). */
@@ -38,8 +35,7 @@ export const createMoreInfoRouter = (): Router => {
       name: 'MoreInfo',
       errorMessage: 'Information stream interrupted',
       doneMessage: () => ({ status: 'completed' }),
-      prepare: (req) =>
-        parsePlantInfoQuery(req.query, req.headers['accept-language']),
+      prepare: (req) => parsePlantInfoQuery(req.query, req.headers['accept-language']),
       run: ({ sse, isAborted }, request) =>
         useCase.execute({
           request,

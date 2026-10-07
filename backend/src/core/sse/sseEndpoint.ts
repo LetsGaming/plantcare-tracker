@@ -54,15 +54,12 @@ export interface SseEndpointOptions<TPrepared = void> {
   run: (ctx: SseContext, prepared: TPrepared) => Promise<void>;
 }
 
-export const createSseEndpoint = <TPrepared = void>(
-  options: SseEndpointOptions<TPrepared>,
-): RequestHandler =>
+export const createSseEndpoint =
+  <TPrepared = void>(options: SseEndpointOptions<TPrepared>): RequestHandler =>
   async (req: Request, res: Response, next): Promise<void> => {
     let prepared: TPrepared;
     try {
-      prepared = options.prepare
-        ? options.prepare(req)
-        : (undefined as TPrepared);
+      prepared = options.prepare ? options.prepare(req) : (undefined as TPrepared);
     } catch (err) {
       next(err);
       return;

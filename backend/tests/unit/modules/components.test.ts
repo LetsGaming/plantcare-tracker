@@ -14,11 +14,7 @@ import {
   UpdateComponentUseCase,
   DeleteComponentUseCase,
 } from '../../../src/modules/components/application/ComponentUseCases';
-import {
-  NotFoundError,
-  ValidationError,
-  InternalError,
-} from '../../../src/core/errors';
+import { NotFoundError, ValidationError, InternalError } from '../../../src/core/errors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -82,9 +78,9 @@ describe('CreateComponentUseCase', () => {
 
   it('throws ValidationError for a missing name', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new CreateComponentUseCase(repo).execute({ fineness: 1 }),
-    ).rejects.toThrow(ValidationError);
+    await expect(new CreateComponentUseCase(repo).execute({ fineness: 1 })).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('throws InternalError when the created component cannot be read back', async () => {
@@ -115,9 +111,9 @@ describe('UpdateComponentUseCase', () => {
   it('throws NotFoundError when the update matched nothing', async () => {
     const repo = makeMockRepo();
     asMock(repo.update).mockResolvedValue(false);
-    await expect(
-      new UpdateComponentUseCase(repo).execute(999, { name: 'x' }),
-    ).rejects.toThrow(NotFoundError);
+    await expect(new UpdateComponentUseCase(repo).execute(999, { name: 'x' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 });
 

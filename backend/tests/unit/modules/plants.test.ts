@@ -119,7 +119,12 @@ describe('GetPlantUseCase', () => {
 // ── CreatePlantUseCase ────────────────────────────────────────────────────────
 
 describe('CreatePlantUseCase', () => {
-  const validInput = { name: 'Pothos', species: 'Epipremnum aureum', substrateId: 1, isPublic: false };
+  const validInput = {
+    name: 'Pothos',
+    species: 'Epipremnum aureum',
+    substrateId: 1,
+    isPublic: false,
+  };
 
   it('creates plant and returns the full read-back resource', async () => {
     const repo = makeMockRepo();
@@ -139,9 +144,9 @@ describe('CreatePlantUseCase', () => {
     (repo.create as ReturnType<typeof vi.fn>).mockResolvedValue(42);
     // default findById mock resolves null → read-back fails
 
-    await expect(
-      new CreatePlantUseCase(repo).execute(validInput, 2),
-    ).rejects.toThrow(InternalError);
+    await expect(new CreatePlantUseCase(repo).execute(validInput, 2)).rejects.toThrow(
+      InternalError,
+    );
   });
 
   it('throws ValidationError for missing name', async () => {
@@ -190,7 +195,9 @@ describe('UpdatePlantUseCase', () => {
   it('throws NotFoundError when update returns false', async () => {
     const repo = makeMockRepo();
     (repo.update as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new UpdatePlantUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(NotFoundError);
+    await expect(new UpdatePlantUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('throws ValidationError when no fields provided', async () => {

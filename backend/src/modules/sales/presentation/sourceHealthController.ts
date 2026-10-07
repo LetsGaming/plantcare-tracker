@@ -10,8 +10,12 @@ import type { SourceHealth, SourceHealthTracker } from '../../../core/scrapeHeal
 import { asyncHandler } from '../../../core/middleware';
 import { NotFoundError } from '../../../core/errors/AppError';
 
-export interface SourceHealthListResponse { data: SourceHealth[] }
-export interface SourceHealthResponse { data: SourceHealth }
+export interface SourceHealthListResponse {
+  data: SourceHealth[];
+}
+export interface SourceHealthResponse {
+  data: SourceHealth;
+}
 
 export interface SourceHealthController {
   listHealth: RequestHandler;

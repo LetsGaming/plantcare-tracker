@@ -1,9 +1,6 @@
 <template>
   <div class="form-container">
-    <IonCard
-      style="margin-top: auto; display: block"
-      class="align-middle"
-    >
+    <IonCard style="margin-top: auto; display: block" class="align-middle">
       <IonCardHeader>
         <IonToolbar>
           <IonCardTitle>{{ translateProp(cardTitle) }}</IonCardTitle>
@@ -18,11 +15,7 @@
       <IonCardContent v-if="item">
         <!-- Dynamic Form Fields -->
         <div v-for="field in formFields" :key="field.modelKey">
-          <InputField
-            v-if="field.type === 'input'"
-            :field="field"
-            v-model="item[field.modelKey]"
-          />
+          <InputField v-if="field.type === 'input'" :field="field" v-model="item[field.modelKey]" />
           <PasswordField
             v-else-if="field.type === 'password'"
             :field="field"
@@ -56,17 +49,9 @@
         </div>
 
         <!-- Submit Button -->
-        <IonButton
-          expand="full"
-          color="primary"
-          :disabled="isLoading"
-          @click="submitForm"
-        >
-          <span v-if="isLoading">{{ t('form.waiting', undefined, 'Please wait...') }}</span>
-          <ion-spinner
-            v-if="isLoading"
-            name="crescent"
-          />
+        <IonButton expand="full" color="primary" :disabled="isLoading" @click="submitForm">
+          <span v-if="isLoading">{{ t("form.waiting", undefined, "Please wait...") }}</span>
+          <ion-spinner v-if="isLoading" name="crescent" />
           <span v-else>{{ translateProp(submitLabel) }}</span>
         </IonButton>
       </IonCardContent>
@@ -83,7 +68,7 @@
   <IonModal v-model:isOpen="showDeleteModal">
     <IonHeader>
       <IonToolbar>
-            <IonTitle>{{ t('modal.delete.title', undefined, 'Delete') }}</IonTitle>
+        <IonTitle>{{ t("modal.delete.title", undefined, "Delete") }}</IonTitle>
         <IonButtons slot="end">
           <IonButton @click="showDeleteModal = false">
             <IonIcon :icon="closeOutline" />
@@ -96,30 +81,21 @@
         <IonCard>
           <IonCardHeader>
             <IonCardTitle>
-              {{ t('modal.delete.confirm_prefix', undefined, 'Are you sure you want to delete') }}
-              <span
-                style="
-                  color: var(--ion-color-primary-tint);
-                  white-space: nowrap;
-                "
-              >
+              {{ t("modal.delete.confirm_prefix", undefined, "Are you sure you want to delete") }}
+              <span style="color: var(--ion-color-primary-tint); white-space: nowrap">
                 {{ item.name }}
               </span>
-              {{ t('modal.delete.confirm_suffix', undefined, ' ?') }}
-              </IonCardTitle>
+              {{ t("modal.delete.confirm_suffix", undefined, " ?") }}
+            </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
             <IonRow>
-              <IonButton
-                expand="full"
-                color="danger"
-                @click="showDeleteModal = false"
-              >
-                {{ t('modal.cancel', undefined, 'Cancel') }}
+              <IonButton expand="full" color="danger" @click="showDeleteModal = false">
+                {{ t("modal.cancel", undefined, "Cancel") }}
               </IonButton>
               <!-- Submit Button -->
               <IonButton expand="full" color="primary" @click="submitDelete">
-                {{ t('modal.delete', undefined, 'Delete') }}
+                {{ t("modal.delete", undefined, "Delete") }}
               </IonButton>
             </IonRow>
           </IonCardContent>
@@ -158,7 +134,7 @@ import SwitchField from "@/components/formcomponent/fields/SwitchField.vue";
 import DateField from "@/components/formcomponent/fields/DateField.vue";
 import UploadField from "@/components/formcomponent/fields/UploadField.vue";
 import ToastService from "@/services/general/ToastService";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "FormComponent",
@@ -239,7 +215,7 @@ export default defineComponent({
       return localizationService.t(key, vars, fallback);
     },
     translateProp(value: string) {
-      return this.t(value, undefined, value)
+      return this.t(value, undefined, value);
     },
     onFileChange(event: Event) {
       const target = event.target as HTMLInputElement;
@@ -250,7 +226,10 @@ export default defineComponent({
     },
     submitForm() {
       if (!this.checkRequiredFields()) {
-        ToastService.showError({ key: 'form.required_fields', fallback: 'Please fill in all required fields.' });
+        ToastService.showError({
+          key: "form.required_fields",
+          fallback: "Please fill in all required fields.",
+        });
         return;
       }
       this.onSubmitClick();

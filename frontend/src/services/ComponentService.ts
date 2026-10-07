@@ -26,11 +26,7 @@ export default class ComponentService extends BaseService {
    * @param components Array of component entities
    */
   private static async saveComponents(components: Component[]): Promise<void> {
-    await this.saveAndNotify(
-      CACHE_KEY_ALL,
-      ComponentEvents.COMPONENTS_UPDATED,
-      components,
-    );
+    await this.saveAndNotify(CACHE_KEY_ALL, ComponentEvents.COMPONENTS_UPDATED, components);
   }
 
   /**
@@ -45,9 +41,7 @@ export default class ComponentService extends BaseService {
       return;
     }
 
-    const stored = await storageService.get<{ data: Component[] }>(
-      CACHE_KEY_ALL,
-    );
+    const stored = await storageService.get<{ data: Component[] }>(CACHE_KEY_ALL);
     if (!stored?.data) return;
 
     const updated = stored.data.filter((c) => c.id !== componentId);
@@ -64,9 +58,7 @@ export default class ComponentService extends BaseService {
    * @param forceUpdate If true, bypass cache and refetch
    * @returns Array of components
    */
-  static async getAllComponents(
-    forceUpdate: boolean = false,
-  ): Promise<Component[]> {
+  static async getAllComponents(forceUpdate: boolean = false): Promise<Component[]> {
     const result = await this.getCachedData(
       CACHE_KEY_ALL,
       () =>
@@ -105,11 +97,7 @@ export default class ComponentService extends BaseService {
       RESOURCE_NAME,
     );
 
-    await this.upsertIntoListCache(
-      CACHE_KEY_ALL,
-      ComponentEvents.COMPONENTS_UPDATED,
-      component,
-    );
+    await this.upsertIntoListCache(CACHE_KEY_ALL, ComponentEvents.COMPONENTS_UPDATED, component);
     return component;
   }
 
@@ -119,9 +107,7 @@ export default class ComponentService extends BaseService {
    * @param forceUpdate If true, bypass cache and refetch
    * @returns Array of fineness levels
    */
-  static async getFinenessLevels(
-    forceUpdate: boolean = false,
-  ): Promise<APIFinenessLevel[]> {
+  static async getFinenessLevels(forceUpdate: boolean = false): Promise<APIFinenessLevel[]> {
     const result = await this.getCachedData(
       CACHE_KEY_FINENESS,
       () =>
@@ -159,10 +145,7 @@ export default class ComponentService extends BaseService {
    * @param data Update payload
    * @returns API response
    */
-  static async editComponent(
-    componentId: number,
-    data: EditComponent,
-  ): Promise<any> {
+  static async editComponent(componentId: number, data: EditComponent): Promise<any> {
     const response = await this.handleRequest(
       ApiUtils.put(`${ENDPOINT}/${componentId}`, data),
       RESOURCE_NAME,
@@ -195,18 +178,11 @@ export default class ComponentService extends BaseService {
    * @param image File to upload
    * @returns API response
    */
-  static async uploadComponentImage(
-    componentId: number,
-    image: File,
-  ): Promise<any> {
+  static async uploadComponentImage(componentId: number, image: File): Promise<any> {
     const formData = new FormData();
     formData.append("image", image);
 
-    const response = await ImageService.uploadImage(
-      image,
-      "component",
-      componentId,
-    );
+    const response = await ImageService.uploadImage(image, "component", componentId);
 
     await this.invalidateComponentCache(componentId);
     return response;

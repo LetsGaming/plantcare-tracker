@@ -11,11 +11,7 @@
 
 import { z } from 'zod';
 import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
-import {
-  NotFoundError,
-  ForbiddenError,
-  InternalError,
-} from '../../../core/errors';
+import { NotFoundError, ForbiddenError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
 import { ensureArray, filterDuplicatesById } from '../../../core/utils';
 
@@ -91,10 +87,7 @@ export class GetAllSubstratesUseCase {
     ]);
 
     // Public substrates owned by the caller would appear twice — dedupe.
-    return filterDuplicatesById(
-      [...publicSubstrates, ...ownSubstrates],
-      'substrate_id',
-    );
+    return filterDuplicatesById([...publicSubstrates, ...ownSubstrates], 'substrate_id');
   }
 }
 
@@ -125,11 +118,7 @@ export class CreateSubstrateUseCase {
 export class UpdateSubstrateUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(
-    id: number,
-    userId: number,
-    input: unknown,
-  ): Promise<SubstrateData> {
+  async execute(id: number, userId: number, input: unknown): Promise<SubstrateData> {
     const data = parseOrThrow(UpdateSubstrateSchema, input, 'Invalid substrate data');
 
     await loadOwnedSubstrate(this.repo, id, userId, 'update');
@@ -153,11 +142,7 @@ export class UpdateSubstrateUseCase {
 export class AddSubstrateComponentsUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(
-    substrateId: number,
-    userId: number,
-    input: unknown,
-  ): Promise<SubstrateData> {
+  async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
     await loadOwnedSubstrate(this.repo, substrateId, userId, 'update');
 
     const components = parseComponents(input);
@@ -172,11 +157,7 @@ export class AddSubstrateComponentsUseCase {
 export class UpsertSubstrateComponentsUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(
-    substrateId: number,
-    userId: number,
-    input: unknown,
-  ): Promise<SubstrateData> {
+  async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
     await loadOwnedSubstrate(this.repo, substrateId, userId, 'edit');
 
     const components = parseComponents(input);

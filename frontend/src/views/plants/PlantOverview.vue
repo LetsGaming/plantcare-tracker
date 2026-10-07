@@ -17,11 +17,7 @@
       @add-click="openAddModal"
     />
 
-    <items-overview
-      :items="plants"
-      @item-click="navigateToPlant"
-      @refresh-items="refreshPlants"
-    />
+    <items-overview :items="plants" @item-click="navigateToPlant" @refresh-items="refreshPlants" />
 
     <plant-adding-modal
       :isOpen="showAddingModal"
@@ -150,9 +146,7 @@ export default defineComponent({
     },
 
     showWarning() {
-      const key = this.isPublic
-        ? "plants.no_public_available"
-        : "plants.no_personal_found";
+      const key = this.isPublic ? "plants.no_public_available" : "plants.no_personal_found";
       ToastService.showWarning(this.t(key));
     },
 
@@ -185,11 +179,7 @@ export default defineComponent({
     },
 
     async addPlant(plantData: AddPlant) {
-      if (
-        !plantData.name.trim() ||
-        !plantData.species.trim() ||
-        plantData.substrateId === 0
-      ) {
+      if (!plantData.name.trim() || !plantData.species.trim() || plantData.substrateId === 0) {
         ToastService.showError({
           key: "plant.add.error_required",
           fallback: "Please fill in all required fields.",

@@ -106,8 +106,12 @@ describe('UploadImageUseCase', () => {
 describe('ListEntityImagesUseCase', () => {
   it('throws a field-scoped ValidationError for a non-positive entityId', async () => {
     const repo = makeMockRepo();
-    await expect(new ListEntityImagesUseCase(repo).execute('plant', 0)).rejects.toThrow(ValidationError);
-    await expect(new ListEntityImagesUseCase(repo).execute('plant', NaN)).rejects.toThrow(ValidationError);
+    await expect(new ListEntityImagesUseCase(repo).execute('plant', 0)).rejects.toThrow(
+      ValidationError,
+    );
+    await expect(new ListEntityImagesUseCase(repo).execute('plant', NaN)).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('returns the entity images', async () => {
@@ -125,9 +129,9 @@ describe('ServeEntityImageUseCase', () => {
   it('throws NotFoundError when the entity has no images', async () => {
     const repo = makeMockRepo();
     const storage = makeMockStorage();
-    await expect(
-      new ServeEntityImageUseCase(repo, storage).execute('plant', 4),
-    ).rejects.toThrow(NotFoundError);
+    await expect(new ServeEntityImageUseCase(repo, storage).execute('plant', 4)).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('serves the primary (oldest) image with the requested width', async () => {
@@ -278,15 +282,11 @@ describe('translateMulterError', () => {
   it('maps LIMIT_FILE_SIZE to a ValidationError naming the cap', () => {
     const out = translateMulterError(new multer.MulterError('LIMIT_FILE_SIZE'));
     expect(out).toBeInstanceOf(ValidationError);
-    expect((out as ValidationError).message).toContain(
-      `${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`,
-    );
+    expect((out as ValidationError).message).toContain(`${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`);
   });
 
   it('maps other Multer errors to a generic upload ValidationError', () => {
-    const out = translateMulterError(
-      new multer.MulterError('LIMIT_UNEXPECTED_FILE'),
-    );
+    const out = translateMulterError(new multer.MulterError('LIMIT_UNEXPECTED_FILE'));
     expect(out).toBeInstanceOf(ValidationError);
     expect((out as ValidationError).message).toContain('Upload failed');
   });

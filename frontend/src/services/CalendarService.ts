@@ -57,10 +57,7 @@ export default class CalendarService extends BaseService {
    * Internal helper to unwrap data from the new Storage format.
    * Matches the structure: { data: T, keepOnClear: boolean, timestamp: number }
    */
-  private static async getStoredData<T>(
-    key: StorageKeys,
-    fallback: T,
-  ): Promise<T> {
+  private static async getStoredData<T>(key: StorageKeys, fallback: T): Promise<T> {
     const wrapped = await storageService.get<{ data: T }>(key);
     // If wrapped exists and has a .data property, return it. Otherwise fallback.
     return wrapped && Object.prototype.hasOwnProperty.call(wrapped, "data")
@@ -101,10 +98,7 @@ export default class CalendarService extends BaseService {
     // We use getCachedData here so multiple components loading the calendar
     // don't all hit the storage at the same time.
     return this.getCachedData(StorageKeys.WATERING_CATEGORIES, async () => {
-      const categories = await this.getStoredData<Category[]>(
-        StorageKeys.WATERING_CATEGORIES,
-        [],
-      );
+      const categories = await this.getStoredData<Category[]>(StorageKeys.WATERING_CATEGORIES, []);
       return categories.length ? categories : [...DEFAULT_WATERING_CATEGORIES];
     });
   }
@@ -131,13 +125,7 @@ export default class CalendarService extends BaseService {
   }
 
   static async saveDates(dates: CalendarDates[]): Promise<void> {
-    await this.saveAndNotify(
-      StorageKeys.DATES,
-      CalendarEvents.DATES_CHANGED,
-      dates,
-      "data",
-      true,
-    );
+    await this.saveAndNotify(StorageKeys.DATES, CalendarEvents.DATES_CHANGED, dates, "data", true);
   }
 
   static async deleteOldDates(): Promise<void> {
@@ -159,10 +147,7 @@ export default class CalendarService extends BaseService {
      ========================================================================= */
 
   static async getDeleteAfterThirty(): Promise<boolean> {
-    const value = await this.getStoredData<boolean>(
-      StorageKeys.DELETE_AFTER_THIRTY,
-      false,
-    );
+    const value = await this.getStoredData<boolean>(StorageKeys.DELETE_AFTER_THIRTY, false);
     return !!value;
   }
 

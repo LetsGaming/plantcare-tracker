@@ -52,8 +52,7 @@ const CONFIG = {
   distDir: process.env.DIST_DIR || __dirname,
 };
 
-const backendClient =
-  CONFIG.backendProtocol === "https" ? require("https") : http;
+const backendClient = CONFIG.backendProtocol === "https" ? require("https") : http;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -97,8 +96,7 @@ function safePath(urlPath) {
 
 function cacheControlFor(ext) {
   if (ext === ".html") return "no-cache";
-  if (CONFIG.staticMaxAge > 0)
-    return `public, max-age=${CONFIG.staticMaxAge}, immutable`;
+  if (CONFIG.staticMaxAge > 0) return `public, max-age=${CONFIG.staticMaxAge}, immutable`;
   return "no-cache";
 }
 
@@ -131,9 +129,7 @@ function proxyToBackend(req, res) {
   });
 
   upstream.setTimeout(CONFIG.proxyTimeoutMs, () => {
-    upstream.destroy(
-      new Error(`Upstream-Timeout nach ${CONFIG.proxyTimeoutMs}ms`),
-    );
+    upstream.destroy(new Error(`Upstream-Timeout nach ${CONFIG.proxyTimeoutMs}ms`));
   });
 
   upstream.on("error", (err) => {
@@ -145,8 +141,7 @@ function proxyToBackend(req, res) {
       res.end(
         JSON.stringify({
           success: false,
-          error:
-            "Backend nicht erreichbar. Stelle sicher dass der Backend-Server läuft.",
+          error: "Backend nicht erreichbar. Stelle sicher dass der Backend-Server läuft.",
         }),
       );
     }
@@ -196,9 +191,7 @@ function serveStatic(req, res) {
         fs.readFile(path.join(CONFIG.distDir, "index.html"), (fbErr, html) => {
           if (fbErr) {
             res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-            res.end(
-              "Server-Fehler: index.html nicht gefunden. Wurde der Build ausgeführt?",
-            );
+            res.end("Server-Fehler: index.html nicht gefunden. Wurde der Build ausgeführt?");
             return;
           }
           res.writeHead(200, {
@@ -248,12 +241,8 @@ server.on("error", (err) => {
 
 server.listen(CONFIG.port, CONFIG.bindHost, () => {
   const target = `${CONFIG.backendProtocol}://${CONFIG.backendHost}:${CONFIG.backendPort}`;
-  console.log(
-    `\x1b[32m✓\x1b[0m Frontend läuft auf  \x1b[1mhttp://localhost:${CONFIG.port}\x1b[0m`,
-  );
-  console.log(
-    `\x1b[90m  Backend-Proxy →     ${target}  (${CONFIG.proxyPaths.join(", ")})\x1b[0m`,
-  );
+  console.log(`\x1b[32m✓\x1b[0m Frontend läuft auf  \x1b[1mhttp://localhost:${CONFIG.port}\x1b[0m`);
+  console.log(`\x1b[90m  Backend-Proxy →     ${target}  (${CONFIG.proxyPaths.join(", ")})\x1b[0m`);
 });
 
 // ─── Graceful Shutdown (für pm2 restart/stop) ───────────────────────────────────

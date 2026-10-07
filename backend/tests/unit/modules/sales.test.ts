@@ -6,7 +6,12 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { Sale } from '../../../src/modules/sales/domain/Sale';
-import { parsePrice, commercialRound, resolveLink, buildPageUrl } from '../../../src/modules/sales/infrastructure/scrapeHelpers';
+import {
+  parsePrice,
+  commercialRound,
+  resolveLink,
+  buildPageUrl,
+} from '../../../src/modules/sales/infrastructure/scrapeHelpers';
 import { FetchSalesOverview } from '../../../src/modules/sales/application/FetchSalesOverview';
 import type { SalesSource } from '../../../src/modules/sales/domain/SalesSource';
 
@@ -16,7 +21,10 @@ describe('Sale.fromRaw', () => {
   const seller = 'TestShop';
 
   it('creates a Sale from valid raw data', () => {
-    const sale = Sale.fromRaw({ name: 'Monstera', link: 'https://shop.com/monstera', newPrice: 9.99, oldPrice: 19.99 }, seller);
+    const sale = Sale.fromRaw(
+      { name: 'Monstera', link: 'https://shop.com/monstera', newPrice: 9.99, oldPrice: 19.99 },
+      seller,
+    );
     expect(sale).not.toBeNull();
     expect(sale!.sale_name).toBe('Monstera');
     expect(sale!.sale_seller).toBe(seller);
@@ -66,7 +74,10 @@ describe('Sale.fromRaw', () => {
   });
 
   it('toJSON round-trips correctly', () => {
-    const sale = Sale.fromRaw({ link: 'https://shop.com', newPrice: 5, oldPrice: 10, name: 'Fern' }, seller)!;
+    const sale = Sale.fromRaw(
+      { link: 'https://shop.com', newPrice: 5, oldPrice: 10, name: 'Fern' },
+      seller,
+    )!;
     const json = sale.toJSON();
     expect(json.sale_name).toBe('Fern');
     expect(json.sale_old_price).toBe(10);
@@ -141,23 +152,33 @@ describe('resolveLink', () => {
 
 describe('buildPageUrl', () => {
   it('returns base URL for page 1', () => {
-    expect(buildPageUrl('https://shop.com/sale', 1, '?page={{page}}')).toBe('https://shop.com/sale');
+    expect(buildPageUrl('https://shop.com/sale', 1, '?page={{page}}')).toBe(
+      'https://shop.com/sale',
+    );
   });
 
   it('appends query pattern', () => {
-    expect(buildPageUrl('https://shop.com/sale', 2, '?page={{page}}')).toBe('https://shop.com/sale?page=2');
+    expect(buildPageUrl('https://shop.com/sale', 2, '?page={{page}}')).toBe(
+      'https://shop.com/sale?page=2',
+    );
   });
 
   it('appends to existing query string', () => {
-    expect(buildPageUrl('https://shop.com/sale?sort=asc', 2, '&page={{page}}')).toBe('https://shop.com/sale?sort=asc&page=2');
+    expect(buildPageUrl('https://shop.com/sale?sort=asc', 2, '&page={{page}}')).toBe(
+      'https://shop.com/sale?sort=asc&page=2',
+    );
   });
 
   it('appends path pattern', () => {
-    expect(buildPageUrl('https://shop.com/sale', 2, 'page/{{page}}/')).toBe('https://shop.com/sale/page/2/');
+    expect(buildPageUrl('https://shop.com/sale', 2, 'page/{{page}}/')).toBe(
+      'https://shop.com/sale/page/2/',
+    );
   });
 
   it('uses explicit urlTemplate over pagePattern', () => {
-    expect(buildPageUrl('https://shop.com', 3, '?p={{page}}', 'https://other.com/page/{{page}}')).toBe('https://other.com/page/3');
+    expect(
+      buildPageUrl('https://shop.com', 3, '?p={{page}}', 'https://other.com/page/{{page}}'),
+    ).toBe('https://other.com/page/3');
   });
 });
 
@@ -213,7 +234,9 @@ describe('FetchSalesOverview', () => {
   });
 
   it('aborts when isAborted returns true', async () => {
-    const source = makeMockSource('shop', [{ name: 'P', link: 'https://x.com', newPrice: 5, oldPrice: 10 }]);
+    const source = makeMockSource('shop', [
+      { name: 'P', link: 'https://x.com', newPrice: 5, oldPrice: 10 },
+    ]);
     const onItems = vi.fn().mockResolvedValue(undefined);
 
     await new FetchSalesOverview([source]).execute({ onItems, isAborted: () => true });
@@ -223,12 +246,17 @@ describe('FetchSalesOverview', () => {
 
   it('continues other sources when one fails', async () => {
     const failingSource = makeMockSource('failing');
-    (failingSource.fetchPage as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+    (failingSource.fetchPage as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Network error'),
+    );
     const goodItems = [{ name: 'P', link: 'https://good.com/p', newPrice: 5, oldPrice: 10 }];
     const goodSource = makeMockSource('good', goodItems);
     const onItems = vi.fn().mockResolvedValue(undefined);
 
-    await new FetchSalesOverview([failingSource, goodSource]).execute({ onItems, isAborted: () => false });
+    await new FetchSalesOverview([failingSource, goodSource]).execute({
+      onItems,
+      isAborted: () => false,
+    });
 
     const sent = onItems.mock.calls.flatMap((c) => c[0]);
     expect(sent.some((i) => i.sale_seller === 'good')).toBe(true);

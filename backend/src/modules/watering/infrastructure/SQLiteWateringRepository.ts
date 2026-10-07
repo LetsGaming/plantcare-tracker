@@ -1,11 +1,11 @@
-import { query, execute } from "../../../core/database/db";
+import { query, execute } from '../../../core/database/db';
 import type {
   WateringRepository,
   WateringRecordData,
   FertilizerType,
   CreateWateringDTO,
   UpdateWateringDTO,
-} from "../domain/WateringRecord";
+} from '../domain/WateringRecord';
 
 type SqlParam = string | number | boolean | null;
 
@@ -31,32 +31,24 @@ const BASE_QUERY = `
 `;
 
 export class SQLiteWateringRepository implements WateringRepository {
-  async findByPlant(
-    plantId: number,
-    userId: number,
-  ): Promise<WateringRecordData[]> {
-    const rows = query<WateringRow>(
-      `${BASE_QUERY} WHERE wr.plant_id = ? AND p.user_id = ?`,
-      [plantId, userId],
-    );
+  async findByPlant(plantId: number, userId: number): Promise<WateringRecordData[]> {
+    const rows = query<WateringRow>(`${BASE_QUERY} WHERE wr.plant_id = ? AND p.user_id = ?`, [
+      plantId,
+      userId,
+    ]);
     return rows.map(mapRow);
   }
 
-  async findById(
-    recordId: number,
-    userId: number,
-  ): Promise<WateringRecordData | null> {
-    const rows = query<WateringRow>(
-      `${BASE_QUERY} WHERE wr.id = ? AND p.user_id = ?`,
-      [recordId, userId],
-    );
+  async findById(recordId: number, userId: number): Promise<WateringRecordData | null> {
+    const rows = query<WateringRow>(`${BASE_QUERY} WHERE wr.id = ? AND p.user_id = ?`, [
+      recordId,
+      userId,
+    ]);
     return rows[0] ? mapRow(rows[0]) : null;
   }
 
   async findFertilizerTypes(): Promise<FertilizerType[]> {
-    const rows = query<{ id: number; name: string }>(
-      "SELECT id, name FROM fertilizer_types",
-    );
+    const rows = query<{ id: number; name: string }>('SELECT id, name FROM fertilizer_types');
     return rows.map((r) => ({ fertilizer_id: r.id, fertilizer_name: r.name }));
   }
 
@@ -78,24 +70,20 @@ export class SQLiteWateringRepository implements WateringRepository {
     return result.affectedRows === 0 ? 0 : result.insertId;
   }
 
-  async update(
-    recordId: number,
-    userId: number,
-    dto: UpdateWateringDTO,
-  ): Promise<boolean> {
+  async update(recordId: number, userId: number, dto: UpdateWateringDTO): Promise<boolean> {
     const updates: string[] = [];
     const params: SqlParam[] = [];
 
     if (dto.date !== undefined) {
-      updates.push("date = ?");
+      updates.push('date = ?');
       params.push(dto.date);
     }
     if (dto.usedFertilizer !== undefined) {
-      updates.push("used_fertilizer = ?");
+      updates.push('used_fertilizer = ?');
       params.push(dto.usedFertilizer ? 1 : 0);
     }
     if (dto.fertilizerTypeId !== undefined) {
-      updates.push("fertilizer_type_id = ?");
+      updates.push('fertilizer_type_id = ?');
       params.push(dto.fertilizerTypeId);
     }
 
@@ -105,7 +93,7 @@ export class SQLiteWateringRepository implements WateringRepository {
     params.push(recordId, userId);
 
     const result = execute(
-      `UPDATE watering_records SET ${updates.join(", ")}
+      `UPDATE watering_records SET ${updates.join(', ')}
        WHERE id = ? AND plant_id IN (SELECT id FROM plants WHERE user_id = ?)`,
       params,
     );

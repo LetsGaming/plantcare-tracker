@@ -41,13 +41,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonPage,
-  IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardContent,
-} from "@ionic/vue";
+import { IonPage, IonContent, IonCard, IonCardHeader, IonCardContent } from "@ionic/vue";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
@@ -92,9 +86,7 @@ export default defineComponent({
     },
     async fetchComponent() {
       try {
-        this.component = await ComponentService.getComponentById(
-          this.componentId
-        );
+        this.component = await ComponentService.getComponentById(this.componentId);
       } catch (error) {
         console.error("Error fetching component details:", error);
       }
@@ -103,10 +95,7 @@ export default defineComponent({
       if (!this.component) return;
       this.isEditing = true;
       try {
-        const response = await ComponentService.editComponent(
-          this.component.id,
-          updated
-        );
+        const response = await ComponentService.editComponent(this.component.id, updated);
         if (response) {
           this.showEditingModal = false;
           await this.fetchComponent();

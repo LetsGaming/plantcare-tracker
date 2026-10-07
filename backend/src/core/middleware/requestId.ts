@@ -12,13 +12,8 @@ import { randomUUID } from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { requestContext } from '../logging/logger';
 
-export const requestIdMiddleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void => {
-  const requestId =
-    (req.headers['x-request-id'] as string | undefined) ?? randomUUID();
+export const requestIdMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  const requestId = (req.headers['x-request-id'] as string | undefined) ?? randomUUID();
 
   res.setHeader('X-Request-Id', requestId);
 

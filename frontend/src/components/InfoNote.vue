@@ -16,8 +16,8 @@ export default defineComponent({
   },
   methods: {
     t(key: string | undefined, vars?: Record<string, string>, fallback?: string) {
-      return localizationService.t(key || '', vars, fallback || key || '');
-    }
+      return localizationService.t(key || "", vars, fallback || key || "");
+    },
   },
 });
 </script>

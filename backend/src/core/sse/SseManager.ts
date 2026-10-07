@@ -83,9 +83,7 @@ export class SseManager {
   fail(message: string): void {
     clearInterval(this.heartbeat);
     if (this.res.writableEnded) return;
-    this.res.write(
-      `event: ${SSE.EVENT.ERROR}\ndata: ${JSON.stringify({ message })}\n\n`,
-    );
+    this.res.write(`event: ${SSE.EVENT.ERROR}\ndata: ${JSON.stringify({ message })}\n\n`);
     this.res.end();
   }
 

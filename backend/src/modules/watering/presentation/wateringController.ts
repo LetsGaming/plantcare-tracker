@@ -29,9 +29,15 @@ import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface FertilizerTypeListResponse { data: FertilizerType[] }
-export interface WateringRecordListResponse { data: WateringRecordData[] }
-export interface WateringRecordResponse { data: WateringRecordData }
+export interface FertilizerTypeListResponse {
+  data: FertilizerType[];
+}
+export interface WateringRecordListResponse {
+  data: WateringRecordData[];
+}
+export interface WateringRecordResponse {
+  data: WateringRecordData;
+}
 
 /**
  * HTTP handlers exposed by the watering module.
@@ -66,10 +72,7 @@ export const createWateringController = (repo: WateringRepository): WateringCont
     }),
 
     getRecordsForPlant: asyncHandler(async (req: Request, res: Response) => {
-      const records = await getForPlant.execute(
-        Number(req.params.plantId),
-        req.user!.id,
-      );
+      const records = await getForPlant.execute(Number(req.params.plantId), req.user!.id);
       const body: WateringRecordListResponse = { data: records };
       res.json(body);
     }),
@@ -81,24 +84,13 @@ export const createWateringController = (repo: WateringRepository): WateringCont
     }),
 
     addRecord: asyncHandler(async (req: Request, res: Response) => {
-      const record = await create.execute(
-        Number(req.params.plantId),
-        req.user!.id,
-        req.body,
-      );
+      const record = await create.execute(Number(req.params.plantId), req.user!.id, req.body);
       const body: WateringRecordResponse = { data: record };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/watering/${record.record_id}`)
-        .json(body);
+      res.status(HTTP_STATUS.CREATED).location(`/watering/${record.record_id}`).json(body);
     }),
 
     editRecord: asyncHandler(async (req: Request, res: Response) => {
-      const record = await update.execute(
-        Number(req.params.id),
-        req.user!.id,
-        req.body,
-      );
+      const record = await update.execute(Number(req.params.id), req.user!.id, req.body);
       const body: WateringRecordResponse = { data: record };
       res.json(body);
     }),

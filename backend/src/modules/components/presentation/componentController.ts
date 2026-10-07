@@ -19,19 +19,21 @@ import {
   UpdateComponentUseCase,
   DeleteComponentUseCase,
 } from '../application/ComponentUseCases';
-import type {
-  ComponentRepository,
-  ComponentData,
-  FinenessLevel,
-} from '../domain/Component';
+import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
 import { asyncHandler } from '../../../core/middleware';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface ComponentListResponse { data: ComponentData[] }
-export interface ComponentResponse { data: ComponentData }
-export interface FinenessLevelListResponse { data: FinenessLevel[] }
+export interface ComponentListResponse {
+  data: ComponentData[];
+}
+export interface ComponentResponse {
+  data: ComponentData;
+}
+export interface FinenessLevelListResponse {
+  data: FinenessLevel[];
+}
 
 /**
  * HTTP handlers exposed by the components module.
@@ -80,10 +82,7 @@ export const createComponentController = (repo: ComponentRepository): ComponentC
     addComponent: asyncHandler(async (req: Request, res: Response) => {
       const component = await create.execute(req.body);
       const body: ComponentResponse = { data: component };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/components/${component.component_id}`)
-        .json(body);
+      res.status(HTTP_STATUS.CREATED).location(`/components/${component.component_id}`).json(body);
     }),
 
     editComponent: asyncHandler(async (req: Request, res: Response) => {

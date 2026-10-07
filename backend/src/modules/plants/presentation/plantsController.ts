@@ -26,8 +26,12 @@ import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface PlantListResponse { data: PlantData[] }
-export interface PlantResponse { data: PlantData }
+export interface PlantListResponse {
+  data: PlantData[];
+}
+export interface PlantResponse {
+  data: PlantData;
+}
 
 /**
  * HTTP handlers exposed by the plants module.
@@ -70,10 +74,7 @@ export const createPlantsController = (repo: PlantRepository): PlantsController 
       const userId = req.user!.id;
       const plant = await create.execute(req.body, userId);
       const body: PlantResponse = { data: plant.toJSON() };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/plants/${plant.id}`)
-        .json(body);
+      res.status(HTTP_STATUS.CREATED).location(`/plants/${plant.id}`).json(body);
     }),
 
     editPlant: asyncHandler(async (req: Request, res: Response) => {

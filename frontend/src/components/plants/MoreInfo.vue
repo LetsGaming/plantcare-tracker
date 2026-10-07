@@ -15,22 +15,14 @@
         <ion-label>{{ t("moreinfo.no_info") }}</ion-label>
       </div>
 
-      <div
-        v-else
-        v-for="(info, index) in infos"
-        :key="index"
-        class="info-links"
-      >
+      <div v-else v-for="(info, index) in infos" :key="index" class="info-links">
         <ion-accordion-group :multiple="true">
           <ion-accordion value="links" v-if="info.links.length > 0">
             <ion-item slot="header" class="component-header">
               <ion-label>{{ t("moreinfo.links") }}</ion-label>
             </ion-item>
             <div slot="content" class="component-wrapper">
-              <InfoNote
-                class="disclaimer"
-                :note="t('moreinfo.disclaimer_links')"
-              />
+              <InfoNote class="disclaimer" :note="t('moreinfo.disclaimer_links')" />
               <a
                 v-for="(link, lIndex) in info.links"
                 :key="lIndex"
@@ -50,18 +42,10 @@
           <ion-accordion value="ai" v-if="info.ai">
             <ion-item slot="header" class="component-header">
               <ion-label>{{ t("moreinfo.ai_title") }}</ion-label>
-              <ion-spinner
-                v-if="loading"
-                name="dots"
-                slot="end"
-                style="width: 20px"
-              />
+              <ion-spinner v-if="loading" name="dots" slot="end" style="width: 20px" />
             </ion-item>
             <div slot="content" class="component-wrapper">
-              <InfoNote
-                class="disclaimer"
-                :note="t('moreinfo.disclaimer_ai')"
-              />
+              <InfoNote class="disclaimer" :note="t('moreinfo.disclaimer_ai')" />
               <ion-item class="info-content">
                 <div v-html="formatStreamingHtml(info.ai)" class="info-text" />
               </ion-item>
@@ -271,5 +255,4 @@ h1.info-header {
   margin-bottom: 6px;
   font-size: 0.9em;
 }
-
 </style>

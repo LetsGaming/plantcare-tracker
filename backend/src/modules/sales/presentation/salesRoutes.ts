@@ -23,8 +23,8 @@ export const createSalesRouter = (): Router => {
   const getSalesData = createSalesController(sources);
   const health = createSourceHealthController(sources, tracker);
 
-  router.get('/health',              authenticateToken, isAdmin, health.listHealth);
-  router.post('/health/:key/check',  authenticateToken, isAdmin, health.recheckSource);
+  router.get('/health', authenticateToken, isAdmin, health.listHealth);
+  router.post('/health/:key/check', authenticateToken, isAdmin, health.recheckSource);
   router.get('/', getSalesData);
 
   return router;

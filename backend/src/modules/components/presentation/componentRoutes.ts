@@ -15,12 +15,12 @@ export const createComponentRouter = (): Router => {
   const repo = new SQLiteComponentRepository();
   const ctrl = createComponentController(repo);
 
-  router.get('/',                 authenticateToken,           ctrl.getAllComponents);
-  router.get('/fineness-levels',  authenticateToken,           ctrl.getFinenessLevels);
-  router.get('/:id',              authenticateToken,           ctrl.getComponent);
-  router.post('/',                authenticateToken, isAdmin,  ctrl.addComponent);
-  router.put('/:id',              authenticateToken, isAdmin,  ctrl.editComponent);
-  router.delete('/:id',           authenticateToken, isAdmin,  ctrl.deleteComponent);
+  router.get('/', authenticateToken, ctrl.getAllComponents);
+  router.get('/fineness-levels', authenticateToken, ctrl.getFinenessLevels);
+  router.get('/:id', authenticateToken, ctrl.getComponent);
+  router.post('/', authenticateToken, isAdmin, ctrl.addComponent);
+  router.put('/:id', authenticateToken, isAdmin, ctrl.editComponent);
+  router.delete('/:id', authenticateToken, isAdmin, ctrl.deleteComponent);
 
   return router;
 };

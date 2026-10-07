@@ -4,11 +4,7 @@
       <ion-card-header v-if="title || showSettingsButton">
         <ion-toolbar v-if="title || showSettingsButton">
           <ion-title v-if="title">{{ t(title) }}</ion-title>
-          <ion-button
-            v-if="showSettingsButton"
-            slot="end"
-            @click="$emit('settings-click')"
-          >
+          <ion-button v-if="showSettingsButton" slot="end" @click="$emit('settings-click')">
             <ion-icon :icon="settings" />
           </ion-button>
         </ion-toolbar>
@@ -120,13 +116,10 @@ export default defineComponent({
     this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek();
 
     // Add listener for firstDayOfWeek changes
-    document.addEventListener(
-      CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED,
-      (event: Event) => {
-        const customEvent = event as CustomEvent;
-        this.firstDayOfWeek = customEvent.detail;
-      },
-    );
+    document.addEventListener(CalendarEvents.FIRST_DAY_OF_WEEK_CHANGED, (event: Event) => {
+      const customEvent = event as CustomEvent;
+      this.firstDayOfWeek = customEvent.detail;
+    });
   },
   computed: {
     legendItems(): { label: string; color: string }[] {

@@ -31,9 +31,19 @@ export interface SubstrateRepository {
   findAllByUser(userId: number): Promise<SubstrateData[]>;
   findById(id: number): Promise<SubstrateData | null>;
   create(name: string, userId: number, isPublic: boolean): Promise<number>;
-  update(id: number, userId: number, fields: { name?: string; isPublic?: boolean }): Promise<boolean>;
-  addComponents(substrateId: number, components: { componentId: number; parts: number }[]): Promise<void>;
-  upsertComponents(substrateId: number, components: { componentId: number; parts: number }[]): Promise<void>;
+  update(
+    id: number,
+    userId: number,
+    fields: { name?: string; isPublic?: boolean },
+  ): Promise<boolean>;
+  addComponents(
+    substrateId: number,
+    components: { componentId: number; parts: number }[],
+  ): Promise<void>;
+  upsertComponents(
+    substrateId: number,
+    components: { componentId: number; parts: number }[],
+  ): Promise<void>;
   deleteComponents(substrateId: number, componentIds: number[]): Promise<void>;
   delete(id: number, userId: number): Promise<boolean>;
 }

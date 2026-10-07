@@ -1,16 +1,8 @@
 <template>
   <div class="field-wrapper">
     <IonItem>
-      <IonSelect
-        v-model="localValue"
-        :label="translatedLabel"
-        :placeholder="translatedPlaceholder"
-      >
-        <IonSelectOption
-          v-for="option in field.options"
-          :key="option.value"
-          :value="option.value"
-        >
+      <IonSelect v-model="localValue" :label="translatedLabel" :placeholder="translatedPlaceholder">
+        <IonSelectOption v-for="option in field.options" :key="option.value" :value="option.value">
           {{ t(option.label, undefined, option.label) }}
         </IonSelectOption>
       </IonSelect>
@@ -23,7 +15,7 @@
 import { defineComponent } from "vue";
 import { IonItem, IonSelect, IonSelectOption } from "@ionic/vue";
 import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
-import localizationService from '@/services/general/LocalizationService'
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SelectFieldComponent",
@@ -40,10 +32,14 @@ export default defineComponent({
   },
   computed: {
     translatedLabel(): string {
-      return localizationService.t(this.field.label, undefined, this.field.label)
+      return localizationService.t(this.field.label, undefined, this.field.label);
     },
     translatedPlaceholder(): string {
-      return localizationService.t(this.field.placeholder || '', undefined, this.field.placeholder || '')
+      return localizationService.t(
+        this.field.placeholder || "",
+        undefined,
+        this.field.placeholder || "",
+      );
     },
     localValue: {
       get() {
@@ -56,8 +52,8 @@ export default defineComponent({
   },
   methods: {
     t(key: string | undefined, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key || '', vars, fallback || key || '');
-    }
+      return localizationService.t(key || "", vars, fallback || key || "");
+    },
   },
 });
 </script>

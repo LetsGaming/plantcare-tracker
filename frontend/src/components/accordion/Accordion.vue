@@ -34,11 +34,7 @@
 
         <template v-if="item.components && item.components.length > 0">
           <div class="components-container">
-            <component
-              v-for="(component, index) in item.components"
-              :key="index"
-              :is="component"
-            />
+            <component v-for="(component, index) in item.components" :key="index" :is="component" />
           </div>
         </template>
 

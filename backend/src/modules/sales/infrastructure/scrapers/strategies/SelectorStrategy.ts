@@ -1,18 +1,13 @@
-import { parse, type HTMLElement } from "node-html-parser";
-import type { RawSaleItem } from "../../../domain/Sale";
-import {
-  commercialRound,
-  extractImageUrl,
-  parsePrice,
-  resolveLink,
-} from "../../scrapeHelpers";
+import { parse, type HTMLElement } from 'node-html-parser';
+import type { RawSaleItem } from '../../../domain/Sale';
+import { commercialRound, extractImageUrl, parsePrice, resolveLink } from '../../scrapeHelpers';
 import type {
   ExtractionStrategy,
   ScraperConfig,
   ScraperSelectors,
   SelectorList,
   StrategyContext,
-} from "../types";
+} from '../types';
 
 const toList = (selectors: SelectorList): string[] =>
   Array.isArray(selectors) ? selectors : [selectors];
@@ -27,10 +22,7 @@ const safeQueryAll = (root: HTMLElement, selector: string): HTMLElement[] => {
   }
 };
 
-const queryFirst = (
-  root: HTMLElement,
-  selectors: SelectorList,
-): HTMLElement | null => {
+const queryFirst = (root: HTMLElement, selectors: SelectorList): HTMLElement | null => {
   for (const selector of toList(selectors)) {
     const match = safeQueryAll(root, selector)[0];
     if (match) return match;
@@ -38,10 +30,7 @@ const queryFirst = (
   return null;
 };
 
-const queryContainers = (
-  root: HTMLElement,
-  selectors: SelectorList,
-): HTMLElement[] => {
+const queryContainers = (root: HTMLElement, selectors: SelectorList): HTMLElement[] => {
   for (const selector of toList(selectors)) {
     const matches = safeQueryAll(root, selector);
     if (matches.length > 0) return matches;
@@ -64,13 +53,10 @@ const parseWithSelectors = (
 
     const linkElem = queryFirst(item, sel.link);
     const href =
-      linkElem?.getAttribute("href") ??
-      linkElem?.querySelector("a")?.getAttribute("href");
+      linkElem?.getAttribute('href') ?? linkElem?.querySelector('a')?.getAttribute('href');
 
     const nameElem = queryFirst(item, sel.name);
-    const name = sel.nameAttr
-      ? nameElem?.getAttribute(sel.nameAttr)
-      : nameElem?.text?.trim();
+    const name = sel.nameAttr ? nameElem?.getAttribute(sel.nameAttr) : nameElem?.text?.trim();
 
     return {
       name: name?.trim() || null,
@@ -82,7 +68,7 @@ const parseWithSelectors = (
   });
 
 export class SelectorStrategy implements ExtractionStrategy {
-  readonly name = "selector" as const;
+  readonly name = 'selector' as const;
   readonly authoritative = false;
 
   isApplicable(config: ScraperConfig): boolean {
@@ -91,13 +77,11 @@ export class SelectorStrategy implements ExtractionStrategy {
 
   async extract(ctx: StrategyContext): Promise<RawSaleItem[]> {
     const doc = await ctx.loadHtml();
-    if (!doc) throw new Error("No HTML returned");
+    if (!doc) throw new Error('No HTML returned');
 
     const { parseFn, selectors } = ctx.config;
     const root = parse(doc.html);
-    const raw = parseFn
-      ? parseFn(root)
-      : parseWithSelectors(root, selectors!, doc.finalUrl);
+    const raw = parseFn ? parseFn(root) : parseWithSelectors(root, selectors!, doc.finalUrl);
 
     return raw.filter((item): item is RawSaleItem => item !== null);
   }

@@ -37,25 +37,36 @@ const makeMockRepo = (): UserRepository => ({
 describe('RegisterUseCase', () => {
   it('registers a new user and returns id + username', async () => {
     const repo = makeMockRepo();
-    const result = await new RegisterUseCase(repo).execute({ username: 'alice', password: 'pass123' });
+    const result = await new RegisterUseCase(repo).execute({
+      username: 'alice',
+      password: 'pass123',
+    });
     expect(result.username).toBe('newuser');
     expect(result.id).toBe(1);
   });
 
   it('throws ConflictError when username already exists', async () => {
     const repo = makeMockRepo();
-    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(makeUserRow({ username: 'alice' }));
-    await expect(new RegisterUseCase(repo).execute({ username: 'alice', password: 'pass' })).rejects.toThrow(ConflictError);
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ username: 'alice' }),
+    );
+    await expect(
+      new RegisterUseCase(repo).execute({ username: 'alice', password: 'pass' }),
+    ).rejects.toThrow(ConflictError);
   });
 
   it('throws ValidationError for empty username', async () => {
     const repo = makeMockRepo();
-    await expect(new RegisterUseCase(repo).execute({ username: '', password: 'pass' })).rejects.toThrow(ValidationError);
+    await expect(
+      new RegisterUseCase(repo).execute({ username: '', password: 'pass' }),
+    ).rejects.toThrow(ValidationError);
   });
 
   it('throws ValidationError for empty password', async () => {
     const repo = makeMockRepo();
-    await expect(new RegisterUseCase(repo).execute({ username: 'alice', password: '' })).rejects.toThrow(ValidationError);
+    await expect(
+      new RegisterUseCase(repo).execute({ username: 'alice', password: '' }),
+    ).rejects.toThrow(ValidationError);
   });
 
   it('hashes the password before storing', async () => {
@@ -77,7 +88,10 @@ describe('LoginUseCase', () => {
       makeUserRow({ id: 5, username: 'alice', password: hash, role: 'user' }),
     );
 
-    const { accessToken, refreshToken } = await new LoginUseCase(repo).execute({ username: 'alice', password: 'correctpass' });
+    const { accessToken, refreshToken } = await new LoginUseCase(repo).execute({
+      username: 'alice',
+      password: 'correctpass',
+    });
     expect(accessToken).toBeTruthy();
     expect(refreshToken).toBeTruthy();
   });
@@ -88,12 +102,16 @@ describe('LoginUseCase', () => {
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ password: hash }),
     );
-    await expect(new LoginUseCase(repo).execute({ username: 'alice', password: 'wrong' })).rejects.toThrow(UnauthorizedError);
+    await expect(
+      new LoginUseCase(repo).execute({ username: 'alice', password: 'wrong' }),
+    ).rejects.toThrow(UnauthorizedError);
   });
 
   it('throws UnauthorizedError when user does not exist', async () => {
     const repo = makeMockRepo();
-    await expect(new LoginUseCase(repo).execute({ username: 'ghost', password: 'x' })).rejects.toThrow(UnauthorizedError);
+    await expect(
+      new LoginUseCase(repo).execute({ username: 'ghost', password: 'x' }),
+    ).rejects.toThrow(UnauthorizedError);
   });
 
   it('saves refresh token to session store', async () => {
@@ -102,7 +120,10 @@ describe('LoginUseCase', () => {
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ id: 99, password: hash }),
     );
-    const { refreshToken } = await new LoginUseCase(repo).execute({ username: 'alice', password: 'pass' });
+    const { refreshToken } = await new LoginUseCase(repo).execute({
+      username: 'alice',
+      password: 'pass',
+    });
     expect(sessionStore.findUser(refreshToken)).toBe(99);
     sessionStore.deleteAll(99);
   });
@@ -161,15 +182,18 @@ describe('UpdateProfileUseCase', () => {
 
   it('throws ValidationError when password confirmation missing', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new UpdateProfileUseCase(repo).execute(1, { password: 'new' }),
-    ).rejects.toThrow(ValidationError);
+    await expect(new UpdateProfileUseCase(repo).execute(1, { password: 'new' })).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('throws ValidationError when passwords do not match', async () => {
     const repo = makeMockRepo();
     await expect(
-      new UpdateProfileUseCase(repo).execute(1, { password: 'new', passwordConfirmation: 'different' }),
+      new UpdateProfileUseCase(repo).execute(1, {
+        password: 'new',
+        passwordConfirmation: 'different',
+      }),
     ).rejects.toThrow(ValidationError);
   });
 
@@ -186,7 +210,9 @@ describe('UpdateProfileUseCase', () => {
   it('throws NotFoundError when update returns false', async () => {
     const repo = makeMockRepo();
     (repo.update as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new UpdateProfileUseCase(repo).execute(1, { username: 'x' })).rejects.toThrow(NotFoundError);
+    await expect(new UpdateProfileUseCase(repo).execute(1, { username: 'x' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('invalidates all sessions after update', async () => {

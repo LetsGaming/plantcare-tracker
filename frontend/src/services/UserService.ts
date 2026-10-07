@@ -127,8 +127,7 @@ export default class UserService extends BaseService {
         // Response envelope: { data: { accessToken } }
         const res = await response.json();
         const accessToken = res.data?.accessToken;
-        if (!accessToken)
-          throw new this.RefreshError("Invalid response structure");
+        if (!accessToken) throw new this.RefreshError("Invalid response structure");
 
         await TokenUtils.setToken(accessToken);
         return accessToken;
@@ -139,11 +138,7 @@ export default class UserService extends BaseService {
           (error.message.includes("expired") || error.message.includes("401"));
 
         if (attempt === retryCount || isAuthError) {
-          await this.handleRequest(
-            Promise.reject(error),
-            RESOURCE_KEY,
-            "auth.refresh_failed",
-          );
+          await this.handleRequest(Promise.reject(error), RESOURCE_KEY, "auth.refresh_failed");
           await this.logout();
           throw error;
         }

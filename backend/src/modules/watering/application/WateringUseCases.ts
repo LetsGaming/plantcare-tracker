@@ -36,9 +36,7 @@ export const UpdateWateringSchema = z
   })
   .refine(
     (d) =>
-      d.date !== undefined ||
-      d.usedFertilizer !== undefined ||
-      d.fertilizerTypeId !== undefined,
+      d.date !== undefined || d.usedFertilizer !== undefined || d.fertilizerTypeId !== undefined,
     { message: 'At least one field must be provided for update' },
   );
 
@@ -53,9 +51,7 @@ export const UpdateWateringSchema = z
  */
 export const toEpochSeconds = (date: string | number): number | null => {
   const ms =
-    typeof date === 'number'
-      ? (date > 1e10 ? date : date * 1000)
-      : new Date(date).getTime();
+    typeof date === 'number' ? (date > 1e10 ? date : date * 1000) : new Date(date).getTime();
   if (!Number.isFinite(ms)) return null;
   return Math.floor(ms / 1000);
 };
@@ -107,11 +103,7 @@ export class GetWateringRecordUseCase {
 export class CreateWateringRecordUseCase {
   constructor(private readonly repo: WateringRepository) {}
 
-  async execute(
-    plantId: number,
-    userId: number,
-    input: unknown,
-  ): Promise<WateringRecordData> {
+  async execute(plantId: number, userId: number, input: unknown): Promise<WateringRecordData> {
     const data = parseOrThrow(CreateWateringSchema, input, 'Invalid watering data');
 
     const epochSeconds = requireEpochSeconds(data.date ?? Date.now());
@@ -139,15 +131,10 @@ export class CreateWateringRecordUseCase {
 export class UpdateWateringRecordUseCase {
   constructor(private readonly repo: WateringRepository) {}
 
-  async execute(
-    recordId: number,
-    userId: number,
-    input: unknown,
-  ): Promise<WateringRecordData> {
+  async execute(recordId: number, userId: number, input: unknown): Promise<WateringRecordData> {
     const data = parseOrThrow(UpdateWateringSchema, input, 'Invalid watering data');
 
-    const dateSeconds =
-      data.date !== undefined ? requireEpochSeconds(data.date) : undefined;
+    const dateSeconds = data.date !== undefined ? requireEpochSeconds(data.date) : undefined;
 
     const updated = await this.repo.update(recordId, userId, {
       date: dateSeconds,

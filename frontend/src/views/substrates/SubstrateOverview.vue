@@ -72,27 +72,18 @@ export default defineComponent({
     },
   },
   async ionViewWillEnter() {
-    await Promise.all([
-      this.fetchSubstrates(),
-      this.fetchAvailableComponents(),
-    ]);
+    await Promise.all([this.fetchSubstrates(), this.fetchAvailableComponents()]);
   },
 
   // Cache subscription lives in mounted/beforeUnmount (not the ionView
   // hooks): Ionic keeps pages alive, and the list must keep reacting to
   // mutations made elsewhere (e.g. a substrate edited on its details page).
   mounted() {
-    document.addEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
+    document.addEventListener(SubstrateEvents.SUBSTRATES_UPDATED, this.handleSubstratesUpdated);
   },
 
   beforeUnmount() {
-    document.removeEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
+    document.removeEventListener(SubstrateEvents.SUBSTRATES_UPDATED, this.handleSubstratesUpdated);
   },
   methods: {
     t: (k: string, v?: any) => localizationService.t(k, v),
@@ -106,9 +97,7 @@ export default defineComponent({
             description: comp.fineness || "",
             parts: 0,
           }))
-          .sort((a: SubstrateComponent, b: SubstrateComponent) =>
-            a.name.localeCompare(b.name),
-          );
+          .sort((a: SubstrateComponent, b: SubstrateComponent) => a.name.localeCompare(b.name));
       } catch (e) {
         console.error("Error loading components", e);
       }
@@ -124,9 +113,7 @@ export default defineComponent({
 
         if (this.substrates.length === 0) {
           ToastService.showWarning({
-            key: this.isPublic
-              ? "substrate.empty_public"
-              : "substrate.empty_private",
+            key: this.isPublic ? "substrate.empty_public" : "substrate.empty_private",
           });
         } else if (isRefresh) {
           ToastService.showSuccess({
@@ -203,26 +190,22 @@ export default defineComponent({
           parts: parseFloat(String(payload.parts[id])) || 1,
         }));
 
-        const newSubstrateId =
-          await SubstrateService.addSubstrateWithComponents(
-            {
-              name: payload.meta.name,
-              isPublic: payload.meta.isPublic,
-            },
-            {
-              components,
-            },
-          );
+        const newSubstrateId = await SubstrateService.addSubstrateWithComponents(
+          {
+            name: payload.meta.name,
+            isPublic: payload.meta.isPublic,
+          },
+          {
+            components,
+          },
+        );
 
         if (!newSubstrateId) return;
 
         if (payload.meta.image) {
           // Default refreshCache=true: the upload upserts the substrate
           // (now including the image) and SUBSTRATES_UPDATED repaints.
-          await SubstrateService.uploadSubstrateImage(
-            newSubstrateId,
-            payload.meta.image,
-          );
+          await SubstrateService.uploadSubstrateImage(newSubstrateId, payload.meta.image);
         }
 
         ToastService.showSuccess({ key: "substrate.added" });

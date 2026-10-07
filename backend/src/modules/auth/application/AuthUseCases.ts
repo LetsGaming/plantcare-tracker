@@ -20,7 +20,12 @@ import {
 } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
 import { AUTH } from '../../../core/config';
-import { generateTokens, sessionStore, ticketStore, jwtConfig } from '../../../core/middleware/auth';
+import {
+  generateTokens,
+  sessionStore,
+  ticketStore,
+  jwtConfig,
+} from '../../../core/middleware/auth';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -35,10 +40,9 @@ export const UpdateProfileSchema = z
     password: z.string().min(1, 'Password must not be empty').optional(),
     passwordConfirmation: z.string().optional(),
   })
-  .refine(
-    (d) => d.username !== undefined || d.password !== undefined,
-    { message: 'No fields provided' },
-  );
+  .refine((d) => d.username !== undefined || d.password !== undefined, {
+    message: 'No fields provided',
+  });
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
@@ -111,7 +115,9 @@ export class RefreshTokenUseCase {
       if (decoded.id !== userId) throw new ForbiddenError('Invalid refresh token');
 
       const payload = { id: decoded.id, username: decoded.username, role: decoded.role };
-      const signOptions: SignOptions = { expiresIn: jwtConfig.JWT_EXPIRATION as SignOptions['expiresIn'] };
+      const signOptions: SignOptions = {
+        expiresIn: jwtConfig.JWT_EXPIRATION as SignOptions['expiresIn'],
+      };
 
       return jwt.sign(payload, jwtConfig.JWT_SECRET as Secret, signOptions);
     } catch {

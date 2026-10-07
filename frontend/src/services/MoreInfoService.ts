@@ -123,9 +123,7 @@ export default class MoreInfoService extends BaseService {
   private static parseMarkdown(markdown: string): string {
     if (!markdown) return "";
 
-    let text = markdown
-      .replace(/([a-z0-9])(###|##|#)/g, "$1\n\n$2")
-      .replace(/(\n- )/g, "\n\n- ");
+    let text = markdown.replace(/([a-z0-9])(###|##|#)/g, "$1\n\n$2").replace(/(\n- )/g, "\n\n- ");
 
     const blocks = text.split(/\n\n+/);
     let html = "";
@@ -146,11 +144,7 @@ export default class MoreInfoService extends BaseService {
       }
 
       // LISTS
-      if (
-        trimmed.startsWith("- ") ||
-        trimmed.startsWith("* ") ||
-        /^\d+\./.test(trimmed)
-      ) {
+      if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || /^\d+\./.test(trimmed)) {
         const items = trimmed.split(/\n/);
         html += '<ul class="info-list">';
         items.forEach((item) => {
@@ -176,10 +170,7 @@ export default class MoreInfoService extends BaseService {
       .replace(/^([\w\s/]+):/gm, "<strong>$1:</strong>");
   }
 
-  private static async updateDictionaryCache(
-    plantName: string,
-    data: any[],
-  ): Promise<void> {
+  private static async updateDictionaryCache(plantName: string, data: any[]): Promise<void> {
     const cached = await storageService.get<{
       records: Record<string, any[]>;
       timestamp: number;
@@ -209,10 +200,7 @@ export default class MoreInfoService extends BaseService {
     this.emit(MoreInfoEvents.MORE_INFO_UPDATED, updatedRecords);
   }
 
-  static async getMoreInfoByName(
-    plantName: string,
-    forceUpdate: boolean = false,
-  ): Promise<any[]> {
+  static async getMoreInfoByName(plantName: string, forceUpdate: boolean = false): Promise<any[]> {
     return this.getMoreInfo(plantName, { forceUpdate });
   }
 }

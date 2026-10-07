@@ -12,15 +12,10 @@
 
     <!-- Manual Refresh Button -->
     <div class="refresh-button-container">
-      <ion-button
-        size="small"
-        fill="clear"
-        @click="manualRefresh"
-        :disabled="isRefreshing"
-      >
+      <ion-button size="small" fill="clear" @click="manualRefresh" :disabled="isRefreshing">
         <template v-if="isRefreshing">
           <ion-spinner name="dots" />
-          {{ t('pullToRefresh.loading') }}
+          {{ t("pullToRefresh.loading") }}
         </template>
         <template v-else>
           <ion-icon :icon="refresh" />

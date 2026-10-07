@@ -33,10 +33,7 @@ export class SseManager {
     }, 20_000);
   }
 
-  async sendUnique<T>(
-    items: T[],
-    idKey: keyof T,
-  ): Promise<void> {
+  async sendUnique<T>(items: T[], idKey: keyof T): Promise<void> {
     const unique = items.filter((item) => {
       const id = String(item[idKey]);
       if (id && !this.sentIds.has(id)) {
