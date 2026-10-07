@@ -123,7 +123,7 @@ export default class MoreInfoService extends BaseService {
   private static parseMarkdown(markdown: string): string {
     if (!markdown) return "";
 
-    let text = markdown.replace(/([a-z0-9])(###|##|#)/g, "$1\n\n$2").replace(/(\n- )/g, "\n\n- ");
+    const text = markdown.replace(/([a-z0-9])(###|##|#)/g, "$1\n\n$2").replace(/(\n- )/g, "\n\n- ");
 
     const blocks = text.split(/\n\n+/);
     let html = "";

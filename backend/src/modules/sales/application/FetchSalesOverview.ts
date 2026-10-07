@@ -22,7 +22,7 @@ const log = createModuleLogger('FetchSalesOverview');
 
 type Task<T> = () => Promise<T>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const createLimiter = (max: number) => {
   let active = 0;
   const queue: Array<{

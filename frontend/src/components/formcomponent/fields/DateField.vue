@@ -36,7 +36,7 @@ export default defineComponent({
   computed: {
     localValue: {
       get() {
-        let value = this.modelValue;
+        const value = this.modelValue;
         return this.formatDateForInput(value !== undefined ? value : Date.now());
       },
       set(val: string) {

@@ -256,16 +256,16 @@ export default defineComponent({
     /** COLOR HELPERS **/
     setContrastColor(category: Category) {
       function hexToHsl(hex: string): [number, number, number] {
-        let r = parseInt(hex.substring(1, 3), 16) / 255;
-        let g = parseInt(hex.substring(3, 5), 16) / 255;
-        let b = parseInt(hex.substring(5, 7), 16) / 255;
-        let max = Math.max(r, g, b),
+        const r = parseInt(hex.substring(1, 3), 16) / 255;
+        const g = parseInt(hex.substring(3, 5), 16) / 255;
+        const b = parseInt(hex.substring(5, 7), 16) / 255;
+        const max = Math.max(r, g, b),
           min = Math.min(r, g, b);
         let h = 0,
           s = 0,
           l = (max + min) / 2;
         if (max !== min) {
-          let d = max - min;
+          const d = max - min;
           s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
           switch (max) {
             case r:
@@ -295,8 +295,8 @@ export default defineComponent({
         if (s === 0) {
           r = g = b = l;
         } else {
-          let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-          let p = 2 * l - q;
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          const p = 2 * l - q;
           r = hueToRgb(p, q, h / 360 + 1 / 3);
           g = hueToRgb(p, q, h / 360);
           b = hueToRgb(p, q, h / 360 - 1 / 3);
