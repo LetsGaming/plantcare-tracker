@@ -13,6 +13,8 @@ AppError
 ├── ForbiddenError     403  — valid token, insufficient permissions
 ├── NotFoundError      404  — resource does not exist
 ├── ConflictError      409  — duplicate resource (e.g. username taken)
+├── PayloadTooLargeError 413 — request body over the limit
+├── TooManyRequestsError 429 — rate limit exceeded
 └── InternalError      500  — unexpected server error (non-operational)
 ```
 
@@ -59,6 +61,10 @@ throw new ValidationError('Invalid plant data', {
 // 409
 throw new ConflictError('Username already exists');
 ```
+
+## Translated Errors
+
+Third-party failures that stem from client input are mapped to `AppError`s by `translateError` (`core/errors/translateError.ts`) before the handler responds: body-parser failures (`400` malformed, `413` too large) and SQLite constraint violations (`SQLITE_CONSTRAINT_UNIQUE` as `409`, `SQLITE_CONSTRAINT_FOREIGNKEY` as `400`). Use cases still pre-check the common cases to give a specific message; the translation is the safety net for races and unlisted paths.
 
 ## The Global Handler
 

@@ -30,6 +30,18 @@ All endpoints return a consistent JSON envelope:
 
 The `fields` property is only present on `ValidationError` (400) responses and maps each invalid input field to its specific problem.
 
+Failures that are the client's doing never answer `500`:
+
+| Cause | Status | Type |
+|-------|:------:|------|
+| Malformed JSON body | `400` | `ValidationError` |
+| JSON body over 100 kb | `413` | `PayloadTooLargeError` |
+| Unique constraint (duplicate component in a substrate, username taken) | `409` | `ConflictError` |
+| Foreign key constraint (unknown `substrateId`, `componentId`) | `400` | `ValidationError` |
+| Upload that is not a decodable image | `400` | `ValidationError` |
+
+A request from a disallowed `Origin` is answered normally without CORS headers.
+
 Mutating endpoints (POST / PATCH / PUT) respond with the **full resource** in the same shape a subsequent GET would return — clients never need a follow-up fetch after a write. POST additionally sets a `Location` header pointing at the created resource.
 
 ## Authentication Header
@@ -74,7 +86,9 @@ Login endpoints are rate-limited (per IP and per account, 15-minute window).
 { "data": { "id": 5, "username": "alice" } }
 ```
 
-Errors: `400` (missing fields), `409` (username taken)
+`username` is 3 to 64 characters. `password` is at least 8 characters and at most 72 bytes (UTF-8), because bcrypt ignores anything longer. The same rules apply to `PATCH /me` and `PATCH /:id`. Login only requires non-empty values (password up to 1024 characters) so accounts created under earlier rules keep working.
+
+Errors: `400` (missing fields or limits, with `fields`), `409` (username taken)
 
 ### POST `/login`
 
@@ -141,7 +155,7 @@ Updates the authenticated user's own profile. At least one of `username`, `passw
 { "data": null }
 ```
 
-Any profile change invalidates **all** existing sessions — the client must log in again, which is why the response carries no resource. Errors: `400`, `404`
+A rename onto an existing username answers `409`. Any profile change invalidates **all** existing sessions — the client must log in again, which is why the response carries no resource. Errors: `400`, `404`
 
 ---
 
@@ -556,6 +570,8 @@ data: {"message":"Information stream interrupted"}
 ```
 
 `ai_chunk` events arrive as text is generated. `link` events arrive as each of the 7 link scrapers completes (Wikipedia, GBIF, RHS, and 4 plant shop scrapers). Both streams run in parallel.
+
+When the AI provider fails or is not configured the stream ends with an `error` event and no `done` event. With `htmlFormatting=true`, model text is HTML-escaped before markup is added; live chunks are Markdown text and are escaped by the client when rendered.
 
 ---
 
