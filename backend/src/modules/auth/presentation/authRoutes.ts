@@ -17,7 +17,6 @@
 
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { SQLiteUserRepository } from '../infrastructure/SQLiteUserRepository';
 import {
   RegisterUseCase,
@@ -29,31 +28,41 @@ import {
   UpdateProfileUseCase,
   DeleteProfileUseCase,
 } from '../application/AuthUseCases';
-import { authenticateToken, isAdmin, asyncHandler } from '../../../core/middleware';
-import { AUTH, AUTH_RATE_LIMIT, HTTP_STATUS, getApiVersionPath } from '../../../core/config';
+import {
+  authenticateToken,
+  isAdmin,
+  asyncHandler,
+  createRateLimiter,
+  perUserKey,
+} from '../../../core/middleware';
+import {
+  AUTH,
+  AUTH_RATE_LIMIT,
+  USER_RATE_LIMIT,
+  HTTP_STATUS,
+  getApiVersionPath,
+} from '../../../core/config';
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
-const authIpLimiter = rateLimit({
+const authIpLimiter = createRateLimiter({
   windowMs: AUTH_RATE_LIMIT.WINDOW_MS,
   max: AUTH_RATE_LIMIT.MAX_PER_IP,
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 
-const authAccountLimiter = rateLimit({
+const authAccountLimiter = createRateLimiter({
   windowMs: AUTH_RATE_LIMIT.WINDOW_MS,
   max: AUTH_RATE_LIMIT.MAX_PER_ACCOUNT,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
+  key: (req) => {
     const body = req.body as Record<string, unknown> | undefined;
-    return (
-      (typeof body?.email === 'string' ? body.email : undefined) ??
-      (typeof body?.username === 'string' ? body.username : undefined) ??
-      ipKeyGenerator(req.ip ?? '')
-    );
+    return typeof body?.username === 'string' ? `account:${body.username}` : undefined;
   },
+});
+
+const ticketLimiter = createRateLimiter({
+  windowMs: USER_RATE_LIMIT.WINDOW_MS,
+  max: USER_RATE_LIMIT.MAX_TICKETS,
+  key: perUserKey,
 });
 
 // ── Cookie helpers ────────────────────────────────────────────────────────────
@@ -120,6 +129,7 @@ export const createAuthRouter = (): Router => {
   // POST /login/guest → 200 + accessToken
   router.post(
     '/login/guest',
+    authIpLimiter,
     asyncHandler(async (req: Request, res: Response) => {
       const { accessToken, refreshToken } = await guestLogin.execute();
       res.cookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
@@ -148,6 +158,7 @@ export const createAuthRouter = (): Router => {
   router.post(
     '/ticket',
     authenticateToken,
+    ticketLimiter,
     asyncHandler(async (req: Request, res: Response) => {
       const ticket = requestTicket.execute(req.user!.id);
       res.json({ data: { ticket } });

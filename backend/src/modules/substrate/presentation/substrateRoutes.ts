@@ -3,14 +3,13 @@
  *
  * Composition root for the substrate module.
  *
- * Mutations carry checkGuestPermission in line with the shared API
- * contract (guests are GET-only).
+ * Guest read-only access is enforced once for the whole API (guestReadOnly).
  */
 
 import { Router } from 'express';
 import { SQLiteSubstrateRepository } from '../infrastructure/SQLiteSubstrateRepository';
 import { createSubstrateController } from './substrateController';
-import { authenticateToken, checkGuestPermission } from '../../../core/middleware';
+import { authenticateToken } from '../../../core/middleware';
 
 export const createSubstrateRouter = (): Router => {
   const router = Router();
@@ -19,11 +18,11 @@ export const createSubstrateRouter = (): Router => {
 
   router.get('/', authenticateToken, ctrl.getAllSubstrates);
   router.get('/:id', authenticateToken, ctrl.getSubstrate);
-  router.post('/', authenticateToken, checkGuestPermission, ctrl.addSubstrate);
-  router.patch('/:id', authenticateToken, checkGuestPermission, ctrl.editSubstrate);
-  router.post('/:id/components', authenticateToken, checkGuestPermission, ctrl.addComponents);
-  router.patch('/:id/components', authenticateToken, checkGuestPermission, ctrl.upsertComponents);
-  router.delete('/:id', authenticateToken, checkGuestPermission, ctrl.deleteSubstrate);
+  router.post('/', authenticateToken, ctrl.addSubstrate);
+  router.patch('/:id', authenticateToken, ctrl.editSubstrate);
+  router.post('/:id/components', authenticateToken, ctrl.addComponents);
+  router.patch('/:id/components', authenticateToken, ctrl.upsertComponents);
+  router.delete('/:id', authenticateToken, ctrl.deleteSubstrate);
 
   return router;
 };

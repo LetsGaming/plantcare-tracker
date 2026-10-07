@@ -5,8 +5,8 @@
  *
  * Multer stays at the HTTP edge (it is request middleware); Sharp/EXIF
  * processing lives in the LocalImageStorage adapter; rules live in the
- * use cases. Mutations carry checkGuestPermission in line with the
- * shared API contract (guests are GET-only).
+ * use cases, including who may read or change which entity's images.
+ * Guest read-only access is enforced once for the whole API (guestReadOnly).
  */
 
 import { Router } from 'express';
@@ -15,9 +15,11 @@ import multer from 'multer';
 import { SQLiteImageRepository } from '../infrastructure/SQLiteImageRepository';
 import { LocalImageStorage } from '../infrastructure/LocalImageStorage';
 import { createImageController } from './imageController';
+import { SQLiteImageEntityLookup } from '../infrastructure/SQLiteImageEntityLookup';
+import { ImageAccessPolicy } from '../application/ImageAccessPolicy';
 import { IMAGE_ENTITY_TYPES, isEntityType } from '../domain/Image';
 import { ValidationError } from '../../../core/errors';
-import { authenticateToken, checkGuestPermission } from '../../../core/middleware';
+import { authenticateToken } from '../../../core/middleware';
 import { MAX_UPLOAD_BYTES, translateMulterError } from './uploadErrors';
 
 // ── Upload middleware ─────────────────────────────────────────────────────────
@@ -60,7 +62,8 @@ export const createImageRouter = (): Router => {
   const router = Router();
   const repo = new SQLiteImageRepository();
   const storage = new LocalImageStorage();
-  const ctrl = createImageController(repo, storage);
+  const access = new ImageAccessPolicy(new SQLiteImageEntityLookup());
+  const ctrl = createImageController(repo, storage, access);
 
   const requireUploadedFile = (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.file) return next(new ValidationError('No image file provided.'));
@@ -71,7 +74,6 @@ export const createImageRouter = (): Router => {
   router.post(
     '/:entityType/:entityId',
     authenticateToken,
-    checkGuestPermission,
     validateEntityType,
     uploadSingleImage,
     requireUploadedFile,
@@ -90,19 +92,12 @@ export const createImageRouter = (): Router => {
   );
 
   // PATCH /:id — replace file and/or update date
-  router.patch(
-    '/:id',
-    authenticateToken,
-    checkGuestPermission,
-    uploadSingleImage,
-    ctrl.updateImage,
-  );
+  router.patch('/:id', authenticateToken, uploadSingleImage, ctrl.updateImage);
 
   // DELETE /:id — delete single image by image ID, 204 No Content
   router.delete(
     '/:id',
     authenticateToken,
-    checkGuestPermission,
     (req: Request, res: Response, next: NextFunction): void => {
       // Non-numeric ids fall through to /:entityType/:entityId below —
       // this route only owns numeric image ids.
@@ -116,7 +111,6 @@ export const createImageRouter = (): Router => {
   router.delete(
     '/:entityType/:entityId',
     authenticateToken,
-    checkGuestPermission,
     validateEntityType,
     ctrl.deleteEntityImages,
   );

@@ -106,13 +106,13 @@ describe('GetPlantUseCase', () => {
     const repo = makeMockRepo();
     (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(plant);
 
-    const result = await new GetPlantUseCase(repo).execute(1);
+    const result = await new GetPlantUseCase(repo).execute(1, null);
     expect(result.id).toBe(1);
   });
 
   it('throws NotFoundError when plant does not exist', async () => {
     const repo = makeMockRepo();
-    await expect(new GetPlantUseCase(repo).execute(999)).rejects.toThrow(NotFoundError);
+    await expect(new GetPlantUseCase(repo).execute(999, null)).rejects.toThrow(NotFoundError);
   });
 });
 

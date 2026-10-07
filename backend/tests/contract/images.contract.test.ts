@@ -343,33 +343,125 @@ describe('DELETE /images', () => {
   });
 });
 
-describe('known defects', () => {
-  it("lets any user upload, list and delete images of another user's plant (SEC-03)", async () => {
-    const { owner, plant } = await setup();
-    const intruder = await app.signIn('user');
-    const up = await upload(intruder.auth, 'plant', plant.plant_id);
-    expect(up.status).toBe(201);
-    const list = await app.client.request({
+describe('authorization', () => {
+  const listOf = (auth: Record<string, string>, plantId: number) =>
+    app.client.request({
       method: 'get',
-      url: `${API}/images/plant?entityId=${plant.plant_id}`,
+      url: `${API}/images/plant?entityId=${plantId}`,
+      headers: auth,
+    });
+
+  it("answers 404 when uploading to, listing or serving another user's private plant", async () => {
+    const { owner, plant } = await setup();
+    await upload(owner.auth, 'plant', plant.plant_id);
+    const intruder = await app.signIn('user');
+    expect((await upload(intruder.auth, 'plant', plant.plant_id)).status).toBe(404);
+    expect((await listOf(intruder.auth, plant.plant_id)).status).toBe(404);
+    const served = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant/${plant.plant_id}`,
       headers: intruder.auth,
     });
-    expect(list.body.data).toHaveLength(1);
+    expect(served.status).toBe(404);
+  });
+
+  it("answers 404 when changing or deleting the images of another user's private plant", async () => {
+    const { owner, plant } = await setup();
+    await upload(owner.auth, 'plant', plant.plant_id);
+    const imageId = (await listOf(owner.auth, plant.plant_id)).body.data[0].id;
+    const intruder = await app.signIn('user');
+    const patch = await app.client.request({
+      method: 'patch',
+      url: `${API}/images/${imageId}`,
+      headers: intruder.auth,
+      multipart: [{ field: 'date', data: '2024-06-01' }],
+    });
+    expect(patch.status).toBe(404);
     const del = await app.client.request({
       method: 'delete',
-      url: `${API}/images/${list.body.data[0].id}`,
+      url: `${API}/images/${imageId}`,
       headers: intruder.auth,
     });
-    expect(del.status).toBe(204);
-    expect(owner.user.id).not.toBe(intruder.user.id);
+    expect(del.status).toBe(404);
+    const delAll = await app.client.request({
+      method: 'delete',
+      url: `${API}/images/plant/${plant.plant_id}`,
+      headers: intruder.auth,
+    });
+    expect(delAll.status).toBe(404);
+    expect((await listOf(owner.auth, plant.plant_id)).body.data).toHaveLength(1);
   });
 
-  it('accepts uploads for entities that do not exist and for components by non-admins (SEC-03)', async () => {
+  it('lets others view but not change the images of a public plant (403)', async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth);
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: true });
+    await upload(owner.auth, 'plant', plant.plant_id);
+    const other = await app.signIn('user');
+    expect((await listOf(other.auth, plant.plant_id)).status).toBe(200);
+    const served = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant/${plant.plant_id}`,
+      headers: other.auth,
+    });
+    expect(served.status).toBe(200);
+    const res = await upload(other.auth, 'plant', plant.plant_id);
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toBe('You may not change the images of this plant');
+    const imageId = (await listOf(owner.auth, plant.plant_id)).body.data[0].id;
+    const del = await app.client.request({
+      method: 'delete',
+      url: `${API}/images/${imageId}`,
+      headers: other.auth,
+    });
+    expect(del.status).toBe(403);
+  });
+
+  it('answers 404 for entities that do not exist', async () => {
     const user = await app.signIn('user');
-    expect((await upload(user.auth, 'plant', 987654)).status).toBe(201);
-    expect((await upload(user.auth, 'component', 987654)).status).toBe(201);
+    for (const type of ['plant', 'substrate', 'component']) {
+      expect((await upload(user.auth, type, 987654)).status, type).toBe(404);
+    }
   });
 
+  it('lets only admins add images to the component catalogue', async () => {
+    const admin = await app.signIn('admin');
+    const created = await app.client.request({
+      method: 'post',
+      url: `${API}/components`,
+      headers: admin.auth,
+      json: { name: 'Perlite', fineness: 1 },
+    });
+    const componentId = created.body.data.component_id;
+    const user = await app.signIn('user');
+    expect((await upload(user.auth, 'component', componentId)).status).toBe(403);
+    expect((await upload(admin.auth, 'component', componentId)).status).toBe(201);
+    const list = await app.client.request({
+      method: 'get',
+      url: `${API}/images/component?entityId=${componentId}`,
+      headers: user.auth,
+    });
+    expect(list.status).toBe(200);
+    expect(list.body.data).toHaveLength(1);
+  });
+
+  it('does not let an admin change the images of a regular user plant', async () => {
+    const { plant } = await setup();
+    const admin = await app.signIn('admin');
+    expect((await upload(admin.auth, 'plant', plant.plant_id)).status).toBe(404);
+  });
+
+  it('names stored files with random hex so URLs cannot be guessed', async () => {
+    const { owner, plant } = await setup();
+    const a = await upload(owner.auth, 'plant', plant.plant_id);
+    const b = await upload(owner.auth, 'plant', plant.plant_id);
+    const suffix = (r: { body: { data: { path: string } } }) =>
+      /-([0-9a-f]{12})\.webp$/.exec(pathOf(r.body.data.path))![1];
+    expect(suffix(a)).not.toBe(suffix(b));
+  });
+});
+
+describe('known defects', () => {
   it('answers non-image bytes labelled as PNG with 500 instead of 400 (BUG-03)', async () => {
     const { owner, plant } = await setup();
     const res = await upload(owner.auth, 'plant', plant.plant_id, {

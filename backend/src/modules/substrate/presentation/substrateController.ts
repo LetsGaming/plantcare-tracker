@@ -68,7 +68,7 @@ export const createSubstrateController = (repo: SubstrateRepository): SubstrateC
     }),
 
     getSubstrate: asyncHandler(async (req: Request, res: Response) => {
-      const substrate = await getOne.execute(Number(req.params.id));
+      const substrate = await getOne.execute(Number(req.params.id), req.user?.id ?? null);
       const body: SubstrateResponse = { data: substrate };
       res.json(body);
     }),

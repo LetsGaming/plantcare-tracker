@@ -38,6 +38,7 @@ import {
   requestIdMiddleware,
   globalErrorHandler,
   notFoundHandler,
+  guestReadOnly,
 } from '../../src/core/middleware';
 import { createAuthRouter } from '../../src/modules/auth/presentation/authRoutes';
 import { createPlantsRouter } from '../../src/modules/plants/presentation/plantsRoutes';
@@ -45,7 +46,7 @@ import { createWateringRouter } from '../../src/modules/watering/presentation/wa
 import { createSubstrateRouter } from '../../src/modules/substrate/presentation/substrateRoutes';
 import { createComponentRouter } from '../../src/modules/components/presentation/componentRoutes';
 import { makePlantRow, makeWateringRow, makeSubstrateRow } from '../helpers/mockFactory';
-import { generateTokens, sessionStore } from '../../src/core/middleware/auth';
+import { issueSession, sessionStore } from '../../src/core/middleware/auth';
 import bcrypt from 'bcryptjs';
 
 // ── App factory ───────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ const buildTestApp = (): Application => {
   app.use(express.json());
   app.use(cookieParser());
   app.use(requestIdMiddleware);
+  app.use('/api/v2', guestReadOnly);
   app.use('/api/v2/auth', createAuthRouter());
   app.use('/api/v2/plants', createPlantsRouter());
   app.use('/api/v2/watering', createWateringRouter());
@@ -71,8 +73,7 @@ const USER_ID = 10;
 const ADMIN_ID = 1;
 
 const makeAuthHeader = (role = 'user', id = USER_ID) => {
-  const { accessToken, refreshToken } = generateTokens({ id, username: 'testuser', role });
-  sessionStore.save(id, refreshToken);
+  const { accessToken } = issueSession({ id, username: 'testuser', role });
   return `Bearer ${accessToken}`;
 };
 
@@ -358,7 +359,7 @@ describe('auth session lifecycle', () => {
 
     // The very same refresh token must be dead server-side afterwards.
     const after = await request(app).post('/api/v2/auth/refresh-token').set('Cookie', cookie);
-    expect(after.status).toBe(403);
+    expect(after.status).toBe(401);
     sessionStore.deleteAll(1);
   });
 

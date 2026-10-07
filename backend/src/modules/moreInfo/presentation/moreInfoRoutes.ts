@@ -8,7 +8,8 @@
 
 import { Router } from 'express';
 import { NodeCacheAdapter } from '../../../core/cache';
-import { makeAuthenticateSSE } from '../../../core/middleware';
+import { createRateLimiter, makeAuthenticateSSE, perUserKey } from '../../../core/middleware';
+import { USER_RATE_LIMIT } from '../../../core/config';
 import { SourceHealthTracker, SQLiteSourceHealthRepository } from '../../../core/scrapeHealth';
 import { createSseEndpoint } from '../../../core/sse';
 import { OpenAIPlantClient } from '../infrastructure/OpenAIClient';
@@ -26,6 +27,12 @@ export interface MoreInfoRouterDeps {
   linkSearchers?: PlantLinkSearcher[];
 }
 
+const aiStreamLimiter = createRateLimiter({
+  windowMs: USER_RATE_LIMIT.WINDOW_MS,
+  max: USER_RATE_LIMIT.MAX_AI_STREAMS,
+  key: perUserKey,
+});
+
 export const createMoreInfoRouter = (deps: MoreInfoRouterDeps = {}): Router => {
   const router = Router();
 
@@ -38,6 +45,7 @@ export const createMoreInfoRouter = (deps: MoreInfoRouterDeps = {}): Router => {
   router.get(
     '/',
     makeAuthenticateSSE({ loadUserFromDb: true }),
+    aiStreamLimiter,
     createSseEndpoint<PlantInfoRequest>({
       name: 'MoreInfo',
       errorMessage: 'Information stream interrupted',

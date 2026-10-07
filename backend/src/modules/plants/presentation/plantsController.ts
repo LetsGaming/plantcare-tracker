@@ -65,7 +65,7 @@ export const createPlantsController = (repo: PlantRepository): PlantsController 
     }),
 
     getPlant: asyncHandler(async (req: Request, res: Response) => {
-      const plant = await getOne.execute(Number(req.params.id));
+      const plant = await getOne.execute(Number(req.params.id), req.user?.id ?? null);
       const body: PlantResponse = { data: plant.toJSON() };
       res.json(body);
     }),

@@ -4,15 +4,17 @@
  * JWT authentication middleware, token helpers, and the in-memory
  * session / one-time-ticket stores.
  *
- * Uses typed Request extensions instead of casting, and shared
- * constants from core/config instead of inline magic numbers.
+ * Every login creates a session id (`sid`) that is embedded in both the
+ * access and the refresh token. A token is only honored while its session
+ * is registered, so logging out ends exactly that session's tokens and
+ * two logins can never share a token.
  */
 
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { UnauthorizedError, ForbiddenError } from '../errors';
 import { AUTH } from '../config';
-import crypto from 'crypto';
 
 // ── JWT config ───────────────────────────────────────────────────────────────
 //
@@ -45,29 +47,62 @@ function loadJwtConfig(): JwtConfig {
 
 export const jwtConfig: JwtConfig = loadJwtConfig();
 
+const JWT_ALGORITHMS: jwt.Algorithm[] = ['HS256'];
+
 // ── Session store (in-memory) ─────────────────────────────────────────────────
 
-const activeSessions = new Map<number, string[]>();
+interface Session {
+  sid: string;
+  expiresAt: number;
+}
+
+export interface SessionPolicy {
+  /** Oldest sessions beyond this count are ended. */
+  maxSessions: number;
+  ttlMs: number;
+}
+
+export const USER_SESSION_POLICY: SessionPolicy = {
+  maxSessions: AUTH.MAX_SESSIONS_PER_USER,
+  ttlMs: AUTH.REFRESH_COOKIE_MAX_AGE_MS,
+};
+
+/** The guest account is shared, so many visitors hold sessions on one user id. */
+export const GUEST_SESSION_POLICY: SessionPolicy = {
+  maxSessions: AUTH.MAX_GUEST_SESSIONS,
+  ttlMs: AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS,
+};
+
+const activeSessions = new Map<number, Session[]>();
+
+const liveSessions = (userId: number): Session[] => {
+  const now = Date.now();
+  const live = (activeSessions.get(userId) ?? []).filter((s) => s.expiresAt > now);
+  if (live.length) activeSessions.set(userId, live);
+  else activeSessions.delete(userId);
+  return live;
+};
 
 export const sessionStore = {
-  save(userId: number, refreshToken: string): void {
-    const sessions = activeSessions.get(userId) ?? [];
-    if (sessions.length >= AUTH.MAX_SESSIONS_PER_USER) sessions.shift();
-    sessions.push(refreshToken);
+  /** Registers a new session and returns its id. */
+  create(userId: number, policy: SessionPolicy = USER_SESSION_POLICY): string {
+    const sessions = liveSessions(userId);
+    while (sessions.length >= policy.maxSessions) sessions.shift();
+    const sid = crypto.randomUUID();
+    sessions.push({ sid, expiresAt: Date.now() + policy.ttlMs });
     activeSessions.set(userId, sessions);
+    return sid;
   },
-  get(userId: number): string[] {
-    return activeSessions.get(userId) ?? [];
+  has(userId: number, sid: string): boolean {
+    return liveSessions(userId).some((s) => s.sid === sid);
   },
-  findUser(refreshToken: string): number | null {
-    for (const [userId, tokens] of activeSessions) {
-      if (tokens.includes(refreshToken)) return userId;
-    }
-    return null;
+  count(userId: number): number {
+    return liveSessions(userId).length;
   },
-  invalidate(userId: number, refreshToken: string): void {
-    const sessions = (activeSessions.get(userId) ?? []).filter((t) => t !== refreshToken);
-    activeSessions.set(userId, sessions);
+  end(userId: number, sid: string): void {
+    const remaining = liveSessions(userId).filter((s) => s.sid !== sid);
+    if (remaining.length) activeSessions.set(userId, remaining);
+    else activeSessions.delete(userId);
   },
   deleteAll(userId: number): void {
     activeSessions.delete(userId);
@@ -84,6 +119,7 @@ export const ticketStore = {
     tickets.set(ticket, { userId, expires: Date.now() + AUTH.SSE_TICKET_TTL_MS });
     return ticket;
   },
+  /** Returns the ticket's user id and burns the ticket, or null when unknown or expired. */
   validateAndBurn(ticket: string): number | null {
     const data = tickets.get(ticket);
     if (!data) return null;
@@ -95,26 +131,82 @@ export const ticketStore = {
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 
-export interface JwtPayload {
+export interface TokenIdentity {
   id: number;
   username: string;
   role: string;
 }
 
-export const generateTokens = (user: JwtPayload) => {
-  const { JWT_SECRET, JWT_REFRESH_SECRET, JWT_EXPIRATION, JWT_REFRESH_EXPIRATION } = jwtConfig;
+/** Claims carried by both token types. */
+export interface JwtPayload extends TokenIdentity {
+  sid: string;
+}
 
-  const payload = { id: user.id, username: user.username, role: user.role };
+/** The authenticated principal on a request; SSE tickets carry no session. */
+export interface AuthUser extends TokenIdentity {
+  sid?: string;
+}
 
-  const accessOptions: SignOptions = { expiresIn: JWT_EXPIRATION as SignOptions['expiresIn'] };
-  const refreshOptions: SignOptions = {
-    expiresIn: JWT_REFRESH_EXPIRATION as SignOptions['expiresIn'],
+const isGuestRole = (role: string | undefined): boolean => role?.toLowerCase() === 'guest';
+
+const claimsOf = (user: TokenIdentity, sid: string): JwtPayload => ({
+  id: user.id,
+  username: user.username,
+  role: user.role,
+  sid,
+});
+
+export const signAccessToken = (user: TokenIdentity, sid: string): string => {
+  const options: SignOptions = {
+    expiresIn: jwtConfig.JWT_EXPIRATION as SignOptions['expiresIn'],
   };
+  return jwt.sign(claimsOf(user, sid), jwtConfig.JWT_SECRET, options);
+};
 
-  const accessToken = jwt.sign(payload, JWT_SECRET, accessOptions);
-  const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, refreshOptions);
+export const generateTokens = (user: TokenIdentity, sid: string) => {
+  const refreshOptions: SignOptions = {
+    expiresIn: jwtConfig.JWT_REFRESH_EXPIRATION as SignOptions['expiresIn'],
+  };
+  return {
+    accessToken: signAccessToken(user, sid),
+    refreshToken: jwt.sign(claimsOf(user, sid), jwtConfig.JWT_REFRESH_SECRET, refreshOptions),
+  };
+};
 
-  return { accessToken, refreshToken };
+/** Starts a session for the user and returns the matching token pair. */
+export const issueSession = (user: TokenIdentity) => {
+  const policy = isGuestRole(user.role) ? GUEST_SESSION_POLICY : USER_SESSION_POLICY;
+  return generateTokens(user, sessionStore.create(user.id, policy));
+};
+
+const hasSessionClaims = (decoded: unknown): decoded is JwtPayload => {
+  const d = decoded as Partial<JwtPayload> | null;
+  return (
+    typeof d === 'object' &&
+    d !== null &&
+    typeof d.id === 'number' &&
+    typeof d.sid === 'string' &&
+    typeof d.role === 'string'
+  );
+};
+
+/**
+ * Verifies a refresh token's signature and claims. The session itself is
+ * not checked here; callers decide (logout ignores expiry and missing sessions).
+ */
+export const verifyRefreshToken = (
+  token: string,
+  options: { ignoreExpiration?: boolean } = {},
+): JwtPayload | null => {
+  try {
+    const decoded = jwt.verify(token, jwtConfig.JWT_REFRESH_SECRET, {
+      algorithms: JWT_ALGORITHMS,
+      ignoreExpiration: options.ignoreExpiration ?? false,
+    });
+    return hasSessionClaims(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
 };
 
 // ── Augment Express Request ───────────────────────────────────────────────────
@@ -123,41 +215,44 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?: JwtPayload;
+      user?: AuthUser;
     }
   }
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 
-export const authenticateToken = (req: Request, _res: Response, next: NextFunction): void => {
-  let token: string | null = null;
+const bearerToken = (req: Request): string | null => {
+  const header = req.headers['authorization'];
+  return header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : null;
+};
 
-  const authHeader = req.headers['authorization'];
-  if (authHeader?.startsWith('Bearer ')) token = authHeader.split(' ')[1];
-
-  const cookies = req.cookies as Record<string, string> | undefined;
-  if (!token && cookies?.[AUTH.ACCESS_TOKEN_COOKIE]) {
-    token = cookies[AUTH.ACCESS_TOKEN_COOKIE];
+/** Decodes an access token and checks that its session is still registered. */
+const readSession = (token: string): JwtPayload | null => {
+  try {
+    const decoded = jwt.verify(token, jwtConfig.JWT_SECRET, { algorithms: JWT_ALGORITHMS });
+    if (!hasSessionClaims(decoded)) return null;
+    return sessionStore.has(decoded.id, decoded.sid) ? decoded : null;
+  } catch {
+    return null;
   }
+};
 
+export const authenticateToken = (req: Request, _res: Response, next: NextFunction): void => {
+  const token = bearerToken(req);
   if (!token) return next(new UnauthorizedError('Missing authentication token'));
 
-  const { JWT_SECRET } = jwtConfig;
+  try {
+    jwt.verify(token, jwtConfig.JWT_SECRET, { algorithms: JWT_ALGORITHMS });
+  } catch {
+    return next(new UnauthorizedError('Invalid or expired token'));
+  }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return next(new ForbiddenError('Invalid or expired token'));
+  const session = readSession(token);
+  if (!session) return next(new UnauthorizedError('Invalid session. Please log in again.'));
 
-    const user = decoded as JwtPayload;
-    const sessions = sessionStore.get(user.id);
-
-    if (!sessions.length) {
-      return next(new ForbiddenError('Invalid session. Please log in again.'));
-    }
-
-    req.user = user;
-    next();
-  });
+  req.user = session;
+  next();
 };
 
 /**
@@ -182,20 +277,13 @@ export const optionalAuthenticateToken = (
 //
 // EventSource cannot send an Authorization header, so SSE endpoints
 // authenticate via a one-time ticket (POST /auth/ticket → ?ticket=…).
-//
-// This helper replaces two near-identical implementations that used to
-// coexist: a DB-backed `makeAuthenticateSSE(pool)` (the pool argument
-// was ignored MySQL-era residue) and a no-DB `authenticateSSE`. The
-// only real difference was whether the user record is re-loaded from
-// the database after the ticket is burned, so that is now the single
-// parameter.
 
 export interface SseAuthOptions {
   /**
    * When true, re-loads username and role from the users table after
    * validating the ticket. When false, req.user carries only the id
-   * (username empty, role "user") — sufficient for endpoints that only
-   * need to know the request is authenticated.
+   * (username empty, role "user"), which is sufficient for endpoints
+   * that only need to know the request is authenticated.
    */
   loadUserFromDb?: boolean;
 }
@@ -208,7 +296,7 @@ export const makeAuthenticateSSE =
     if (!ticket) return next(new UnauthorizedError('No authentication ticket provided'));
 
     const userId = ticketStore.validateAndBurn(ticket);
-    if (!userId) return next(new ForbiddenError('Invalid or expired ticket'));
+    if (userId === null) return next(new UnauthorizedError('Invalid or expired ticket'));
 
     if (!loadUserFromDb) {
       req.user = { id: userId, username: '', role: 'user' };
@@ -227,7 +315,7 @@ export const makeAuthenticateSSE =
       );
 
       const user = rows[0];
-      if (!user) return next(new ForbiddenError('User not found'));
+      if (!user) return next(new UnauthorizedError('User not found'));
 
       req.user = { id: user.id, username: user.username, role: user.role };
       next();
@@ -245,8 +333,28 @@ export const isAdmin = (req: Request, _res: Response, next: NextFunction): void 
   next();
 };
 
-export const checkGuestPermission = (req: Request, _res: Response, next: NextFunction): void => {
-  if (req.user?.role?.toLowerCase() === 'guest' && req.method !== 'GET') {
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/** Endpoints a guest session may call with an unsafe method. */
+const GUEST_WRITE_ALLOWLIST = new Set([
+  '/auth/register',
+  '/auth/login',
+  '/auth/login/guest',
+  '/auth/refresh-token',
+  '/auth/logout',
+  '/auth/ticket',
+]);
+
+/**
+ * Default-deny read-only rule for guests. Mounted once on the API prefix,
+ * it refuses every unsafe request that carries a live guest session, so a
+ * route added later cannot forget the check.
+ */
+export const guestReadOnly = (req: Request, _res: Response, next: NextFunction): void => {
+  if (SAFE_METHODS.has(req.method) || GUEST_WRITE_ALLOWLIST.has(req.path)) return next();
+  const token = bearerToken(req);
+  const session = token ? readSession(token) : null;
+  if (session && isGuestRole(session.role)) {
     return next(new ForbiddenError('Guests are not allowed to perform this action'));
   }
   next();

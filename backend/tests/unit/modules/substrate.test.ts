@@ -83,7 +83,7 @@ describe('GetAllSubstratesUseCase', () => {
 describe('GetSubstrateUseCase', () => {
   it('throws NotFoundError for a missing substrate', async () => {
     const repo = makeMockRepo();
-    await expect(new GetSubstrateUseCase(repo).execute(999)).rejects.toThrow(NotFoundError);
+    await expect(new GetSubstrateUseCase(repo).execute(999, null)).rejects.toThrow(NotFoundError);
   });
 });
 

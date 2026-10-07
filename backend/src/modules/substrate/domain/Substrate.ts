@@ -26,6 +26,10 @@ export interface SubstrateData {
   components: ComponentRef[];
 }
 
+/** Public substrates are visible to everyone, private ones only to their owner. */
+export const isSubstrateVisibleTo = (substrate: SubstrateData, userId: number | null): boolean =>
+  substrate.is_public || (userId !== null && substrate.substrate_user_id === userId);
+
 export interface SubstrateRepository {
   findAllPublic(): Promise<SubstrateData[]>;
   findAllByUser(userId: number): Promise<SubstrateData[]>;

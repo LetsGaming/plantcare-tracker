@@ -5,6 +5,7 @@ export {
   ForbiddenError,
   NotFoundError,
   ConflictError,
+  TooManyRequestsError,
   InternalError,
   isAppError,
 } from './AppError';

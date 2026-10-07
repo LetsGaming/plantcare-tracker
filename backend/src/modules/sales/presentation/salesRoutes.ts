@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import { NodeCacheAdapter } from '../../../core/cache';
 import type { CacheService } from '../../../core/cache/CacheService';
-import { authenticateToken, isAdmin } from '../../../core/middleware';
+import { authenticateToken, isAdmin, makeAuthenticateSSE } from '../../../core/middleware';
 import { SourceHealthTracker, SQLiteSourceHealthRepository } from '../../../core/scrapeHealth';
 import { createAllScrapers } from '../infrastructure/scrapers';
 import type { SalesSource } from '../domain/SalesSource';
@@ -32,7 +32,7 @@ export const createSalesRouter = (deps: SalesRouterDeps = {}): Router => {
 
   router.get('/health', authenticateToken, isAdmin, health.listHealth);
   router.post('/health/:key/check', authenticateToken, isAdmin, health.recheckSource);
-  router.get('/', getSalesData);
+  router.get('/', makeAuthenticateSSE(), getSalesData);
 
   return router;
 };

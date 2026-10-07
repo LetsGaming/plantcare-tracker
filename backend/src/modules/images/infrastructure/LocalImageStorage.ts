@@ -9,6 +9,7 @@
  * deletion. The application layer sees only the port.
  */
 
+import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
@@ -100,7 +101,7 @@ const anonymizeImageName = (fileName: string, contextKeywords: string[] = []): s
     );
 
   const base = tokens.length > 0 ? tokens.join('-') : 'image';
-  const hash = Math.random().toString(36).substring(2, 6);
+  const hash = crypto.randomBytes(6).toString('hex');
   return `${base.substring(0, FILENAME_BASE_MAX_LENGTH)}-${hash}${ext}`;
 };
 

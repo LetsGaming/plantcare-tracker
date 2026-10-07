@@ -37,6 +37,31 @@ export interface ImageRecord {
   entityType: EntityType;
 }
 
+/** An image row together with the entity it belongs to; never sent to clients as is. */
+export interface StoredImage extends ImageRecord {
+  entityId: number;
+}
+
+// ── Access ────────────────────────────────────────────────────────────────────
+
+/** The authenticated caller an image operation runs on behalf of. */
+export interface ImageActor {
+  id: number;
+  role: string;
+}
+
+/** What the images module needs to know about an entity to authorize access. */
+export interface ImageEntityInfo {
+  /** Owning user; null for entities nobody owns (the component catalogue). */
+  ownerId: number | null;
+  isPublic: boolean;
+}
+
+export interface ImageEntityLookup {
+  /** Returns null when the entity does not exist. */
+  find(entityType: EntityType, entityId: number): Promise<ImageEntityInfo | null>;
+}
+
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 
 export interface UpdateImageDTO {
@@ -55,7 +80,7 @@ export interface UploadedFile {
 
 export interface ImageRepository {
   findByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]>;
-  findById(imageId: number): Promise<ImageRecord | null>;
+  findById(imageId: number): Promise<StoredImage | null>;
   create(
     entityType: EntityType,
     entityId: number,

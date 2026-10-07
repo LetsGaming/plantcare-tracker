@@ -8,11 +8,7 @@
 import { Router } from 'express';
 import { SQLitePlantRepository } from '../infrastructure/SQLitePlantRepository';
 import { createPlantsController } from './plantsController';
-import {
-  authenticateToken,
-  optionalAuthenticateToken,
-  checkGuestPermission,
-} from '../../../core/middleware';
+import { authenticateToken, optionalAuthenticateToken } from '../../../core/middleware';
 
 export const createPlantsRouter = (): Router => {
   const router = Router();
@@ -23,9 +19,9 @@ export const createPlantsRouter = (): Router => {
   // private plants are included when a valid token is present.
   router.get('/', optionalAuthenticateToken, ctrl.getAllPlants);
   router.get('/:id', optionalAuthenticateToken, ctrl.getPlant);
-  router.post('/', authenticateToken, checkGuestPermission, ctrl.addPlant);
-  router.patch('/:id', authenticateToken, checkGuestPermission, ctrl.editPlant);
-  router.delete('/:id', authenticateToken, checkGuestPermission, ctrl.deletePlant);
+  router.post('/', authenticateToken, ctrl.addPlant);
+  router.patch('/:id', authenticateToken, ctrl.editPlant);
+  router.delete('/:id', authenticateToken, ctrl.deletePlant);
 
   return router;
 };

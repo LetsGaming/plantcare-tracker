@@ -12,7 +12,12 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 
 import { getDb } from './core/database/db';
-import { requestIdMiddleware, globalErrorHandler, notFoundHandler } from './core/middleware';
+import {
+  requestIdMiddleware,
+  globalErrorHandler,
+  notFoundHandler,
+  guestReadOnly,
+} from './core/middleware';
 import { logger } from './core/logging';
 import {
   getApiBasePath,
@@ -62,7 +67,8 @@ export const createApp = (deps: AppDeps = {}): express.Express => {
     }),
   );
 
-  app.use(express.json());
+  // Non-strict so a bare JSON `null` body is accepted like an empty one.
+  app.use(express.json({ strict: false }));
   app.use(cookieParser());
   app.use(requestIdMiddleware);
 
@@ -74,6 +80,9 @@ export const createApp = (deps: AppDeps = {}): express.Express => {
   // module uses the same resolver to scope its refresh-token cookie.
   const versionPath = getApiVersionPath();
   const V = getApiBasePath();
+
+  // Guests are read-only everywhere: one rule on the prefix, not one per route.
+  app.use(V, guestReadOnly);
 
   // Routes: each router is its own composition root
   app.use(`${V}/auth`, createAuthRouter());

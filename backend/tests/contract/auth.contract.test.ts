@@ -167,15 +167,15 @@ describe('POST /auth/refresh-token', () => {
     expect(res.body.error.message).toBe('Refresh token required');
   });
 
-  it('answers 403 for an unknown refresh token', async () => {
+  it('answers 401 for an unknown refresh token', async () => {
     const res = await app.client.request({
       method: 'post',
       url: `${API}/auth/refresh-token`,
       cookies: ['refreshToken=not-a-session'],
     });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(res.body.error).toMatchObject({
-      type: 'ForbiddenError',
+      type: 'UnauthorizedError',
       message: 'Invalid refresh token',
     });
   });
@@ -223,7 +223,7 @@ describe('POST /auth/logout', () => {
       url: `${API}/auth/refresh-token`,
       cookies: [refreshCookie],
     });
-    expect(after.status).toBe(403);
+    expect(after.status).toBe(401);
   });
 
   it('answers 204 without a cookie', async () => {
@@ -258,13 +258,13 @@ describe('PATCH /auth/me', () => {
       url: `${API}/components`,
       headers: auth,
     });
-    expect(stale.status).toBe(403);
+    expect(stale.status).toBe(401);
     const refresh = await app.client.request({
       method: 'post',
       url: `${API}/auth/refresh-token`,
       cookies: [refreshCookie],
     });
-    expect(refresh.status).toBe(403);
+    expect(refresh.status).toBe(401);
   });
 
   it('changes the password when a matching confirmation is sent', async () => {
@@ -380,101 +380,67 @@ describe('token handling', () => {
       url: `${API}/components`,
       headers: { Authorization: 'Bearer garbage' },
     });
-    expect(res.status).toBe(403);
-    expect(res.body.error.message).toBe('Invalid or expired token');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatchObject({
+      type: 'UnauthorizedError',
+      message: 'Invalid or expired token',
+    });
   });
 
-  it('accepts the token from the accessToken cookie', async () => {
+  it('ignores a token sent in an accessToken cookie', async () => {
     const { accessToken } = await newSession();
     const res = await app.client.request({
       method: 'get',
       url: `${API}/components`,
       cookies: [`accessToken=${accessToken}`],
     });
-    expect(res.status).toBe(200);
-  });
-});
-
-describe('known defects', () => {
-  it('lets a guest change the shared guest password (SEC-01)', async () => {
-    const guest = await app.client.request({ method: 'post', url: `${API}/auth/login/guest` });
-    const res = await app.client.request({
-      method: 'patch',
-      url: `${API}/auth/me`,
-      headers: { Authorization: `Bearer ${guest.body.data.accessToken}` },
-      json: { password: 'guest', passwordConfirmation: 'guest' },
-    });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 
-  it('answers a JSON body of null on logout with 500 and leaves the session alive (BUG-01)', async () => {
-    const { refreshCookie } = await newSession();
-    const res = await app.client.request({
+  it('answers 401 for a token whose session ended', async () => {
+    const { accessToken, refreshCookie } = await newSession();
+    await app.client.request({
       method: 'post',
       url: `${API}/auth/logout`,
       cookies: [refreshCookie],
-      rawBody: 'null',
     });
-    expect(res.status).toBe(500);
-    const refresh = await app.client.request({
-      method: 'post',
-      url: `${API}/auth/refresh-token`,
-      cookies: [refreshCookie],
-    });
-    expect(refresh.status).toBe(200);
-  });
-
-  it('answers a JSON body of null on guest login with 500 (BUG-01)', async () => {
     const res = await app.client.request({
-      method: 'post',
-      url: `${API}/auth/login/guest`,
-      rawBody: 'null',
+      method: 'get',
+      url: `${API}/components`,
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toBe('Invalid session. Please log in again.');
   });
 
-  it('refuses to refresh the seeded guest because its id is 0 (BUG-02)', async () => {
-    const guest = await app.client.request({ method: 'post', url: `${API}/auth/login/guest` });
-    const res = await app.client.request({
+  it('keeps the other sessions of a user alive when one session logs out', async () => {
+    const user = await app.createUser('user');
+    const first = app.session(user);
+    const second = app.session(user);
+    await app.client.request({
       method: 'post',
-      url: `${API}/auth/refresh-token`,
-      cookies: [refreshCookieOf(guest)],
+      url: `${API}/auth/logout`,
+      cookies: [first.refreshCookie],
     });
-    expect(res.status).toBe(403);
+    expect(
+      (await app.client.request({ method: 'get', url: `${API}/components`, headers: first.auth }))
+        .status,
+    ).toBe(401);
+    expect(
+      (await app.client.request({ method: 'get', url: `${API}/components`, headers: second.auth }))
+        .status,
+    ).toBe(200);
   });
 
-  it('keeps an access token valid after its own session logged out while another session lives (SEC-05)', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    try {
-      const username = uniqueName();
-      await register(username);
-      const first = await login(username);
-      vi.setSystemTime(Date.now() + 2000);
-      await login(username);
-      await app.client.request({
-        method: 'post',
-        url: `${API}/auth/logout`,
-        cookies: [refreshCookieOf(first)],
-      });
-      const res = await app.client.request({
-        method: 'get',
-        url: `${API}/components`,
-        headers: { Authorization: `Bearer ${first.body.data.accessToken}` },
-      });
-      expect(res.status).toBe(200);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('shares one token between two logins in the same second so one logout ends both (SEC-05)', async () => {
+  it('gives two logins in the same second distinct tokens', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
       const username = uniqueName();
       await register(username);
       const first = await login(username);
       const second = await login(username);
-      expect(second.body.data.accessToken).toBe(first.body.data.accessToken);
+      expect(second.body.data.accessToken).not.toBe(first.body.data.accessToken);
+      expect(refreshCookieOf(second)).not.toBe(refreshCookieOf(first));
       await app.client.request({
         method: 'post',
         url: `${API}/auth/logout`,
@@ -485,12 +451,147 @@ describe('known defects', () => {
         url: `${API}/auth/refresh-token`,
         cookies: [refreshCookieOf(second)],
       });
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
     } finally {
       vi.useRealTimers();
     }
   });
 
+  it('evicts the oldest of more than three sessions of one user', async () => {
+    const user = await app.createUser('user');
+    const sessions = [1, 2, 3, 4].map(() => app.session(user));
+    const statuses = await Promise.all(
+      sessions.map((s) =>
+        app.client.request({ method: 'get', url: `${API}/components`, headers: s.auth }),
+      ),
+    );
+    expect(statuses.map((r) => r.status)).toEqual([401, 200, 200, 200]);
+  });
+});
+
+describe('guest account', () => {
+  const guestSession = async () => {
+    const res = await app.client.request({ method: 'post', url: `${API}/auth/login/guest` });
+    return {
+      res,
+      auth: { Authorization: `Bearer ${res.body.data.accessToken}` },
+      refreshCookie: refreshCookieOf(res),
+    };
+  };
+
+  it('cannot change its profile', async () => {
+    const { auth } = await guestSession();
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/auth/me`,
+      headers: auth,
+      json: { password: 'guest', passwordConfirmation: 'guest' },
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toBe('Guests are not allowed to perform this action');
+  });
+
+  it('cannot delete the shared guest account, so guest login keeps working', async () => {
+    const { auth } = await guestSession();
+    const res = await app.client.request({
+      method: 'delete',
+      url: `${API}/auth/me`,
+      headers: auth,
+    });
+    expect(res.status).toBe(403);
+    expect(
+      (await app.client.request({ method: 'post', url: `${API}/auth/login/guest` })).status,
+    ).toBe(200);
+  });
+
+  it('is protected from admin edits and deletion too', async () => {
+    const admin = await app.signIn('admin');
+    const [{ id: guestId }] = app.db.query<{ id: number }>(
+      "SELECT id FROM users WHERE username = 'guest'",
+    );
+    const patch = await app.client.request({
+      method: 'patch',
+      url: `${API}/auth/${guestId}`,
+      headers: admin.auth,
+      json: { username: 'renamed-guest' },
+    });
+    expect(patch.status).toBe(404);
+    expect(app.db.query("SELECT 1 FROM users WHERE username = 'guest'")).toHaveLength(1);
+  });
+
+  it('can refresh its session even though the seeded guest id is 0', async () => {
+    const { refreshCookie } = await guestSession();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/auth/refresh-token`,
+      cookies: [refreshCookie],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.accessToken).toEqual(expect.any(String));
+  });
+
+  it('can end its own session', async () => {
+    const { refreshCookie } = await guestSession();
+    expect(
+      (
+        await app.client.request({
+          method: 'post',
+          url: `${API}/auth/logout`,
+          cookies: [refreshCookie],
+        })
+      ).status,
+    ).toBe(204);
+  });
+
+  it('keeps every concurrent guest session alive', async () => {
+    const guests = await Promise.all([1, 2, 3, 4, 5].map(() => guestSession()));
+    const statuses = await Promise.all(
+      guests.map((g) =>
+        app.client.request({ method: 'get', url: `${API}/components`, headers: g.auth }),
+      ),
+    );
+    expect(statuses.every((r) => r.status === 200)).toBe(true);
+  });
+});
+
+describe('bodies of null', () => {
+  it('accepts a JSON body of null on logout and ends the session', async () => {
+    const { refreshCookie } = await newSession();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/auth/logout`,
+      cookies: [refreshCookie],
+      rawBody: 'null',
+    });
+    expect(res.status).toBe(204);
+    const refresh = await app.client.request({
+      method: 'post',
+      url: `${API}/auth/refresh-token`,
+      cookies: [refreshCookie],
+    });
+    expect(refresh.status).toBe(401);
+  });
+
+  it('accepts a JSON body of null on guest login', async () => {
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/auth/login/guest`,
+      rawBody: 'null',
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('answers a null body on login with a validation error, not a server error', async () => {
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/auth/login`,
+      rawBody: 'null',
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('known defects', () => {
   it('accepts a one character password (SEC-09)', async () => {
     const username = uniqueName();
     expect((await register(username, 'x')).status).toBe(201);

@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod';
+import { isSubstrateVisibleTo } from '../domain/Substrate';
 import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
 import { NotFoundError, ForbiddenError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
@@ -83,7 +84,7 @@ export class GetAllSubstratesUseCase {
   async execute(userId: number | null): Promise<SubstrateData[]> {
     const [publicSubstrates, ownSubstrates] = await Promise.all([
       this.repo.findAllPublic(),
-      userId ? this.repo.findAllByUser(userId) : Promise.resolve([]),
+      userId !== null ? this.repo.findAllByUser(userId) : Promise.resolve([]),
     ]);
 
     // Public substrates owned by the caller would appear twice — dedupe.
@@ -94,9 +95,11 @@ export class GetAllSubstratesUseCase {
 export class GetSubstrateUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(id: number): Promise<SubstrateData> {
+  async execute(id: number, userId: number | null): Promise<SubstrateData> {
     const substrate = await this.repo.findById(id);
-    if (!substrate) throw new NotFoundError('Substrate');
+    if (!substrate || !isSubstrateVisibleTo(substrate, userId)) {
+      throw new NotFoundError('Substrate');
+    }
     return substrate;
   }
 }

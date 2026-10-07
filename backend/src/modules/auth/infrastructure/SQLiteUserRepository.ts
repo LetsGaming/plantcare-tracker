@@ -12,6 +12,9 @@ interface UserRow {
   role: string;
 }
 
+/** The shared guest account is never edited or removed through the API. */
+const NOT_GUEST = `role_id <> COALESCE((SELECT id FROM roles WHERE name = 'guest' COLLATE NOCASE), -1)`;
+
 export class SQLiteUserRepository implements UserRepository {
   async findByUsername(username: string): Promise<UserData | null> {
     const rows = query<UserRow>(
@@ -67,12 +70,12 @@ export class SQLiteUserRepository implements UserRepository {
 
     const setClause = keys.map((k) => `${k} = ?`).join(', ');
     const values = [...keys.map((k) => fields[k] as string | number | boolean | null), userId];
-    const result = execute(`UPDATE users SET ${setClause} WHERE id = ?`, values);
+    const result = execute(`UPDATE users SET ${setClause} WHERE id = ? AND ${NOT_GUEST}`, values);
     return result.affectedRows > 0;
   }
 
   async delete(userId: number): Promise<boolean> {
-    const result = execute('DELETE FROM users WHERE id = ?', [userId]);
+    const result = execute(`DELETE FROM users WHERE id = ? AND ${NOT_GUEST}`, [userId]);
     return result.affectedRows > 0;
   }
 }

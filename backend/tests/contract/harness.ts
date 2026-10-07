@@ -179,8 +179,7 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
   const hash = await bcrypt.hash('contract-password', 4);
 
   const session: ContractApp['session'] = (user) => {
-    const { accessToken, refreshToken } = authModule.generateTokens(user);
-    authModule.sessionStore.save(user.id, refreshToken);
+    const { accessToken, refreshToken } = authModule.issueSession(user);
     return {
       accessToken,
       refreshToken,

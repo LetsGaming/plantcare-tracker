@@ -16,7 +16,9 @@ import {
   DeleteImageUseCase,
   DeleteEntityImagesUseCase,
 } from '../application/ImageUseCases';
+import type { ImageAccessPolicy } from '../application/ImageAccessPolicy';
 import type {
+  ImageActor,
   ImageRepository,
   ImageStorage,
   ImageRecord,
@@ -49,6 +51,8 @@ export interface ImageResponse {
 
 const entityTypeParam = (req: Request): EntityType => req.params.entityType as EntityType; // validated by validateEntityType middleware
 
+const actorOf = (req: Request): ImageActor => ({ id: req.user!.id, role: req.user!.role });
+
 const publicBaseUrl = (req: Request): string => `${req.protocol}://${req.get('host')}`;
 
 const uploadedFile = (req: Request): UploadedFile => ({
@@ -76,13 +80,14 @@ export interface ImageController {
 export const createImageController = (
   repo: ImageRepository,
   storage: ImageStorage,
+  access: ImageAccessPolicy,
 ): ImageController => {
-  const upload = new UploadImageUseCase(repo, storage);
-  const list = new ListEntityImagesUseCase(repo);
-  const serve = new ServeEntityImageUseCase(repo, storage);
-  const update = new UpdateImageUseCase(repo, storage);
-  const remove = new DeleteImageUseCase(repo, storage);
-  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage);
+  const upload = new UploadImageUseCase(repo, storage, access);
+  const list = new ListEntityImagesUseCase(repo, access);
+  const serve = new ServeEntityImageUseCase(repo, storage, access);
+  const update = new UpdateImageUseCase(repo, storage, access);
+  const remove = new DeleteImageUseCase(repo, storage, access);
+  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access);
 
   return {
     uploadImage: asyncHandler(async (req: Request, res: Response) => {
@@ -90,6 +95,7 @@ export const createImageController = (
       const entityId = Number(req.params.entityId);
 
       const { url, capturedAt } = await upload.execute({
+        actor: actorOf(req),
         entityType,
         entityId,
         file: uploadedFile(req),
@@ -103,7 +109,11 @@ export const createImageController = (
     }),
 
     listEntityImages: asyncHandler(async (req: Request, res: Response) => {
-      const images = await list.execute(entityTypeParam(req), Number(req.query.entityId));
+      const images = await list.execute(
+        entityTypeParam(req),
+        Number(req.query.entityId),
+        actorOf(req),
+      );
       const body: ImageListResponse = { data: images };
       res.json(body);
     }),
@@ -115,6 +125,7 @@ export const createImageController = (
       const buffer = await serve.execute(
         entityTypeParam(req),
         Number(req.params.entityId),
+        actorOf(req),
         width !== undefined && !isNaN(width) && width > 0 ? width : undefined,
       );
 
@@ -125,6 +136,7 @@ export const createImageController = (
 
     updateImage: asyncHandler(async (req: Request, res: Response) => {
       const record = await update.execute({
+        actor: actorOf(req),
         imageId: Number(req.params.id),
         file: req.file ? uploadedFile(req) : undefined,
         date: (req.body as { date?: string | number }).date,
@@ -135,12 +147,16 @@ export const createImageController = (
     }),
 
     deleteImage: asyncHandler(async (req: Request, res: Response) => {
-      await remove.execute(Number(req.params.id));
+      await remove.execute(Number(req.params.id), actorOf(req));
       res.status(HTTP_STATUS.NO_CONTENT).end();
     }),
 
     deleteEntityImages: asyncHandler(async (req: Request, res: Response) => {
-      await removeForEntity.execute(entityTypeParam(req), Number(req.params.entityId));
+      await removeForEntity.execute(
+        entityTypeParam(req),
+        Number(req.params.entityId),
+        actorOf(req),
+      );
       res.status(HTTP_STATUS.NO_CONTENT).end();
     }),
   };

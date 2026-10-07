@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import type { JwtPayload } from '../../src/core/middleware/auth';
+import type { AuthUser } from '../../src/core/middleware/auth';
 
 // ── SQLite db-module mock factory ─────────────────────────────────────────────
 export const createDbMock = () => {
@@ -91,9 +91,9 @@ export const createMockResponse = (): Response & {
 export const createMockNext = (): NextFunction => vi.fn() as unknown as NextFunction;
 
 // ── Auth fixtures ─────────────────────────────────────────────────────────────
-export const adminUser: JwtPayload = { id: 1, username: 'admin', role: 'admin' };
-export const regularUser: JwtPayload = { id: 2, username: 'testuser', role: 'user' };
-export const guestUser: JwtPayload = { id: 3, username: 'guest', role: 'guest' };
+export const adminUser: AuthUser = { id: 1, username: 'admin', role: 'admin' };
+export const regularUser: AuthUser = { id: 2, username: 'testuser', role: 'user' };
+export const guestUser: AuthUser = { id: 3, username: 'guest', role: 'guest' };
 
 // ── Row fixtures (plain objects) ──────────────────────────────────────────────
 export const makePlantRow = (o: Record<string, unknown> = {}): Record<string, unknown> => ({

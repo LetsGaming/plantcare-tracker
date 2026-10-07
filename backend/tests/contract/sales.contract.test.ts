@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { SalesSource } from '../../src/modules/sales/domain/SalesSource';
 import type { RawSaleItem } from '../../src/modules/sales/domain/Sale';
 import { API, createContractApp, type ContractApp } from './harness';
-import { parseSse } from './support';
+import { parseSse, ticketFor } from './support';
 
 const fakeSource = (
   key: string,
@@ -29,6 +29,13 @@ const item = (n: number, extra: Partial<RawSaleItem> = {}): RawSaleItem => ({
   newPrice: 10,
   ...extra,
 });
+
+/** Opens the stream the way the client does: ticket first, then GET with ?ticket=. */
+const openStream = async (role: 'user' | 'guest' | 'admin' = 'user') => {
+  const session = await app.signIn(role);
+  const ticket = await ticketFor(app, session.auth);
+  return app.client.request({ method: 'get', url: `${API}/sales?ticket=${ticket}` });
+};
 
 const salesIn = (text: string) =>
   parseSse(text)
@@ -73,7 +80,7 @@ afterAll(() => app.close());
 
 describe('GET /sales (SSE)', () => {
   it('streams deduplicated sale batches followed by a done event with the total', async () => {
-    const res = await app.client.request({ method: 'get', url: `${API}/sales` });
+    const res = await openStream();
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toBe('text/event-stream');
     expect(res.headers['cache-control']).toBe('no-cache');
@@ -93,7 +100,7 @@ describe('GET /sales (SSE)', () => {
   });
 
   it('shapes each sale with a stable id and seller', async () => {
-    const res = await app.client.request({ method: 'get', url: `${API}/sales` });
+    const res = await openStream();
     const first = salesIn(res.text).find((s) => s.sale_name === 'Plant 2')!;
     expect(first).toEqual({
       sale_id: expect.stringMatching(/^[0-9a-f]+$/),
@@ -105,12 +112,12 @@ describe('GET /sales (SSE)', () => {
       sale_new_price: 10,
       sale_scraped_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     });
-    const again = await app.client.request({ method: 'get', url: `${API}/sales` });
+    const again = await openStream();
     expect(salesIn(again.text).map((s) => s.sale_id)).toContain(first.sale_id);
   });
 
   it('keeps streaming when one source fails', async () => {
-    const res = await app.client.request({ method: 'get', url: `${API}/sales` });
+    const res = await openStream();
     const frames = parseSse(res.text);
     expect(frames.some((f) => f.event === 'error')).toBe(false);
     expect(frames.at(-1)!.event).toBe('done');
@@ -198,10 +205,37 @@ describe('POST /sales/health/:key/check', () => {
   });
 });
 
-describe('known defects', () => {
-  it('streams to anonymous callers without a ticket (SEC-04)', async () => {
+describe('ticket authentication', () => {
+  it('answers 401 without a ticket', async () => {
     const res = await app.client.request({ method: 'get', url: `${API}/sales` });
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toBe('No authentication ticket provided');
+  });
+
+  it('answers 401 for an unknown ticket', async () => {
+    const res = await app.client.request({ method: 'get', url: `${API}/sales?ticket=nope` });
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toBe('Invalid or expired ticket');
+  });
+
+  it('burns the ticket on first use', async () => {
+    const session = await app.signIn('user');
+    const ticket = await ticketFor(app, session.auth);
+    const url = `${API}/sales?ticket=${ticket}`;
+    expect((await app.client.request({ method: 'get', url })).status).toBe(200);
+    expect((await app.client.request({ method: 'get', url })).status).toBe(401);
+  });
+
+  it('lets guests stream with their ticket', async () => {
+    const res = await openStream('guest');
     expect(res.status).toBe(200);
     expect(parseSse(res.text).at(-1)!.event).toBe('done');
+  });
+
+  it('lets the seeded guest with user id 0 stream', async () => {
+    const guest = app.session({ id: 0, username: 'guest', role: 'guest' });
+    const ticket = await ticketFor(app, guest.auth);
+    const res = await app.client.request({ method: 'get', url: `${API}/sales?ticket=${ticket}` });
+    expect(res.status).toBe(200);
   });
 });

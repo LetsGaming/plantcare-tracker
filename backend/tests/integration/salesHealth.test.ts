@@ -33,7 +33,7 @@ import {
   globalErrorHandler,
   notFoundHandler,
 } from '../../src/core/middleware';
-import { generateTokens, sessionStore } from '../../src/core/middleware/auth';
+import { issueSession } from '../../src/core/middleware/auth';
 import { createSalesRouter } from '../../src/modules/sales/presentation/salesRoutes';
 
 const buildApp = (): Application => {
@@ -47,8 +47,7 @@ const buildApp = (): Application => {
 };
 
 const authHeader = (role: string, id: number) => {
-  const { accessToken, refreshToken } = generateTokens({ id, username: `${role}-user`, role });
-  sessionStore.save(id, refreshToken);
+  const { accessToken } = issueSession({ id, username: `${role}-user`, role });
   return `Bearer ${accessToken}`;
 };
 

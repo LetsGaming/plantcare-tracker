@@ -22,7 +22,7 @@ import {
   NotFoundError,
   ConflictError,
 } from '../../../src/core/errors';
-import { sessionStore } from '../../../src/core/middleware/auth';
+import { issueSession, sessionStore, verifyRefreshToken } from '../../../src/core/middleware/auth';
 import { makeUserRow } from '../../helpers/mockFactory';
 
 const makeMockRepo = (): UserRepository => ({
@@ -114,7 +114,7 @@ describe('LoginUseCase', () => {
     ).rejects.toThrow(UnauthorizedError);
   });
 
-  it('saves refresh token to session store', async () => {
+  it('starts a session for the refresh token', async () => {
     const hash = await bcrypt.hash('pass', 10);
     const repo = makeMockRepo();
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -124,7 +124,7 @@ describe('LoginUseCase', () => {
       username: 'alice',
       password: 'pass',
     });
-    expect(sessionStore.findUser(refreshToken)).toBe(99);
+    expect(sessionStore.has(99, verifyRefreshToken(refreshToken)!.sid)).toBe(true);
     sessionStore.deleteAll(99);
   });
 });
@@ -151,10 +151,15 @@ describe('GuestLoginUseCase', () => {
 // ── LogoutUseCase ─────────────────────────────────────────────────────────────
 
 describe('LogoutUseCase', () => {
-  it('removes refresh token from session store', () => {
-    sessionStore.save(50, 'logout-token');
-    new LogoutUseCase().execute('logout-token');
-    expect(sessionStore.findUser('logout-token')).toBeNull();
+  it('ends the session of the refresh token', () => {
+    const { refreshToken } = issueSession({ id: 50, username: 'u', role: 'user' });
+    const { sid } = verifyRefreshToken(refreshToken)!;
+    new LogoutUseCase().execute(refreshToken);
+    expect(sessionStore.has(50, sid)).toBe(false);
+  });
+
+  it('ignores a token that is not a refresh token', () => {
+    expect(() => new LogoutUseCase().execute('not-a-token')).not.toThrow();
   });
 
   it('does nothing when no token provided', () => {
@@ -216,10 +221,10 @@ describe('UpdateProfileUseCase', () => {
   });
 
   it('invalidates all sessions after update', async () => {
-    sessionStore.save(1, 'old-token');
+    sessionStore.create(1);
     const repo = makeMockRepo();
     await new UpdateProfileUseCase(repo).execute(1, { username: 'newname' });
-    expect(sessionStore.get(1)).toHaveLength(0);
+    expect(sessionStore.count(1)).toBe(0);
   });
 });
 
@@ -227,11 +232,11 @@ describe('UpdateProfileUseCase', () => {
 
 describe('DeleteProfileUseCase', () => {
   it('deletes user and clears sessions', async () => {
-    sessionStore.save(77, 'a-token');
+    sessionStore.create(77);
     const repo = makeMockRepo();
     await new DeleteProfileUseCase(repo).execute(77);
     expect(repo.delete).toHaveBeenCalledWith(77);
-    expect(sessionStore.get(77)).toHaveLength(0);
+    expect(sessionStore.count(77)).toBe(0);
   });
 
   it('throws NotFoundError when delete returns false', async () => {

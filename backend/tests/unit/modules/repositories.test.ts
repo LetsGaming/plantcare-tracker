@@ -191,7 +191,7 @@ describe('SQLiteUserRepository', () => {
     });
     const sql = mockExecute.mock.calls[0][0] as string;
     expect(sql).not.toContain('malicious');
-    expect(sql).not.toContain('role_id');
+    expect(sql).not.toContain('role_id = ?');
     expect(sql).toContain('username');
   });
 

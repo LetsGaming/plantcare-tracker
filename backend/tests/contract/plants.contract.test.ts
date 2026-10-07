@@ -150,6 +150,50 @@ describe('GET /plants', () => {
   });
 });
 
+describe('GET /plants/:id visibility', () => {
+  it('hides a private plant from anonymous callers and from other users with a 404', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: false });
+    const anon = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+    });
+    expect(anon.status).toBe(404);
+    expect(anon.body.error.message).toBe('Plant not found');
+    const other = await app.signIn('user');
+    const res = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: other.auth,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('shows a private plant to its owner', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: false });
+    const res = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.is_public).toBe(false);
+  });
+
+  it('shows a public plant to other users', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: true });
+    const other = await app.signIn('user');
+    const res = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: other.auth,
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
 describe('GET /plants/:id', () => {
   it('returns a public plant to anonymous callers', async () => {
     const { owner, substrate } = await setup();
@@ -265,14 +309,6 @@ describe('DELETE /plants/:id', () => {
 });
 
 describe('known defects', () => {
-  it('returns a private plant to an anonymous caller by id (SEC-02)', async () => {
-    const { owner, substrate } = await setup();
-    const plant = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: false });
-    const res = await app.client.request({ method: 'get', url: `${API}/plants/${plant.plant_id}` });
-    expect(res.status).toBe(200);
-    expect(res.body.data.is_public).toBe(false);
-  });
-
   it('answers a plant update with an unknown substrate with 500 instead of 4xx (BUG-03)', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);

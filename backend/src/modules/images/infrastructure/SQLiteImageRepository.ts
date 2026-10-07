@@ -6,7 +6,13 @@
  */
 
 import { query, execute, transaction } from '../../../core/database/db';
-import type { ImageRepository, ImageRecord, EntityType, UpdateImageDTO } from '../domain/Image';
+import type {
+  ImageRepository,
+  ImageRecord,
+  StoredImage,
+  EntityType,
+  UpdateImageDTO,
+} from '../domain/Image';
 
 type SqlParam = string | number | boolean | null;
 
@@ -15,6 +21,10 @@ interface ImageRow {
   url: string;
   date: number;
   entityType: EntityType;
+}
+
+interface StoredImageRow extends ImageRow {
+  entityId: number;
 }
 
 export class SQLiteImageRepository implements ImageRepository {
@@ -28,9 +38,10 @@ export class SQLiteImageRepository implements ImageRepository {
     );
   }
 
-  async findById(imageId: number): Promise<ImageRecord | null> {
-    const rows = query<ImageRow>(
-      `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType"
+  async findById(imageId: number): Promise<StoredImage | null> {
+    const rows = query<StoredImageRow>(
+      `SELECT id, image_url AS url, upload_date AS date, entity_type AS "entityType",
+              entity_id AS "entityId"
        FROM images
        WHERE id = ?`,
       [imageId],

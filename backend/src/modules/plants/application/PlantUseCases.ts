@@ -51,7 +51,7 @@ export class GetAllPlantsUseCase {
   async execute(userId: number | null): Promise<Plant[]> {
     const [publicPlants, privatePlants] = await Promise.all([
       this.repo.findAllPublic(),
-      userId ? this.repo.findAllByUser(userId) : Promise.resolve([]),
+      userId !== null ? this.repo.findAllByUser(userId) : Promise.resolve([]),
     ]);
 
     // Merge and deduplicate (public plants owned by the user would appear twice)
@@ -67,9 +67,10 @@ export class GetAllPlantsUseCase {
 export class GetPlantUseCase {
   constructor(private readonly repo: PlantRepository) {}
 
-  async execute(id: number): Promise<Plant> {
+  async execute(id: number, userId: number | null): Promise<Plant> {
     const plant = await this.repo.findById(id);
-    if (!plant) throw new NotFoundError('Plant');
+    // A private plant answers exactly like a missing one, so ids cannot be probed.
+    if (!plant || !plant.isVisibleTo(userId)) throw new NotFoundError('Plant');
     return plant;
   }
 }

@@ -217,6 +217,40 @@ describe('component composition', () => {
   });
 });
 
+describe('GET /substrates/:id visibility', () => {
+  it("answers 404 for another user's private substrate", async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth, { isPublic: false });
+    const intruder = await app.signIn('user');
+    const res = await app.client.request({
+      method: 'get',
+      url: `${API}/substrates/${substrate.substrate_id}`,
+      headers: intruder.auth,
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Substrate not found');
+  });
+
+  it('shows a private substrate to its owner and a public one to everyone', async () => {
+    const owner = await app.signIn('user');
+    const priv = await createSubstrate(app, owner.auth, { isPublic: false });
+    const pub = await createSubstrate(app, owner.auth, { isPublic: true });
+    const other = await app.signIn('user');
+    const own = await app.client.request({
+      method: 'get',
+      url: `${API}/substrates/${priv.substrate_id}`,
+      headers: owner.auth,
+    });
+    const shared = await app.client.request({
+      method: 'get',
+      url: `${API}/substrates/${pub.substrate_id}`,
+      headers: other.auth,
+    });
+    expect(own.status).toBe(200);
+    expect(shared.status).toBe(200);
+  });
+});
+
 describe('PATCH /substrates/:id', () => {
   it('updates name and visibility and removes components', async () => {
     const owner = await app.signIn('user');
@@ -303,19 +337,6 @@ describe('DELETE /substrates/:id', () => {
 });
 
 describe('known defects', () => {
-  it("returns another user's private substrate by id (SEC-02)", async () => {
-    const owner = await app.signIn('user');
-    const substrate = await createSubstrate(app, owner.auth, { isPublic: false });
-    const intruder = await app.signIn('user');
-    const res = await app.client.request({
-      method: 'get',
-      url: `${API}/substrates/${substrate.substrate_id}`,
-      headers: intruder.auth,
-    });
-    expect(res.status).toBe(200);
-    expect(res.body.data.is_public).toBe(false);
-  });
-
   it('answers a duplicate component with 500 instead of 409 (BUG-03)', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
