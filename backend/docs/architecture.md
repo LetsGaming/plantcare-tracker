@@ -89,7 +89,7 @@ Create and update use cases return the **full, freshly-read resource** (create �
 
 Single source of truth for values that must agree across files:
 
-- **`constants.ts`** — `HTTP_STATUS` (success codes used by controllers), `AUTH` (bcrypt cost, session limits, cookie names/lifetimes, SSE ticket TTL), `AUTH_RATE_LIMIT`, `SSE` (heartbeat interval, chunk size, event names)
+- **`constants.ts`**: `HTTP_STATUS` (success codes used by controllers), `AUTH` (bcrypt cost, session limits, refresh cookie name/lifetimes, SSE ticket TTL), `AUTH_RATE_LIMIT`, `USER_RATE_LIMIT`, `SSE` (heartbeat interval, chunk size, event names)
 - **`apiVersion.ts`** — `getApiVersionPath()` / `getApiBasePath()`: resolves `/api/vX` from `API_VERSION_PATH` or package.json (used by `server.ts` and the auth module's cookie scoping)
 - **`uploads.ts`** — `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`: the static mount in `server.ts` and the URL builder in the images module resolve from the same place
 
@@ -115,7 +115,7 @@ AppError (base)
 
 ### `core/middleware/`
 
-- **`auth.ts`** — JWT verification, session store, ticket store, `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `checkGuestPermission`, `makeAuthenticateSSE({ loadUserFromDb })`
+- **`auth.ts`**: JWT verification, session store, ticket store, `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `guestReadOnly`, `makeAuthenticateSSE({ loadUserFromDb })`
 - **`asyncHandler.ts`** — re-export of `express-async-handler`; wraps every async controller so rejections reach the global error handler
 - **`errorHandler.ts`** — `globalErrorHandler` (maps `AppError` to the JSON error envelope) + `notFoundHandler`
 - **`requestId.ts`** — assigns UUID per request, stores in `AsyncLocalStorage`

@@ -2,10 +2,12 @@
 
 ## Overview
 
-Authentication is JWT-based with an in-memory session store. Two token types are used:
+Authentication is JWT-based with an in-memory session store. Every login creates a session with a random id (`sid`). Two token types carry it:
 
-- **Access token** — short-lived (15 min), sent in `Authorization` header or `accessToken` cookie
-- **Refresh token** — long-lived (7 days), stored in an `httpOnly` cookie and validated against the session store
+- **Access token**: short-lived (15 min), sent in the `Authorization` header only
+- **Refresh token**: long-lived (7 days), stored in an `httpOnly` cookie
+
+Both tokens embed the `sid`. The access token is only accepted while its session is alive, so logout, password changes and eviction end it immediately. Tokens are signed and verified with HS256 only.
 
 ## Login Flow
 
@@ -15,33 +17,30 @@ Client                          Server
   │  POST /auth/login             │
   │  { username, password }  ───► │  1. Validate credentials (bcrypt)
   │                               │  2. Generate access + refresh tokens
-  │                               │  3. Save refresh token to session store
+  │                               │  3. Create a session (sid) in the session store
   │  { accessToken }         ◄─── │  4. Set refreshToken cookie (httpOnly)
   │                               │
   │  GET /plants                  │
   │  Authorization: Bearer ...──► │  5. Verify JWT signature
-  │                               │  6. Check session store (token still valid?)
+  │                               │  6. Check the session is alive (401 otherwise)
   │  { data: [...] }         ◄─── │
   │                               │
   │  POST /auth/refresh-token     │
-  │  (cookie: refreshToken)  ───► │  7. Find user in session store
-  │                               │  8. Verify refresh token signature
-  │  { accessToken }         ◄─── │  9. Issue new access token
+  │  (cookie: refreshToken)  ───► │  7. Verify refresh token signature
+  │                               │  8. Check its session is alive (401 otherwise)
+  │  { accessToken }         ◄─── │  9. Issue new access token, same session
   │                               │
   │  POST /auth/logout            │
-  │  (cookie: refreshToken)  ───► │ 10. Remove from session store
+  │  (cookie: refreshToken)  ───► │ 10. End that session only
   │                               │     Clear cookie
 ```
 
 ## Token Delivery
 
-Access tokens can be sent two ways — the middleware checks both:
+Access tokens are sent in the `Authorization` header. A token in an `accessToken` cookie is ignored.
 
 ```
 Authorization: Bearer <accessToken>
-```
-```
-Cookie: accessToken=<accessToken>
 ```
 
 The refresh token is always delivered via cookie:
@@ -66,11 +65,11 @@ POST /auth/login/guest
   → Sets refreshToken cookie (same /auth path scope as a regular login, 1h expiry)
 ```
 
-The `checkGuestPermission` middleware blocks non-GET methods for the `guest` role.
+All guests share one account but each guest login gets its own session, so concurrent guests do not end each other's sessions (up to `AUTH.MAX_GUEST_SESSIONS`). The `guestReadOnly` middleware is mounted once before the routers and answers `403` to any non-GET, non-HEAD, non-OPTIONS request from a guest with a live session, except the session endpoints. The shared guest account cannot be edited or deleted through the profile or admin routes.
 
 ## SSE Ticket Authentication
 
-`EventSource` does not support custom headers, so SSE endpoints (`/sales`, `/more-info`) use one-time tickets:
+`EventSource` does not support custom headers, so both SSE endpoints (`/sales`, `/more-info`) use one-time tickets. Guests may request tickets:
 
 ```
 1. POST /auth/ticket           (requires valid JWT)
@@ -86,7 +85,7 @@ Tickets:
 - Are **single-use** (burned on first use, even if invalid)
 - Are generated with `crypto.randomBytes(32)`
 
-SSE routes use `makeAuthenticateSSE({ loadUserFromDb })` — see the middleware reference below. Ticket TTL and the session limit live in `core/config` (`AUTH.SSE_TICKET_TTL_MS`, `AUTH.MAX_SESSIONS_PER_USER`).
+A bad, used or expired ticket answers `401`. Ticket creation and the AI stream are rate limited per user (`USER_RATE_LIMIT`). SSE routes use `makeAuthenticateSSE({ loadUserFromDb })`. See the middleware reference below. Ticket TTL and the session limit live in `core/config` (`AUTH.SSE_TICKET_TTL_MS`, `AUTH.MAX_SESSIONS_PER_USER`).
 
 ## Roles
 
@@ -96,17 +95,17 @@ SSE routes use `makeAuthenticateSSE({ loadUserFromDb })` — see the middleware 
 | User | `user` | CRUD on own plants, substrates, watering records |
 | Guest | `guest` | GET only |
 
-The `isAdmin` middleware checks `req.user.role === 'admin'` (case-insensitive). The guest restriction is enforced by `checkGuestPermission` on **every mutating route** across all modules — plants, watering, substrates, and images (the components catalogue is admin-only anyway).
+The `isAdmin` middleware checks `req.user.role === 'admin'` (case-insensitive). The guest restriction is enforced once by `guestReadOnly`, before any router, so new mutating routes are covered by default.
 
 ## Session Store
 
-Sessions are stored in a `Map<userId, refreshToken[]>` in memory.
+Sessions are stored in a `Map<userId, Session[]>` in memory, where a session is `{ sid, expiresAt }`.
 
-- **Max sessions per user:** 3. When exceeded, the oldest token is evicted (FIFO).
+- **Max sessions per user:** 3. When exceeded, the oldest session is evicted (FIFO). The guest account uses a larger limit and a 1 h lifetime.
 - **No persistence:** sessions are lost on server restart.
-- **Invalidation:** `POST /logout` removes the specific token. `UpdateProfileUseCase` removes **all** sessions for the user after a password change.
+- **Invalidation:** `POST /logout` ends the session named by the refresh token, including its access token. `UpdateProfileUseCase` removes **all** sessions for the user after a password change.
 
-> ⚠️ **Production recommendation:** Replace the in-memory store with Redis. The `sessionStore` interface (save, get, findUser, invalidate, deleteAll) makes this straightforward — update only `core/middleware/auth.ts`.
+> ⚠️ **Production recommendation:** Replace the in-memory store with Redis. The `sessionStore` interface (create, has, count, end, deleteAll) makes this straightforward; update only `core/middleware/auth.ts`.
 
 ## Middleware Reference
 
@@ -114,7 +113,7 @@ All middleware lives in `src/core/middleware/auth.ts`.
 
 ### `authenticateToken`
 
-Validates the access token (header or cookie) and checks the session store. Sets `req.user` on success.
+Validates the bearer access token and checks that its session is alive. Answers `401` otherwise. Sets `req.user` on success.
 
 ```typescript
 router.get('/protected', authenticateToken, handler);
@@ -136,12 +135,12 @@ Requires `req.user.role === 'admin'`. Must be placed after `authenticateToken`.
 router.post('/admin', authenticateToken, isAdmin, handler);
 ```
 
-### `checkGuestPermission`
+### `guestReadOnly`
 
-Blocks non-GET requests from the `guest` role.
+Global middleware. Blocks unsafe methods from a live `guest` session with `403`. Mounted in `createApp` before the routers.
 
 ```typescript
-router.post('/', authenticateToken, checkGuestPermission, handler);
+app.use(apiBase, guestReadOnly);
 ```
 
 ### `makeAuthenticateSSE(options)`
@@ -149,6 +148,7 @@ router.post('/', authenticateToken, checkGuestPermission, handler);
 The single SSE authenticator (the former standalone `authenticateSSE` variant is merged into it). Validates the one-time ticket and burns it, then populates `req.user`:
 
 - `makeAuthenticateSSE()` — no DB lookup; `req.user` carries only `{ id, username: '', role: 'user' }`. Used by sales.
+  User id `0` is a valid identity.
 - `makeAuthenticateSSE({ loadUserFromDb: true })` — additionally loads username and role from the database. Used by moreInfo.
 
 ```typescript

@@ -86,8 +86,8 @@ Central source of truth for test doubles. Exports `createMockRequest`, `createMo
 - `generateTokens` — payload, relative expiry
 - `sessionStore` — save/retrieve, FIFO eviction at max 3, invalidate, deleteAll
 - `ticketStore` — single-use, 60s expiry (using `vi.useFakeTimers`)
-- `authenticateToken` — header + cookie paths, missing token → 401, missing session → 403
-- `checkGuestPermission` — blocks non-GET for guests, passes for users
+- `authenticateToken` — header only, missing token or ended session → 401
+- `guestReadOnly` — blocks unsafe methods for live guest sessions, passes everyone else
 - `isAdmin` — blocks non-admins
 
 **`unit/modules/repositories.test.ts`**  
@@ -107,7 +107,7 @@ Full HTTP cycle against a real Express app with the `core/database/db` module mo
 - Components: admin guard (403 for user, 201 for admin)
 - Auth session lifecycle: refresh cookie scoped to `/auth` (login and guest
   login), logout invalidates the session server-side (the same refresh token
-  answers 403 afterwards), logout clears current + legacy cookie paths,
+  answers 401 afterwards), logout clears current + legacy cookie paths,
   refresh without a cookie answers 401
 - Errors: 404 for unknown routes, JSON error shape, `X-Request-Id` header present
 

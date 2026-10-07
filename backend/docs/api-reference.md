@@ -42,7 +42,9 @@ See [Authentication](./authentication.md) for the full token flow.
 
 ## Roles
 
-Three roles exist: `admin`, `user`, `guest`. **Guests are read-only**: every mutating route (POST / PATCH / PUT / DELETE) across all modules answers `403` for guest tokens. Admin-only routes are marked in the tables below.
+Three roles exist: `admin`, `user`, `guest`. **Guests are read-only**: every mutating route (POST / PATCH / PUT / DELETE) across all modules answers `403` for guest tokens, enforced once before routing. Guests may still call the session endpoints (`/auth/login/guest`, `/auth/refresh-token`, `/auth/ticket`, `/auth/logout`). Admin-only routes are marked in the tables below.
+
+**Status codes.** `401` always means the credential is missing, invalid, expired or its session has ended (clients refresh or sign in again). `403` always means the caller is authenticated but not allowed. `404` is used instead of `403` where a `403` would reveal that a private resource exists. `429` answers an exceeded rate limit.
 
 ---
 
@@ -98,7 +100,7 @@ No request body required.
 
 ### POST `/refresh-token`
 
-Requires the `refreshToken` cookie (sent automatically by the browser).
+Requires the `refreshToken` cookie (sent automatically by the browser). Answers `401` when the cookie is missing, invalid, expired or its session has ended. The new access token belongs to the same session.
 
 ```json
 // Response 200
@@ -107,7 +109,7 @@ Requires the `refreshToken` cookie (sent automatically by the browser).
 
 ### POST `/ticket`
 
-Issues a one-time ticket (60 s validity) for authenticating SSE streams; see [Authentication](./authentication.md).
+Issues a one-time ticket (60 s validity) for authenticating SSE streams; see [Authentication](./authentication.md). Available to every role including guests. Rate limited per user (`429`).
 
 ```json
 // Response 200
@@ -287,14 +289,14 @@ Errors: `400` (invalid body or date, with `fields`), `401`, `403` (guest), `404`
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
 | GET | `/` | JWT | Public + own substrates merged, deduplicated |
-| GET | `/:id` | JWT | Single substrate |
+| GET | `/:id` | JWT | Single substrate (own or public) |
 | POST | `/` | JWT | Create substrate |
 | PATCH | `/:id` | JWT | Update name/visibility + remove components |
 | POST | `/:id/components` | JWT | Add components (insert only) |
 | PATCH | `/:id/components` | JWT | Upsert components (insert or replace) |
 | DELETE | `/:id` | JWT | Delete substrate (owner only) |
 
-Mutations require ownership (`403` for foreign substrates, `403` for guests). Every mutation responds with the full, freshly-read substrate including its components.
+`GET /:id` answers `404` for a private substrate the caller does not own. Mutations require ownership (`403` for foreign substrates, `403` for guests). Every mutation responds with the full, freshly-read substrate including its components.
 
 ### Substrate Object
 
@@ -393,7 +395,14 @@ The component catalogue is global, so all mutations are admin-only (`403` otherw
 | DELETE | `/:id` | JWT | Delete single image by image id |
 | DELETE | `/:entityType/:entityId` | JWT | Delete all images for an entity |
 
-`entityType` must be one of: `plant`, `substrate`, `component`. Mutations answer `403` for guests. Uploads with an unsupported MIME type or larger than **10 MB** answer `400`.
+`entityType` must be one of: `plant`, `substrate`, `component`. Every route checks the caller against the entity the image belongs to:
+
+| Entity | Read (list, serve) | Write (upload, update, delete) |
+|--------|--------------------|--------------------------------|
+| plant, substrate | owner, or anyone when public | owner only |
+| component | any signed-in user | admin only |
+
+A private entity the caller does not own, and an unknown entity, answer `404`. A write to a public entity owned by someone else answers `403`. Mutations answer `403` for guests. Uploads with an unsupported MIME type or larger than **10 MB** answer `400`.
 
 ### POST `/:entityType/:entityId`
 
@@ -414,7 +423,7 @@ Request: `multipart/form-data` with field `image` (JPEG or PNG).
 2. Filename anonymized (strips PII keywords like `iphone`, `admin`, `desktop`)
 3. Resized to max 1024px width (no upscaling)
 4. Converted to WebP at quality 70, near-lossless
-5. Saved to `NAS_PATH/<entityType>/<filename>.webp`
+5. Saved to `NAS_PATH/<entityType>/<filename>-<random hex>.webp`
 
 ### GET `/:entityType/:entityId`
 
@@ -458,6 +467,8 @@ When a new file is uploaded, the previous file is deleted from disk only after t
 GET /api/v2/sales?ticket=<one-time-ticket>
 Accept: text/event-stream
 ```
+
+A missing, unknown, used or expired ticket answers `401`.
 
 ### Events
 
@@ -526,9 +537,9 @@ GET /api/v2/more-info?ticket=<ticket>&plantName=Monstera+deliciosa&htmlFormattin
 |-----------|:--------:|---------|-------------|
 | `plantName` | ✓ | — | Plant name to look up (max. 100 characters) |
 | `htmlFormatting` | — | `false` | Return HTML instead of Markdown chunks |
-| `lang` | — | `en` | Response language (falls back to `Accept-Language` header) |
+| `lang` | no | `en` | Response language as a language tag such as `en` or `de-DE` (max. 35 characters). Falls back to the first valid `Accept-Language` entry; an invalid `lang` answers `400` |
 
-A missing or over-long `plantName` is rejected **before** the stream opens with a regular JSON `400` error envelope.
+A missing or over-long `plantName` or a malformed `lang` is rejected **before** the stream opens with a regular JSON `400` error envelope. The ticket is consumed either way. Streams are rate limited per user (`429`).
 
 ### Events
 
