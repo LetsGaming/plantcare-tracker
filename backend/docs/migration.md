@@ -32,11 +32,13 @@ V2 uses the **same schema** as V1. The only addition is 12 performance indexes.
 
 If upgrading from a V1 database:
 
+Import a MySQL dump of the V1 database into a fresh SQLite file:
+
 ```bash
-node scripts/migrate-sqlite.js
+pnpm run db:import -- path/to/dump.sql
 ```
 
-This is a non-destructive, backwards-compatible change.
+The target is `DB_PATH` (default `./data/plantcare.db`). The command refuses to run against a database that already contains users, builds the schema through the migrations, and lets the dump's roles, guest user and lookup rows replace the seeded ones. It needs the dev dependencies (`tsx`).
 
 ### Verify Index Application
 

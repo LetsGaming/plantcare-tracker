@@ -29,7 +29,7 @@ pnpm run test tests/unit/core
 
 ## Contract tests (HTTP level)
 
-`tests/contract/` drives the whole application through its public HTTP interface against a **real SQLite file** built from the shipped schema. Only the network-facing collaborators are replaced: sales sources, the OpenAI guide streamer and the link searchers are injected through `createApp({ sales, moreInfo })`. Nothing in the database layer is mocked, so these tests see real constraints, the real body parser, real Sharp processing and the real error pipeline.
+`tests/contract/` drives the whole application through its public HTTP interface against a **real SQLite file** built by the migrations. Only the network-facing collaborators are replaced: sales sources, the OpenAI guide streamer and the link searchers are injected through `createApp({ sales, moreInfo })`. Nothing in the database layer is mocked, so these tests see real constraints, the real body parser, real Sharp processing and the real error pipeline.
 
 ```
 tests/contract/
@@ -55,7 +55,7 @@ Rules for contract tests:
 ```
 tests/
 ├── helpers/
-│   └── mockFactory.ts          # Shared mocks and DB/HTTP fixtures
+│   └── mockFactory.ts          # User row factory for use case tests
 │
 ├── unit/
 │   ├── core/
@@ -71,45 +71,39 @@ tests/
 │       ├── moreInfo.test.ts    # parsePlantInfoQuery + StreamPlantInfo orchestration
 │       ├── auth.test.ts        # All 8 AuthUseCases (register, login, logout, …)
 │       ├── sales.test.ts       # Sale entity, scrapeHelpers, FetchSalesOverview
-│       └── repositories.test.ts # SQLite repos with the db module mocked
+│       └── speciesResolver.test.ts # Fuzzy species matching over an in-memory catalog
 │
 └── integration/
-    └── app.test.ts             # Full HTTP cycle: auth flow, CRUD, error shapes
+    ├── repositories.test.ts    # Every SQLite repository against an in-memory database
+    └── importMysqlDump.test.ts # Legacy dump import on a fixture dump
 ```
 
 ### What Each File Covers
 
 **`helpers/mockFactory.ts`**  
-Central source of truth for test doubles. Exports `createMockRequest`, `createMockResponse`, `createMockNext`, typed user fixtures (`adminUser`, `regularUser`, `guestUser`), and DB row builders (`makePlantRow`, `makeWateringRow`, etc.).
+Exports `makeUserRow`, the user row used by the auth use case tests.
 
 **`unit/core/auth.test.ts`**  
 - `generateTokens` — payload, relative expiry
-- `sessionStore` — save/retrieve, FIFO eviction at max 3, invalidate, deleteAll
+- `sessionStore`: create/has, FIFO eviction at max 3, end, deleteAll
 - `ticketStore` — single-use, 60s expiry (using `vi.useFakeTimers`)
 - `authenticateToken` — header only, missing token or ended session → 401
 - `guestReadOnly` — blocks unsafe methods for live guest sessions, passes everyone else
 - `isAdmin` — blocks non-admins
 
-**`unit/modules/repositories.test.ts`**  
-Tests SQL correctness and row-mapping logic without a real database:
-- Plants: JOIN row collapsing, multi-image dedup, `affectedRows` → boolean
-- Watering: `used_fertilizer` cast to boolean, `fertilizerTypeId: null` handled correctly
-- Substrates: component + image collapsing, `INSERT OR REPLACE` SQL, empty array early return
-- UserRepository: column whitelist — injecting `malicious` or `role_id` keys has no effect
-- ImageRepository: `delete()` hits only `images` table (CASCADE handles join tables)
+**`integration/repositories.test.ts`**  
+Runs every repository against a real in-memory SQLite database built by the migrations (`DB_PATH=:memory:`), so queries, constraints and the baseline migration are exercised together:
+- Migrations: baseline recorded once, seed rows present, re-running changes nothing
+- Plants: JOIN collapsing, close species reuse, ownership-scoped update and delete, Windows separators in image urls
+- Watering: ownership-checked insert, boolean mapping, clearing the fertilizer type
+- Substrates: component and image collapsing, rounding, transactional batch rollback, upsert, delete
+- Users: unique names ignoring case, column whitelist, guest account protected
+- Images: date ordering, update, per-entity delete; entity lookup; source health upsert
 
-**`integration/app.test.ts`**  
-Full HTTP cycle against a real Express app with the `core/database/db` module mocked:
-- Auth: register (201, 409), login (200, 401), wrong password
-- Plants: GET without auth (200), POST without auth (401), guest POST (403), valid POST (201), validation failure (400)
-- Watering: fertilizer types, create record
-- Substrates: public listing
-- Components: admin guard (403 for user, 201 for admin)
-- Auth session lifecycle: refresh cookie scoped to `/auth` (login and guest
-  login), logout invalidates the session server-side (the same refresh token
-  answers 401 afterwards), logout clears current + legacy cookie paths,
-  refresh without a cookie answers 401
-- Errors: 404 for unknown routes, JSON error shape, `X-Request-Id` header present
+**`integration/importMysqlDump.test.ts`**  
+Imports `tests/fixtures/mysql-dump.sql` (a dump whose roles and guest user collide with the seed rows) and checks the copied data, image mapping, case-folded species and the recorded baseline migration.
+
+The HTTP behavior formerly tested by a hand-wired Express app (auth flow, CRUD, error shapes, cookie scoping) is covered by the contract suite above.
 
 ## Coverage Thresholds
 
@@ -163,51 +157,36 @@ describe('MyUseCase', () => {
 
 ### 2. Repository Test
 
+Repositories are tested against a real in-memory database; there is nothing to mock:
+
 ```typescript
-// Repositories call the query/execute/transaction helpers from core/database/db;
-// mock that module before importing the repository (see repositories.test.ts).
-const mockQuery   = vi.fn().mockReturnValue([]);
-const mockExecute = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
+process.env.DB_PATH = ':memory:';
 
-vi.mock('../../../src/core/database/db', () => ({
-  query:   (...args: unknown[]) => mockQuery(...args),
-  execute: (...args: unknown[]) => mockExecute(...args),
-  transaction: vi.fn((fn: Function) => fn({ query: mockQuery, execute: mockExecute })),
-  getDb: vi.fn(),
-  closeDb: vi.fn(),
-}));
+import { initDatabase, closeDb } from '../../src/core/database/db';
 
-it('create returns insertId', async () => {
-  mockExecute.mockReturnValue({ affectedRows: 1, insertId: 42 });
+beforeAll(initDatabase);
+afterAll(closeDb);
+
+it('create returns the new id', async () => {
   const id = await new SQLiteMyRepository().create({ name: 'test' });
-  expect(id).toBe(42);
+  expect(await new SQLiteMyRepository().findById(id)).toMatchObject({ name: 'test' });
 });
 
 it('findById returns null when no rows', async () => {
-  mockQuery.mockReturnValue([]);
   expect(await new SQLiteMyRepository().findById(999)).toBeNull();
 });
 ```
 
-### 3. Integration Test for a New Route
+### 3. Contract Test for a New Route
 
-Add to `tests/integration/app.test.ts` (or create a new file and register the router in `buildTestApp`):
+Add a `*.contract.test.ts` file next to the others. It talks to the app only through `TestClient.request`:
 
 ```typescript
-describe('GET /api/v2/my-module', () => {
-  it('returns 200 with data', async () => {
-    mockQuery.mockReturnValue([{ id: 1, name: 'test' }]);
+const app = await createContractApp();
+const { auth } = await app.signIn('user');
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .get('/api/v2/my-module')
-      .set('Authorization', makeAuthHeader());
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
-    sessionStore.deleteAll(USER_ID);
-  });
-});
+const res = await app.client.request({ method: 'get', url: '/api/v2/my-module', headers: auth });
+expect(res.status).toBe(200);
 ```
 
 ## Vitest Configuration

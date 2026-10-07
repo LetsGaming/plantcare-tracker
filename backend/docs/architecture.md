@@ -55,7 +55,7 @@ Two modules have additional ports beyond the repository:
 
 ## Dependency Injection
 
-Dependencies are injected via constructors — plain factory functions and `new`, no DI container. Since the SQLite handle is a process-wide singleton (`core/database/db.ts`), each **router factory is its own composition root**:
+Dependencies are injected via constructors, using plain factory functions and `new` (no DI container). Since the database connection is a process-wide singleton (`core/database/db.ts`), each **router factory is its own composition root**:
 
 ```typescript
 // server.ts — mounts the routers, nothing else
@@ -160,7 +160,9 @@ interface CacheService {
 
 ### `core/database/`
 
-`db.ts` — the better-sqlite3 singleton plus thin `query` / `execute` / `transaction` helpers used by every repository. WAL mode, schema auto-applied on first run.
+- **`db.ts`**: the better-sqlite3 connection (WAL, foreign keys on) and a Kysely instance over it. Repositories use `getKysely()` for typed queries and transactions; `getSqlite()` is the raw handle for health checks and the synchronous source-health store. `initDatabase()` applies pending migrations and must finish before the server listens.
+- **`schema.ts`**: the `Database` interface (one type per table) that Kysely checks queries against. Keep it in step with the migrations.
+- **`migrations/`**: ordered migrations registered in `index.ts`. `0001_baseline` is idempotent, so it is simply recorded on databases created before migrations existed. Kysely keeps the history in the `kysely_migration` table. Add schema changes as new numbered files; never edit an applied one.
 
 ### `core/utils/`
 
@@ -205,7 +207,7 @@ The concurrency limiter prevents overloading Playwright by running at most 2 Chr
 
 ### Source health
 
-Each page 1 scrape reports a `ScrapeOutcome` to `core/scrapeHealth`, which stores one row per source in `scrape_source_health` (created idempotently on every boot by `ensureSchemaExtensions` in `core/database/db.ts`). The plant link searchers of the MoreInfo module report to the same table under `search:<shop>` keys. Admins read the rows through `GET /sales/health` (see the API reference). Reporting failures are logged and never break a scrape.
+Each page 1 scrape reports a `ScrapeOutcome` to `core/scrapeHealth`, which stores one row per source in `scrape_source_health` (created by the baseline migration). The plant link searchers of the MoreInfo module report to the same table under `search:<shop>` keys. Admins read the rows through `GET /sales/health` (see the API reference). Reporting failures are logged and never break a scrape.
 
 Strategies are always tried in configuration order. A source stays `degraded` while a fallback carries it and returns to `ok` on its own once the primary strategy works again.
 

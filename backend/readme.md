@@ -29,7 +29,7 @@ pnpm run typecheck
 ## 3. DB-Migration ausführen
 
 ```bash
-node scripts/migrate-sqlite.js
+pnpm run db:import -- path/to/dump.sql
 ```
 
 Die SQLite-Datenbank (inkl. Schema) wird beim ersten Start automatisch angelegt; das Skript wird nur für die Übernahme von Bestandsdaten benötigt.

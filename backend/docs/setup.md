@@ -58,10 +58,10 @@ ALLOWED_ORIGINS=https://your-frontend.com
 
 ```bash
 # Nothing to do — the SQLite file and schema are created automatically on first start.
-# To import existing data: node scripts/migrate-sqlite.js
+# To import existing data: pnpm run db:import -- path/to/dump.sql
 ```
 
-This creates all tables, inserts seed data (roles, guest user, fertilizer types, fineness levels), and applies all 12 performance indexes.
+The first start applies the migrations in `src/core/database/migrations/`: it creates all tables, inserts seed data (roles, guest user, fertilizer types, fineness levels), and applies all 12 performance indexes.
 
 See [Database](./database.md) for full schema reference.
 
