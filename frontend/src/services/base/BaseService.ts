@@ -1,6 +1,5 @@
 import storageService from "@/services/general/StorageService";
-import ToastService from "@/services/general/ToastService";
-import localizationService from "@/services/general/LocalizationService";
+import { handleRequest } from "@/utils/requestFeedback";
 import Utils from "@/utils/utils";
 import { isProxy, toRaw } from "vue";
 
@@ -163,20 +162,7 @@ export abstract class BaseService {
     resourceNameKey: string,
     actionKey = "error.fetch_failed",
   ): Promise<T> {
-    try {
-      return await request;
-    } catch (error: any) {
-      if (error?.name === "RefreshError" || error?.name === "RegisterError") throw error;
-      ToastService.showError({
-        key: actionKey,
-        vars: {
-          resource: localizationService.t(resourceNameKey),
-          details: error?.message || String(error),
-        },
-        fallback: `Operation failed: ${error}`,
-      });
-      throw error;
-    }
+    return handleRequest(request, resourceNameKey, actionKey);
   }
 
   private static async readList<T>(cacheKey: string): Promise<T[]> {

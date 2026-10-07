@@ -1,11 +1,11 @@
 /**
- * Characterization tests for UserService: token storage, local logout,
- * the refresh flow with its retry rules, and JWT-derived identity getters.
- * Pins current behavior, including the rough edges listed in the audit
- * (BUG-01 null bodies, BUG-05 retry on 403, UTF-8 usernames).
+ * Tests for the session store: token storage, local logout, the refresh flow
+ * with its retry rules and single-flight behavior, and the identity getters
+ * derived from the JWT.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
 import { fakeJwt, jsonResponse, memoryStore, resetStore } from "./helpers";
 
 vi.mock("@/services/general/StorageService", async () =>
@@ -15,31 +15,21 @@ vi.mock("@/services/general/ToastService", async () => (await import("./helpers"
 vi.mock("@/services/general/LocalizationService", async () =>
   (await import("./helpers")).localizationModule(),
 );
-
-const router = vi.hoisted(() => ({
-  currentRoute: { value: { name: "plant-overview" as string | undefined } },
-  replace: vi.fn(async () => undefined),
-}));
-vi.mock("@/router", () => ({ default: router }));
-
 vi.mock("@/utils/apiUtils", () => ({
-  default: { post: vi.fn(), patch: vi.fn(), delete: vi.fn(), get: vi.fn() },
+  default: { post: vi.fn(), patch: vi.fn(), delete: vi.fn(), get: vi.fn(), configureAuth: vi.fn() },
 }));
 
 import ApiUtils from "@/utils/apiUtils";
-import UserService from "@/services/UserService";
 import { BaseService } from "@/services/base/BaseService";
+import { setLoginRedirect, useSessionStore } from "@/stores/session";
 
-const reload = vi.fn();
+const redirect = vi.fn(async () => undefined);
 
 beforeEach(() => {
   resetStore();
   vi.clearAllMocks();
-  router.currentRoute.value.name = "plant-overview";
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    value: { ...window.location, reload },
-  });
+  setActivePinia(createPinia());
+  setLoginRedirect(redirect);
 });
 
 afterEach(() => {
@@ -50,28 +40,32 @@ afterEach(() => {
 describe("login and guest login", () => {
   it("posts credentials and stores the returned access token", async () => {
     vi.mocked(ApiUtils.post).mockResolvedValue({ accessToken: "jwt-1" });
-    const res = await UserService.login({ username: "alice", password: "pw" });
+    const session = useSessionStore();
+    const res = await session.login({ username: "alice", password: "pw" });
     expect(ApiUtils.post).toHaveBeenCalledWith("/auth/login", {
       username: "alice",
       password: "pw",
     });
     expect(res).toEqual({ accessToken: "jwt-1" });
     expect(memoryStore.get("authToken")).toBe("jwt-1");
+    expect(session.token).toBe("jwt-1");
   });
 
   it("sends a null body on guest login", async () => {
     vi.mocked(ApiUtils.post).mockResolvedValue({ accessToken: "guest-jwt" });
-    await UserService.guestLogin();
+    await useSessionStore().guestLogin();
     expect(ApiUtils.post).toHaveBeenCalledWith("/auth/login/guest", null);
     expect(memoryStore.get("authToken")).toBe("guest-jwt");
   });
 
   it("does not store a token when login fails", async () => {
     vi.mocked(ApiUtils.post).mockRejectedValue(new Error("Invalid credentials"));
-    await expect(UserService.login({ username: "a", password: "b" })).rejects.toThrow(
+    const session = useSessionStore();
+    await expect(session.login({ username: "a", password: "b" })).rejects.toThrow(
       "Invalid credentials",
     );
     expect(memoryStore.has("authToken")).toBe(false);
+    expect(session.isAuthenticated).toBe(false);
   });
 });
 
@@ -82,7 +76,7 @@ describe("logout and local logout", () => {
     memoryStore.set("sales_data", { data: [], timestamp: 1, keepOnClear: true });
     vi.mocked(ApiUtils.post).mockResolvedValue(null);
 
-    await UserService.logout();
+    await useSessionStore().logout();
 
     expect(ApiUtils.post).toHaveBeenCalledWith("/auth/logout", null);
     expect(memoryStore.has("authToken")).toBe(false);
@@ -93,46 +87,41 @@ describe("logout and local logout", () => {
   it("still clears local state when the server call fails", async () => {
     memoryStore.set("authToken", "jwt");
     vi.mocked(ApiUtils.post).mockRejectedValue(new Error("offline"));
-    await UserService.logout();
+    await useSessionStore().logout();
     expect(memoryStore.has("authToken")).toBe(false);
   });
 
-  it("drops the in-memory cache so the next account cannot read the previous one", async () => {
+  it("empties the token in memory and the legacy memory cache", async () => {
     const clear = vi.spyOn(BaseService, "clearMemoryCache");
-    await UserService.handleLocalLogout();
+    const session = useSessionStore();
+    await session.storeToken(fakeJwt({ id: 1, username: "a", role: "user" }));
+    await session.localLogout();
     expect(clear).toHaveBeenCalledOnce();
+    expect(session.token).toBeNull();
+    expect(session.isAuthenticated).toBe(false);
   });
 
-  it("redirects to login and reloads the page when signed in", async () => {
-    await UserService.handleLocalLogout();
-    expect(router.replace).toHaveBeenCalledWith({ name: "login" });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(reload).toHaveBeenCalledOnce();
-  });
-
-  it("does not navigate or reload when already on the login screen", async () => {
-    router.currentRoute.value.name = "login";
-    await UserService.handleLocalLogout();
-    expect(router.replace).not.toHaveBeenCalled();
-    expect(reload).not.toHaveBeenCalled();
+  it("hands over to the login redirect after cleaning up", async () => {
+    await useSessionStore().localLogout();
+    expect(redirect).toHaveBeenCalledOnce();
   });
 
   it("deleteProfile wipes all storage including persistent entries", async () => {
     memoryStore.set("sales_data", { data: [], keepOnClear: true });
     vi.mocked(ApiUtils.delete).mockResolvedValue(null);
-    await UserService.deleteProfile();
+    await useSessionStore().deleteProfile();
     expect(memoryStore.size).toBe(0);
+    expect(redirect).toHaveBeenCalledOnce();
   });
 });
 
-describe("refreshToken", () => {
+describe("refresh", () => {
   it("stores and returns the new access token on success", async () => {
     const fetchMock = vi
       .fn()
       .mockImplementation(async () => jsonResponse(200, { data: { accessToken: "fresh" } }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(UserService.refreshToken()).resolves.toBe("fresh");
+    await expect(useSessionStore().refresh()).resolves.toBe("fresh");
     expect(memoryStore.get("authToken")).toBe("fresh");
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toMatch(/\/api\/v2\/auth\/refresh-token$/);
@@ -145,9 +134,9 @@ describe("refreshToken", () => {
       .mockImplementation(async () => jsonResponse(401, { error: { message: "no cookie" } }));
     vi.stubGlobal("fetch", fetchMock);
     memoryStore.set("authToken", "old");
-    await expect(UserService.refreshToken()).rejects.toThrow("Refresh token expired");
+    await expect(useSessionStore().refresh()).rejects.toThrow("Refresh token expired");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    // Teardown is the caller's job (ApiUtils.handleNoAuth); the stored token survives here.
+    // Teardown is the caller's job (the transport's auth bridge).
     expect(ApiUtils.post).not.toHaveBeenCalled();
     expect(memoryStore.get("authToken")).toBe("old");
   });
@@ -161,69 +150,97 @@ describe("refreshToken", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = UserService.refreshToken().catch((e: Error) => e);
+    const result = useSessionStore()
+      .refresh()
+      .catch((e: Error) => e);
     await vi.advanceTimersByTimeAsync(2500);
     const error = (await result) as Error;
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(error.message).toBe("Invalid refresh token");
-    expect(ApiUtils.post).not.toHaveBeenCalled();
   });
 
   it("rejects a success response without an access token after retrying", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, { data: {} }));
     vi.stubGlobal("fetch", fetchMock);
-    const result = UserService.refreshToken().catch((e: Error) => e);
+    const result = useSessionStore()
+      .refresh()
+      .catch((e: Error) => e);
     await vi.advanceTimersByTimeAsync(2500);
     expect(((await result) as Error).message).toBe("Invalid response structure");
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it("shares one request between concurrent callers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse(200, { data: { accessToken: "fresh" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const session = useSessionStore();
+    const results = await Promise.all([session.refresh(), session.refresh(), session.refresh()]);
+    expect(results).toEqual(["fresh", "fresh", "fresh"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a new request after the previous one has settled", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse(200, { data: { accessToken: "fresh" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const session = useSessionStore();
+    await session.refresh();
+    await session.refresh();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("identity getters", () => {
-  const withToken = (payload: Record<string, unknown>) => {
-    memoryStore.set("authToken", fakeJwt(payload));
+  const signInAs = async (payload: Record<string, unknown>) => {
+    const session = useSessionStore();
+    await session.storeToken(fakeJwt(payload));
+    return session;
   };
 
-  it("reads id, username and role from the stored JWT", async () => {
-    withToken({ id: 7, username: "alice", role: "admin" });
-    expect(await UserService.getUserId()).toBe(7);
-    expect(await UserService.getUsername()).toBe("alice");
-    expect(await UserService.getUserRole()).toBe("admin");
-    expect(await UserService.isAdmin()).toBe(true);
-    expect(await UserService.isGuest()).toBe(false);
+  it("reads id, username and role from the token", async () => {
+    const session = await signInAs({ id: 7, username: "alice", role: "admin" });
+    expect(session.userId).toBe(7);
+    expect(session.username).toBe("alice");
+    expect(session.role).toBe("admin");
+    expect(session.isAdmin).toBe(true);
+    expect(session.isGuest).toBe(false);
   });
 
   it("recognizes a guest", async () => {
-    withToken({ id: 2, username: "guest", role: "guest" });
-    expect(await UserService.isGuest()).toBe(true);
-    expect(await UserService.isAdmin()).toBe(false);
+    const session = await signInAs({ id: 2, username: "guest", role: "guest" });
+    expect(session.isGuest).toBe(true);
+    expect(session.isAdmin).toBe(false);
   });
 
-  it("falls back to empty values without a token", async () => {
-    expect(await UserService.getUserId()).toBe(-1);
-    expect(await UserService.getUsername()).toBe("");
-    expect(await UserService.getUserRole()).toBeNull();
+  it("falls back to empty values without a token", () => {
+    const session = useSessionStore();
+    expect(session.userId).toBe(-1);
+    expect(session.username).toBe("");
+    expect(session.role).toBeNull();
   });
 
-  it("returns -1 for the user id 0 because it is falsy", async () => {
-    withToken({ id: 0, username: "guest", role: "guest" });
-    expect(await UserService.getUserId()).toBe(-1);
+  it("keeps user id 0 instead of treating it as missing", async () => {
+    const session = await signInAs({ id: 0, username: "guest", role: "guest" });
+    expect(session.userId).toBe(0);
   });
 
-  it("mis-decodes non-ASCII usernames because the payload is read with atob", async () => {
-    withToken({ id: 1, username: "müller", role: "user" });
-    expect(await UserService.getUsername()).not.toBe("müller");
+  it("decodes non-ASCII usernames", async () => {
+    const session = await signInAs({ id: 1, username: "müller", role: "user" });
+    expect(session.username).toBe("müller");
   });
 });
 
-describe("isAuthenticated", () => {
+describe("ensureAuthenticated", () => {
   it("is true without a network call when a token is stored", async () => {
     memoryStore.set("authToken", fakeJwt({ id: 1 }));
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    expect(await UserService.isAuthenticated()).toBe(true);
+    expect(await useSessionStore().ensureAuthenticated()).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -232,7 +249,7 @@ describe("isAuthenticated", () => {
       .fn()
       .mockImplementation(async () => jsonResponse(401, { error: { message: "no cookie" } }));
     vi.stubGlobal("fetch", fetchMock);
-    expect(await UserService.isAuthenticated()).toBe(false);
+    expect(await useSessionStore().ensureAuthenticated()).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -241,6 +258,6 @@ describe("isAuthenticated", () => {
       .fn()
       .mockImplementation(async () => jsonResponse(200, { data: { accessToken: "silent" } }));
     vi.stubGlobal("fetch", fetchMock);
-    expect(await UserService.isAuthenticated()).toBe(true);
+    expect(await useSessionStore().ensureAuthenticated()).toBe(true);
   });
 });

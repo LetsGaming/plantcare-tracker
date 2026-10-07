@@ -15,14 +15,12 @@ vi.mock("@/services/general/LocalizationService", () => ({
 }));
 vi.mock("../utils/tokenUtils", () => ({ default: { getToken: vi.fn() } }));
 vi.mock("../utils/utils", () => ({ default: { getApiBaseUrl: () => "http://test/api/v2" } }));
-vi.mock("@/services/UserService", () => ({
-  default: { refreshToken: vi.fn(), logout: vi.fn(), handleLocalLogout: vi.fn() },
-}));
 
 import ApiUtils from "../utils/apiUtils";
 import TokenUtils from "../utils/tokenUtils";
-import UserService from "@/services/UserService";
 import ToastService from "@/services/general/ToastService";
+
+const bridge = { refresh: vi.fn(), onAuthFailure: vi.fn() };
 
 const lastCall = (fetchMock: ReturnType<typeof vi.fn>, index = -1) => {
   const call = fetchMock.mock.calls.at(index)!;
@@ -33,6 +31,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ApiUtils.configureAuth(bridge);
   vi.mocked(TokenUtils.getToken).mockResolvedValue(null);
   fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, { data: { ok: true } }));
   vi.stubGlobal("fetch", fetchMock);
@@ -99,7 +98,7 @@ describe("requests", () => {
 describe("refresh gate", () => {
   beforeEach(() => {
     vi.mocked(TokenUtils.getToken).mockResolvedValue("stored");
-    vi.mocked(UserService.refreshToken).mockResolvedValue("fresh" as never);
+    vi.mocked(bridge.refresh).mockResolvedValue("fresh" as never);
   });
 
   it("refreshes and retries once on a 401", async () => {
@@ -109,7 +108,7 @@ describe("refresh gate", () => {
       )
       .mockImplementationOnce(async () => jsonResponse(200, { data: [1] }));
     await expect(ApiUtils.get("/plants")).resolves.toEqual([1]);
-    expect(UserService.refreshToken).toHaveBeenCalledTimes(1);
+    expect(bridge.refresh).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -118,7 +117,7 @@ describe("refresh gate", () => {
       jsonResponse(403, { error: { message: "Forbidden" } }),
     );
     await expect(ApiUtils.get("/plants")).rejects.toMatchObject({ status: 403 });
-    expect(UserService.refreshToken).not.toHaveBeenCalled();
+    expect(bridge.refresh).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -127,15 +126,15 @@ describe("refresh gate", () => {
       jsonResponse(401, { error: { message: "Invalid or expired token" } }),
     );
     await expect(ApiUtils.get("/plants")).rejects.toMatchObject({ status: 401 });
-    expect(UserService.refreshToken).toHaveBeenCalledTimes(1);
+    expect(bridge.refresh).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("tears down locally and shows one toast when the refresh itself fails", async () => {
     fetchMock.mockImplementation(async () => jsonResponse(401, { error: { message: "expired" } }));
-    vi.mocked(UserService.refreshToken).mockRejectedValue(new Error("Refresh token expired"));
+    vi.mocked(bridge.refresh).mockRejectedValue(new Error("Refresh token expired"));
     await expect(ApiUtils.get("/plants")).rejects.toThrow("Session expired. Please log in again.");
-    expect(UserService.handleLocalLogout).toHaveBeenCalledTimes(1);
+    expect(bridge.onAuthFailure).toHaveBeenCalledTimes(1);
     expect(ToastService.showError).toHaveBeenCalledTimes(1);
   });
 
@@ -144,15 +143,15 @@ describe("refresh gate", () => {
     async (endpoint) => {
       fetchMock.mockImplementation(async () => jsonResponse(401, { error: { message: "no" } }));
       await expect(ApiUtils.post(endpoint, {})).rejects.toMatchObject({ status: 401 });
-      expect(UserService.refreshToken).not.toHaveBeenCalled();
+      expect(bridge.refresh).not.toHaveBeenCalled();
     },
   );
 
   it("starts one refresh per failing request when several fail at once", async () => {
     fetchMock.mockImplementation(async () => jsonResponse(401, { error: { message: "expired" } }));
-    vi.mocked(UserService.refreshToken).mockRejectedValue(new Error("expired"));
+    vi.mocked(bridge.refresh).mockRejectedValue(new Error("expired"));
     await Promise.allSettled([ApiUtils.get("/a"), ApiUtils.get("/b"), ApiUtils.get("/c")]);
-    expect(UserService.refreshToken).toHaveBeenCalledTimes(3);
+    expect(bridge.refresh).toHaveBeenCalledTimes(3);
   });
 });
 

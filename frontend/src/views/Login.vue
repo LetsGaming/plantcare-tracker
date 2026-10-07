@@ -115,7 +115,8 @@ import {
 } from "@ionic/vue";
 import { personOutline, lockClosedOutline, eyeOffOutline, eyeOutline } from "ionicons/icons";
 
-import UserService from "@/services/UserService";
+import { mapActions } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import { describeUserFixableError } from "@/utils/apiErrorMessage";
@@ -163,7 +164,7 @@ export default defineComponent({
       // token is stored — the unconditional second refresh that used to
       // follow here was redundant and could throw on cookie edge cases,
       // silently preventing the redirect.
-      if (await UserService.isAuthenticated()) this.redirectUser();
+      if (await this.ensureAuthenticated()) this.redirectUser();
     } catch {
       // ignore
     } finally {
@@ -178,6 +179,12 @@ export default defineComponent({
   },
 
   methods: {
+    ...mapActions(useSessionStore, {
+      ensureAuthenticated: "ensureAuthenticated",
+      signIn: "login",
+      signInAsGuest: "guestLogin",
+      signUp: "register",
+    }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
@@ -211,7 +218,7 @@ export default defineComponent({
     },
 
     async guestLogin() {
-      await this.runAuth(() => UserService.guestLogin(), {
+      await this.runAuth(() => this.signInAsGuest(), {
         key: "auth.failed_guest",
         fallback: "Failed to login as guest.",
       });
@@ -227,7 +234,7 @@ export default defineComponent({
 
       await this.runAuth(
         () =>
-          UserService.login({
+          this.signIn({
             username: this.username,
             password: this.password,
           }),
@@ -255,7 +262,7 @@ export default defineComponent({
 
       this.loading = true;
       try {
-        await UserService.register({
+        await this.signUp({
           username: this.username,
           password: this.password,
         });

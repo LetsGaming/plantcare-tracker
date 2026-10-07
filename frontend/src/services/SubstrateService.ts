@@ -24,7 +24,7 @@ import { BaseService } from "./base/BaseService";
 import ApiUtils from "@/utils/apiUtils";
 import storageService from "@/services/general/StorageService";
 import SubstrateMapper from "@/mapping/SubstrateMapping";
-import UserService from "./UserService";
+import { currentUserId } from "@/stores/session";
 import ImageService from "./ImageService";
 
 const BASE_ENDPOINT = "/substrates";
@@ -130,7 +130,7 @@ export default class SubstrateService extends BaseService {
   static async getPrivateSubstrates(forceUpdate = false): Promise<Substrate[]> {
     const [all, userId] = await Promise.all([
       this.getAllSubstrates(forceUpdate),
-      UserService.getUserId(),
+      Promise.resolve(currentUserId()),
     ]);
     return all.filter((s) => s.userId === userId);
   }

@@ -50,7 +50,8 @@
 import { defineComponent, ref } from "vue";
 import { IonIcon, IonRippleEffect } from "@ionic/vue";
 import { create } from "ionicons/icons";
-import UserService from "@/services/UserService";
+import { mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -83,13 +84,8 @@ export default defineComponent({
       create,
     };
   },
-  data() {
-    return {
-      isGuest: false,
-    };
-  },
-  async mounted() {
-    this.isGuest = await UserService.isGuest();
+  computed: {
+    ...mapState(useSessionStore, ["isGuest"]),
   },
   methods: {
     t(key: string, defaultValue: string): string {

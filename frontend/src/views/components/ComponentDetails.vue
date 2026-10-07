@@ -46,7 +46,8 @@ import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
 import ComponentService from "@/services/ComponentService";
-import UserService from "@/services/UserService";
+import { mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -67,15 +68,14 @@ export default defineComponent({
     return {
       component: null as Component | null,
       showEditingModal: false,
-      isAdmin: false,
       isEditing: false,
     };
   },
   async ionViewDidEnter() {
-    this.isAdmin = await UserService.isAdmin();
     await this.fetchComponent();
   },
   computed: {
+    ...mapState(useSessionStore, ["isAdmin"]),
     componentId() {
       return Number(this.id);
     },

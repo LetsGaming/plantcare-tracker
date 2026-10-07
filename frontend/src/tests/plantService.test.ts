@@ -25,7 +25,7 @@ vi.mock("@/utils/apiUtils", () => ({
     isApiError: () => false,
   },
 }));
-vi.mock("@/services/UserService", () => ({ default: { getUserId: vi.fn(async () => 1) } }));
+vi.mock("@/stores/session", () => ({ currentUserId: () => 1 }));
 vi.mock("@/services/ImageService", () => ({ default: { uploadImage: vi.fn(async () => ({})) } }));
 vi.mock("@/services/WateringService", () => ({
   default: { invalidatePlantCache: vi.fn(async () => undefined) },

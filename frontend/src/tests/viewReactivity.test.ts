@@ -28,7 +28,6 @@ const spies = vi.hoisted(() => ({
   addPlant: vi.fn(),
   // Substrate/Component/User/Calendar helpers used during mount
   getAllSubstrates: vi.fn(async (): Promise<unknown[]> => []),
-  isGuest: vi.fn(async () => false),
   getWateringCategories: vi.fn(async (): Promise<unknown[]> => []),
 }));
 
@@ -60,8 +59,8 @@ vi.mock("@/services/SubstrateService", () => ({
   SubstrateEvents: { SUBSTRATES_UPDATED: "substrates-updated" },
 }));
 
-vi.mock("@/services/UserService", () => ({
-  default: { isGuest: spies.isGuest },
+vi.mock("@/stores/session", () => ({
+  useSessionStore: () => ({ isGuest: false }),
 }));
 
 vi.mock("@/services/CalendarService", () => ({

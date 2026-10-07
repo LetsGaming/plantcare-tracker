@@ -34,7 +34,7 @@ import storageService from "@/services/general/StorageService";
 import PlantMapper from "@/mapping/PlantMapping";
 import WateringService from "./WateringService";
 import ImageService from "@/services/ImageService";
-import UserService from "./UserService";
+import { currentUserId } from "@/stores/session";
 import SubstrateService from "./SubstrateService";
 import Utils from "@/utils/utils";
 
@@ -154,7 +154,7 @@ export default class PlantService extends BaseService {
   static async getPersonalPlants(forceUpdate = false): Promise<Plant[]> {
     const [plants, userId] = await Promise.all([
       this.getAllPlants(forceUpdate),
-      UserService.getUserId(),
+      Promise.resolve(currentUserId()),
     ]);
     return plants.filter((p) => p.userId === userId);
   }
@@ -180,7 +180,7 @@ export default class PlantService extends BaseService {
     const { image: _image, ...body } = plantToAdd;
 
     const [userId, substrates] = await Promise.all([
-      UserService.getUserId(),
+      Promise.resolve(currentUserId()),
       // Best-effort name lookup for the optimistic card; the picker the
       // user just used has warmed this cache in practice.
       SubstrateService.getAllSubstrates().catch(() => [] as Substrate[]),

@@ -2,7 +2,8 @@ import { createRouter, createWebHashHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 
 import Utils from "@/utils/utils";
-import UserService from "@/services/UserService";
+import { pinia } from "@/stores/pinia";
+import { useSessionStore } from "@/stores/session";
 import { resolveAccess } from "./guards";
 
 // Dynamic imports for lazy loading
@@ -145,14 +146,15 @@ router.beforeEach(async (to, from, next) => {
   await Utils.closeAllOpenModals();
 
   try {
+    const session = useSessionStore(pinia);
     const decision = await resolveAccess(
       {
         requiresAuth: to.meta.requiresAuth === true,
         requiresAdmin: to.meta.requiresAdmin === true,
       },
       {
-        isAuthenticated: () => UserService.isAuthenticated(),
-        isAdmin: () => UserService.isAdmin(),
+        isAuthenticated: () => session.ensureAuthenticated(),
+        isAdmin: async () => session.isAdmin,
       },
     );
 

@@ -30,7 +30,8 @@
 import { defineComponent } from "vue";
 import { IonImg } from "@ionic/vue";
 import ImageModal from "../images/ImageModal.vue";
-import UserService from "@/services/UserService";
+import { mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 
 export default defineComponent({
   name: "HorizontalGallery",
@@ -53,23 +54,20 @@ export default defineComponent({
     return {
       enlargedImage: null as Image | null,
       isModalVisible: false,
-      showEditButton: false,
     };
   },
   computed: {
+    ...mapState(useSessionStore, ["isGuest"]),
+    showEditButton(): boolean {
+      return !this.isPublic && !this.isGuest;
+    },
     sortedImages() {
       return [...this.images].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
     },
   },
-  async mounted() {
-    await this.setShowEdit();
-  },
   methods: {
-    async setShowEdit() {
-      this.showEditButton = !this.isPublic && !(await UserService.isGuest());
-    },
     enlargeImage(image: Image) {
       this.enlargedImage = image;
       this.$nextTick(() => {

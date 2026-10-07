@@ -2,7 +2,6 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import TokenUtils from "./tokenUtils";
 import Utils from "./utils";
-import UserService from "@/services/UserService";
 
 /** Pre-computed API URL to eliminate repeated string concatenation logic */
 const API_BASE_URL = Utils.getApiBaseUrl();
@@ -124,16 +123,32 @@ const getHeaders = async (isFileUpload: boolean = false): Promise<HeadersInit> =
 
 // ── Auth retry ────────────────────────────────────────────────────────────────
 
+/** What the transport needs from the session; registered once at startup. */
+export interface AuthBridge {
+  /** Gets a new access token; rejects when the session cannot be renewed. */
+  refresh(): Promise<unknown>;
+  /** Tears the local session down after a failed refresh. */
+  onAuthFailure(): Promise<void>;
+}
+
+let authBridge: AuthBridge | null = null;
+
+const requireAuthBridge = (): AuthBridge => {
+  if (!authBridge) throw new Error("ApiUtils: no auth bridge configured");
+  return authBridge;
+};
+
 const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Response> => {
+  const bridge = requireAuthBridge();
   try {
-    await UserService.refreshToken();
+    await bridge.refresh();
     return await requestFn();
   } catch {
     // Local teardown only: the refresh just failed, so the session is
     // already dead server-side — a POST /logout would be a no-op. The
     // full logout() here used to clear a token that a parallel login had
     // just stored and then reloaded the page mid-login.
-    await UserService.handleLocalLogout();
+    await bridge.onAuthFailure();
     const msg = localizationService.t(
       "auth.session_expired",
       undefined,
@@ -196,6 +211,10 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
  * Provides a type-safe interface for RESTful communication and SSE streaming.
  */
 const ApiUtils = {
+  configureAuth(bridge: AuthBridge | null): void {
+    authBridge = bridge;
+  },
+
   isApiError(error: unknown): error is ApiError {
     return error instanceof ApiError;
   },

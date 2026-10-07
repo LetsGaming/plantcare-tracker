@@ -106,7 +106,7 @@ import Calendar from "@/components/calendar/Calendar.vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 
 import WateringService, { WateringEvents } from "@/services/WateringService";
-import UserService from "@/services/UserService";
+import { useSessionStore } from "@/stores/session";
 import CalendarService from "@/services/CalendarService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -169,8 +169,8 @@ export default defineComponent({
     this.isLoading = true;
     try {
       // Parallel loading to optimize speed while remaining safe
-      const [isGuest, categories, types] = await Promise.all([
-        UserService.isGuest(),
+      const isGuest = useSessionStore().isGuest;
+      const [categories, types] = await Promise.all([
         CalendarService.getWateringCategories(),
         WateringService.getFertilizerTypes(),
       ]);

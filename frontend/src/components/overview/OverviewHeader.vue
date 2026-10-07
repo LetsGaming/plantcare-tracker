@@ -62,7 +62,8 @@ import {
   IonMenuButton,
 } from "@ionic/vue";
 import { logOutOutline } from "ionicons/icons";
-import UserService from "@/services/UserService";
+import { mapActions, mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -122,15 +123,15 @@ export default defineComponent({
   data() {
     return {
       segmentValue: this.startingSegment,
-      isGuest: false,
     };
+  },
+  computed: {
+    ...mapState(useSessionStore, ["isGuest"]),
   },
   setup() {
     return { logOutOutline };
   },
-  async mounted() {
-    this.isGuest = await UserService.isGuest();
-
+  mounted() {
     if (this.isGuest) {
       // If the user is a guest, and the starting segment is hidden, find the first visible segment
       const visibleSegments = this.segments.filter((segment) => !segment.hideFromGuests);
@@ -144,9 +145,7 @@ export default defineComponent({
     }
   },
   methods: {
-    async logUserOut() {
-      await UserService.logout();
-    },
+    ...mapActions(useSessionStore, { logUserOut: "logout" }),
     handleSegmentChange(event: any) {
       const value = event.detail.value;
       this.onSegmentChange(value); // Emit the segment change

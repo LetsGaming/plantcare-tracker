@@ -66,7 +66,7 @@ import { cube, grid, leaf, pricetag, bug, warning } from "ionicons/icons";
 import localizationService from "@/services/general/LocalizationService";
 import SalesService, { SaleEvents } from "@/services/SalesServices";
 import AdminService, { AdminEvents } from "@/services/AdminService";
-import UserService from "@/services/UserService";
+import { useSessionStore } from "@/stores/session";
 
 const t = (k: string, v?: Record<string, string | number>, f?: string) =>
   localizationService.t(k, v, f);
@@ -99,7 +99,7 @@ const handleSourceHealthUpdated = (event: Event) => {
 };
 
 const loadSourceHealth = async () => {
-  if (!(await UserService.isAdmin())) return;
+  if (!useSessionStore().isAdmin) return;
   try {
     // The service announces the result, which updates failingSources
     await AdminService.getSourceHealth();

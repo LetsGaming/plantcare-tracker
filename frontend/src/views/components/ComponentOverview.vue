@@ -35,7 +35,8 @@ import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
 
 import ComponentService from "@/services/ComponentService";
-import UserService from "@/services/UserService";
+import { mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -52,7 +53,6 @@ export default defineComponent({
       components: [] as Component[],
       showAddingModal: false,
       isAdding: false,
-      isAdmin: false,
     };
   },
   setup() {
@@ -63,10 +63,10 @@ export default defineComponent({
     };
   },
   async ionViewWillEnter() {
-    this.isAdmin = await UserService.isAdmin();
     await this.fetchComponents();
   },
   computed: {
+    ...mapState(useSessionStore, ["isAdmin"]),
     mapToOverviewItems(): OverviewItem[] {
       return this.components.map((component) => ({
         id: component.id,

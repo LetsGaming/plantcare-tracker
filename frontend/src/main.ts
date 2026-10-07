@@ -2,6 +2,8 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import { IonicVue } from "@ionic/vue";
+import { pinia } from "./stores/pinia";
+import { connectSessionToTransport, setLoginRedirect } from "./stores/session";
 
 /* Ionic & Theme CSS */
 import "@ionic/vue/css/core.css";
@@ -47,7 +49,16 @@ for (const path in localeLoaders) {
  */
 async function initializeApp() {
   document.title = Utils.getAppTitle();
-  const app = createApp(App).use(IonicVue).use(router);
+  connectSessionToTransport(pinia);
+  // Once the local session is gone: leave for the login screen and reload so no
+  // account data survives in memory. Nothing to do when already there.
+  setLoginRedirect(async () => {
+    if (router.currentRoute.value.name === "login") return;
+    await router.replace({ name: "login" });
+    window.location.reload();
+  });
+
+  const app = createApp(App).use(IonicVue).use(pinia).use(router);
 
   // We provide the service globally
   app.config.globalProperties.$i18n = localizationService;

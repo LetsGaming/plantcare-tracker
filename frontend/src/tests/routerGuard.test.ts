@@ -6,19 +6,19 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const user = vi.hoisted(() => ({
-  isAuthenticated: vi.fn(async () => true),
-  isAdmin: vi.fn(async () => false),
+const session = vi.hoisted(() => ({
+  ensureAuthenticated: vi.fn(async () => true),
+  isAdmin: false,
 }));
 
-vi.mock("@/services/UserService", () => ({ default: user }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
 import Utils from "@/utils/utils";
 import router from "@/router";
 
 beforeEach(async () => {
   vi.spyOn(Utils, "closeAllOpenModals").mockResolvedValue(undefined);
-  user.isAuthenticated.mockResolvedValue(true);
-  user.isAdmin.mockResolvedValue(false);
+  session.ensureAuthenticated.mockResolvedValue(true);
+  session.isAdmin = false;
   await router.replace("/login").catch(() => undefined);
 });
 
@@ -69,19 +69,19 @@ describe("route table", () => {
 
 describe("global guard", () => {
   it("sends unauthenticated visitors of protected routes to the login page", async () => {
-    user.isAuthenticated.mockResolvedValue(false);
+    session.ensureAuthenticated.mockResolvedValue(false);
     await router.push("/tabs/plants");
     expect(router.currentRoute.value.name).toBe("login");
   });
 
   it("sends signed-in non-admins away from admin routes to the plant overview", async () => {
-    user.isAdmin.mockResolvedValue(false);
+    session.isAdmin = false;
     await router.push("/tabs/admin");
     expect(router.currentRoute.value.name).toBe("plant-overview");
   });
 
   it("sends a failing authentication check to the login page", async () => {
-    user.isAuthenticated.mockRejectedValue(new Error("storage unavailable"));
+    session.ensureAuthenticated.mockRejectedValue(new Error("storage unavailable"));
     await router.push("/tabs/plants");
     expect(router.currentRoute.value.name).toBe("login");
   });

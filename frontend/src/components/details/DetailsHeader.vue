@@ -33,7 +33,8 @@
 import { defineComponent, PropType } from "vue";
 import { IonHeader, IonToolbar, IonButtons, IonBackButton, IonIcon } from "@ionic/vue";
 import { create, cloudUpload } from "ionicons/icons";
-import UserService from "@/services/UserService";
+import { mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -73,11 +74,10 @@ export default defineComponent({
   data() {
     return {
       segmentValue: this.startingSegment,
-      isGuest: false,
     };
   },
-  async mounted() {
-    this.isGuest = await UserService.isGuest();
+  computed: {
+    ...mapState(useSessionStore, ["isGuest"]),
   },
   methods: {
     t(value: string) {

@@ -184,7 +184,7 @@ import {
 } from "ionicons/icons";
 
 import ToastService from "@/services/general/ToastService";
-import UserService from "@/services/UserService";
+import { useSessionStore } from "@/stores/session";
 import PlantService from "@/services/PlantService";
 import ApiUtils from "@/utils/apiUtils";
 import StorageService from "@/services/general/StorageService";
@@ -297,7 +297,7 @@ export default defineComponent({
     async loginSample() {
       try {
         const creds = { username: "demo@demo.com", password: "password" };
-        const res = await UserService.login(creds);
+        const res = await useSessionStore().login(creds);
         this.pushLog("Auth: Login", res);
         ToastService.showSuccess("Logged in (debug)");
       } catch (err) {
@@ -308,7 +308,7 @@ export default defineComponent({
 
     async logout() {
       try {
-        await UserService.logout();
+        await useSessionStore().logout();
         this.pushLog("Auth: Logout", "ok");
         ToastService.addToast({ message: "Logged out", color: "medium" });
       } catch (err) {

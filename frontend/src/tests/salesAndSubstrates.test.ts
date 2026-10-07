@@ -14,7 +14,7 @@ vi.mock("@/services/general/ToastService", async () => (await import("./helpers"
 vi.mock("@/services/general/LocalizationService", async () =>
   (await import("./helpers")).localizationModule(),
 );
-vi.mock("@/services/UserService", () => ({ default: { getUserId: vi.fn(async () => 1) } }));
+vi.mock("@/stores/session", () => ({ currentUserId: () => 1 }));
 vi.mock("@/services/ImageService", () => ({ default: { uploadImage: vi.fn() } }));
 
 type Handlers = {

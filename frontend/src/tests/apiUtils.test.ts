@@ -25,13 +25,6 @@ vi.mock("../utils/tokenUtils", () => ({
 vi.mock("../utils/utils", () => ({
   default: { getApiBaseUrl: vi.fn().mockReturnValue("http://test") },
 }));
-vi.mock("@/services/UserService", () => ({
-  default: {
-    refreshToken: vi.fn(),
-    logout: vi.fn(),
-    handleLocalLogout: vi.fn(),
-  },
-}));
 
 import ApiUtils, { ApiError } from "../utils/apiUtils";
 
@@ -253,9 +246,14 @@ describe("isApiError type guard", () => {
 // ── Auth retry gate (performRequest) ─────────────────────────────────────────
 
 import TokenUtils from "../utils/tokenUtils";
-import UserService from "@/services/UserService";
+const bridge = { refresh: vi.fn(), onAuthFailure: vi.fn() };
 
 describe("auth retry gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ApiUtils.configureAuth(bridge);
+  });
+
   const jsonResponse = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
       status,
@@ -276,15 +274,14 @@ describe("auth retry gate", () => {
 
     await expect(ApiUtils.get("/plants")).rejects.toBeInstanceOf(ApiError);
     expect(fetchMock).toHaveBeenCalledTimes(1); // no retry
-    expect(UserService.refreshToken).not.toHaveBeenCalled();
-    expect(UserService.handleLocalLogout).not.toHaveBeenCalled();
-    expect(UserService.logout).not.toHaveBeenCalled();
+    expect(bridge.refresh).not.toHaveBeenCalled();
+    expect(bridge.onAuthFailure).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 
   it("refreshes and retries a 401 when a token was stored", async () => {
     vi.mocked(TokenUtils.getToken).mockResolvedValue("stored-jwt");
-    vi.mocked(UserService.refreshToken).mockResolvedValue("new-jwt" as any);
+    vi.mocked(bridge.refresh).mockResolvedValue("new-jwt" as any);
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(401, { error: { message: "expired" } }))
@@ -293,7 +290,7 @@ describe("auth retry gate", () => {
 
     const result = await ApiUtils.get<{ ok: boolean }>("/plants");
     expect(result).toEqual({ ok: true });
-    expect(UserService.refreshToken).toHaveBeenCalledTimes(1);
+    expect(bridge.refresh).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
   });

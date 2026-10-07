@@ -83,7 +83,8 @@ import {
 } from "@ionic/vue";
 import { close } from "ionicons/icons";
 import ProfileEditingModal from "@/components/profile/ProfileEditingModal.vue";
-import UserService from "@/services/UserService";
+import { mapActions, mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
@@ -113,12 +114,9 @@ export default defineComponent({
   },
   data() {
     return {
-      showEditButton: false,
-      isAdmin: false,
       showEditingModal: false,
       isLoading: false,
       username: "",
-      role: "",
       editProfileData: {
         username: "",
         password: "",
@@ -127,6 +125,18 @@ export default defineComponent({
     };
   },
   computed: {
+    ...mapState(useSessionStore, {
+      isAdmin: "isAdmin",
+      isGuest: "isGuest",
+      sessionUsername: "username",
+      sessionRole: "role",
+    }),
+    showEditButton(): boolean {
+      return !this.isGuest;
+    },
+    role(): string {
+      return Utils.capitalizeFirstLetter(this.sessionRole || "") as string;
+    },
     profileFormFields(): FormField[] {
       return [
         {
@@ -150,14 +160,12 @@ export default defineComponent({
       ];
     },
   },
-  async mounted() {
-    this.showEditButton = !(await UserService.isGuest());
-    this.isAdmin = await UserService.isAdmin();
-    this.username = await UserService.getUsername();
-    this.role = Utils.capitalizeFirstLetter((await UserService.getUserRole()) || "") as string;
+  mounted() {
+    this.username = this.sessionUsername;
     this.editProfileData.username = this.username;
   },
   methods: {
+    ...mapActions(useSessionStore, { saveProfile: "editProfile", removeProfile: "deleteProfile" }),
     goBack() {
       this.$router.back();
     },
@@ -191,7 +199,7 @@ export default defineComponent({
         // V2: PATCH /auth/me answers { data: null } — success is "no
         // throw", never a truthy body. The backend also invalidates all
         // sessions; the access token keeps working until it expires.
-        await UserService.editProfile(profile);
+        await this.saveProfile(profile);
         this.username = profile.username || this.username;
         this.showEditingModal = false;
       } catch (error) {
@@ -207,7 +215,7 @@ export default defineComponent({
         // V2: DELETE /auth/me answers 204 — success is "no throw".
         // The service performs the full local teardown (memory cache,
         // tokens, storage) and redirects to the login page itself.
-        await UserService.deleteProfile();
+        await this.removeProfile();
         this.showEditingModal = false;
       } catch (error) {
         // handleRequest has already shown the error toast.
