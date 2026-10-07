@@ -76,7 +76,7 @@ import { defineComponent } from "vue";
 
 import { mapActions, mapState } from "pinia";
 import { usePlantsStore } from "@/stores/plants";
-import SubstrateService from "@/services/SubstrateService";
+import { useSubstratesStore } from "@/stores/substrates";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -114,7 +114,6 @@ export default defineComponent({
 
   data() {
     return {
-      substrates: [] as Substrate[],
       /** Full substrate object, fetched separately after plant loads (V2 only sends substrate ref) */
       fullSubstrate: null as Substrate | null,
 
@@ -136,6 +135,7 @@ export default defineComponent({
 
   computed: {
     ...mapState(usePlantsStore, ["byId"]),
+    ...mapState(useSubstratesStore, { substrates: "items" }),
     /** This page's plant, straight from the store so every update repaints it. */
     plant(): Plant | null {
       return this.byId(this.plantId) ?? null;
@@ -157,12 +157,16 @@ export default defineComponent({
       if (!refId) {
         this.fullSubstrate = null;
       } else if (this.fullSubstrate?.id !== refId) {
-        this.fullSubstrate = await SubstrateService.getSubstrateById(refId).catch(() => null);
+        this.fullSubstrate = await this.loadSubstrate(refId).catch(() => null);
       }
     },
   },
 
   methods: {
+    ...mapActions(useSubstratesStore, {
+      loadSubstrate: "getSubstrate",
+      ensureSubstratesLoaded: "ensureLoaded",
+    }),
     ...mapActions(usePlantsStore, {
       loadPlant: "getPlant",
       savePlant: "editPlant",
@@ -186,7 +190,7 @@ export default defineComponent({
         // This is best-effort: a substrate failure must not hide plant details.
         if (this.plant?.substrate?.id) {
           try {
-            this.fullSubstrate = await SubstrateService.getSubstrateById(this.plant.substrate.id);
+            this.fullSubstrate = await this.loadSubstrate(this.plant.substrate.id);
           } catch (substrateError) {
             this.fullSubstrate = null;
             console.error("Error fetching substrate details:", substrateError);
@@ -204,7 +208,7 @@ export default defineComponent({
 
     async fetchSubstrates() {
       try {
-        this.substrates = await SubstrateService.getAllSubstrates();
+        await this.ensureSubstratesLoaded();
       } catch (e) {
         console.error("Failed to fetch substrates", e);
       }

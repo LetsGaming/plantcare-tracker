@@ -27,13 +27,11 @@ vi.mock("@/utils/apiUtils", () => ({
   },
 }));
 vi.mock("@/services/ImageService", () => ({ default: { uploadImage: vi.fn(async () => ({})) } }));
-vi.mock("@/services/SubstrateService", () => ({
-  default: { getAllSubstrates: vi.fn(async () => [{ id: 5, name: "Aroid Mix" }]) },
-}));
 
 import ApiUtils from "@/utils/apiUtils";
 import ImageService from "@/services/ImageService";
 import { useWateringStore } from "@/stores/watering";
+import { useSubstratesStore } from "@/stores/substrates";
 import { useSessionStore } from "@/stores/session";
 import { usePlantsStore } from "@/stores/plants";
 
@@ -63,6 +61,10 @@ const deferred = <T>() => {
 const newStore = async () => {
   await createInstalledPinia();
   await useSessionStore().storeToken(fakeJwt({ id: 1, username: "alice", role: "user" }));
+  const substrates = useSubstratesStore();
+  substrates.items = [{ id: 5, name: "Aroid Mix" } as Substrate];
+  substrates.status = "ready";
+  substrates.fetchedAt = Date.now();
   return usePlantsStore();
 };
 

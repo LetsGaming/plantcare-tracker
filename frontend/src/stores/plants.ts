@@ -26,10 +26,10 @@ import { defineStore } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
 import PlantMapper from "@/mapping/PlantMapping";
 import ImageService from "@/services/ImageService";
-import SubstrateService from "@/services/SubstrateService";
 import Utils from "@/utils/utils";
 import { handleRequest } from "@/utils/requestFeedback";
 import { useSessionStore } from "./session";
+import { useSubstratesStore } from "./substrates";
 import { useWateringStore } from "./watering";
 import { optimisticRemove, optimisticUpsert } from "./optimistic";
 import { coalesced, isStale, resourceState } from "./resource";
@@ -124,6 +124,13 @@ export const usePlantsStore = defineStore("plants", {
       return this.fetchOne(id);
     },
 
+    /** Best-effort substrate name for an optimistic card; empty when it cannot be loaded. */
+    async substrateName(substrateId: number): Promise<string> {
+      const substrates = useSubstratesStore();
+      await substrates.ensureLoaded().catch(() => undefined);
+      return substrates.byId(substrateId)?.name ?? "";
+    },
+
     /** Creates a plant (optimistic); resolves with the plant carrying the real id. */
     async addPlant(plantToAdd: AddPlant): Promise<Plant> {
       // `image` is handled by uploadPlantImage after creation, never sent here.
@@ -131,8 +138,7 @@ export const usePlantsStore = defineStore("plants", {
 
       // Best-effort name lookup for the optimistic card; the picker the user
       // just used has warmed this cache in practice.
-      const substrates = await SubstrateService.getAllSubstrates().catch(() => [] as Substrate[]);
-      const substrateName = substrates.find((s) => s.id === plantToAdd.substrateId)?.name ?? "";
+      const substrateName = await this.substrateName(plantToAdd.substrateId);
 
       const optimistic: Plant = {
         id: -Date.now(),
@@ -169,10 +175,9 @@ export const usePlantsStore = defineStore("plants", {
 
       let substrate = existing?.substrate ?? null;
       if (updatedPlantData.substrateId !== undefined) {
-        const substrates = await SubstrateService.getAllSubstrates().catch(() => [] as Substrate[]);
         substrate = {
           id: updatedPlantData.substrateId,
-          name: substrates.find((s) => s.id === updatedPlantData.substrateId)?.name ?? "",
+          name: await this.substrateName(updatedPlantData.substrateId),
         };
       }
 

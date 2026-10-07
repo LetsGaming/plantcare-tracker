@@ -45,8 +45,8 @@ import { IonPage, IonContent, IonCard, IonCardHeader, IonCardContent } from "@io
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
-import ComponentService from "@/services/ComponentService";
-import { mapState } from "pinia";
+import { mapActions, mapState } from "pinia";
+import { useComponentsStore } from "@/stores/components";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -66,7 +66,6 @@ export default defineComponent({
   props: { id: { type: String, required: true } },
   data() {
     return {
-      component: null as Component | null,
       showEditingModal: false,
       isEditing: false,
     };
@@ -76,17 +75,27 @@ export default defineComponent({
   },
   computed: {
     ...mapState(useSessionStore, ["isAdmin"]),
+    ...mapState(useComponentsStore, ["byId"]),
+    /** This page's component, straight from the store so every update repaints it. */
+    component(): Component | null {
+      return this.byId(this.componentId) ?? null;
+    },
     componentId() {
       return Number(this.id);
     },
   },
   methods: {
+    ...mapActions(useComponentsStore, {
+      loadComponent: "getComponent",
+      saveComponent: "editComponent",
+      removeComponent: "deleteComponent",
+    }),
     t(key: string) {
       return localizationService.t(key, {}, key);
     },
     async fetchComponent() {
       try {
-        this.component = await ComponentService.getComponentById(this.componentId);
+        await this.loadComponent(this.componentId);
       } catch (error) {
         console.error("Error fetching component details:", error);
       }
@@ -95,15 +104,12 @@ export default defineComponent({
       if (!this.component) return;
       this.isEditing = true;
       try {
-        const response = await ComponentService.editComponent(this.component.id, updated);
-        if (response) {
-          this.showEditingModal = false;
-          await this.fetchComponent();
-          ToastService.showSuccess({
-            key: "components.edit.success",
-            fallback: "Component edited successfully",
-          });
-        }
+        await this.saveComponent(this.component.id, updated);
+        this.showEditingModal = false;
+        ToastService.showSuccess({
+          key: "components.edit.success",
+          fallback: "Component edited successfully",
+        });
       } catch {
         ToastService.showError({
           key: "components.edit.failed",
@@ -116,15 +122,13 @@ export default defineComponent({
     async handleComponentDelete(id: number) {
       this.isEditing = true;
       try {
-        const response = await ComponentService.deleteComponent(id);
-        if (response) {
-          this.showEditingModal = false;
-          ToastService.showSuccess({
-            key: "components.delete.success",
-            fallback: "Component deleted successfully",
-          });
-          this.$router.push({ name: "component-overview" });
-        }
+        await this.removeComponent(id);
+        this.showEditingModal = false;
+        ToastService.showSuccess({
+          key: "components.delete.success",
+          fallback: "Component deleted successfully",
+        });
+        this.$router.push({ name: "component-overview" });
       } catch {
         ToastService.showError({
           key: "components.delete.failed",

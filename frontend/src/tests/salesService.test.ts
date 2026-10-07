@@ -1,7 +1,6 @@
 /**
- * Characterization tests for SalesService (SSE accumulation, "new" flags,
- * price history) and SubstrateService (pessimistic mutations that upsert the
- * server-confirmed substrate into the cache).
+ * Characterization tests for SalesService: SSE accumulation, "new" flags and
+ * price history.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -14,7 +13,6 @@ vi.mock("@/services/general/ToastService", async () => (await import("./helpers"
 vi.mock("@/services/general/LocalizationService", async () =>
   (await import("./helpers")).localizationModule(),
 );
-vi.mock("@/stores/session", () => ({ currentUserId: () => 1 }));
 vi.mock("@/services/ImageService", () => ({ default: { uploadImage: vi.fn() } }));
 
 type Handlers = {
@@ -46,7 +44,6 @@ api.stream.mockImplementation(
 vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import SalesService, { SaleEvents } from "@/services/SalesServices";
-import SubstrateService, { SubstrateEvents } from "@/services/SubstrateService";
 import { BaseService } from "@/services/base/BaseService";
 
 const apiSale = (id: string, price = 10): APISale => ({
@@ -148,93 +145,5 @@ describe("SalesService", () => {
     };
     expect((await SalesService.getSaleById("a"))?.id).toBe("a");
     expect(await SalesService.getSaleById("missing")).toBeNull();
-  });
-});
-
-const apiSubstrate = (overrides: Partial<APISubstrate> = {}): APISubstrate =>
-  ({
-    substrate_id: 1,
-    substrate_user_id: 1,
-    substrate_name: "Aroid Mix",
-    is_public: false,
-    substrate_created_at: 1704067200,
-    image_url: null,
-    images: [],
-    components: [],
-    ...overrides,
-  }) as APISubstrate;
-
-describe("SubstrateService", () => {
-  it("fetches the list once and derives the owner's substrates", async () => {
-    api.get.mockResolvedValue([
-      apiSubstrate({ substrate_id: 1, substrate_user_id: 1 }),
-      apiSubstrate({ substrate_id: 2, substrate_user_id: 9, is_public: true }),
-    ]);
-    expect((await SubstrateService.getPrivateSubstrates()).map((s) => s.id)).toEqual([1]);
-    expect((await SubstrateService.getPublicSubstrates()).map((s) => s.id)).toEqual([2]);
-    expect(api.get).toHaveBeenCalledTimes(1);
-  });
-
-  it("creates a substrate and upserts the server response without refetching", async () => {
-    api.get.mockResolvedValue([apiSubstrate({ substrate_id: 1 })]);
-    await SubstrateService.getAllSubstrates();
-    api.post.mockResolvedValue(apiSubstrate({ substrate_id: 2, substrate_name: "New" }));
-    const events = vi.fn();
-    document.addEventListener(SubstrateEvents.SUBSTRATES_UPDATED, events);
-    await SubstrateService.addSubstrate({ name: "New", isPublic: false } as AddSubstrate);
-    document.removeEventListener(SubstrateEvents.SUBSTRATES_UPDATED, events);
-    expect(events).toHaveBeenCalled();
-    expect((await SubstrateService.getAllSubstrates()).map((s) => s.id)).toEqual([1, 2]);
-    expect(api.get).toHaveBeenCalledTimes(1);
-  });
-
-  it("creates with components in two requests and keeps the final state", async () => {
-    api.get.mockResolvedValue([]);
-    await SubstrateService.getAllSubstrates();
-    api.post.mockResolvedValueOnce(apiSubstrate({ substrate_id: 5 })).mockResolvedValueOnce(
-      apiSubstrate({
-        substrate_id: 5,
-        components: [
-          {
-            component_id: 1,
-            component_name: "Perlite",
-            component_fineness: "coarse",
-            component_parts: 2,
-          },
-        ],
-      } as Partial<APISubstrate>),
-    );
-    const id = await SubstrateService.addSubstrateWithComponents(
-      { name: "Mix", isPublic: false } as AddSubstrate,
-      { components: [{ componentId: 1, parts: 2 }] } as AddSubstrateComponents,
-    );
-    expect(id).toBe(5);
-    expect(api.post).toHaveBeenNthCalledWith(2, "/substrates/5/components", {
-      components: [{ componentId: 1, parts: 2 }],
-    });
-    const list = await SubstrateService.getAllSubstrates();
-    expect(list).toHaveLength(1);
-    expect(list[0].components).toHaveLength(1);
-  });
-
-  it("does not touch the cache when a mutation fails", async () => {
-    api.get.mockResolvedValue([apiSubstrate({ substrate_id: 1 })]);
-    await SubstrateService.getAllSubstrates();
-    api.patch.mockRejectedValue(new Error("403"));
-    await expect(SubstrateService.editSubstrate(1, { name: "x" } as EditSubstrate)).rejects.toThrow(
-      "403",
-    );
-    expect((await SubstrateService.getAllSubstrates())[0].name).toBe("Aroid Mix");
-  });
-
-  it("removes a deleted substrate from the cache after the server confirms", async () => {
-    api.get.mockResolvedValue([
-      apiSubstrate({ substrate_id: 1 }),
-      apiSubstrate({ substrate_id: 2 }),
-    ]);
-    await SubstrateService.getAllSubstrates();
-    api.delete.mockResolvedValue(null);
-    await SubstrateService.deleteSubstrate(1);
-    expect((await SubstrateService.getAllSubstrates()).map((s) => s.id)).toEqual([2]);
   });
 });

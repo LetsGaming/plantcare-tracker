@@ -17,14 +17,8 @@ import { createTestingPinia } from "@pinia/testing";
 // ── Hoisted service spies ────────────────────────────────────────────────────
 
 const spies = vi.hoisted(() => ({
-  // Substrate/Component/User/Calendar helpers used during mount
-  getAllSubstrates: vi.fn(async (): Promise<unknown[]> => []),
+  // Calendar helper used during mount
   getWateringCategories: vi.fn(async (): Promise<unknown[]> => []),
-}));
-
-vi.mock("@/services/SubstrateService", () => ({
-  default: { getAllSubstrates: spies.getAllSubstrates },
-  SubstrateEvents: { SUBSTRATES_UPDATED: "substrates-updated" },
 }));
 
 vi.mock("@/stores/session", () => ({

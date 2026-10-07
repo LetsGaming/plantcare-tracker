@@ -16,7 +16,8 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import BaseFormModal from "../modal/BaseFormModal.vue";
-import ComponentService from "@/services/ComponentService";
+import { mapActions, mapState } from "pinia";
+import { useComponentsStore } from "@/stores/components";
 
 export default defineComponent({
   name: "ComponentEditingModal",
@@ -33,11 +34,10 @@ export default defineComponent({
         name: "",
         fineness: 0,
       } as EditComponent,
-      finenessLevels: [] as APIFinenessLevel[],
     };
   },
   async created() {
-    this.finenessLevels = await ComponentService.getFinenessLevels();
+    await this.ensureFinenessLevels();
   },
   watch: {
     component: {
@@ -48,6 +48,7 @@ export default defineComponent({
     },
   },
   computed: {
+    ...mapState(useComponentsStore, ["finenessLevels"]),
     componentFormFields(): FormField[] {
       return [
         {
@@ -69,6 +70,7 @@ export default defineComponent({
     },
   },
   methods: {
+    ...mapActions(useComponentsStore, ["ensureFinenessLevels"]),
     submit() {
       this.$emit("save", { ...this.editComponentData });
     },

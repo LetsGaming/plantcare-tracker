@@ -42,8 +42,9 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonPage, IonContent } from "@ionic/vue";
-import SubstrateService, { SubstrateEvents } from "@/services/SubstrateService";
-import ComponentService from "@/services/ComponentService";
+import { mapActions, mapState } from "pinia";
+import { useSubstratesStore } from "@/stores/substrates";
+import { useComponentsStore } from "@/stores/components";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -70,8 +71,6 @@ export default defineComponent({
   },
   data() {
     return {
-      substrate: null as null | Substrate,
-      availableComponents: [] as SubstrateComponent[],
       showUploadModal: false,
       showEditModal: false,
       isLoading: false, // For image upload
@@ -79,6 +78,21 @@ export default defineComponent({
     };
   },
   computed: {
+    ...mapState(useSubstratesStore, ["byId"]),
+    ...mapState(useComponentsStore, { allComponents: "items" }),
+    /** This page's substrate, straight from the store so every update repaints it. */
+    substrate(): Substrate | null {
+      return this.byId(this.substrateId) ?? null;
+    },
+    availableComponents(): SubstrateComponent[] {
+      return this.allComponents
+        .map((comp: Component) => ({
+          ...comp,
+          description: comp.fineness || "",
+          parts: 0,
+        }))
+        .sort((a: SubstrateComponent, b: SubstrateComponent) => a.name.localeCompare(b.name));
+    },
     substrateId(): number {
       return Number.parseInt(this.id);
     },
@@ -87,46 +101,33 @@ export default defineComponent({
     },
   },
   async mounted() {
-    document.addEventListener(SubstrateEvents.SUBSTRATES_UPDATED, this.handleSubstratesUpdated);
     await Promise.all([this.fetchSubstrate(), this.fetchAvailableComponents()]);
   },
-
-  beforeUnmount() {
-    document.removeEventListener(SubstrateEvents.SUBSTRATES_UPDATED, this.handleSubstratesUpdated);
-  },
   methods: {
+    ...mapActions(useSubstratesStore, {
+      loadSubstrate: "getSubstrate",
+      saveSubstrateComponents: "editSubstrateComponents",
+      saveSubstrate: "editSubstrate",
+      removeSubstrate: "deleteSubstrate",
+      uploadSubstrateImage: "uploadSubstrateImage",
+    }),
+    ...mapActions(useComponentsStore, { ensureComponentsLoaded: "ensureLoaded" }),
+
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
 
     async fetchSubstrate(forceUpdate = false) {
       try {
-        this.substrate = await SubstrateService.getSubstrateById(this.substrateId, forceUpdate);
+        await this.loadSubstrate(this.substrateId, forceUpdate);
       } catch (error) {
         console.error("Error fetching substrate:", error);
       }
     },
 
-    /**
-     * Reacts to SUBSTRATES_UPDATED (the service writes server truth into
-     * the cache after every mutation). Re-derives this page's substrate
-     * from the cache — never triggers a network call.
-     */
-    async handleSubstratesUpdated() {
-      const substrates = await SubstrateService.getAllSubstrates();
-      this.substrate = substrates.find((sub) => sub.id === this.substrateId) ?? null;
-    },
-
     async fetchAvailableComponents() {
       try {
-        const response = await ComponentService.getAllComponents();
-        this.availableComponents = response
-          .map((comp: Component) => ({
-            ...comp,
-            description: comp.fineness || "",
-            parts: 0,
-          }))
-          .sort((a: SubstrateComponent, b: SubstrateComponent) => a.name.localeCompare(b.name));
+        await this.ensureComponentsLoaded();
       } catch (error) {
         console.error("Error fetching available components:", error);
       }
@@ -154,8 +155,7 @@ export default defineComponent({
 
       this.isSubmitting = true;
       try {
-        // The service upserts the server-confirmed substrate into the
-        // cache; this page re-derives via SUBSTRATES_UPDATED.
+        // The store upserts the server-confirmed substrate; this page repaints from it.
         await this.updateSubstrate(metaChanged, componentsChanged, meta, componentIds, parts);
         this.showEditModal = false;
       } catch (error) {
@@ -208,7 +208,7 @@ export default defineComponent({
 
       if (componentsChanged) {
         tasks.push(
-          SubstrateService.editSubstrateComponents(
+          this.saveSubstrateComponents(
             this.substrate?.id || -1,
             this.sortedComponents(componentIds, parts),
           ),
@@ -217,7 +217,7 @@ export default defineComponent({
 
       if (metaChanged) {
         tasks.push(
-          SubstrateService.editSubstrate(this.substrate?.id || -1, {
+          this.saveSubstrate(this.substrate?.id || -1, {
             name: meta.name,
             isPublic: meta.isPublic,
           }),
@@ -238,7 +238,7 @@ export default defineComponent({
     async handleSubstrateDelete(id: number) {
       try {
         this.isSubmitting = true;
-        await SubstrateService.deleteSubstrate(id);
+        await this.removeSubstrate(id);
         ToastService.showSuccess({ key: "substrate.deleted" });
         this.showEditModal = false;
         this.$router.push({ name: "substrate-overview" });
@@ -254,13 +254,8 @@ export default defineComponent({
       if (!this.substrate) return;
       try {
         this.isLoading = true;
-        // uploadSubstrateImage refreshes this substrate's cache entry
-        // itself; the page re-renders via SUBSTRATES_UPDATED.
-        await SubstrateService.uploadSubstrateImage(
-          this.substrate.id,
-          fileItem.file,
-          fileItem.date,
-        );
+        // The store refreshes this substrate itself; the page re-renders from it.
+        await this.uploadSubstrateImage(this.substrate.id, fileItem.file, fileItem.date);
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);

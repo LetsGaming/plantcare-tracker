@@ -10,7 +10,7 @@
  *
  * Important V2 differences from V1:
  *   - substrate is a lightweight SubstrateRef { substrate_id, substrate_name },
- *     NOT the full SubstrateData object. Use SubstrateService.getSubstrateById()
+ *     NOT the full SubstrateData object. Use the substrates store (getSubstrate)
  *     to load full substrate details when needed.
  *   - plant_description does not exist in V2.
  *   - is_public is always boolean (the repo normalizes the MySQL tinyint).

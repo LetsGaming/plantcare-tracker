@@ -40,7 +40,7 @@ import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 
 import { mapActions, mapState } from "pinia";
 import { usePlantsStore } from "@/stores/plants";
-import SubstrateService from "@/services/SubstrateService";
+import { useSubstratesStore } from "@/stores/substrates";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -58,7 +58,6 @@ export default defineComponent({
       showPublic: "private",
       showAddingModal: false,
       isAddingLoading: false,
-      substrates: [] as Substrate[],
     };
   },
 
@@ -72,6 +71,7 @@ export default defineComponent({
 
   computed: {
     ...mapState(usePlantsStore, ["publicPlants", "personalPlants"]),
+    ...mapState(useSubstratesStore, { substrates: "items" }),
     isPublic() {
       return this.showPublic === "public";
     },
@@ -86,6 +86,7 @@ export default defineComponent({
       return localizationService.t(key, vars, fallback);
     },
 
+    ...mapActions(useSubstratesStore, { ensureSubstratesLoaded: "ensureLoaded" }),
     ...mapActions(usePlantsStore, {
       ensureLoaded: "ensureLoaded",
       addPlantToStore: "addPlant",
@@ -148,12 +149,10 @@ export default defineComponent({
     /* -------------------- ADD PLANT -------------------- */
     async openAddModal() {
       this.showAddingModal = true;
-      if (this.substrates.length === 0) {
-        try {
-          this.substrates = await SubstrateService.getAllSubstrates();
-        } catch (e) {
-          console.error("Failed to fetch substrates", e);
-        }
+      try {
+        await this.ensureSubstratesLoaded();
+      } catch (e) {
+        console.error("Failed to fetch substrates", e);
       }
     },
 

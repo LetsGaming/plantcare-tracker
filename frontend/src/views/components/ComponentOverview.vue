@@ -34,8 +34,8 @@ import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
 
-import ComponentService from "@/services/ComponentService";
-import { mapState } from "pinia";
+import { mapActions, mapState } from "pinia";
+import { useComponentsStore } from "@/stores/components";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -50,7 +50,6 @@ export default defineComponent({
   },
   data() {
     return {
-      components: [] as Component[],
       showAddingModal: false,
       isAdding: false,
     };
@@ -67,6 +66,7 @@ export default defineComponent({
   },
   computed: {
     ...mapState(useSessionStore, ["isAdmin"]),
+    ...mapState(useComponentsStore, { components: "items" }),
     mapToOverviewItems(): OverviewItem[] {
       return this.components.map((component) => ({
         id: component.id,
@@ -81,12 +81,16 @@ export default defineComponent({
       return localizationService.t(key, vars, fallback);
     },
 
+    ...mapActions(useComponentsStore, {
+      ensureComponentsLoaded: "ensureLoaded",
+      createComponent: "addComponent",
+      uploadComponentImage: "uploadComponentImage",
+    }),
+
     async loadComponents(forceUpdate = false) {
       try {
-        const response = await ComponentService.getAllComponents(forceUpdate);
-        this.components = response || [];
+        await this.ensureComponentsLoaded({ force: forceUpdate });
       } catch (error) {
-        this.components = [];
         console.error(`Error ${forceUpdate ? "refreshing" : "fetching"} components:`, error);
       }
     },
@@ -112,13 +116,11 @@ export default defineComponent({
     async handleComponentSave(componentData: AddComponent) {
       this.isAdding = true;
       try {
-        const response = await ComponentService.addComponent(componentData);
-        if (!response) return;
+        const created = await this.createComponent(componentData);
         if (componentData.image) {
-          await ComponentService.uploadComponentImage(response.component_id, componentData.image);
+          await this.uploadComponentImage(created.id, componentData.image);
         }
         this.showAddingModal = false;
-        await this.fetchComponents();
         ToastService.showSuccess({
           key: "components.add.success",
           fallback: "Component added successfully",
