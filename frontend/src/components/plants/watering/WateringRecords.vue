@@ -89,6 +89,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { mapActions, mapState } from "pinia";
 import {
   IonToolbar,
   IonTitle,
@@ -105,8 +106,8 @@ import { addCircle } from "ionicons/icons";
 import Calendar from "@/components/calendar/Calendar.vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 
-import WateringService, { WateringEvents } from "@/services/WateringService";
 import { useSessionStore } from "@/stores/session";
+import { useWateringStore } from "@/stores/watering";
 import CalendarService from "@/services/CalendarService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -135,19 +136,14 @@ export default defineComponent({
   },
   data() {
     return {
-      records: [] as WateringRecord[],
-      mappedRecords: [] as CalendarDates[],
       wateringCategories: [] as Category[],
-      fertilizerOptions: [] as { label: string; value: number }[],
 
-      daysAgo: -1,
       selectedDate: null as string | null,
       selectedRecord: null as WateringRecord | null,
 
       showPopover: false,
       showAddingModal: false,
       showEditingModal: false,
-      isGuest: false,
       isLoading: false,
 
       addingRecord: {
@@ -164,40 +160,45 @@ export default defineComponent({
     };
   },
   async mounted() {
-    document.addEventListener(WateringEvents.RECORDS_CHANGED, this.handleRecordsChanged);
-
     this.isLoading = true;
     try {
       // Parallel loading to optimize speed while remaining safe
-      const isGuest = useSessionStore().isGuest;
-      const [categories, types] = await Promise.all([
+      const [categories] = await Promise.all([
         CalendarService.getWateringCategories(),
-        WateringService.getFertilizerTypes(),
+        this.ensureFertilizerTypes(),
+        this.ensureRecords(this.plantId),
       ]);
-
-      this.isGuest = !!isGuest;
       this.wateringCategories = categories || [];
-
-      const fertilizerTypes = types || [];
-      this.fertilizerOptions = [
-        ...fertilizerTypes.map((t) => ({ label: t.name, value: t.id })),
-        {
-          label: this.t("watering.records.no_fertilizer", {}, "Kein Dünger"),
-          value: -1,
-        },
-      ];
-
-      await this.setRecords();
     } catch (error) {
       console.error("Critical error in WateringRecords mounted:", error);
     } finally {
       this.isLoading = false;
     }
   },
-  beforeUnmount() {
-    document.removeEventListener(WateringEvents.RECORDS_CHANGED, this.handleRecordsChanged);
-  },
   computed: {
+    ...mapState(useSessionStore, ["isGuest"]),
+    ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
+    /** This plant's records, straight from the store so every update repaints. */
+    records(): WateringRecord[] {
+      return this.recordsFor(this.plantId);
+    },
+    mappedRecords(): CalendarDates[] {
+      return this.records.length === 0 ? [] : this.mapWateringsToCalendar(this.records);
+    },
+    daysAgo(): number {
+      if (this.records.length === 0) return -1;
+      const latest = Math.max(...this.records.map((r) => r.date_millis));
+      return Math.floor((Date.now() - latest) / 86400000);
+    },
+    fertilizerOptions(): { label: string; value: number }[] {
+      return [
+        ...this.fertilizerTypes.map((t) => ({ label: t.name, value: t.id })),
+        {
+          label: this.t("watering.records.no_fertilizer", {}, "Kein Dünger"),
+          value: -1,
+        },
+      ];
+    },
     popoverInfo(): PopoverItem | undefined {
       if (!this.selectedRecord) return;
 
@@ -302,6 +303,13 @@ export default defineComponent({
     },
   },
   methods: {
+    ...mapActions(useWateringStore, {
+      ensureRecords: "ensureRecords",
+      ensureFertilizerTypes: "ensureFertilizerTypes",
+      createRecord: "addRecord",
+      updateRecord: "editRecord",
+      removeRecord: "deleteRecord",
+    }),
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
@@ -329,36 +337,6 @@ export default defineComponent({
           defaultValue: mode === "edit" ? (this.editWateringRecord.fertilizerTypeId ?? -1) : -1,
         },
       ];
-    },
-    /**
-     * Reacts to RECORDS_CHANGED (fired by every optimistic paint,
-     * reconcile, and rollback). setRecords re-derives from the dictionary
-     * cache — an L1 hit in all event-driven cases, never a network call.
-     */
-    handleRecordsChanged() {
-      void this.setRecords();
-    },
-
-    async setRecords() {
-      try {
-        const response = await WateringService.getWateringRecords(this.plantId);
-        this.records = response || [];
-
-        if (this.records.length === 0) {
-          this.mappedRecords = [];
-          this.daysAgo = -1;
-          return;
-        }
-
-        const latest = Math.max(...this.records.map((r) => r.date_millis));
-        this.daysAgo = Math.floor((Date.now() - latest) / 86400000);
-
-        this.mappedRecords = this.mapWateringsToCalendar(this.records);
-      } catch (error) {
-        this.records = [];
-        this.mappedRecords = [];
-        console.error("Error setting watering records:", error);
-      }
     },
     onDateChange(date: string) {
       const day = date.split("T")[0];
@@ -391,12 +369,11 @@ export default defineComponent({
       if (!this.selectedRecord?.id) return;
       const recordId = this.selectedRecord.id;
 
-      // Optimistic: the record is removed from the cache immediately and
-      // the calendar repaints via RECORDS_CHANGED — close right away.
-      // On failure handleRequest shows the toast and the rollback
-      // re-derives the previous state.
+      // Optimistic: the record is removed from the store immediately and
+      // the calendar repaints from it, so close right away. On failure
+      // handleRequest shows the toast and the rollback restores the record.
       this.showEditingModal = false;
-      await WateringService.deleteWateringRecord(this.plantId, recordId).catch(() => undefined);
+      await this.removeRecord(this.plantId, recordId).catch(() => undefined);
     },
     async prepareAndSaveRecord(
       record: AddWateringRecord | EditWateringRecord,
@@ -405,15 +382,15 @@ export default defineComponent({
     ) {
       this.syncFertilizerUsage(record, record.fertilizerTypeId ?? undefined);
 
-      // Optimistic: the calendar repaints via RECORDS_CHANGED before the
-      // request settles — close the modal immediately. Errors are already
-      // toasted by handleRequest and rolled back by the service.
+      // Optimistic: the calendar repaints from the store before the request
+      // settles, so close the modal immediately. Errors are already toasted
+      // by handleRequest and rolled back by the store.
       if (mode === "add") {
         this.showAddingModal = false;
-        await WateringService.addWateringRecord(this.plantId, record).catch(() => undefined);
+        await this.createRecord(this.plantId, record).catch(() => undefined);
       } else if (id) {
         this.showEditingModal = false;
-        await WateringService.editWateringRecord(this.plantId, id, record).catch(() => undefined);
+        await this.updateRecord(this.plantId, id, record).catch(() => undefined);
       }
     },
     mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {

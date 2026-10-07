@@ -27,16 +27,13 @@ vi.mock("@/utils/apiUtils", () => ({
   },
 }));
 vi.mock("@/services/ImageService", () => ({ default: { uploadImage: vi.fn(async () => ({})) } }));
-vi.mock("@/services/WateringService", () => ({
-  default: { invalidatePlantCache: vi.fn(async () => undefined) },
-}));
 vi.mock("@/services/SubstrateService", () => ({
   default: { getAllSubstrates: vi.fn(async () => [{ id: 5, name: "Aroid Mix" }]) },
 }));
 
 import ApiUtils from "@/utils/apiUtils";
 import ImageService from "@/services/ImageService";
-import WateringService from "@/services/WateringService";
+import { useWateringStore } from "@/stores/watering";
 import { useSessionStore } from "@/stores/session";
 import { usePlantsStore } from "@/stores/plants";
 
@@ -285,14 +282,16 @@ describe("deletePlant (optimistic)", () => {
     const gate = deferred<void>();
     vi.mocked(ApiUtils.delete).mockReturnValue(gate.promise as never);
 
+    const dropPlant = vi.spyOn(useWateringStore(), "dropPlant");
+
     const pending = store.deletePlant(1);
     await vi.waitFor(() => expect(ids(store.items)).toEqual([2]));
-    expect(WateringService.invalidatePlantCache).not.toHaveBeenCalled();
+    expect(dropPlant).not.toHaveBeenCalled();
 
     gate.resolve();
     await pending;
     expect(ApiUtils.delete).toHaveBeenCalledWith("/plants/1");
-    expect(WateringService.invalidatePlantCache).toHaveBeenCalledWith(1);
+    expect(dropPlant).toHaveBeenCalledWith(1);
   });
 
   it("re-inserts the plant at its original position and keeps the watering cache on failure", async () => {
@@ -304,9 +303,10 @@ describe("deletePlant (optimistic)", () => {
     const store = await newStore();
     await store.ensureLoaded();
     vi.mocked(ApiUtils.delete).mockRejectedValue(new Error("404"));
+    const dropPlant = vi.spyOn(useWateringStore(), "dropPlant");
     await expect(store.deletePlant(2)).rejects.toThrow("404");
     expect(ids(store.items)).toEqual([1, 2, 3]);
-    expect(WateringService.invalidatePlantCache).not.toHaveBeenCalled();
+    expect(dropPlant).not.toHaveBeenCalled();
   });
 });
 

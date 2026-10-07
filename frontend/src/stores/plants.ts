@@ -27,10 +27,10 @@ import ApiUtils from "@/utils/apiUtils";
 import PlantMapper from "@/mapping/PlantMapping";
 import ImageService from "@/services/ImageService";
 import SubstrateService from "@/services/SubstrateService";
-import WateringService from "@/services/WateringService";
 import Utils from "@/utils/utils";
 import { handleRequest } from "@/utils/requestFeedback";
 import { useSessionStore } from "./session";
+import { useWateringStore } from "./watering";
 import { optimisticRemove, optimisticUpsert } from "./optimistic";
 import { coalesced, isStale, resourceState } from "./resource";
 
@@ -44,12 +44,18 @@ export const usePlantsStore = defineStore("plants", {
   }),
 
   persist: {
-    key: "plants_all",
-    pick: (state) => state.items,
-    apply: (state, data: Plant[]) => {
-      state.items = data;
-      state.status = "ready";
-    },
+    entries: [
+      {
+        key: "plants_all",
+        pick: (state) => state.items,
+        timestamp: (state) => state.fetchedAt,
+        apply: (state, data: Plant[], timestamp) => {
+          state.items = data;
+          state.fetchedAt = timestamp;
+          state.status = "ready";
+        },
+      },
+    ],
   },
 
   getters: {
@@ -213,7 +219,7 @@ export const usePlantsStore = defineStore("plants", {
             "error.action_failed",
           ),
       );
-      await WateringService.invalidatePlantCache(plantId);
+      useWateringStore().dropPlant(plantId);
     },
 
     /** Uploads an image, then refreshes just this plant so the gallery shows it. */

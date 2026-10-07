@@ -17,29 +17,9 @@ import { createTestingPinia } from "@pinia/testing";
 // ── Hoisted service spies ────────────────────────────────────────────────────
 
 const spies = vi.hoisted(() => ({
-  // WateringService
-  getWateringRecords: vi.fn(async (): Promise<unknown[]> => []),
-  getFertilizerTypes: vi.fn(async (): Promise<unknown[]> => []),
-  addWateringRecord: vi.fn(),
-  editWateringRecord: vi.fn(),
-  deleteWateringRecord: vi.fn(),
   // Substrate/Component/User/Calendar helpers used during mount
   getAllSubstrates: vi.fn(async (): Promise<unknown[]> => []),
   getWateringCategories: vi.fn(async (): Promise<unknown[]> => []),
-}));
-
-vi.mock("@/services/WateringService", () => ({
-  default: {
-    getWateringRecords: spies.getWateringRecords,
-    getFertilizerTypes: spies.getFertilizerTypes,
-    addWateringRecord: spies.addWateringRecord,
-    editWateringRecord: spies.editWateringRecord,
-    deleteWateringRecord: spies.deleteWateringRecord,
-  },
-  WateringEvents: {
-    RECORDS_CHANGED: "watering-records-changed",
-    FERTILIZER_TYPES_CHANGED: "fertilizer-types-changed",
-  },
 }));
 
 vi.mock("@/services/SubstrateService", () => ({
@@ -66,6 +46,7 @@ vi.mock("@/services/general/LocalizationService", () => ({
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import PlantOverview from "@/views/plants/PlantOverview.vue";
 import { usePlantsStore } from "@/stores/plants";
+import { useWateringStore } from "@/stores/watering";
 
 const record = (id: number, millis: number) => ({
   id,
@@ -78,58 +59,60 @@ const record = (id: number, millis: number) => ({
 
 beforeEach(() => {
   Object.values(spies).forEach((s) => s.mockClear());
-  spies.getWateringRecords.mockResolvedValue([]);
 });
 
 // ── WateringRecords component ────────────────────────────────────────────────
 
-describe("WateringRecords — event-driven re-derivation", () => {
-  it("re-derives from the getter on RECORDS_CHANGED without calling mutations", async () => {
-    spies.getWateringRecords.mockResolvedValue([record(1, 1_700_000_000_000)]);
+const mountRecords = (records: unknown[] = []) => {
+  const pinia = createTestingPinia({ createSpy: vi.fn });
+  const store = useWateringStore(pinia);
+  store.byPlantId = { 1: records as WateringRecord[] };
+  const wrapper = shallowMount(WateringRecords, {
+    props: { plantId: 1 },
+    global: { plugins: [pinia] },
+  });
+  return { wrapper, store };
+};
 
-    const wrapper = shallowMount(WateringRecords, {
-      props: { plantId: 1 },
-    });
+describe("WateringRecords: store-driven records", () => {
+  it("loads through the store on mount and repaints when the store changes", async () => {
+    const { wrapper, store } = mountRecords([record(1, 1_700_000_000_000)]);
     await flushPromises();
 
-    // mounted() loaded once through the getter
-    expect(spies.getWateringRecords).toHaveBeenCalledTimes(1);
-    expect(spies.getWateringRecords).toHaveBeenCalledWith(1);
+    expect(store.ensureRecords).toHaveBeenCalledWith(1);
+    expect(store.ensureFertilizerTypes).toHaveBeenCalled();
     expect((wrapper.vm as any).records).toHaveLength(1);
 
-    // A service paint (optimistic add elsewhere) fires the event…
-    spies.getWateringRecords.mockResolvedValue([
-      record(1, 1_700_000_000_000),
-      record(-5, Date.now()),
-    ]);
-    document.dispatchEvent(new CustomEvent("watering-records-changed"));
+    // an optimistic paint elsewhere shows up without any event
+    store.byPlantId[1].push(record(-5, Date.now()) as WateringRecord);
     await flushPromises();
-
-    // …and the component re-derives via the getter only.
-    expect(spies.getWateringRecords).toHaveBeenCalledTimes(2);
     expect((wrapper.vm as any).records).toHaveLength(2);
-    expect(spies.addWateringRecord).not.toHaveBeenCalled();
-    expect(spies.editWateringRecord).not.toHaveBeenCalled();
-    expect(spies.deleteWateringRecord).not.toHaveBeenCalled();
-
-    // Listener is removed on unmount — further events are ignored.
+    expect(store.addRecord).not.toHaveBeenCalled();
+    expect(store.editRecord).not.toHaveBeenCalled();
+    expect(store.deleteRecord).not.toHaveBeenCalled();
     wrapper.unmount();
-    document.dispatchEvent(new CustomEvent("watering-records-changed"));
-    await flushPromises();
-    expect(spies.getWateringRecords).toHaveBeenCalledTimes(2);
   });
 
-  it("closes the add modal immediately and lets the event repaint (optimistic)", async () => {
-    const wrapper = shallowMount(WateringRecords, {
-      props: { plantId: 1 },
-    });
+  it("derives the last watering and the fertilizer options from the store", async () => {
+    const { wrapper, store } = mountRecords([record(1, Date.now() - 2 * 86_400_000)]);
+    store.fertilizerTypes = [{ id: 2, name: "synthetic" }] as FertilizerType[];
+    await flushPromises();
+    expect((wrapper.vm as any).daysAgo).toBe(2);
+    expect((wrapper.vm as any).fertilizerOptions.map((o: { value: number }) => o.value)).toEqual([
+      2, -1,
+    ]);
+    wrapper.unmount();
+  });
+
+  it("closes the add modal immediately and lets the store repaint (optimistic)", async () => {
+    const { wrapper, store } = mountRecords();
     await flushPromises();
 
     let resolveAdd!: (value: unknown) => void;
-    spies.addWateringRecord.mockReturnValue(
+    vi.mocked(store.addRecord).mockReturnValue(
       new Promise((res) => {
         resolveAdd = res;
-      }),
+      }) as never,
     );
 
     (wrapper.vm as any).showAddingModal = true;
@@ -140,10 +123,10 @@ describe("WateringRecords — event-driven re-derivation", () => {
     });
     await flushPromises();
 
-    // Modal is closed before the request settles — the optimistic paint
-    // has already updated the calendar through RECORDS_CHANGED.
+    // Modal is closed before the request settles: the optimistic paint
+    // has already updated the calendar from the store.
     expect((wrapper.vm as any).showAddingModal).toBe(false);
-    expect(spies.addWateringRecord).toHaveBeenCalledTimes(1);
+    expect(store.addRecord).toHaveBeenCalledTimes(1);
 
     resolveAdd(record(15, Date.now()));
     await pending;

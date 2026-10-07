@@ -3,20 +3,26 @@ import storageService from "@/services/general/StorageService";
 import Utils from "@/utils/utils";
 
 /**
- * Opt-in L2 persistence for a store, backed by the async Ionic storage.
+ * One piece of store state mirrored to the async Ionic storage.
  *
  * Entries keep the envelope the app has always written
  * (`{ data, timestamp, keepOnClear }`), so caches survive the move to stores.
  */
-export interface PersistOptions<S extends StateTree> {
+export interface PersistEntry<S extends StateTree> {
   /** Storage key. */
   key: string;
   /** Survive `storageService.clear()` (logout); only an account wipe removes it. */
   keepOnClear?: boolean;
   /** The part of the state to write. */
   pick: (state: S) => unknown;
-  /** Puts a stored snapshot back into the state. */
-  apply: (state: S, data: any) => void;
+  /** Puts a stored snapshot back into the state; `timestamp` is when it was saved. */
+  apply: (state: S, data: any, timestamp: number) => void;
+  /** Time stored with the snapshot (when the data was fetched). Defaults to now. */
+  timestamp?: (state: S) => number | null;
+}
+
+export interface PersistOptions<S extends StateTree> {
+  entries: PersistEntry<S>[];
   /** Trailing debounce for writes. */
   debounceMs?: number;
 }
@@ -28,7 +34,7 @@ declare module "pinia" {
   }
 
   export interface PiniaCustomProperties {
-    /** Loads the stored snapshot if it exists and has not expired; true when applied. */
+    /** Loads the stored snapshots that exist and have not expired; true when any applied. */
     $hydrate(): Promise<boolean>;
     /** Drops a pending write, used when the account's data is being wiped. */
     $cancelPersist(): void;
@@ -53,18 +59,25 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
   }
 
   store.$hydrate = async () => {
-    const entry = await storageService.get<{ data: unknown; timestamp: number }>(persist.key);
-    if (!entry || entry.data == null || Utils.isCacheExpired(entry.timestamp)) return false;
+    const stored = await Promise.all(
+      persist.entries.map(async (entry) => ({
+        entry,
+        value: await storageService.get<{ data: unknown; timestamp: number }>(entry.key),
+      })),
+    );
+
+    let applied = false;
     suppressed = true;
     try {
-      store.$patch((state) => {
-        persist.apply(state, entry.data);
-        (state as { fetchedAt?: number | null }).fetchedAt = entry.timestamp;
-      });
+      for (const { entry, value } of stored) {
+        if (!value || value.data == null || Utils.isCacheExpired(value.timestamp)) continue;
+        store.$patch((state) => entry.apply(state, value.data, value.timestamp));
+        applied = true;
+      }
     } finally {
       suppressed = false;
     }
-    return true;
+    return applied;
   };
 
   // A reset belongs to a logout or account wipe: nothing may be written back
@@ -86,11 +99,13 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
       store.$cancelPersist();
       timer = setTimeout(() => {
         timer = undefined;
-        void storageService.set(persist.key, {
-          data: JSON.parse(JSON.stringify(persist.pick(state))),
-          keepOnClear: persist.keepOnClear ?? false,
-          timestamp: (state as { fetchedAt?: number | null }).fetchedAt ?? Date.now(),
-        });
+        for (const entry of persist.entries) {
+          void storageService.set(entry.key, {
+            data: JSON.parse(JSON.stringify(entry.pick(state))),
+            keepOnClear: entry.keepOnClear ?? false,
+            timestamp: entry.timestamp?.(state) ?? Date.now(),
+          });
+        }
       }, persist.debounceMs ?? DEFAULT_DEBOUNCE_MS);
     },
     { detached: true, flush: "sync" },
