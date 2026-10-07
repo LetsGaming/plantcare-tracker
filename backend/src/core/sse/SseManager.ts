@@ -10,7 +10,7 @@
  * the shared endpoint lifecycle in sseEndpoint.ts.
  */
 
-import type { ServerResponse } from 'node:http';
+import type { OutgoingHttpHeaders, ServerResponse } from 'node:http';
 import { SSE } from '../config';
 
 export class SseManager {
@@ -21,10 +21,13 @@ export class SseManager {
 
   constructor(
     private readonly res: ServerResponse,
+    /** Headers already decided by the framework (CORS, request id). */
+    inheritedHeaders: OutgoingHttpHeaders = {},
     maxChunkSize: number = SSE.MAX_CHUNK_BYTES,
   ) {
     this.maxChunkSize = maxChunkSize;
     res.writeHead(200, {
+      ...inheritedHeaders,
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
@@ -72,7 +75,8 @@ export class SseManager {
     clearInterval(this.heartbeat);
     this.res.write(`event: ${SSE.EVENT.DONE}\ndata: ${JSON.stringify(stats)}\n\n`);
     return new Promise((resolve) => {
-      this.res.end(() => resolve());
+      this.res.once('finish', resolve);
+      this.res.end();
     });
   }
 

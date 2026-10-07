@@ -5,7 +5,7 @@
  * This is the composition root for the Sales module.
  */
 
-import { Router } from 'express';
+import type { FastifyPluginAsync } from 'fastify';
 import { NodeCacheAdapter } from '../../../core/cache';
 import type { CacheService } from '../../../core/cache/CacheService';
 import { authenticateToken, isAdmin, makeAuthenticateSSE } from '../../../core/middleware';
@@ -20,19 +20,21 @@ export interface SalesRouterDeps {
   createSources?: (cache: CacheService, tracker: SourceHealthTracker) => SalesSource[];
 }
 
-export const createSalesRouter = (deps: SalesRouterDeps = {}): Router => {
-  const router = Router();
+export const salesRoutes =
+  (deps: SalesRouterDeps = {}): FastifyPluginAsync =>
+  async (app) => {
+    // Dependency injection: cache + health tracker → scrapers → controllers
+    const cache = new NodeCacheAdapter();
+    const tracker = new SourceHealthTracker(new SQLiteSourceHealthRepository());
+    const sources = (deps.createSources ?? createAllScrapers)(cache, tracker);
+    const getSalesData = createSalesController(sources);
+    const health = createSourceHealthController(sources, tracker);
 
-  // Dependency injection: cache + health tracker → scrapers → controllers
-  const cache = new NodeCacheAdapter();
-  const tracker = new SourceHealthTracker(new SQLiteSourceHealthRepository());
-  const sources = (deps.createSources ?? createAllScrapers)(cache, tracker);
-  const getSalesData = createSalesController(sources);
-  const health = createSourceHealthController(sources, tracker);
-
-  router.get('/health', authenticateToken, isAdmin, health.listHealth);
-  router.post('/health/:key/check', authenticateToken, isAdmin, health.recheckSource);
-  router.get('/', makeAuthenticateSSE(), getSalesData);
-
-  return router;
-};
+    app.get('/health', { onRequest: [authenticateToken, isAdmin] }, health.listHealth);
+    app.post(
+      '/health/:key/check',
+      { onRequest: [authenticateToken, isAdmin] },
+      health.recheckSource,
+    );
+    app.get('/', { onRequest: makeAuthenticateSSE() }, getSalesData);
+  };

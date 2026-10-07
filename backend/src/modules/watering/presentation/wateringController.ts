@@ -10,7 +10,8 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { numericParam, type Handler } from '../../../core/middleware';
 import {
   GetFertilizerTypesUseCase,
   GetWateringRecordsForPlantUseCase,
@@ -47,12 +48,12 @@ export interface WateringRecordResponse {
  * layout (TS2883).
  */
 export interface WateringController {
-  getFertilizerTypes: RequestHandler;
-  getRecordsForPlant: RequestHandler;
-  getRecord: RequestHandler;
-  addRecord: RequestHandler;
-  editRecord: RequestHandler;
-  deleteRecord: RequestHandler;
+  getFertilizerTypes: Handler;
+  getRecordsForPlant: Handler;
+  getRecord: Handler;
+  addRecord: Handler;
+  editRecord: Handler;
+  deleteRecord: Handler;
 }
 
 export const createWateringController = (repo: WateringRepository): WateringController => {
@@ -64,39 +65,42 @@ export const createWateringController = (repo: WateringRepository): WateringCont
   const remove = new DeleteWateringRecordUseCase(repo);
 
   return {
-    getFertilizerTypes: async (_req: Request, res: Response) => {
+    getFertilizerTypes: async () => {
       const types = await getTypes.execute();
       const body: FertilizerTypeListResponse = { data: types };
-      res.json(body);
+      return body;
     },
 
-    getRecordsForPlant: async (req: Request, res: Response) => {
-      const records = await getForPlant.execute(Number(req.params.plantId), req.user!.id);
+    getRecordsForPlant: async (req: FastifyRequest) => {
+      const records = await getForPlant.execute(numericParam(req, 'plantId'), req.user!.id);
       const body: WateringRecordListResponse = { data: records };
-      res.json(body);
+      return body;
     },
 
-    getRecord: async (req: Request, res: Response) => {
-      const record = await getOne.execute(Number(req.params.id), req.user!.id);
+    getRecord: async (req: FastifyRequest) => {
+      const record = await getOne.execute(numericParam(req, 'id'), req.user!.id);
       const body: WateringRecordResponse = { data: record };
-      res.json(body);
+      return body;
     },
 
-    addRecord: async (req: Request, res: Response) => {
-      const record = await create.execute(Number(req.params.plantId), req.user!.id, req.body);
+    addRecord: async (req: FastifyRequest, reply: FastifyReply) => {
+      const record = await create.execute(numericParam(req, 'plantId'), req.user!.id, req.body);
       const body: WateringRecordResponse = { data: record };
-      res.status(HTTP_STATUS.CREATED).location(`/watering/${record.record_id}`).json(body);
+      return reply
+        .code(HTTP_STATUS.CREATED)
+        .header('Location', `/watering/${record.record_id}`)
+        .send(body);
     },
 
-    editRecord: async (req: Request, res: Response) => {
-      const record = await update.execute(Number(req.params.id), req.user!.id, req.body);
+    editRecord: async (req: FastifyRequest) => {
+      const record = await update.execute(numericParam(req, 'id'), req.user!.id, req.body);
       const body: WateringRecordResponse = { data: record };
-      res.json(body);
+      return body;
     },
 
-    deleteRecord: async (req: Request, res: Response) => {
-      await remove.execute(Number(req.params.id), req.user!.id);
-      res.status(HTTP_STATUS.NO_CONTENT).end();
+    deleteRecord: async (req: FastifyRequest, reply: FastifyReply) => {
+      await remove.execute(numericParam(req, 'id'), req.user!.id);
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
     },
   };
 };

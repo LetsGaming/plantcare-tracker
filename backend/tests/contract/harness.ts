@@ -3,8 +3,8 @@
  *
  * Transport-agnostic HTTP test harness. Contract tests talk to the
  * `TestClient` interface only; this file is the single place that knows how
- * to reach the application (supertest against Express today). The tests
- * run against a real SQLite file built from the shipped schema; only the
+ * to reach the application (Fastify `inject`). The tests
+ * run against a real SQLite file built by the migrations; only the
  * network-facing collaborators (scrapers, OpenAI, link searchers) are fakes.
  */
 
@@ -13,8 +13,7 @@ import os from 'os';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import sharp from 'sharp';
-import request from 'supertest';
-import type { Express } from 'express';
+import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../../src/app';
 
 // ── Public contract ───────────────────────────────────────────────────────────
@@ -74,36 +73,36 @@ const buildMultipart = (parts: MultipartPart[]): { body: Buffer; contentType: st
   return { body: Buffer.concat(chunks), contentType: `multipart/form-data; boundary=${boundary}` };
 };
 
-// ── Supertest adapter ─────────────────────────────────────────────────────────
+// ── Fastify inject adapter ────────────────────────────────────────────────────
 
-const collectBytes = (
-  res: NodeJS.ReadableStream,
-  cb: (err: Error | null, body: Buffer) => void,
-): void => {
-  const chunks: Buffer[] = [];
-  res.on('data', (c: Buffer | string) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-  res.on('end', () => cb(null, Buffer.concat(chunks)));
-};
-
-const createSupertestClient = (app: Express): TestClient => ({
+const createInjectClient = (app: FastifyInstance): TestClient => ({
   async request(req) {
-    let call = request(app)[req.method](req.url);
-    for (const [k, v] of Object.entries(req.headers ?? {})) call = call.set(k, v);
-    if (req.cookies?.length) call = call.set('Cookie', req.cookies.join('; '));
+    const headers: Record<string, string> = { ...(req.headers ?? {}) };
+    if (req.cookies?.length) headers['cookie'] = req.cookies.join('; ');
 
+    let payload: string | Buffer | undefined;
     if (req.multipart) {
-      const { body, contentType } = buildMultipart(req.multipart);
-      call = call.set('Content-Type', contentType).send(body);
+      const built = buildMultipart(req.multipart);
+      headers['content-type'] = built.contentType;
+      payload = built.body;
     } else if (req.rawBody !== undefined) {
-      call = call.set('Content-Type', req.contentType ?? 'application/json').send(req.rawBody);
+      headers['content-type'] = req.contentType ?? 'application/json';
+      payload = req.rawBody;
     } else if (req.json !== undefined) {
-      call = call.set('Content-Type', 'application/json').send(JSON.stringify(req.json));
+      headers['content-type'] = 'application/json';
+      payload = JSON.stringify(req.json);
     } else if (req.contentType) {
-      call = call.set('Content-Type', req.contentType);
+      headers['content-type'] = req.contentType;
     }
 
-    const res = await call.buffer(true).parse(collectBytes as never);
-    const bytes = Buffer.isBuffer(res.body) ? res.body : Buffer.alloc(0);
+    const res = await app.inject({
+      method: req.method.toUpperCase() as 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+      url: req.url,
+      headers,
+      payload,
+    });
+
+    const bytes = res.rawPayload;
     const text = bytes.toString('utf8');
     const type = String(res.headers['content-type'] ?? '');
     let body: any;
@@ -114,9 +113,10 @@ const createSupertestClient = (app: Express): TestClient => ({
         body = undefined;
       }
     }
-    const setCookies = (res.headers['set-cookie'] as unknown as string[] | undefined) ?? [];
+    const raw = res.headers['set-cookie'];
+    const setCookies = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
     return {
-      status: res.status,
+      status: res.statusCode,
       headers: res.headers as ContractResponse['headers'],
       setCookies,
       cookies: setCookies.map((c) => c.split(';')[0]),
@@ -171,13 +171,14 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
   process.env.JWT_SECRET ??= 'contract-jwt-secret';
   process.env.JWT_REFRESH_SECRET ??= 'contract-jwt-refresh-secret';
 
-  const { createApp } = await import('../../src/app');
+  const { buildApp } = await import('../../src/app');
   const dbModule = await import('../../src/core/database/db');
   const authModule = await import('../../src/core/auth');
   (await import('../../src/core/logging')).logger.silent = true;
   await dbModule.initDatabase();
 
-  const app = createApp(deps);
+  const app = await buildApp(deps);
+  await app.ready();
   const db: ContractApp['db'] = {
     query: <T extends object>(sql: string, params: SqlParam[] = []) =>
       dbModule
@@ -216,7 +217,7 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
   };
 
   return {
-    client: createSupertestClient(app),
+    client: createInjectClient(app),
     db,
     session,
     createUser,
@@ -230,6 +231,7 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
         .png()
         .toBuffer(),
     close: async () => {
+      await app.close();
       await dbModule.closeDb();
       // Sharp can keep uploaded files open on Windows; the OS temp dir is cleaned up later.
       try {

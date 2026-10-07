@@ -22,7 +22,7 @@
  *   offset) that need explicit extraction. serializeError() handles both.
  */
 
-import type { Request, Response, NextFunction } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { isAppError, ValidationError } from '../errors';
 import { translateError } from '../errors/translateError';
 import { logger } from '../logging/logger';
@@ -48,20 +48,20 @@ function serializeError(err: unknown): Record<string, unknown> {
   return { thrownValue: String(err) };
 }
 
+const pathOf = (request: FastifyRequest): string => request.url.split('?')[0];
+
 export const globalErrorHandler = (
   err: unknown,
-  req: Request,
-  res: Response,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _next: NextFunction,
+  request: FastifyRequest,
+  reply: FastifyReply,
 ): void => {
-  // If headers already sent, we can't respond — just log and bail
-  if (res.headersSent) {
+  // If the response already started, we can't answer — just log and bail
+  if (reply.sent) {
     const errData = serializeError(err);
     logger.error('Error after headers already sent', {
       ...errData,
-      method: req.method,
-      path: req.path,
+      method: request.method,
+      path: pathOf(request),
     });
     return;
   }
@@ -72,8 +72,8 @@ export const globalErrorHandler = (
   if (isAppError(err)) {
     const logCtx = {
       statusCode: err.statusCode,
-      method: req.method,
-      path: req.path,
+      method: request.method,
+      path: pathOf(request),
     };
 
     if (err.isOperational) {
@@ -106,23 +106,23 @@ export const globalErrorHandler = (
       (body['error'] as Record<string, unknown>)['stack'] = err.stack;
     }
 
-    res.status(err.statusCode).json(body);
+    void reply.code(err.statusCode).send(body);
     return;
   }
 
   // ── Unknown / programming errors ────────────────────────────────────────────
   const errData = serializeError(err);
 
-  logger.error(`Unhandled error on ${req.method} ${req.path}`, {
+  logger.error(`Unhandled error on ${request.method} ${pathOf(request)}`, {
     ...errData,
-    method: req.method,
-    path: req.path,
+    method: request.method,
+    path: pathOf(request),
     // Body aids debugging in dev. Must never be logged in prod:
     // it can contain passwords, tokens, or PII.
-    ...(isDev && { body: req.body }),
+    ...(isDev && { body: request.body }),
   });
 
-  res.status(500).json({
+  void reply.code(500).send({
     error: {
       type: 'InternalServerError',
       message: 'An unexpected error occurred',
@@ -138,11 +138,11 @@ export const globalErrorHandler = (
   });
 };
 
-export const notFoundHandler = (req: Request, res: Response): void => {
-  res.status(404).json({
+export const notFoundHandler = (request: FastifyRequest, reply: FastifyReply): void => {
+  void reply.code(404).send({
     error: {
       type: 'NotFoundError',
-      message: `Route ${req.method} ${req.originalUrl} not found`,
+      message: `Route ${request.method} ${request.url} not found`,
       statusCode: 404,
     },
   });

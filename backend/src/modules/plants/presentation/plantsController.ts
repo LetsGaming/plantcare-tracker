@@ -12,7 +12,8 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { numericParam, type Handler } from '../../../core/middleware';
 import {
   GetAllPlantsUseCase,
   GetPlantUseCase,
@@ -42,11 +43,11 @@ export interface PlantResponse {
  * layout (TS2883).
  */
 export interface PlantsController {
-  getAllPlants: RequestHandler;
-  getPlant: RequestHandler;
-  addPlant: RequestHandler;
-  editPlant: RequestHandler;
-  deletePlant: RequestHandler;
+  getAllPlants: Handler;
+  getPlant: Handler;
+  addPlant: Handler;
+  editPlant: Handler;
+  deletePlant: Handler;
 }
 
 export const createPlantsController = (
@@ -60,37 +61,37 @@ export const createPlantsController = (
   const remove = new DeletePlantUseCase(repo, imageCleanup);
 
   return {
-    getAllPlants: async (req: Request, res: Response) => {
+    getAllPlants: async (req: FastifyRequest) => {
       const userId = req.user?.id ?? null;
       const plants = await getAll.execute(userId);
       const body: PlantListResponse = { data: plants.map((p) => p.toJSON()) };
-      res.json(body);
+      return body;
     },
 
-    getPlant: async (req: Request, res: Response) => {
-      const plant = await getOne.execute(Number(req.params.id), req.user?.id ?? null);
+    getPlant: async (req: FastifyRequest) => {
+      const plant = await getOne.execute(numericParam(req, 'id'), req.user?.id ?? null);
       const body: PlantResponse = { data: plant.toJSON() };
-      res.json(body);
+      return body;
     },
 
-    addPlant: async (req: Request, res: Response) => {
+    addPlant: async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = req.user!.id;
       const plant = await create.execute(req.body, userId);
       const body: PlantResponse = { data: plant.toJSON() };
-      res.status(HTTP_STATUS.CREATED).location(`/plants/${plant.id}`).json(body);
+      return reply.code(HTTP_STATUS.CREATED).header('Location', `/plants/${plant.id}`).send(body);
     },
 
-    editPlant: async (req: Request, res: Response) => {
+    editPlant: async (req: FastifyRequest) => {
       const userId = req.user!.id;
-      const plant = await update.execute(Number(req.params.id), userId, req.body);
+      const plant = await update.execute(numericParam(req, 'id'), userId, req.body);
       const body: PlantResponse = { data: plant.toJSON() };
-      res.json(body);
+      return body;
     },
 
-    deletePlant: async (req: Request, res: Response) => {
+    deletePlant: async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = req.user!.id;
-      await remove.execute(Number(req.params.id), userId);
-      res.status(HTTP_STATUS.NO_CONTENT).end();
+      await remove.execute(numericParam(req, 'id'), userId);
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
     },
   };
 };

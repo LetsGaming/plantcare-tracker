@@ -10,25 +10,25 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
-import type { Server } from 'http';
+import type { FastifyInstance } from 'fastify';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 import { initDatabase, closeDb } from './src/core/database/db';
 
 import { logger } from './src/core/logging';
-import { createApp } from './src/app';
+import { buildApp } from './src/app';
 import { getConfig } from './src/core/config';
 import { closeBrowser } from './src/modules/sales/infrastructure/HttpFetcher';
 
 const { port: PORT } = getConfig();
-let server: Server | undefined;
+let app: FastifyInstance | undefined;
 
 const start = async (): Promise<void> => {
   await initDatabase();
-  server = createApp().listen(PORT, () => {
-    logger.info(`V2 server running on port ${PORT}`);
-  });
+  app = await buildApp();
+  await app.listen({ port: PORT, host: '::' });
+  logger.info(`V2 server running on port ${PORT}`);
 };
 
 const releaseResources = async (): Promise<void> => {
@@ -44,7 +44,7 @@ const releaseResources = async (): Promise<void> => {
 const handleShutdown = (signal: string): void => {
   logger.debug(`${signal}: shutting down gracefully...`);
   const finish = (): void => void releaseResources().then(() => process.exit(0));
-  if (server) server.close(finish);
+  if (app) void app.close().then(finish, finish);
   else finish();
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');
@@ -53,8 +53,7 @@ const handleShutdown = (signal: string): void => {
 };
 
 // ── Process-level error guards ────────────────────────────────────────────────
-// Catches unhandled promise rejections (e.g. the express-rate-limit
-// ValidationError about trust proxy) and unexpected thrown exceptions,
+// Catches unhandled promise rejections and unexpected thrown exceptions,
 // routing them through the structured logger instead of dumping raw
 // stack traces to stderr.
 process.on('unhandledRejection', (reason) => {

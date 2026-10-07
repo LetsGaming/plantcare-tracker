@@ -10,7 +10,8 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { numericParam, type Handler } from '../../../core/middleware';
 import {
   GetAllComponentsUseCase,
   GetFinenessLevelsUseCase,
@@ -44,12 +45,12 @@ export interface FinenessLevelListResponse {
  * layout (TS2883).
  */
 export interface ComponentController {
-  getAllComponents: RequestHandler;
-  getFinenessLevels: RequestHandler;
-  getComponent: RequestHandler;
-  addComponent: RequestHandler;
-  editComponent: RequestHandler;
-  deleteComponent: RequestHandler;
+  getAllComponents: Handler;
+  getFinenessLevels: Handler;
+  getComponent: Handler;
+  addComponent: Handler;
+  editComponent: Handler;
+  deleteComponent: Handler;
 }
 
 export const createComponentController = (
@@ -64,39 +65,42 @@ export const createComponentController = (
   const remove = new DeleteComponentUseCase(repo, imageCleanup);
 
   return {
-    getAllComponents: async (_req: Request, res: Response) => {
+    getAllComponents: async () => {
       const components = await getAll.execute();
       const body: ComponentListResponse = { data: components };
-      res.json(body);
+      return body;
     },
 
-    getFinenessLevels: async (_req: Request, res: Response) => {
+    getFinenessLevels: async () => {
       const levels = await getLevels.execute();
       const body: FinenessLevelListResponse = { data: levels };
-      res.json(body);
+      return body;
     },
 
-    getComponent: async (req: Request, res: Response) => {
-      const component = await getOne.execute(Number(req.params.id));
+    getComponent: async (req: FastifyRequest) => {
+      const component = await getOne.execute(numericParam(req, 'id'));
       const body: ComponentResponse = { data: component };
-      res.json(body);
+      return body;
     },
 
-    addComponent: async (req: Request, res: Response) => {
+    addComponent: async (req: FastifyRequest, reply: FastifyReply) => {
       const component = await create.execute(req.body);
       const body: ComponentResponse = { data: component };
-      res.status(HTTP_STATUS.CREATED).location(`/components/${component.component_id}`).json(body);
+      return reply
+        .code(HTTP_STATUS.CREATED)
+        .header('Location', `/components/${component.component_id}`)
+        .send(body);
     },
 
-    editComponent: async (req: Request, res: Response) => {
-      const component = await update.execute(Number(req.params.id), req.body);
+    editComponent: async (req: FastifyRequest) => {
+      const component = await update.execute(numericParam(req, 'id'), req.body);
       const body: ComponentResponse = { data: component };
-      res.json(body);
+      return body;
     },
 
-    deleteComponent: async (req: Request, res: Response) => {
-      await remove.execute(Number(req.params.id));
-      res.status(HTTP_STATUS.NO_CONTENT).end();
+    deleteComponent: async (req: FastifyRequest, reply: FastifyReply) => {
+      await remove.execute(numericParam(req, 'id'));
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
     },
   };
 };

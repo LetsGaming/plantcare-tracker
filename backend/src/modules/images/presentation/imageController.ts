@@ -2,12 +2,12 @@
  * modules/images/presentation/imageController.ts
  *
  * Thin controller for the images module: extract HTTP inputs (params,
- * query, multer file), call the use case, shape the response. All
- * rules — validation, deletion ordering, URL building — live in the
+ * query, multipart parts), call the use case, shape the response. All
+ * rules (validation, deletion ordering, URL building) live in the
  * application layer.
  */
 
-import type { NextFunction, Request, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   UploadImageUseCase,
   ListEntityImagesUseCase,
@@ -23,10 +23,12 @@ import type {
   ImageStorage,
   ImageRecord,
   EntityType,
-  UploadedFile,
 } from '../domain/Image';
+import { numericParam, type Handler } from '../../../core/middleware';
 import { HTTP_STATUS } from '../../../core/config';
+import { ValidationError } from '../../../core/errors';
 import { formatToDBDate } from '../../../core/utils';
+import { readUpload } from './multipartUpload';
 
 // ── Serving constants ─────────────────────────────────────────────────────────
 
@@ -48,32 +50,18 @@ export interface ImageResponse {
 
 // ── HTTP input helpers ────────────────────────────────────────────────────────
 
-const entityTypeParam = (req: Request): EntityType => req.params.entityType as EntityType; // validated by validateEntityType middleware
+const entityTypeParam = (req: FastifyRequest): EntityType =>
+  (req.params as { entityType: string }).entityType as EntityType; // validated by the entity type hook
 
-const actorOf = (req: Request): ImageActor => ({ id: req.user!.id, role: req.user!.role });
-
-const uploadedFile = (req: Request): UploadedFile => ({
-  buffer: req.file!.buffer,
-  originalName: req.file!.originalname,
-});
-
-/**
- * HTTP handlers exposed by the images module.
- *
- * Explicitly typed so the declaration emit never has to name
- * transitive express types (ParamsDictionary/ParsedQs) — those are
- * not reachable by name under pnpm's non-hoisted node_modules
- * layout (TS2883).
- */
-export type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+const actorOf = (req: FastifyRequest): ImageActor => ({ id: req.user!.id, role: req.user!.role });
 
 export interface ImageController {
-  uploadImage: AsyncHandler;
-  listEntityImages: AsyncHandler;
-  serveEntityImage: AsyncHandler;
-  updateImage: AsyncHandler;
-  deleteImage: AsyncHandler;
-  deleteEntityImages: AsyncHandler;
+  uploadImage: Handler;
+  listEntityImages: Handler;
+  serveEntityImage: Handler;
+  updateImage: Handler;
+  deleteImage: Handler;
+  deleteEntityImages: Handler;
 }
 
 export const createImageController = (
@@ -89,72 +77,79 @@ export const createImageController = (
   const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access);
 
   return {
-    uploadImage: async (req: Request, res: Response) => {
+    uploadImage: async (req: FastifyRequest, reply: FastifyReply) => {
       const entityType = entityTypeParam(req);
-      const entityId = Number(req.params.entityId);
+      const entityId = numericParam(req, 'entityId');
+      const { file } = await readUpload(req);
+      if (!file) throw new ValidationError('No image file provided.');
 
       const { url, capturedAt } = await upload.execute({
         actor: actorOf(req),
         entityType,
         entityId,
-        file: uploadedFile(req),
+        file,
       });
 
       const body: UploadImageResponse = {
         data: { path: url, date: formatToDBDate(capturedAt.getTime()) },
       };
-      res.status(HTTP_STATUS.CREATED).location(`/images/${entityType}/${entityId}`).json(body);
+      return reply
+        .code(HTTP_STATUS.CREATED)
+        .header('Location', `/images/${entityType}/${entityId}`)
+        .send(body);
     },
 
-    listEntityImages: async (req: Request, res: Response) => {
+    listEntityImages: async (req: FastifyRequest) => {
       const images = await list.execute(
         entityTypeParam(req),
-        Number(req.query.entityId),
+        Number((req.query as { entityId?: string }).entityId),
         actorOf(req),
       );
       const body: ImageListResponse = { data: images };
-      res.json(body);
+      return body;
     },
 
-    serveEntityImage: async (req: Request, res: Response) => {
-      const sizeParam = req.query.size as string | undefined;
+    serveEntityImage: async (req: FastifyRequest, reply: FastifyReply) => {
+      const sizeParam = (req.query as { size?: string }).size;
       const width = sizeParam ? parseInt(sizeParam, 10) : undefined;
 
       const buffer = await serve.execute(
         entityTypeParam(req),
-        Number(req.params.entityId),
+        numericParam(req, 'entityId'),
         actorOf(req),
         width !== undefined && !isNaN(width) && width > 0 ? width : undefined,
       );
 
-      res.set('Content-Type', SERVED_IMAGE_CONTENT_TYPE);
-      res.set('Cache-Control', SERVED_IMAGE_CACHE_CONTROL);
-      res.send(buffer);
+      return reply
+        .header('Content-Type', SERVED_IMAGE_CONTENT_TYPE)
+        .header('Cache-Control', SERVED_IMAGE_CACHE_CONTROL)
+        .send(buffer);
     },
 
-    updateImage: async (req: Request, res: Response) => {
+    updateImage: async (req: FastifyRequest) => {
+      const { file, fields } = await readUpload(req);
       const record = await update.execute({
         actor: actorOf(req),
-        imageId: Number(req.params.id),
-        file: req.file ? uploadedFile(req) : undefined,
-        date: (req.body as { date?: string | number }).date,
+        imageId: numericParam(req, 'id'),
+        file,
+        date: fields['date'],
       });
       const body: ImageResponse = { data: record };
-      res.json(body);
+      return body;
     },
 
-    deleteImage: async (req: Request, res: Response) => {
-      await remove.execute(Number(req.params.id), actorOf(req));
-      res.status(HTTP_STATUS.NO_CONTENT).end();
+    deleteImage: async (req: FastifyRequest, reply: FastifyReply) => {
+      await remove.execute(numericParam(req, 'id'), actorOf(req));
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
     },
 
-    deleteEntityImages: async (req: Request, res: Response) => {
+    deleteEntityImages: async (req: FastifyRequest, reply: FastifyReply) => {
       await removeForEntity.execute(
         entityTypeParam(req),
-        Number(req.params.entityId),
+        numericParam(req, 'entityId'),
         actorOf(req),
       );
-      res.status(HTTP_STATUS.NO_CONTENT).end();
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
     },
   };
 };

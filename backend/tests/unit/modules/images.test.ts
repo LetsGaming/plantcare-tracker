@@ -32,10 +32,9 @@ import {
 } from '../../../src/modules/images/application/ImageUseCases';
 import { ImageAccessPolicy } from '../../../src/modules/images/application/ImageAccessPolicy';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../src/core/errors';
-import multer from 'multer';
 import {
   MAX_UPLOAD_BYTES,
-  translateMulterError,
+  translateUploadError,
 } from '../../../src/modules/images/presentation/uploadErrors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
@@ -462,23 +461,26 @@ describe('DeleteEntityImagesUseCase', () => {
   });
 });
 
-// ── translateMulterError ──────────────────────────────────────────────────────
+// ── translateUploadError ──────────────────────────────────────────────────────
 
-describe('translateMulterError', () => {
-  it('maps LIMIT_FILE_SIZE to a ValidationError naming the cap', () => {
-    const out = translateMulterError(new multer.MulterError('LIMIT_FILE_SIZE'));
+const parserError = (code: string, message = 'parser failure') =>
+  Object.assign(new Error(message), { code });
+
+describe('translateUploadError', () => {
+  it('maps an oversized file to a ValidationError naming the cap', () => {
+    const out = translateUploadError(parserError('FST_REQ_FILE_TOO_LARGE'));
     expect(out).toBeInstanceOf(ValidationError);
     expect((out as ValidationError).message).toContain(`${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`);
   });
 
-  it('maps other Multer errors to a generic upload ValidationError', () => {
-    const out = translateMulterError(new multer.MulterError('LIMIT_UNEXPECTED_FILE'));
+  it('maps other multipart parser errors to a generic upload ValidationError', () => {
+    const out = translateUploadError(parserError('FST_FILES_LIMIT', 'too many files'));
     expect(out).toBeInstanceOf(ValidationError);
-    expect((out as ValidationError).message).toContain('Upload failed');
+    expect((out as ValidationError).message).toBe('Upload failed: too many files');
   });
 
-  it('passes non-Multer errors through unchanged', () => {
+  it('passes other errors through unchanged', () => {
     const err = new Error('boom');
-    expect(translateMulterError(err)).toBe(err);
+    expect(translateUploadError(err)).toBe(err);
   });
 });

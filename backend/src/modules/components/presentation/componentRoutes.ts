@@ -5,23 +5,20 @@
  * so all mutations are admin-only.
  */
 
-import { Router } from 'express';
+import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteComponentRepository } from '../infrastructure/SQLiteComponentRepository';
 import { createComponentController } from './componentController';
 import { createImageCleanup } from '../../images';
 import { authenticateToken, isAdmin } from '../../../core/middleware';
 
-export const createComponentRouter = (): Router => {
-  const router = Router();
+export const componentRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLiteComponentRepository();
   const ctrl = createComponentController(repo, createImageCleanup());
 
-  router.get('/', authenticateToken, ctrl.getAllComponents);
-  router.get('/fineness-levels', authenticateToken, ctrl.getFinenessLevels);
-  router.get('/:id', authenticateToken, ctrl.getComponent);
-  router.post('/', authenticateToken, isAdmin, ctrl.addComponent);
-  router.put('/:id', authenticateToken, isAdmin, ctrl.editComponent);
-  router.delete('/:id', authenticateToken, isAdmin, ctrl.deleteComponent);
-
-  return router;
+  app.get('/', { onRequest: authenticateToken }, ctrl.getAllComponents);
+  app.get('/fineness-levels', { onRequest: authenticateToken }, ctrl.getFinenessLevels);
+  app.get('/:id', { onRequest: authenticateToken }, ctrl.getComponent);
+  app.post('/', { onRequest: [authenticateToken, isAdmin] }, ctrl.addComponent);
+  app.put('/:id', { onRequest: [authenticateToken, isAdmin] }, ctrl.editComponent);
+  app.delete('/:id', { onRequest: [authenticateToken, isAdmin] }, ctrl.deleteComponent);
 };
