@@ -62,6 +62,14 @@ export class ConflictError extends AppError {
   }
 }
 
+// ── 413 ──────────────────────────────────────────────────────────────────────
+
+export class PayloadTooLargeError extends AppError {
+  constructor(message = 'Request body is too large') {
+    super(message, 413);
+  }
+}
+
 // ── 429 ──────────────────────────────────────────────────────────────────────
 
 export class TooManyRequestsError extends AppError {

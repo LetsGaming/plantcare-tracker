@@ -39,7 +39,7 @@ describe('RegisterUseCase', () => {
     const repo = makeMockRepo();
     const result = await new RegisterUseCase(repo).execute({
       username: 'alice',
-      password: 'pass123',
+      password: 'pass1234',
     });
     expect(result.username).toBe('newuser');
     expect(result.id).toBe(1);
@@ -51,7 +51,7 @@ describe('RegisterUseCase', () => {
       makeUserRow({ username: 'alice' }),
     );
     await expect(
-      new RegisterUseCase(repo).execute({ username: 'alice', password: 'pass' }),
+      new RegisterUseCase(repo).execute({ username: 'alice', password: 'password1' }),
     ).rejects.toThrow(ConflictError);
   });
 
@@ -205,17 +205,17 @@ describe('UpdateProfileUseCase', () => {
   it('hashes password before update', async () => {
     const repo = makeMockRepo();
     await new UpdateProfileUseCase(repo).execute(1, {
-      password: 'newpass',
-      passwordConfirmation: 'newpass',
+      password: 'newpassword',
+      passwordConfirmation: 'newpassword',
     });
     const passArg = (repo.update as ReturnType<typeof vi.fn>).mock.calls[0][1].password;
-    expect(await bcrypt.compare('newpass', passArg)).toBe(true);
+    expect(await bcrypt.compare('newpassword', passArg)).toBe(true);
   });
 
   it('throws NotFoundError when update returns false', async () => {
     const repo = makeMockRepo();
     (repo.update as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new UpdateProfileUseCase(repo).execute(1, { username: 'x' })).rejects.toThrow(
+    await expect(new UpdateProfileUseCase(repo).execute(1, { username: 'xyz' })).rejects.toThrow(
       NotFoundError,
     );
   });

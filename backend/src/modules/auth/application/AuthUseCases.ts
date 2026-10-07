@@ -28,15 +28,37 @@ import {
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
-const CredentialsSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 64;
+const PASSWORD_MIN = 8;
+/** bcrypt ignores everything past 72 bytes, so longer passwords are rejected instead of truncated. */
+const PASSWORD_MAX_BYTES = 72;
+const LOGIN_PASSWORD_MAX = 1024;
+
+const usernameRule = z
+  .string()
+  .min(USERNAME_MIN, `Username must be at least ${USERNAME_MIN} characters`)
+  .max(USERNAME_MAX, `Username must be at most ${USERNAME_MAX} characters`);
+
+const passwordRule = z
+  .string()
+  .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`)
+  .refine((p) => Buffer.byteLength(p, 'utf8') <= PASSWORD_MAX_BYTES, {
+    message: `Password must be at most ${PASSWORD_MAX_BYTES} bytes`,
+  });
+
+const RegisterSchema = z.object({ username: usernameRule, password: passwordRule });
+
+/** Login stays lenient so accounts created under older rules keep working. */
+const LoginSchema = z.object({
+  username: z.string().min(1, 'Username is required').max(USERNAME_MAX),
+  password: z.string().min(1, 'Password is required').max(LOGIN_PASSWORD_MAX),
 });
 
 export const UpdateProfileSchema = z
   .object({
-    username: z.string().min(1, 'Username must not be empty').optional(),
-    password: z.string().min(1, 'Password must not be empty').optional(),
+    username: usernameRule.optional(),
+    password: passwordRule.optional(),
     passwordConfirmation: z.string().optional(),
   })
   .refine((d) => d.username !== undefined || d.password !== undefined, {
@@ -50,7 +72,7 @@ export class RegisterUseCase {
 
   async execute(input: unknown): Promise<{ id: number; username: string }> {
     const { username, password } = parseOrThrow(
-      CredentialsSchema,
+      RegisterSchema,
       input,
       'Username and password are required',
     );
@@ -68,7 +90,7 @@ export class LoginUseCase {
 
   async execute(input: unknown): Promise<{ accessToken: string; refreshToken: string }> {
     const { username, password } = parseOrThrow(
-      CredentialsSchema,
+      LoginSchema,
       input,
       'Username and password are required',
     );
@@ -140,6 +162,11 @@ export class UpdateProfileUseCase {
       }
       updateFields['password'] = await bcrypt.hash(fields.password, AUTH.BCRYPT_SALT_ROUNDS);
       delete updateFields['passwordConfirmation'];
+    }
+
+    if (fields.username !== undefined) {
+      const taken = await this.repo.findByUsername(fields.username);
+      if (taken && taken.id !== userId) throw new ConflictError('Username already exists');
     }
 
     const updated = await this.repo.update(userId, updateFields);

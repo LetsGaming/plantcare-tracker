@@ -14,10 +14,12 @@ import { createModuleLogger } from '../../../core/logging';
 
 const log = createModuleLogger('OpenAIClient');
 
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 const formatToHTML = (text: string, htmlFormatting: boolean): string => {
   if (!htmlFormatting) return text;
-  let t = text
-    .trim()
+  let t = escapeHtml(text.trim())
     .replace(/^## (.*)$/gm, '<h2>$1</h2>')
     .replace(/^### (.*)$/gm, '<h3>$1</h3>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -49,7 +51,7 @@ export class OpenAIPlantClient implements PlantGuideStreamer {
     language = 'en',
     model = 'gpt-4o-mini',
   ): Promise<void> {
-    if (!this.client) return;
+    if (!this.client) throw new Error('OPENAI_API_KEY is not configured');
 
     const cacheKey = `ai_${language}_${plantName.toLowerCase()}`;
     const cached = this.cache.get<string>(cacheKey);
@@ -111,6 +113,7 @@ export class OpenAIPlantClient implements PlantGuideStreamer {
       this.cache.set(cacheKey, fullText);
     } catch (err: unknown) {
       log.error('OpenAI stream failed', { err });
+      throw err;
     }
   }
 }

@@ -462,12 +462,12 @@ describe('authorization', () => {
 });
 
 describe('known defects', () => {
-  it('answers non-image bytes labelled as PNG with 500 instead of 400 (BUG-03)', async () => {
+  it('answers non-image bytes labelled as PNG with 400', async () => {
     const { owner, plant } = await setup();
     const res = await upload(owner.auth, 'plant', plant.plant_id, {
       data: 'definitely not an image',
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
   });
 
   it('serves uploaded files without authentication (SEC-03)', async () => {

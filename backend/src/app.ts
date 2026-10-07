@@ -61,7 +61,7 @@ export const createApp = (deps: AppDeps = {}): express.Express => {
       origin: (origin, cb) => {
         const isLocalhost = isDev && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin ?? '');
         if (!origin || isLocalhost || allowedOrigins.includes(origin)) cb(null, true);
-        else cb(new Error('Not allowed by CORS'));
+        else cb(null, false);
       },
       credentials: true,
     }),

@@ -15,7 +15,7 @@ import fs from 'fs/promises';
 import sharp from 'sharp';
 import ExifParser from 'exif-parser';
 import type { ImageStorage, ProcessedUpload, UploadedFile, EntityType } from '../domain/Image';
-import { NotFoundError } from '../../../core/errors';
+import { NotFoundError, ValidationError } from '../../../core/errors';
 import { getUploadsDirectory } from '../../../core/config';
 import { createModuleLogger } from '../../../core/logging';
 
@@ -124,11 +124,15 @@ export class LocalImageStorage implements ImageStorage {
 
     const capturedAt = extractImageDate(file.buffer);
 
-    await sharp(file.buffer)
-      .resize({ width: MAX_STORED_WIDTH, withoutEnlargement: true })
-      .toFormat('webp')
-      .webp({ quality: WEBP_QUALITY, nearLossless: true })
-      .toFile(outputPath);
+    try {
+      await sharp(file.buffer)
+        .resize({ width: MAX_STORED_WIDTH, withoutEnlargement: true })
+        .toFormat('webp')
+        .webp({ quality: WEBP_QUALITY, nearLossless: true })
+        .toFile(outputPath);
+    } catch {
+      throw new ValidationError('The uploaded file is not a valid image.');
+    }
 
     return { filename, capturedAt };
   }

@@ -591,14 +591,42 @@ describe('bodies of null', () => {
   });
 });
 
-describe('known defects', () => {
-  it('accepts a one character password (SEC-09)', async () => {
-    const username = uniqueName();
-    expect((await register(username, 'x')).status).toBe(201);
-    expect((await login(username, 'x')).status).toBe(200);
+describe('input limits and conflicts', () => {
+  it('rejects a password shorter than 8 characters on register', async () => {
+    const res = await register(uniqueName(), 'short');
+    expect(res.status).toBe(400);
+    expect(res.body.error.fields).toHaveProperty('password');
   });
 
-  it('answers a rename onto an existing username with 500 instead of 409 (BUG-03)', async () => {
+  it('rejects a password over 72 bytes and an overlong or tiny username', async () => {
+    expect((await register(uniqueName(), 'p'.repeat(73))).status).toBe(400);
+    expect((await register(uniqueName(), 'é'.repeat(37))).status).toBe(400);
+    expect((await register('x'.repeat(65))).status).toBe(400);
+    expect((await register('ab')).status).toBe(400);
+  });
+
+  it('applies the same limits to profile changes', async () => {
+    const { auth } = await newSession();
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/auth/me`,
+      headers: auth,
+      json: { password: 'short', passwordConfirmation: 'short' },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('lets an existing account with a short password still log in', async () => {
+    const { username } = await app.createUser('user');
+    const { default: bcrypt } = await import('bcryptjs');
+    app.db.execute('UPDATE users SET password = ? WHERE username = ?', [
+      await bcrypt.hash('abc', 4),
+      username,
+    ]);
+    expect((await login(username, 'abc')).status).toBe(200);
+  });
+
+  it('answers a rename onto an existing username with 409', async () => {
     const { username: taken } = await newSession();
     const { auth } = await newSession();
     const res = await app.client.request({
@@ -607,6 +635,7 @@ describe('known defects', () => {
       headers: auth,
       json: { username: taken },
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe('Username already exists');
   });
 });

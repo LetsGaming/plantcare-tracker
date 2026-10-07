@@ -14,13 +14,13 @@ import { parseOrThrow } from '../../../core/validation';
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
 export const CreateComponentSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(1, 'Name is required').max(100),
   fineness: z.coerce.number().int().positive('Fineness must be a valid integer'),
 });
 
 export const UpdateComponentSchema = z
   .object({
-    name: z.string().min(1).optional(),
+    name: z.string().min(1).max(100).optional(),
     fineness: z.coerce.number().int().positive().optional(),
   })
   .refine((d) => d.name !== undefined || d.fineness !== undefined, {

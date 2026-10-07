@@ -5,6 +5,7 @@ export {
   ForbiddenError,
   NotFoundError,
   ConflictError,
+  PayloadTooLargeError,
   TooManyRequestsError,
   InternalError,
   isAppError,

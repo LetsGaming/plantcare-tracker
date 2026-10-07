@@ -309,7 +309,7 @@ describe('DELETE /plants/:id', () => {
 });
 
 describe('known defects', () => {
-  it('answers a plant update with an unknown substrate with 500 instead of 4xx (BUG-03)', async () => {
+  it('answers a plant update with an unknown substrate with 400', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);
     const res = await app.client.request({
@@ -318,7 +318,7 @@ describe('known defects', () => {
       headers: owner.auth,
       json: { substrateId: 987654 },
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
   });
 
   it('leaves image rows behind when a plant is deleted (BUG-04)', async () => {

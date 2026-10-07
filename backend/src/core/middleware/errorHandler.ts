@@ -24,6 +24,7 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import { isAppError, ValidationError } from '../errors';
+import { translateError } from '../errors/translateError';
 import { logger } from '../logging/logger';
 
 const isDev = process.env.NODE_ENV !== 'production';
@@ -63,6 +64,9 @@ export const globalErrorHandler = (
     });
     return;
   }
+
+  const known = translateError(err);
+  if (known) err = known;
 
   if (isAppError(err)) {
     const logCtx = {

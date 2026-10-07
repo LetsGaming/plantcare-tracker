@@ -19,13 +19,13 @@ import { ensureArray, filterDuplicatesById } from '../../../core/utils';
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
 export const CreateSubstrateSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(1, 'Name is required').max(100),
   isPublic: z.boolean().default(false),
 });
 
 export const UpdateSubstrateSchema = z
   .object({
-    name: z.string().min(1).optional(),
+    name: z.string().min(1).max(100).optional(),
     isPublic: z.boolean().optional(),
     removedComponents: z.array(z.number().int()).optional(),
   })

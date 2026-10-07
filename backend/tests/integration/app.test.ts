@@ -110,7 +110,7 @@ describe('POST /api/v2/auth/register', () => {
     const app = buildTestApp();
     const res = await request(app)
       .post('/api/v2/auth/register')
-      .send({ username: 'existing', password: 'pass' });
+      .send({ username: 'existing', password: 'password123' });
     expect(res.status).toBe(409);
   });
 

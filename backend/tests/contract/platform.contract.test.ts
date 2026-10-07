@@ -81,32 +81,34 @@ describe('CORS', () => {
   });
 });
 
-describe('known defects', () => {
-  it('answers a disallowed origin with 500 instead of omitting CORS headers', async () => {
+describe('request errors', () => {
+  it('omits CORS headers for a disallowed origin instead of failing', async () => {
     const res = await app.client.request({
       method: 'get',
       url: `${API}/health`,
       headers: { Origin: 'https://evil.example' },
     });
-    expect(res.status).toBe(500);
-    expect(res.body.error.type).toBe('InternalServerError');
+    expect(res.status).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 
-  it('answers a malformed JSON body with 500 instead of 400', async () => {
+  it('answers a malformed JSON body with 400', async () => {
     const res = await app.client.request({
       method: 'post',
       url: `${API}/auth/login`,
       rawBody: '{bad',
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({ type: 'ValidationError', statusCode: 400 });
   });
 
-  it('answers a JSON body over 100 kb with 500 instead of 413', async () => {
+  it('answers a JSON body over 100 kb with 413', async () => {
     const res = await app.client.request({
       method: 'post',
       url: `${API}/auth/login`,
       json: { username: 'x'.repeat(150 * 1024), password: 'p' },
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(413);
+    expect(res.body.error).toMatchObject({ type: 'PayloadTooLargeError', statusCode: 413 });
   });
 });

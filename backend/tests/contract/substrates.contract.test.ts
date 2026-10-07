@@ -336,18 +336,18 @@ describe('DELETE /substrates/:id', () => {
   });
 });
 
-describe('known defects', () => {
-  it('answers a duplicate component with 500 instead of 409 (BUG-03)', async () => {
+describe('constraint errors', () => {
+  it('answers a duplicate component with 409', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
     const url = `${API}/substrates/${substrate.substrate_id}/components`;
     const body = { components: [{ componentId: componentA.component_id, parts: 1 }] };
     await app.client.request({ method: 'post', url, headers: owner.auth, json: body });
     const res = await app.client.request({ method: 'post', url, headers: owner.auth, json: body });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(409);
   });
 
-  it('answers an unknown component id with 500 instead of 4xx (BUG-03)', async () => {
+  it('answers an unknown component id with 400', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
     const res = await app.client.request({
@@ -356,6 +356,18 @@ describe('known defects', () => {
       headers: owner.auth,
       json: { components: [{ componentId: 424242, parts: 1 }] },
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a substrate name over 100 characters', async () => {
+    const owner = await app.signIn('user');
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/substrates`,
+      headers: owner.auth,
+      json: { name: 'x'.repeat(101) },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.fields).toHaveProperty('name');
   });
 });
