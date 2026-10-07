@@ -1,7 +1,7 @@
 /**
  * Characterization tests for the ApiUtils request engine: headers, body
  * serialization (including the JSON null body behind BUG-01), the refresh
- * gate for 401 and 403, and the SSE ticket handshake.
+ * gate for 401, and the SSE ticket handshake.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -102,10 +102,10 @@ describe("refresh gate", () => {
     vi.mocked(UserService.refreshToken).mockResolvedValue("fresh" as never);
   });
 
-  it("refreshes and retries once on a 403 as well as on a 401", async () => {
+  it("refreshes and retries once on a 401", async () => {
     fetchMock
       .mockImplementationOnce(async () =>
-        jsonResponse(403, { error: { message: "Invalid or expired token" } }),
+        jsonResponse(401, { error: { message: "Invalid or expired token" } }),
       )
       .mockImplementationOnce(async () => jsonResponse(200, { data: [1] }));
     await expect(ApiUtils.get("/plants")).resolves.toEqual([1]);
@@ -113,11 +113,20 @@ describe("refresh gate", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("returns the second 403 as an error without another refresh", async () => {
+  it("does not refresh on a 403 and surfaces it as an error", async () => {
     fetchMock.mockImplementation(async () =>
       jsonResponse(403, { error: { message: "Forbidden" } }),
     );
     await expect(ApiUtils.get("/plants")).rejects.toMatchObject({ status: 403 });
+    expect(UserService.refreshToken).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the second 401 as an error without another refresh", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(401, { error: { message: "Invalid or expired token" } }),
+    );
+    await expect(ApiUtils.get("/plants")).rejects.toMatchObject({ status: 401 });
     expect(UserService.refreshToken).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

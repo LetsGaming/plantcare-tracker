@@ -152,12 +152,12 @@ describe("refreshToken", () => {
     expect(memoryStore.get("authToken")).toBe("old");
   });
 
-  it("retries three times, one second apart, on 403 and then rethrows", async () => {
+  it("retries three times, one second apart, on a server error and then rethrows", async () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .fn()
       .mockImplementation(async () =>
-        jsonResponse(403, { error: { message: "Invalid refresh token" } }),
+        jsonResponse(500, { error: { message: "Invalid refresh token" } }),
       );
     vi.stubGlobal("fetch", fetchMock);
 

@@ -174,7 +174,7 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
 
   const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) => endpoint.startsWith(e));
 
-  if ((response.status === 401 || response.status === 403) && !shouldSkipRefresh) {
+  if (response.status === 401 && !shouldSkipRefresh) {
     // Only enter the refresh/teardown cycle if the request was actually
     // made while signed in. A 401 on an unauthenticated call (anything
     // fired while the user is still on the login screen) must never
