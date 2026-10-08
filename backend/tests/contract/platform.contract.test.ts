@@ -74,6 +74,21 @@ describe('CORS', () => {
     expect(res.headers['access-control-allow-credentials']).toBe('true');
   });
 
+  it('answers preflights for every method the API uses, so a separate frontend origin can edit and delete', async () => {
+    for (const method of ['PUT', 'PATCH', 'DELETE']) {
+      const res = await app.client.request({
+        method: 'options',
+        url: `${API}/plants/1`,
+        headers: {
+          Origin: 'http://localhost:5173',
+          'Access-Control-Request-Method': method,
+        },
+      });
+      expect(res.status).toBe(204);
+      expect(String(res.headers['access-control-allow-methods'])).toContain(method);
+    }
+  });
+
   it('serves requests without an Origin header', async () => {
     const res = await app.client.request({ method: 'get', url: `${API}/health` });
     expect(res.status).toBe(200);

@@ -27,7 +27,7 @@ const leafImage = (index: number, label: string): string => {
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">` +
     `<rect width="400" height="400" fill="${color}"/>` +
-    `<text x="200" y="215" font-size="120" text-anchor="middle" fill="#ffffff">${label.charAt(0)}</text>` +
+    `<text x="200" y="225" font-size="120" font-weight="700" font-family="system-ui, sans-serif" text-anchor="middle" fill="#ffffff">${label.charAt(0)}</text>` +
     `</svg>`;
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 };

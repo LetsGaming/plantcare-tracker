@@ -26,7 +26,7 @@ export interface MultipartPart {
 }
 
 export interface ContractRequest {
-  method: 'get' | 'post' | 'patch' | 'put' | 'delete';
+  method: 'get' | 'post' | 'patch' | 'put' | 'delete' | 'options';
   url: string;
   headers?: Record<string, string>;
   /** Serialized with JSON.stringify and sent as application/json. */
@@ -96,7 +96,7 @@ const createInjectClient = (app: FastifyInstance): TestClient => ({
     }
 
     const res = await app.inject({
-      method: req.method.toUpperCase() as 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+      method: req.method.toUpperCase() as 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'OPTIONS',
       url: req.url,
       headers,
       payload,

@@ -43,6 +43,7 @@ Failures that are the client's doing never answer `500`:
 | Upload that is not a decodable image | `400` | `ValidationError` |
 
 A request from a disallowed `Origin` is answered normally without CORS headers.
+Preflights allow `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` and `OPTIONS` with credentials, so a frontend on another origin can edit and delete.
 
 Mutating endpoints (POST / PATCH / PUT) respond with the **full resource** in the same shape a subsequent GET would return — clients never need a follow-up fetch after a write. POST additionally sets a `Location` header pointing at the created resource.
 

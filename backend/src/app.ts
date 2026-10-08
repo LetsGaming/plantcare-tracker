@@ -93,6 +93,7 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
       cb(null, !origin || isLocalhost || allowedOrigins.includes(origin));
     },
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
   await app.register(cookie);
   await registerRateLimit(app);
