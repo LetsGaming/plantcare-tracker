@@ -1,3 +1,4 @@
+import { devToken } from "./devToken";
 import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
@@ -23,6 +24,7 @@ import "./theme/scrollbar.css";
 
 /* Services */
 import Utils from "./utils/utils";
+import TokenUtils from "./utils/tokenUtils";
 import localizationService from "@/services/general/LocalizationService";
 
 /**
@@ -49,6 +51,7 @@ for (const path in localeLoaders) {
  */
 async function initializeApp() {
   document.title = Utils.getAppTitle();
+  if (devToken) await TokenUtils.setToken(devToken);
   connectSessionToTransport(pinia);
   // Once the local session is gone: leave for the login screen and reload so no
   // account data survives in memory. Nothing to do when already there.

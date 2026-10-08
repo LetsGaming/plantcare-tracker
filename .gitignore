@@ -4,3 +4,6 @@ uploads/
 logs/
 dist*/
 package-lock.json
+# Isolated dev sessions (scripts/dev-up.mjs)
+data/
+.playwright-mcp/
