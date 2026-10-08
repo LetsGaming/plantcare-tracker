@@ -80,7 +80,8 @@ Machine specific settings are not tracked by git. Each package has a committed `
 `.env` that heals itself: `pnpm run dev`, `pnpm run build` and `pnpm start` (PM2) create the file when it is
 missing and append settings that were added to the example in an update, with their documentation and default.
 Values you set are never touched, a key you commented out stays off, and the backend's JWT secrets are generated
-for you. After `git pull` nothing has to be merged by hand.
+for you. After `git pull` nothing has to be merged by hand; run `pnpm install` in both packages when the
+dependencies changed (`dev`, `build` and the PM2 start tell you if you forgot).
 
 ## Checks
 

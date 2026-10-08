@@ -75,9 +75,14 @@ to pull. Note your values, set the local edits aside, pull and drop them:
 
 ```bash
 git stash && git pull && git stash drop
+pnpm --dir backend install && pnpm --dir frontend install    # every update: dependencies change
 cd frontend && pnpm run build      # creates frontend/.env; put your VITE_API_URL there and build again
 pm2 restart plantcare-backend      # PM2: the start script completes backend/.env with any new settings
 ```
+
+Run `pnpm install` in both packages after every pull that changes a `package.json` or lockfile. If you forget,
+`pnpm run dev`, `pnpm run build` and the PM2 start stop with `[deps] N dependencies are not installed ... Run:
+pnpm install` instead of failing with a wall of type errors (`PLANTCARE_SKIP_DEP_CHECK=1` skips the check).
 
 From then on `pnpm run dev`, `pnpm run build` and the PM2 start add settings introduced by an update to your
 `.env` (with documentation and a default) and never overwrite values you set.

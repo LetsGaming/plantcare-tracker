@@ -8,6 +8,10 @@
  *   is commented out counts as present.
  * - Secrets (a key containing SECRET with an empty default) get a random value when they are added.
  *
+ * Before that, it checks that every dependency in package.json is installed. After a pull that added
+ * dependencies, `dev` and `build` stop with one clear message ("run pnpm install") instead of hundreds of
+ * type errors. Set PLANTCARE_SKIP_DEP_CHECK=1 to skip the check.
+ *
  * Runs before `dev`, `build` and `start`, so a settings file is never committed, never conflicts with a pull
  * and always has every setting. This file is identical in backend/scripts and frontend/scripts.
  */
@@ -41,6 +45,20 @@ const definedKeys = (text) =>
   new Set([...text.matchAll(new RegExp(`^\\s*#?\\s*(${KEY_PATTERN})=`, 'gm'))].map((m) => m[1]));
 
 const randomSecret = () => randomBytes(48).toString('hex');
+
+/** Names from package.json (dependencies and devDependencies) that are not installed in node_modules. */
+export const findMissingDependencies = (packageDir) => {
+  const manifestPath = path.join(packageDir, 'package.json');
+  if (!fs.existsSync(manifestPath)) return [];
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const names = [
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.devDependencies ?? {}),
+  ];
+  return names.filter(
+    (name) => !fs.existsSync(path.join(packageDir, 'node_modules', name, 'package.json')),
+  );
+};
 
 /**
  * Brings `envPath` up to date with `examplePath`.
@@ -100,5 +118,18 @@ if (isMain) {
     else if (added.length > 0) console.log(`[env] Added new settings to .env: ${added.join(', ')}`);
   } catch (error) {
     console.warn(`[env] Could not update .env: ${error instanceof Error ? error.message : error}`);
+  }
+
+  if (process.env.PLANTCARE_SKIP_DEP_CHECK !== '1') {
+    const missing = findMissingDependencies(packageDir);
+    if (missing.length > 0) {
+      const shown = missing.slice(0, 8).join(', ');
+      const more = missing.length > 8 ? ` and ${missing.length - 8} more` : '';
+      console.error(
+        `[deps] ${missing.length} dependencies are not installed (${shown}${more}). ` +
+          `The dependencies changed since the last install. Run: pnpm install (in ${packageDir})`,
+      );
+      process.exitCode = 1;
+    }
   }
 }

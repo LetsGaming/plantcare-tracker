@@ -1,9 +1,10 @@
 /// <reference types="node" />
 import fs from "node:fs";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { healEnv, parseExample } from "../../scripts/ensure-env.mjs";
+import { findMissingDependencies, healEnv, parseExample } from "../../scripts/ensure-env.mjs";
 
 const example = [
   "# Header, separated by a blank line.",
@@ -85,5 +86,57 @@ describe("healEnv", () => {
     fs.rmSync(examplePath);
     expect(healEnv({ examplePath, envPath })).toEqual({ created: false, added: [] });
     expect(fs.existsSync(envPath)).toBe(false);
+  });
+});
+
+describe("findMissingDependencies", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "deps-"));
+    fs.writeFileSync(
+      path.join(dir, "package.json"),
+      JSON.stringify({
+        dependencies: { present: "1", "@scope/pkg": "1", absent: "1" },
+        devDependencies: { "dev-absent": "1" },
+      }),
+    );
+    for (const name of ["present", "@scope/pkg"]) {
+      fs.mkdirSync(path.join(dir, "node_modules", name), { recursive: true });
+      fs.writeFileSync(path.join(dir, "node_modules", name, "package.json"), "{}");
+    }
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("lists dependencies and devDependencies that are not installed", () => {
+    expect(findMissingDependencies(dir)).toEqual(["absent", "dev-absent"]);
+  });
+
+  it("reports nothing without a package.json", () => {
+    fs.rmSync(path.join(dir, "package.json"));
+    expect(findMissingDependencies(dir)).toEqual([]);
+  });
+
+  it("stops the script with one clear message when the install is stale", () => {
+    fs.mkdirSync(path.join(dir, "scripts"));
+    fs.copyFileSync(
+      path.resolve(__dirname, "../../scripts/ensure-env.mjs"),
+      path.join(dir, "scripts", "ensure-env.mjs"),
+    );
+    const run = (env: NodeJS.ProcessEnv) =>
+      spawnSync(process.execPath, [path.join(dir, "scripts", "ensure-env.mjs")], {
+        env: { ...process.env, ...env },
+        encoding: "utf8",
+      });
+
+    const stale = run({});
+    expect(stale.status).toBe(1);
+    expect(stale.stderr).toContain("2 dependencies are not installed (absent, dev-absent)");
+    expect(stale.stderr).toContain("pnpm install");
+
+    expect(run({ PLANTCARE_SKIP_DEP_CHECK: "1" }).status).toBe(0);
   });
 });
