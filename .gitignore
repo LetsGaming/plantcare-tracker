@@ -7,3 +7,10 @@ package-lock.json
 # Isolated dev sessions (scripts/dev-up.mjs)
 data/
 .playwright-mcp/
+frontend/.impeccable/
+scratch-*.png
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/live/
+.impeccable/hook.cache.json
+.impeccable/build/
