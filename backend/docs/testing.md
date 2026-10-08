@@ -27,6 +27,13 @@ pnpm run test tests/integration
 pnpm run test tests/unit/core
 ```
 
+## Local mock stack
+
+`scripts/dev-up.mjs` (repository root) starts `src/tools/devServer.ts`, which builds the app with the same
+dependency seams the contract tests use (`createSources`, `guideStreamer`, `linkSearchers`) filled by
+`src/tools/devMocks.ts`, then seeds data through the real API (`scripts/dev/seed`). It is for manual and browser
+checks, not part of the test run.
+
 ## Contract tests (HTTP level)
 
 `tests/contract/` drives the whole application through its public HTTP interface against a **real SQLite file** built by the migrations. Only the network-facing collaborators are replaced: sales sources, the OpenAI guide streamer and the link searchers are injected through `buildApp({ sales, moreInfo })`. Nothing in the database layer is mocked, so these tests see real constraints, the real body parser, real Sharp processing and the real error pipeline.

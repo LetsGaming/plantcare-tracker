@@ -47,5 +47,7 @@ Extend the seed in the same change that adds the feature.
 ## Gates
 
 Backend: `pnpm run lint`, `format:check`, `typecheck`, `test:coverage`, `build`.
-Frontend: `pnpm run lint`, `format:check`, `pnpm exec vue-tsc --noEmit`, `pnpm exec vitest run --coverage`, `pnpm run build`.
+Frontend: `pnpm run lint`, `format:check`, `pnpm exec vue-tsc --noEmit`, `pnpm run check-keys`, `pnpm exec vitest run --coverage`, `pnpm run build`.
+
+Product and visual context: `PRODUCT.md`, `DESIGN.md`, `frontend/docs/design-system.md`. New user-visible text needs a key in both locale files; icons come from `frontend/src/theme/icons.ts`; styling uses tokens only.
 Frontend stays on the Options API (a test enforces it).
