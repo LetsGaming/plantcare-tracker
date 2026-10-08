@@ -11,7 +11,7 @@ plantcare/
 ├── backend/     Fastify 5 + TypeScript + SQLite (Kysely) REST/SSE API
 ├── frontend/    Ionic + Vue 3 app (Vite, installable PWA)
 ├── scripts/     dev-up and dev-down: isolated local stack with mock data
-├── docs/        Refactor audits and summaries
+├── docs/        Entry point to the backend and frontend documentation
 ├── PRODUCT.md   Who the app is for and its principles
 ├── DESIGN.md    The visual system
 └── .github/workflows/ci.yml   CI for both packages
@@ -114,7 +114,7 @@ single-use tickets from `POST /api/v2/auth/ticket`, valid for 60 seconds. Cross-
 | Backend architecture, authentication, database and migrations | [`backend/docs/`](backend/docs/index.md) |
 | Frontend architecture, stores, tests | [`frontend/docs/`](frontend/docs/index.md) |
 | Local stack and mock data | [`CLAUDE.md`](CLAUDE.md), `scripts/dev/seed/` |
-| Refactor history (audit, summaries, UX audit) | [`docs/refactor/`](docs/refactor/README.md) |
+| All documentation (entry point) | [`docs/`](docs/README.md) |
 
 ## Production notes
 
