@@ -36,6 +36,30 @@ container and forward `X-Forwarded-Proto`; the backend then sets the `Secure` fl
 `0002` deletes orphan image rows and files. CI builds both images and smoke tests the running stack (health,
 registration, login, an authenticated read) on every push.
 
+### Migrating a PM2 deployment
+
+`scripts/migrate-pm2-to-docker.sh` moves an existing PM2 installation (Linux or macOS server) to the Docker
+stack, including its data, from a checkout of this repository:
+
+```bash
+scripts/migrate-pm2-to-docker.sh --dry-run                 # print the plan, change nothing
+scripts/migrate-pm2-to-docker.sh --backend-dir /srv/plantcare/backend --http-port 8080
+```
+
+| Step | What happens |
+|------|--------------|
+| Docker | Installs Docker Engine and the Compose plugin when they are missing (the official `get.docker.com` script on Linux, the package manager for the plugin; asks first, needs root or sudo; on macOS it asks you to install Docker Desktop) |
+| Environment | Reads the old `backend/.env` (never sources it) and writes the compose `.env` from it: JWT secrets, token lifetimes, OpenAI key, `ALLOWED_ORIGINS`, `PUBLIC_BASE_URL`. An existing `.env` is kept unless `--force` |
+| Stop and back up | Builds the images first, then stops the PM2 app so the SQLite file is consistent, and copies the database (including WAL files) and the old `.env` to a backup directory (`~/plantcare-migration-<time>`, mode 700) |
+| Copy | Copies the database and the uploads folder into the `plantcare-data` volume with a throwaway container; the old folders are mounted read-only and stay untouched. It refuses a volume that already holds a database unless `--force` |
+| Verify | Compares row counts (users, plants, watering records, substrates, components, images) and uploaded file counts between old and copied data, starts the stack and waits for the health checks through nginx |
+| Safety | If a step fails before the new stack is verified, the PM2 app is started again. `--remove-pm2` deletes the PM2 app and runs `pm2 save` after a verified migration; without it the app stays stopped |
+
+Options: `--env-file`, `--pm2-name` (default `plantcare-backend`), `--backup-dir`, `--skip-docker-install`,
+`--yes`. Image URLs stored with an absolute origin are converted to relative paths by the backend migrations
+on its first start. A reverse proxy on the host that pointed to port 5000 must point to the new HTTP port
+instead. CI runs the whole migration against a PM2 managed backend with real data on every push.
+
 The sections below describe running the backend without Docker.
 
 ## Production Build

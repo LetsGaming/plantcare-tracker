@@ -121,7 +121,8 @@ single-use tickets from `POST /api/v2/auth/ticket`, valid for 60 seconds. Cross-
 
 - **Docker**: `cp .env.docker.example .env`, set the two JWT secrets, then `docker compose up -d --build` serves the
   app on port 8080 (nginx for the PWA, proxy for `/api` and `/uploads`, backend with a data volume). Details in
-  [`backend/docs/deployment.md`](backend/docs/deployment.md).
+  [`backend/docs/deployment.md`](backend/docs/deployment.md). An existing PM2 installation moves over with
+  `scripts/migrate-pm2-to-docker.sh` (installs Docker if needed, copies the database and images, verifies).
 
 - The backend ships a PM2 config (`backend/ecosystem.config.js`, production by default); `pnpm run build` emits
   JavaScript and `pnpm start` runs it.
