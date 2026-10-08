@@ -151,7 +151,8 @@ jobs:
           curl -fsS -H "authorization: Bearer $token" "$base/api/v2/plants" > /dev/null
 
       - name: Chromium starts inside the backend image
-        run: docker compose exec -T backend node -e "require('playwright').chromium.launch({ headless: true, args: ['--no-sandbox'] }).then((b) => b.close()).then(() => console.log('chromium ok'))"
+        run: |
+          docker compose exec -T backend node -e "require('playwright').chromium.launch({ headless: true, args: ['--no-sandbox'] }).then((b) => b.close()).then(() => console.log('chromium ok'))"
 
       - name: Show logs on failure
         if: failure()
