@@ -43,6 +43,8 @@
         />
       </div>
 
+      <slot name="filters" />
+
       <div v-if="items.length" class="count-row">
         <p class="count" aria-live="polite">
           {{ filteredItems.length }} {{ t("overview.items") }}
@@ -228,6 +230,11 @@ export default defineComponent({
       type: String,
       default: "",
     },
+    /** The parent already orders the items; keep its order instead of the default one. */
+    presorted: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ["retry", "empty-action"],
   setup() {
@@ -286,6 +293,7 @@ export default defineComponent({
       (this.$refs.search as InstanceType<typeof SearchBar> | undefined)?.clearSearch();
     },
     sortItems(items: OverviewItem[]) {
+      if (this.presorted) return items;
       const locale = localizationService.getLocale();
       return [...items].sort((a, b) => {
         const rankDelta = (a.sortRank ?? 0) - (b.sortRank ?? 0);
@@ -306,7 +314,7 @@ export default defineComponent({
   watch: {
     items: {
       immediate: true,
-      handler(newItems) {
+      handler(newItems: OverviewItem[]) {
         if (this.currentSearch) {
           this.filterItems(this.currentSearch);
         } else {

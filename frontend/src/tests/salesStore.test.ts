@@ -261,3 +261,22 @@ describe("persistence", () => {
     expect(store.items.map((s) => s.id)).toEqual(["z"]);
   });
 });
+
+describe("query", () => {
+  it("filters and orders the visible sales without touching the stored ones", async () => {
+    emit([apiSale("a", 10), apiSale("b", 30)]);
+    const store = await newStore();
+    await store.load();
+    store.setQuery({ sort: "priceDesc", minPrice: 20 });
+    expect(store.filteredSales.map((s) => s.id)).toEqual(["b"]);
+    expect(store.items.map((s) => s.id)).toEqual(["a", "b"]);
+    expect(store.sellers).toEqual(["Shop"]);
+  });
+
+  it("resets the filters but keeps the sort order", async () => {
+    const store = await newStore();
+    store.setQuery({ sort: "name", onlyNew: true, minDiscount: 30 });
+    store.resetQuery();
+    expect(store.query).toMatchObject({ sort: "name", onlyNew: false, minDiscount: 0 });
+  });
+});

@@ -76,9 +76,9 @@
       />
 
       <component-editing-modal
-        v-if="component"
+        v-if="modalComponent"
         :is-open="showEditingModal"
-        :component="component"
+        :component="modalComponent"
         :is-loading="isEditing"
         @close="showEditingModal = false"
         @save="handleComponentSave"
@@ -121,6 +121,8 @@ export default defineComponent({
     return {
       showEditingModal: false,
       isEditing: false,
+      /** Kept while the component is deleted so the open modal can finish closing. */
+      deletedComponent: null as Component | null,
       phase: "loading" as LoadPhase,
     };
   },
@@ -142,6 +144,9 @@ export default defineComponent({
     /** This page's component, straight from the store so every update repaints it. */
     component(): Component | null {
       return this.byId(this.componentId) ?? null;
+    },
+    modalComponent(): Component | null {
+      return this.component ?? this.deletedComponent;
     },
     componentId() {
       return Number(this.id);
@@ -194,6 +199,7 @@ export default defineComponent({
     },
     async handleComponentDelete(id: number) {
       this.isEditing = true;
+      this.deletedComponent = this.component;
       try {
         await this.removeComponent(id);
         this.showEditingModal = false;
@@ -218,6 +224,7 @@ export default defineComponent({
   max-width: var(--content-max);
   margin: 0 auto;
   padding-bottom: var(--space-6);
+  container-type: inline-size;
 }
 
 .detail-body {
@@ -278,7 +285,7 @@ export default defineComponent({
   overflow-wrap: anywhere;
 }
 
-@media (min-width: 900px) {
+@container (min-width: 640px) {
   .detail-body {
     grid-template-columns: 1fr 1fr;
   }

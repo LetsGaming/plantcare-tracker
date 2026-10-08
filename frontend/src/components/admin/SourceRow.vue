@@ -11,6 +11,16 @@
       <p v-if="source.consecutiveFailures > 1" class="meta">
         {{ t("admin.scrapers.failures_in_a_row", { count: source.consecutiveFailures }) }}
       </p>
+      <ul v-if="source.issues.length" class="issues">
+        <li v-for="issue in source.issues" :key="issue.code">
+          {{
+            t(`admin.scrapers.issue.${issue.code}`, {
+              affected: issue.affected,
+              total: issue.total,
+            })
+          }}
+        </li>
+      </ul>
       <p v-if="source.status === 'failing'" class="cause">{{ t(`admin3.cause.${cause}`) }}</p>
       <p class="result" role="status" aria-live="polite">{{ resultText }}</p>
       <details v-if="source.status !== 'ok' && source.lastError" class="tech">
@@ -106,6 +116,14 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.issues {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
 .row {
   display: flex;
   align-items: flex-start;

@@ -10,6 +10,13 @@ type SourceStatus = "ok" | "degraded" | "failing" | "unknown";
 /** "sales" sources scrape the sale listings, "search" sources find plant info links */
 type SourceKind = "sales" | "search";
 
+/** A field problem found on an otherwise working source */
+interface SourceIssue {
+  code: "images_missing" | "images_unreachable" | "old_price_missing" | "names_missing";
+  affected: number;
+  total: number;
+}
+
 /** Frontend model for the health of one scrape source */
 interface SourceHealth {
   key: string;
@@ -23,6 +30,7 @@ interface SourceHealth {
   lastSuccessAt?: string;
   lastFailureAt?: string;
   lastError?: string;
+  issues: SourceIssue[];
 }
 
 /** Raw health row as returned by GET /sales/health */
@@ -37,5 +45,6 @@ interface APISourceHealth {
   last_success_at: string | null;
   last_failure_at: string | null;
   last_error: string | null;
+  issues?: SourceIssue[];
   updated_at: string;
 }

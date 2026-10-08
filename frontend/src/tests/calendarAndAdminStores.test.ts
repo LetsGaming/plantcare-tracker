@@ -153,6 +153,15 @@ describe("admin health store", () => {
     expect(store.loaded).toBe(true);
   });
 
+  it("counts degraded sources as needing attention", async () => {
+    api.get.mockResolvedValue([row("a", "ok"), row("b", "degraded")]);
+    await createInstalledPinia();
+    const store = useAdminHealthStore();
+    await store.load();
+    expect(store.needingAttention).toBe(1);
+    expect(store.hasFailing).toBe(false);
+  });
+
   it("replaces one source with its re-checked health", async () => {
     api.get.mockResolvedValue([row("a", "failing"), row("b", "ok")]);
     await createInstalledPinia();

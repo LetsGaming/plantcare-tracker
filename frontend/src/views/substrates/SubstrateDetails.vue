@@ -63,9 +63,9 @@
       />
 
       <SubstrateEditingModal
-        v-if="substrate"
+        v-if="modalSubstrate"
         :is-open="showEditModal"
-        :substrate="substrate"
+        :substrate="modalSubstrate"
         :available-components="availableComponents"
         :is-loading="isSubmitting"
         @close="showEditModal = false"
@@ -119,6 +119,8 @@ export default defineComponent({
       showEditModal: false,
       isLoading: false, // For image upload
       isSubmitting: false, // For substrate editing
+      /** Kept while the substrate is deleted so the open modal can finish closing. */
+      deletedSubstrate: null as Substrate | null,
       phase: "loading" as LoadPhase,
     };
   },
@@ -129,6 +131,9 @@ export default defineComponent({
     /** This page's substrate, straight from the store so every update repaints it. */
     substrate(): Substrate | null {
       return this.byId(this.substrateId) ?? null;
+    },
+    modalSubstrate(): Substrate | null {
+      return this.substrate ?? this.deletedSubstrate;
     },
     availableComponents(): SubstrateComponent[] {
       return this.allComponents
@@ -291,6 +296,7 @@ export default defineComponent({
     async handleSubstrateDelete(id: number) {
       try {
         this.isSubmitting = true;
+        this.deletedSubstrate = this.substrate;
         await this.removeSubstrate(id);
         ToastService.showSuccess({ key: "substrate.deleted" });
         this.showEditModal = false;

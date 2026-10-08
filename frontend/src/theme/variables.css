@@ -129,6 +129,8 @@
   --shadow-lift: 0 2px 4px rgba(29, 43, 34, 0.1), 0 12px 28px rgba(29, 43, 34, 0.14);
   --tap-min: 44px;
   --content-max: 960px;
+  --menu-width: 264px;
+  --menu-rail-width: 72px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Ionic shape and rhythm */

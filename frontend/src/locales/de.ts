@@ -124,6 +124,8 @@ export default {
    * ===================================================== */
 
   "menu.title": "Menü",
+  "menu.collapse": "Menü einklappen",
+  "menu.expand": "Menü ausklappen",
 
   "menu.profile": "Profil",
 
@@ -812,7 +814,11 @@ export default {
 
   "shell.admin_scrapers": "Scraper-Status",
 
-  "shell.scrapers_failing": "{count} fehlerhaft",
+  "shell.scrapers_attention": "{count} prüfen",
+  "admin.scrapers.issue.images_missing": "Bilder fehlen bei {affected} von {total} Artikeln",
+  "admin.scrapers.issue.images_unreachable": "Bilder laden nicht ({affected} von {total} geprüft)",
+  "admin.scrapers.issue.old_price_missing": "Alter Preis fehlt bei {affected} von {total} Artikeln",
+  "admin.scrapers.issue.names_missing": "Name fehlt bei {affected} von {total} Artikeln",
 
   "shell.profile": "Profil",
 
@@ -1255,6 +1261,29 @@ export default {
   "sales3.was": "Vorher {price}",
 
   "sales3.history_hint": "Zieh die Liste zweimal nach unten, um den Preisverlauf aufzubauen.",
+  "sales.sort.label": "Sortieren",
+  "sales.sort.new": "Neue zuerst",
+  "sales.sort.discount": "Größter Rabatt",
+  "sales.sort.price_asc": "Preis aufsteigend",
+  "sales.sort.price_desc": "Preis absteigend",
+  "sales.sort.name": "Name",
+  "sales.filter.button": "Filter",
+  "sales.filter.title": "Angebote filtern",
+  "sales.filter.shops": "Shops",
+  "sales.filter.only_new": "Nur neue",
+  "sales.filter.min_discount": "Mindestrabatt",
+  "sales.filter.any": "Beliebig",
+  "sales.filter.price_range": "Preis",
+  "sales.filter.min_price": "Von (EUR)",
+  "sales.filter.max_price": "Bis (EUR)",
+  "sales.filter.price_invalid": "Der niedrigste Preis darf nicht über dem höchsten liegen.",
+  "sales.filter.apply": "Ergebnisse zeigen",
+  "sales.filter.reset": "Zurücksetzen",
+  "sales.filter.shown": "{shown} von {total} angezeigt",
+  "sales.filter.none_title": "Keine Angebote passen zu deinen Filtern",
+  "sales.filter.none_message": "Lockere die Filter oder setze sie zurück, um mehr zu sehen.",
+  "sales.filter.reset_action": "Filter zurücksetzen",
+  "sales.filter.active": "{count} Filter aktiv",
 
   "modal2.delete_title_named": "„{name}“ löschen?",
 

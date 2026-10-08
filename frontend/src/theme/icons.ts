@@ -1,6 +1,8 @@
 import {
   addCircleOutline,
+  chevronBackOutline,
   chevronDownOutline,
+  chevronForwardOutline,
   bug,
   bugOutline,
   closeOutline,
@@ -8,6 +10,7 @@ import {
   createOutline,
   cube,
   cubeOutline,
+  filterOutline,
   grid,
   gridOutline,
   leaf,
@@ -19,18 +22,23 @@ import {
   pricetagOutline,
   pulseOutline,
   settingsOutline,
+  swapVerticalOutline,
 } from "ionicons/icons";
 
 /** One outline family for the whole app. Filled glyphs only mark a selected state. */
 export const icons = {
   add: addCircleOutline,
+  chevronBack: chevronBackOutline,
   chevronDown: chevronDownOutline,
+  chevronForward: chevronForwardOutline,
   close: closeOutline,
   edit: createOutline,
+  filter: filterOutline,
   upload: cloudUploadOutline,
   logout: logOutOutline,
   profile: personOutline,
   settings: settingsOutline,
+  sort: swapVerticalOutline,
   pulse: pulseOutline,
   segmentPublic: peopleOutline,
   segmentPrivate: personOutline,

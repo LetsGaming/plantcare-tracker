@@ -30,7 +30,15 @@ describe("SourceHealthMapper", () => {
       lastSuccessAt: "2026-10-06T10:00:00.000Z",
       lastFailureAt: undefined,
       lastError: undefined,
+      issues: [],
     });
+  });
+
+  it("carries the field issues of a degraded source", () => {
+    const issues: SourceIssue[] = [{ code: "images_missing", affected: 3, total: 3 }];
+    expect(SourceHealthMapper.mapSourceHealth(row({ status: "degraded", issues })).issues).toEqual(
+      issues,
+    );
   });
 
   it("keeps a null strategy and item count for sources that never produced data", () => {

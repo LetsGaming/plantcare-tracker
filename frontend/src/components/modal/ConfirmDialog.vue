@@ -2,7 +2,8 @@
   <IonModal
     v-if="mounted"
     :is-open="isOpen"
-    :can-dismiss="!loading"
+    ref="modal"
+    :can-dismiss="canDismiss"
     class="confirm-modal"
     @didDismiss="onDismiss"
     @didPresent="onPresent"
@@ -115,6 +116,11 @@ export default defineComponent({
     },
   },
   methods: {
+    /** While loading, only the user's own gestures are refused; closing from code always works. */
+    canDismiss(_data?: unknown, role?: string): Promise<boolean> {
+      const byUser = role === "backdrop" || role === "gesture";
+      return Promise.resolve(!(this.loading && byUser));
+    },
     onPresent() {
       this.typed = "";
       this.guardTouched = false;

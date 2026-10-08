@@ -15,6 +15,8 @@ import ApiUtils from "@/utils/apiUtils";
 import SaleMapper from "@/mapping/SaleMapping";
 import { handleRequest } from "@/utils/requestFeedback";
 import { coalesced, isStale, resourceState } from "./resource";
+import { applySalesQuery, defaultSalesQuery, type SalesQuery } from "@/utils/salesQuery";
+import localizationService from "@/services/general/LocalizationService";
 
 const ENDPOINT = "/sales";
 const RESOURCE_KEY = "sales.title";
@@ -32,6 +34,8 @@ export const useSalesStore = defineStore("sales", {
     incoming: [] as Sale[],
     streaming: false,
     priceHistory: {} as Record<string, PricePoint[]>,
+    /** How the list is ordered and narrowed; a browser preference, not account data. */
+    query: defaultSalesQuery(),
     ...resourceState(),
   }),
 
@@ -59,6 +63,15 @@ export const useSalesStore = defineStore("sales", {
           state.priceHistory = Object.fromEntries(data.map((entry) => [entry.id, entry.points]));
         },
       },
+      {
+        key: "sales_query",
+        keepOnClear: true,
+        allowExpired: true,
+        pick: (state) => state.query,
+        apply: (state, data: Partial<SalesQuery>) => {
+          state.query = { ...defaultSalesQuery(), ...data };
+        },
+      },
     ],
   },
 
@@ -69,6 +82,15 @@ export const useSalesStore = defineStore("sales", {
       if (!state.streaming || state.incoming.length === 0) return state.items;
       const known = new Set(state.items.map((sale) => sale.id));
       return [...state.items, ...state.incoming.filter((sale) => !known.has(sale.id))];
+    },
+    /** Visible sales after the user's filters, in the user's order. */
+    filteredSales(): Sale[] {
+      return applySalesQuery([...this.visibleSales], this.query, localizationService.getLocale());
+    },
+    sellers(): string[] {
+      return [...new Set(this.visibleSales.map((sale) => sale.seller))].sort((a, b) =>
+        a.localeCompare(b),
+      );
     },
     newCount: (state): number => state.items.filter((sale) => sale.isNew).length,
     byId:
@@ -146,6 +168,14 @@ export const useSalesStore = defineStore("sales", {
           })
           .catch(fail);
       });
+    },
+
+    setQuery(query: Partial<SalesQuery>): void {
+      this.query = { ...this.query, ...query };
+    },
+
+    resetQuery(): void {
+      this.query = { ...defaultSalesQuery(), sort: this.query.sort };
     },
 
     markSeen(id: string): void {
