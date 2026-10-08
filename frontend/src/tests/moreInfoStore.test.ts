@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createInstalledPinia, memoryStore, resetStore } from "./helpers";
+import { createInstalledPinia, memoryStore, resetStore, toast } from "./helpers";
 
 vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
@@ -138,7 +138,7 @@ describe("ensureInfo streaming", () => {
     expect(Object.keys(store.byKey).sort()).toEqual(["en:Aloe", "en:Ficus"]);
   });
 
-  it("rejects, clears the draft and stores nothing when the stream reports an error", async () => {
+  it("rejects, keeps the partial draft for display and stores nothing when the stream reports an error", async () => {
     stream.script = (h) => {
       h.onMessage({ data: { type: "ai_chunk", value: "partial" } });
       h.onError?.({ message: "Information stream interrupted" });
@@ -147,9 +147,47 @@ describe("ensureInfo streaming", () => {
     await expect(store.ensureInfo("Aloe")).rejects.toEqual({
       message: "Information stream interrupted",
     });
-    expect(store.drafts["en:Aloe"]).toBeUndefined();
+    expect(store.infoFor("Aloe")[0].ai).toContain("partial");
     expect(store.byKey["en:Aloe"]).toBeUndefined();
     expect(store.streaming["en:Aloe"]).toBe(false);
+    expect(toast.showError).not.toHaveBeenCalled();
+  });
+
+  it("treats a done status other than completed as a failure that is not cached", async () => {
+    stream.script = (h) => {
+      h.onMessage({ data: { type: "ai_chunk", value: "half a guide" } });
+      h.onDone?.({ status: "failed" });
+    };
+    const store = await newStore();
+    await expect(store.ensureInfo("Aloe")).rejects.toThrow("failed");
+    expect(store.byKey["en:Aloe"]).toBeUndefined();
+    expect(store.fetchedAtByKey["en:Aloe"]).toBeUndefined();
+    expect(store.streaming["en:Aloe"]).toBe(false);
+  });
+
+  it("clears the partial draft and streams again on the next attempt", async () => {
+    stream.script = (h) => {
+      h.onMessage({ data: { type: "ai_chunk", value: "partial" } });
+      h.onError?.({ message: "boom" });
+    };
+    const store = await newStore();
+    await expect(store.ensureInfo("Aloe")).rejects.toBeDefined();
+    stream.script = messages({ type: "ai_chunk", value: "whole guide" });
+    await store.ensureInfo("Aloe");
+    expect(stream.endpoints).toHaveLength(2);
+    expect(store.drafts["en:Aloe"]).toBeUndefined();
+    expect(store.byKey["en:Aloe"][0].ai).toContain("whole guide");
+  });
+
+  it("does not persist a failed run", async () => {
+    vi.useFakeTimers();
+    stream.script = (h) => h.onDone?.({ status: "failed" });
+    const store = await newStore();
+    await expect(store.ensureInfo("Aloe")).rejects.toBeDefined();
+    await vi.advanceTimersByTimeAsync(500);
+    const stored = memoryStore.get("more_info_data") as
+      { data: Record<string, unknown> } | undefined;
+    expect(Object.keys(stored?.data ?? {})).toEqual([]);
   });
 });
 

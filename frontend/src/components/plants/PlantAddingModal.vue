@@ -19,6 +19,14 @@ import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
+const blankPlant = (): AddPlant => ({
+  name: "",
+  species: "",
+  substrateId: 0,
+  isPublic: false,
+  image: undefined,
+});
+
 export default defineComponent({
   name: "PlantAddingModal",
   components: { BaseFormModal },
@@ -35,15 +43,12 @@ export default defineComponent({
     return { SubstrateContainer };
   },
   data() {
-    return {
-      plant: {
-        name: "",
-        species: "",
-        substrateId: 0,
-        isPublic: false,
-        image: undefined as File | undefined,
-      } as AddPlant,
-    };
+    return { plant: blankPlant() };
+  },
+  watch: {
+    isOpen(open: boolean) {
+      if (open) this.plant = blankPlant();
+    },
   },
   computed: {
     plantFormFields() {
@@ -53,12 +58,16 @@ export default defineComponent({
           modelKey: "name",
           label: "plant.field.name",
           required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "input",
           modelKey: "species",
           label: "plant.field.species",
           required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "select",
@@ -96,16 +105,6 @@ export default defineComponent({
   methods: {
     submit() {
       this.$emit("save", { ...this.plant });
-      this.resetPlantData();
-    },
-    resetPlantData() {
-      this.plant = {
-        name: "",
-        species: "",
-        substrateId: 0,
-        isPublic: false,
-        image: undefined,
-      };
     },
   },
 });

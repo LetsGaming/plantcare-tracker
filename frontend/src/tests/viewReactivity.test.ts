@@ -19,7 +19,12 @@ vi.mock("@/stores/session", () => ({
 }));
 
 vi.mock("@/services/general/ToastService", () => ({
-  default: { showError: vi.fn(), showSuccess: vi.fn(), showWarning: vi.fn() },
+  default: {
+    showError: vi.fn(),
+    showSuccess: vi.fn(),
+    showWarning: vi.fn(),
+    showToastWithAction: vi.fn(),
+  },
 }));
 
 vi.mock("@/services/general/LocalizationService", () => ({
@@ -72,18 +77,17 @@ describe("WateringRecords: store-driven records", () => {
     wrapper.unmount();
   });
 
-  it("derives the last watering and the fertilizer options from the store", async () => {
+  it("offers no fertilizer first, then the fertilizer types from the store", async () => {
     const { wrapper, store } = mountRecords([record(1, Date.now() - 2 * 86_400_000)]);
     store.fertilizerTypes = [{ id: 2, name: "synthetic" }] as FertilizerType[];
     await flushPromises();
-    expect((wrapper.vm as any).daysAgo).toBe(2);
     expect((wrapper.vm as any).fertilizerOptions.map((o: { value: number }) => o.value)).toEqual([
-      2, -1,
+      -1, 2,
     ]);
     wrapper.unmount();
   });
 
-  it("closes the add modal immediately and lets the store repaint (optimistic)", async () => {
+  it("keeps the form open and pending until the request settles, then closes it", async () => {
     const { wrapper, store } = mountRecords();
     await flushPromises();
 
@@ -94,21 +98,52 @@ describe("WateringRecords: store-driven records", () => {
       }) as never,
     );
 
-    (wrapper.vm as any).showAddingModal = true;
-    const pending = (wrapper.vm as any).addRecord({
-      date: undefined,
-      usedFertilizer: false,
-      fertilizerTypeId: -1,
-    });
+    (wrapper.vm as any).openAdd();
+    const pending = (wrapper.vm as any).submitDraft({ date: 1_700_000_000_000 });
     await flushPromises();
 
-    // Modal is closed before the request settles: the optimistic paint
-    // has already updated the calendar from the store.
-    expect((wrapper.vm as any).showAddingModal).toBe(false);
-    expect(store.addRecord).toHaveBeenCalledTimes(1);
+    expect((wrapper.vm as any).showModal).toBe(true);
+    expect((wrapper.vm as any).isSaving).toBe(true);
+    expect(store.addRecord).toHaveBeenCalledWith(1, {
+      date: 1_700_000_000_000,
+      usedFertilizer: false,
+      fertilizerTypeId: undefined,
+    });
 
     resolveAdd(record(15, Date.now()));
     await pending;
+    expect((wrapper.vm as any).showModal).toBe(false);
+    expect((wrapper.vm as any).isSaving).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("keeps the form open with the draft when saving fails", async () => {
+    const { wrapper, store } = mountRecords();
+    await flushPromises();
+    vi.mocked(store.addRecord).mockRejectedValue(new Error("offline"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    (wrapper.vm as any).openAdd();
+    await (wrapper.vm as any).submitDraft({ date: 1_700_000_000_000 });
+
+    expect((wrapper.vm as any).showModal).toBe(true);
+    expect((wrapper.vm as any).isSaving).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("maps records to local day keys and fertilizer markers", async () => {
+    const day = new Date(2026, 4, 3, 23, 30).getTime();
+    const { wrapper } = mountRecords([
+      { ...record(1, day), usedFertilizer: false },
+      { ...record(2, day + 86_400_000), usedFertilizer: true, fertilizerTypeId: 2 },
+    ]);
+    await flushPromises();
+    expect(
+      (wrapper.vm as any).mappedRecords.map((d: CalendarDates) => [d.date, d.category.name]),
+    ).toEqual([
+      ["2026-05-03", "watering.category.no_fertilizer"],
+      ["2026-05-04", "watering.category.organic"],
+    ]);
     wrapper.unmount();
   });
 });

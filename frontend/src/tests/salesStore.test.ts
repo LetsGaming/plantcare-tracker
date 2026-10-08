@@ -168,6 +168,14 @@ describe("new flags", () => {
     store.markSeen("missing");
     expect(store.newCount).toBe(1);
   });
+
+  it("clears every new flag with markAllSeen", async () => {
+    emit([apiSale("a"), apiSale("b")]);
+    const store = await newStore();
+    await store.load();
+    store.markAllSeen();
+    expect(store.newCount).toBe(0);
+  });
 });
 
 describe("price history", () => {

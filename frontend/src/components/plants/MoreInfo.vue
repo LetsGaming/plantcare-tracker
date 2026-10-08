@@ -1,102 +1,83 @@
 <template>
-  <ion-card class="info-card sidenote">
-    <ion-card-header>
-      <ion-toolbar>
-        <ion-title>{{ t("moreinfo.title") }}</ion-title>
-      </ion-toolbar>
-    </ion-card-header>
-    <ion-card-content>
-      <div v-if="loading && infos.length === 0" class="info-loading">
-        <ion-label>{{ t("moreinfo.loading") }}</ion-label>
-        <ion-spinner style="padding-left: 15px" />
+  <section class="guide" :aria-labelledby="headingId" :aria-busy="status === 'loading'">
+    <h2 :id="headingId" class="guide-title">{{ t("moreinfo2.guide_title") }}</h2>
+
+    <p v-if="status === 'loading'" class="guide-status" role="status">
+      <ion-spinner name="dots" aria-hidden="true" />
+      {{ t("moreinfo2.writing") }}
+    </p>
+
+    <div v-else-if="status === 'error'" class="guide-error" role="alert">
+      <p class="guide-error-title">{{ t("moreinfo2.error") }}</p>
+      <p v-if="hasContent" class="guide-error-note">{{ t("moreinfo2.error_partial") }}</p>
+      <ion-button size="small" fill="outline" @click="load(true)">
+        {{ t("state.retry") }}
+      </ion-button>
+    </div>
+
+    <p v-else-if="!hasContent" class="guide-empty">{{ t("moreinfo2.empty") }}</p>
+
+    <template v-if="hasContent">
+      <div v-if="ai" class="guide-body">
+        <p class="note">
+          <ion-icon :icon="informationCircleOutline" aria-hidden="true" />
+          <span>{{ t("moreinfo2.disclaimer_ai") }}</span>
+        </p>
+        <div v-html="formattedAi" class="guide-text" />
       </div>
 
-      <div v-else-if="notFound" class="info-not-found">
-        <ion-label>{{ t("moreinfo.no_info") }}</ion-label>
+      <div v-if="links.length > 0" class="guide-links">
+        <h3 class="links-title">{{ t("moreinfo.links") }}</h3>
+        <p class="note">
+          <ion-icon :icon="informationCircleOutline" aria-hidden="true" />
+          <span>{{ t("moreinfo2.disclaimer_links") }}</span>
+        </p>
+        <ul class="link-list">
+          <li v-for="link in links" :key="link">
+            <a
+              class="link"
+              :href="link"
+              target="_blank"
+              rel="noopener noreferrer"
+              :aria-label="t('moreinfo2.open_link', { link })"
+            >
+              <span class="link-text break-words">{{ link }}</span>
+              <ion-icon :icon="openOutline" aria-hidden="true" />
+            </a>
+          </li>
+        </ul>
       </div>
-
-      <div v-else v-for="(info, index) in infos" :key="index" class="info-links">
-        <ion-accordion-group :multiple="true">
-          <ion-accordion value="links" v-if="info.links.length > 0">
-            <ion-item slot="header" class="component-header">
-              <ion-label>{{ t("moreinfo.links") }}</ion-label>
-            </ion-item>
-            <div slot="content" class="component-wrapper">
-              <InfoNote class="disclaimer" :note="t('moreinfo.disclaimer_links')" />
-              <a
-                v-for="(link, lIndex) in info.links"
-                :key="lIndex"
-                :href="link"
-                target="_blank"
-                rel="noopener noreferrer"
-                style="width: 100%; font-size: 20px"
-              >
-                <ion-item class="info-link">
-                  <ion-label>{{ link }}</ion-label>
-                  <ion-icon :icon="openOutline" slot="end" />
-                </ion-item>
-              </a>
-            </div>
-          </ion-accordion>
-
-          <ion-accordion value="ai" v-if="info.ai">
-            <ion-item slot="header" class="component-header">
-              <ion-label>{{ t("moreinfo.ai_title") }}</ion-label>
-              <ion-spinner v-if="loading" name="dots" slot="end" style="width: 20px" />
-            </ion-item>
-            <div slot="content" class="component-wrapper">
-              <InfoNote class="disclaimer" :note="t('moreinfo.disclaimer_ai')" />
-              <ion-item class="info-content">
-                <div v-html="formatStreamingHtml(info.ai)" class="info-text" />
-              </ion-item>
-            </div>
-          </ion-accordion>
-        </ion-accordion-group>
-      </div>
-    </ion-card-content>
-  </ion-card>
+    </template>
+  </section>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonCard,
-  IonCardHeader,
-  IonCardContent,
-  IonLabel,
-  IonItem,
-  IonIcon,
-  IonAccordion,
-  IonAccordionGroup,
-  IonToolbar,
-  IonTitle,
-  IonSpinner,
-} from "@ionic/vue";
-import InfoNote from "@/components/InfoNote.vue";
+import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
+import { informationCircleOutline, openOutline } from "ionicons/icons";
 import { mapActions, mapState } from "pinia";
 import { useMoreInfoStore } from "@/stores/moreInfo";
-import { openOutline } from "ionicons/icons";
 import localizationService from "@/services/general/LocalizationService";
 
-/**
- * Authors: { name: "LetsGamingDE", id: 272402865874534400n}
- */
+type GuideStatus = "loading" | "error" | "ready";
+
+const CLASS_BY_SELECTOR = [
+  { sel: "ul", cls: "info-list" },
+  { sel: "li", cls: "info-item" },
+  { sel: "p", cls: "info-text-paragraph" },
+  { sel: "h1, h2, h3, h4, h5, h6", cls: "info-header" },
+  { sel: "strong", cls: "info-strong" },
+  { sel: "em", cls: "info-em" },
+];
+
+let guideCount = 0;
 
 export default defineComponent({
   name: "MoreInfo",
   components: {
-    IonCard,
-    IonCardHeader,
-    IonCardContent,
-    IonLabel,
-    IonItem,
+    IonButton,
     IonIcon,
-    IonAccordion,
-    IonAccordionGroup,
-    IonToolbar,
-    IonTitle,
     IonSpinner,
-    InfoNote,
   },
   props: {
     plantName: {
@@ -106,17 +87,24 @@ export default defineComponent({
   },
   data() {
     return {
-      loading: true,
-      notFound: false,
+      status: "loading" as GuideStatus,
+      loadToken: 0,
+      headingId: `care-guide-${++guideCount}`,
     };
   },
   setup() {
-    return {
-      openOutline,
-    };
+    return { informationCircleOutline, openOutline };
   },
   async mounted() {
-    await this.getLinks();
+    await this.load();
+  },
+  beforeUnmount() {
+    this.loadToken++;
+  },
+  watch: {
+    plantName() {
+      void this.load();
+    },
   },
   computed: {
     ...mapState(useMoreInfoStore, ["infoFor"]),
@@ -124,55 +112,46 @@ export default defineComponent({
     infos(): MoreInfo[] {
       return this.infoFor(this.plantName);
     },
+    ai(): string {
+      return this.infos
+        .map((info) => info.ai)
+        .filter(Boolean)
+        .join("");
+    },
+    links(): string[] {
+      return [...new Set(this.infos.flatMap((info) => info.links))];
+    },
+    hasContent(): boolean {
+      return this.ai.length > 0 || this.links.length > 0;
+    },
+    formattedAi(): string {
+      return this.formatStreamingHtml(this.ai);
+    },
   },
   methods: {
     ...mapActions(useMoreInfoStore, ["ensureInfo"]),
-    t(key: string) {
-      return localizationService.t(key, undefined, key);
+    t(key: string, vars?: Record<string, string | number>) {
+      return localizationService.t(key, vars, key);
     },
-    async getLinks() {
-      this.loading = true;
-      this.notFound = false;
-
+    async load(force = false) {
+      const token = ++this.loadToken;
+      this.status = "loading";
       try {
-        await this.ensureInfo(this.plantName);
-
-        if (this.infos.length === 0) {
-          this.notFound = true;
-        }
-      } catch (error: any) {
+        await this.ensureInfo(this.plantName, { force });
+        if (token === this.loadToken) this.status = "ready";
+      } catch (error) {
         console.error("Failed to fetch more info:", error);
-        this.notFound = true;
-      } finally {
-        this.loading = false;
+        if (token === this.loadToken) this.status = "error";
       }
     },
-    /**
-     * Fixes formatting by ensuring all parsed elements receive the correct classes.
-     * Updated to handle the nested structure of the new service parser.
-     */
+    /** Adds the style hooks the markdown renderer leaves out. */
     formatStreamingHtml(content: string): string {
       if (!content) return "";
 
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(content, "text/html");
-
-      const mapping = [
-        { sel: "ul", cls: "info-list" },
-        { sel: "li", cls: "info-item" },
-        { sel: "p", cls: "info-text-paragraph" },
-        { sel: "h1, h2, h3, h4, h5, h6", cls: "info-header" },
-        { sel: "strong", cls: "info-strong" },
-        { sel: "em", cls: "info-em" },
-      ];
-
-      mapping.forEach(({ sel, cls }) => {
-        // Look through the whole document for these tags
-        doc.querySelectorAll(sel).forEach((el) => {
-          el.classList.add(cls);
-        });
+      const doc = new DOMParser().parseFromString(content, "text/html");
+      CLASS_BY_SELECTOR.forEach(({ sel, cls }) => {
+        doc.querySelectorAll(sel).forEach((el) => el.classList.add(cls));
       });
-
       return doc.body.innerHTML;
     },
   },
@@ -180,79 +159,156 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.info-text {
-  width: 100%;
-  /* Fix for ionic items padding issues with v-html content */
-  --inner-padding-end: 0;
-  --padding-start: 0;
+.guide {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
 }
 
-.info-loading {
+.guide-title {
+  font-size: var(--text-lg);
+}
+
+.guide-status {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.guide-status ion-spinner {
+  width: 24px;
+  height: 24px;
+  color: var(--ion-color-primary);
+}
+
+.guide-error {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--clay-wash);
+}
+
+.guide-error p {
+  margin: 0;
+}
+
+.guide-error-title {
+  font-weight: 650;
+}
+
+.guide-error-note,
+.guide-empty {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.guide-empty {
+  margin: 0;
+}
+
+.guide-body,
+.guide-links {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.links-title {
+  font-size: var(--text-md);
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.note ion-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.link-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ion-color-primary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--surface-sunken);
+}
+
+.link ion-icon {
+  flex: none;
+}
+
+.guide-text {
+  max-width: 68ch;
+  font-size: var(--text-sm);
 }
 </style>
 
 <style>
-/**
- * Authors: { name: "LetsGamingDE", id: 272402865874534400n}
- */
-
-/* Header styling */
-.info-header {
+.guide-text .info-header {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-md);
   color: var(--ion-color-primary);
-  margin-top: 1.2rem;
-  margin-bottom: 0.5rem;
 }
 
-h1.info-header {
-  font-size: 1.5em;
-  font-weight: bold;
+.guide-text h1.info-header {
+  font-size: var(--text-lg);
 }
 
-/* Ensure strong elements inside headers don't change color */
-.info-header strong,
-.info-header .info-strong {
-  color: inherit !important;
+.guide-text .info-text-paragraph {
+  margin: 0 0 var(--space-2);
+  line-height: 1.55;
 }
 
-/* Emphasized text styling (Italics) */
-.info-em {
-  color: var(--ion-color-tertiary);
+.guide-text .info-list {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-5);
+  list-style: disc;
+}
+
+.guide-text .info-item {
+  margin-bottom: var(--space-1);
+}
+
+.guide-text .info-strong {
+  color: var(--ion-text-color);
+}
+
+.guide-text .info-em {
   font-style: italic;
-}
-
-/* Strong element styling (General/Values) */
-.info-strong {
-  color: var(--ion-color-dark-tint);
-}
-
-/* Item styling - First strong element (The Label) */
-.info-item .info-strong:first-of-type {
-  color: var(--ion-color-primary-tint) !important;
-  font-weight: 700;
-}
-
-/* Paragraph styling */
-.info-text-paragraph {
-  margin-left: 15px !important;
-  padding: 0;
-  font-size: 0.9em !important;
-  line-height: 1.5;
-  margin-bottom: 10px;
-}
-
-/* List container adjustments to align with the paragraph margin */
-.info-list {
-  margin-left: 15px !important;
-  padding-left: 1rem;
-  list-style-type: disc;
-}
-
-.info-item {
-  margin-bottom: 6px;
-  font-size: 0.9em;
 }
 </style>

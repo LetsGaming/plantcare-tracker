@@ -1,130 +1,81 @@
 <template>
-  <ion-card>
-    <ion-card-header>
-      <ion-toolbar>
-        <ion-title>
-          {{ t("watering.records.title", {}, "Wässerungsaufzeichnungen") }}
-        </ion-title>
-        <ion-icon
-          v-if="showAddButton && !isGuest"
-          :icon="addCircle"
-          slot="end"
-          @click="showAddingModal = true"
-        />
-      </ion-toolbar>
-    </ion-card-header>
+  <section class="records" :aria-labelledby="headingId">
+    <div class="records-head">
+      <h2 :id="headingId" class="records-title">{{ t("plantdetail.calendar_title") }}</h2>
+      <ion-button v-if="canAdd" size="small" fill="outline" @click="openAdd()">
+        <ion-icon :icon="add" slot="start" aria-hidden="true" />
+        {{ t("plantdetail.add_watering") }}
+      </ion-button>
+    </div>
 
-    <section v-if="mappedRecords.length > 0" class="watering-records">
-      <ion-card-header>
-        <ion-card-title class="record-title">
-          {{ t("watering.records.last_watering", {}, "Letzte Wässerung") }}:
-          <span v-if="daysAgo < 0">
-            {{ t("watering.records.unknown", {}, "Unbekannt") }}
-          </span>
-          <span v-else-if="daysAgo === 0">
-            {{ t("watering.records.today", {}, "Heute") }}
-          </span>
-          <span v-else> {{ daysAgo }} {{ t("watering.records.days_ago", {}, "Tage her") }} </span>
-        </ion-card-title>
+    <p v-if="records.length > 0" class="fertilizer-stat">
+      {{ t("watering.records.fertilizer_usage") }}:
+      <strong>{{ averageFertilizerUsage }}</strong>
+    </p>
 
-        <section v-if="records.length > 0" class="watering-stats" style="padding: 0 16px">
-          <ion-card-subtitle>
-            {{ t("watering.records.watering", {}, "Wässerung") }}:
-            <strong>{{ averageWateringFrequency }}</strong>
-          </ion-card-subtitle>
-          <ion-card-subtitle>
-            {{ t("watering.records.fertilizer_usage", {}, "Düngergabe") }}:
-            <strong>{{ averageFertilizerUsage }}</strong>
-          </ion-card-subtitle>
-        </section>
-      </ion-card-header>
+    <div v-if="records.length === 0" class="empty">
+      <p class="empty-title">{{ t("plantdetail.no_records_title") }}</p>
+      <p v-if="canAdd" class="empty-message">{{ t("plantdetail.no_records_message") }}</p>
+    </div>
 
-      <ion-card-content class="align-middle record-details">
-        <Calendar
-          :dates="mappedRecords"
-          :show-edit-button="showEditButton"
-          :is-popover-open="showPopover"
-          :popover-item="popoverInfo"
-          @update-date="onDateChange"
-          @edit-click="handleEditClick"
-          @dismissed-popover="showPopover = false"
-        />
-      </ion-card-content>
-    </section>
-
-    <ion-card-content v-else class="align-middle">
-      <ion-text color="medium">{{
-        t("watering.records.no_data", {}, "Keine Aufzeichnungen vorhanden")
-      }}</ion-text>
-    </ion-card-content>
-
-    <BaseFormModal
-      v-if="showAddingModal"
-      :is-open="showAddingModal"
-      :is-loading="isLoading"
-      modal-title="Wässerung hinzufügen"
-      form-title="Wässerung hinzufügen"
-      submit-label="Hinzufügen"
-      :form-data="addingRecord"
-      :form-fields="formFields('add')"
-      @close="showAddingModal = false"
-      @submit="addRecord"
+    <Calendar
+      v-if="records.length > 0 || canAdd"
+      marker-mode="watering"
+      :dates="mappedRecords"
+      :show-edit-button="showEditButton"
+      :is-popover-open="showPopover"
+      :popover-item="popoverInfo"
+      @update-date="onDateChange"
+      @edit-click="openEdit"
+      @dismissed-popover="showPopover = false"
     />
 
-    <BaseFormModal
-      v-if="showEditingModal && selectedRecord"
-      :is-open="showEditingModal"
-      :is-loading="isLoading"
-      modal-title="Wässerung bearbeiten"
-      form-title="Wässerungsinformationen"
-      submit-label="Wässerung editieren"
-      :form-data="editWateringRecord"
-      :form-fields="formFields('edit')"
-      :deleteHandler="deleteRecord"
-      @close="showEditingModal = false"
-      @submit="editRecord"
+    <p v-if="canAdd" class="hint">{{ t("plantdetail.double_tap_hint") }}</p>
+
+    <watering-record-modal
+      :is-open="showModal"
+      :mode="modalMode"
+      :initial-day="modalDay"
+      :record="modalMode === 'edit' ? selectedRecord : null"
+      :fertilizer-options="fertilizerOptions"
+      :pending="isSaving"
+      @close="closeModal"
+      @submit="submitDraft"
+      @delete="deleteSelected"
     />
-  </ion-card>
+  </section>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { mapActions, mapState } from "pinia";
-import {
-  IonToolbar,
-  IonTitle,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardSubtitle,
-  IonCardContent,
-  IonIcon,
-  IonText,
-} from "@ionic/vue";
-import { addCircle } from "ionicons/icons";
+import { IonButton, IonIcon } from "@ionic/vue";
+import { add } from "ionicons/icons";
 
 import Calendar from "@/components/calendar/Calendar.vue";
-import BaseFormModal from "@/components/modal/BaseFormModal.vue";
+import WateringRecordModal, {
+  WateringDraft,
+} from "@/components/plants/watering/WateringRecordModal.vue";
 
 import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
-import { useCalendarStore } from "@/stores/calendar";
+import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { toDayKey } from "@/utils/localDate";
+
+const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
+const FERTILIZER_CATEGORY = "watering.category.organic";
+const TOAST_MS = 6000;
+
+let recordsCount = 0;
 
 export default defineComponent({
   name: "WateringRecords",
   components: {
-    IonToolbar,
-    IonTitle,
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardSubtitle,
-    IonCardContent,
+    IonButton,
     IonIcon,
-    IonText,
     Calendar,
-    BaseFormModal,
+    WateringRecordModal,
   },
   props: {
     plantId: { type: Number, required: true },
@@ -132,7 +83,7 @@ export default defineComponent({
     showEditButton: { type: Boolean, default: true },
   },
   setup() {
-    return { addCircle };
+    return { add };
   },
   data() {
     return {
@@ -140,168 +91,87 @@ export default defineComponent({
       selectedRecord: null as WateringRecord | null,
 
       showPopover: false,
-      showAddingModal: false,
-      showEditingModal: false,
-      isLoading: false,
-
-      addingRecord: {
-        date: undefined,
-        usedFertilizer: false,
-        fertilizerTypeId: -1,
-      } as AddWateringRecord,
-
-      editWateringRecord: {
-        date: undefined,
-        usedFertilizer: false,
-        fertilizerTypeId: -1,
-      } as EditWateringRecord,
+      showModal: false,
+      modalMode: "add" as "add" | "edit",
+      modalDay: "",
+      isSaving: false,
+      headingId: `watering-records-${++recordsCount}`,
     };
   },
   async mounted() {
-    this.isLoading = true;
     try {
-      // Parallel loading to optimize speed while remaining safe
-      await Promise.all([
-        this.ensureCalendarLoaded(),
-        this.ensureFertilizerTypes(),
-        this.ensureRecords(this.plantId),
-      ]);
+      await Promise.all([this.ensureFertilizerTypes(), this.ensureRecords(this.plantId)]);
     } catch (error) {
-      console.error("Critical error in WateringRecords mounted:", error);
-    } finally {
-      this.isLoading = false;
+      console.error("Failed to load watering data:", error);
     }
   },
   computed: {
     ...mapState(useSessionStore, ["isGuest"]),
-    ...mapState(useCalendarStore, ["wateringCategories"]),
     ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
+    canAdd(): boolean {
+      return this.showAddButton && !this.isGuest;
+    },
     /** This plant's records, straight from the store so every update repaints. */
     records(): WateringRecord[] {
       return this.recordsFor(this.plantId);
     },
     mappedRecords(): CalendarDates[] {
-      return this.records.length === 0 ? [] : this.mapWateringsToCalendar(this.records);
-    },
-    daysAgo(): number {
-      if (this.records.length === 0) return -1;
-      const latest = Math.max(...this.records.map((r) => r.date_millis));
-      return Math.floor((Date.now() - latest) / 86400000);
+      return this.records.map((record) => ({
+        date: toDayKey(record.date_millis),
+        category: {
+          name: record.usedFertilizer ? FERTILIZER_CATEGORY : NO_FERTILIZER_CATEGORY,
+          textColor: "",
+          backgroundColor: "",
+        },
+      }));
     },
     fertilizerOptions(): { label: string; value: number }[] {
       return [
-        ...this.fertilizerTypes.map((t) => ({ label: t.name, value: t.id })),
         {
-          label: this.t("watering.records.no_fertilizer", {}, "Kein Dünger"),
+          label: this.t("watering.records.no_fertilizer"),
           value: -1,
         },
+        ...this.fertilizerTypes.map((type) => ({ label: type.name, value: type.id })),
       ];
     },
     popoverInfo(): PopoverItem | undefined {
       if (!this.selectedRecord) return;
 
-      const r = this.selectedRecord;
-      const fields = [
+      const record = this.selectedRecord;
+      const fields: PopoverField[] = [
         {
-          label: this.t("watering.records.date", {}, "Datum"),
-          value: new Date(r.date_millis).toLocaleDateString(),
+          label: this.t("watering.records.date"),
+          value: new Date(record.date_millis).toLocaleDateString(localizationService.getLocale()),
         },
         {
-          label: this.t("watering.records.fertilizer_used", {}, "Dünger verwendet"),
-          value: r.usedFertilizer
-            ? this.t("common.yes", {}, "Ja")
-            : this.t("common.no", {}, "Nein"),
+          label: this.t("watering.records.fertilizer_used"),
+          value: record.usedFertilizer ? this.t("common.yes") : this.t("common.no"),
         },
       ];
 
-      if (r.usedFertilizer && r.fertilizerType) {
+      if (record.usedFertilizer && record.fertilizerType) {
         fields.push({
-          label: this.t("watering.records.fertilizer_type", {}, "Düngertyp"),
-          value: this.t(r.fertilizerType),
+          label: this.t("watering.records.fertilizer_type"),
+          value: this.t(record.fertilizerType),
         });
       }
 
-      return {
-        title: this.t("watering.records.details", {}, "Wässerungsdetails"),
-        fields,
-      };
-    },
-    averageWateringFrequency(): string {
-      if (this.records.length < 2) {
-        return this.t("watering.records.not_enough_data", {}, "zu wenig Daten");
-      }
-
-      const sorted = [...this.records].sort((a, b) => a.date_millis - b.date_millis);
-      const diffs = sorted
-        .slice(1)
-        .map((r, i) => (r.date_millis - sorted[i].date_millis) / 86400000);
-
-      const avg = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-
-      if (avg < 7) {
-        return this.t(
-          "watering.records.frequency.days",
-          { count: Math.round(avg) },
-          "ca. alle {count} Tage",
-        );
-      }
-      if (avg < 30) {
-        return this.t(
-          "watering.records.frequency.weeks",
-          { count: Math.round(avg / 7) },
-          "ca. alle {count} Wochen",
-        );
-      }
-      if (avg < 90) {
-        return this.t(
-          "watering.records.frequency.months",
-          { count: Math.round(avg / 30) },
-          "ca. alle {count} Monate",
-        );
-      }
-      return this.t(
-        "watering.records.frequency.years",
-        { count: Math.round(avg / 365) },
-        "ca. alle {count} Jahre",
-      );
+      return { title: this.t("watering.records.details"), fields };
     },
     averageFertilizerUsage(): string {
-      if (!this.records.length) {
-        return this.t("watering.records.no_data", {}, "keine Daten");
-      }
+      if (!this.records.length) return this.t("watering.records.no_data");
 
       const ratio = this.records.filter((r) => r.usedFertilizer).length / this.records.length;
 
-      if (ratio === 1)
-        return this.t("watering.records.fertilizer_usage.every_time", {}, "jede Wässerung");
-      if (ratio >= 0.75) return this.t("watering.records.fertilizer_usage.mostly", {}, "meistens");
-      if (ratio >= 0.5)
-        return this.t(
-          "watering.records.fertilizer_usage.about_every_second",
-          {},
-          "ungefähr jede zweite",
-        );
-      if (ratio >= 0.25)
-        return this.t("watering.records.fertilizer_usage.occasional", {}, "gelegentlich");
-      if (ratio > 0) return this.t("watering.records.fertilizer_usage.rarely", {}, "selten");
-      return this.t("watering.records.fertilizer_usage.never", {}, "nie");
-    },
-  },
-  watch: {
-    "addingRecord.fertilizerTypeId"(val) {
-      this.syncFertilizerUsage(this.addingRecord, val);
-    },
-    selectedRecord(record) {
-      if (!record) return;
-      this.editWateringRecord = {
-        date: record.date_millis,
-        usedFertilizer: record.usedFertilizer,
-        fertilizerTypeId: record.fertilizerTypeId ?? -1,
-      };
+      if (ratio === 1) return this.t("watering.records.fertilizer_usage.every_time");
+      if (ratio >= 0.75) return this.t("watering.records.fertilizer_usage.mostly");
+      if (ratio >= 0.5) return this.t("watering.records.fertilizer_usage.about_every_second");
+      if (ratio >= 0.25) return this.t("watering.records.fertilizer_usage.occasional");
+      if (ratio > 0) return this.t("watering.records.fertilizer_usage.rarely");
+      return this.t("watering.records.fertilizer_usage.never");
     },
   },
   methods: {
-    ...mapActions(useCalendarStore, { ensureCalendarLoaded: "ensureLoaded" }),
     ...mapActions(useWateringStore, {
       ensureRecords: "ensureRecords",
       ensureFertilizerTypes: "ensureFertilizerTypes",
@@ -309,120 +179,167 @@ export default defineComponent({
       updateRecord: "editRecord",
       removeRecord: "deleteRecord",
     }),
-    t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback);
+    t(key: string, vars?: Record<string, string | number>) {
+      return localizationService.t(key, vars, key);
     },
-    syncFertilizerUsage(record: AddWateringRecord | EditWateringRecord, typeId?: number) {
-      if (typeId === -1 || typeId === undefined) {
-        record.usedFertilizer = false;
-        record.fertilizerTypeId = undefined;
-      } else {
-        record.usedFertilizer = true;
-      }
-    },
-    formFields(mode: "add" | "edit"): FormField[] {
-      return [
-        {
-          label: this.t("watering.records.date", {}, "Datum"),
-          type: "date",
-          modelKey: "date",
-          defaultValue: mode === "add" ? (this.selectedDate ?? undefined) : undefined,
-        },
-        {
-          label: this.t("watering.records.fertilizer_type", {}, "Düngertyp"),
-          type: "radio",
-          modelKey: "fertilizerTypeId",
-          options: this.fertilizerOptions,
-          defaultValue: mode === "edit" ? (this.editWateringRecord.fertilizerTypeId ?? -1) : -1,
-        },
-      ];
-    },
-    onDateChange(date: string) {
-      const day = date.split("T")[0];
-      this.selectedRecord =
-        this.records.find((r) => new Date(r.date_millis).toISOString().split("T")[0] === day) ??
-        null;
 
-      this.showPopover = !!this.selectedRecord;
-
-      if (!this.selectedRecord && this.selectedDate === date) {
-        this.addingRecord.date = new Date(date).getTime();
-        this.showAddingModal = true;
-      }
-
-      this.selectedDate = date;
+    /** Opens the add form; also called by the parent's "add with details" action. */
+    openAdd(day = "") {
+      if (!this.canAdd) return;
+      this.modalMode = "add";
+      this.modalDay = day;
+      this.showModal = true;
     },
-    handleEditClick() {
+    openEdit() {
       if (!this.selectedRecord) return;
       this.showPopover = false;
-      this.showEditingModal = true;
+      this.modalMode = "edit";
+      this.showModal = true;
     },
-    async addRecord(record: AddWateringRecord) {
-      await this.prepareAndSaveRecord(record, "add");
+    closeModal() {
+      if (this.isSaving) return;
+      this.showModal = false;
     },
-    async editRecord(record: EditWateringRecord) {
-      if (!this.selectedRecord?.id) return;
-      await this.prepareAndSaveRecord(record, "edit", this.selectedRecord.id);
-    },
-    async deleteRecord() {
-      if (!this.selectedRecord?.id) return;
-      const recordId = this.selectedRecord.id;
 
-      // Optimistic: the record is removed from the store immediately and
-      // the calendar repaints from it, so close right away. On failure
-      // handleRequest shows the toast and the rollback restores the record.
-      this.showEditingModal = false;
-      await this.removeRecord(this.plantId, recordId).catch(() => undefined);
-    },
-    async prepareAndSaveRecord(
-      record: AddWateringRecord | EditWateringRecord,
-      mode: "add" | "edit",
-      id?: number,
-    ) {
-      this.syncFertilizerUsage(record, record.fertilizerTypeId ?? undefined);
+    onDateChange(day: string) {
+      this.selectedRecord =
+        this.records.find((record) => toDayKey(record.date_millis) === day) ?? null;
+      this.showPopover = !!this.selectedRecord;
 
-      // Optimistic: the calendar repaints from the store before the request
-      // settles, so close the modal immediately. Errors are already toasted
-      // by handleRequest and rolled back by the store.
-      if (mode === "add") {
-        this.showAddingModal = false;
-        await this.createRecord(this.plantId, record).catch(() => undefined);
-      } else if (id) {
-        this.showEditingModal = false;
-        await this.updateRecord(this.plantId, id, record).catch(() => undefined);
+      if (!this.selectedRecord && this.selectedDate === day) this.openAdd(day);
+
+      this.selectedDate = day;
+    },
+
+    toPayload(draft: WateringDraft): AddWateringRecord {
+      return {
+        date: draft.date,
+        usedFertilizer: draft.fertilizerTypeId !== undefined,
+        fertilizerTypeId: draft.fertilizerTypeId,
+      };
+    },
+
+    async submitDraft(draft: WateringDraft) {
+      if (this.isSaving) return;
+      const payload = this.toPayload(draft);
+      const editing = this.modalMode === "edit" ? this.selectedRecord : null;
+
+      this.isSaving = true;
+      try {
+        if (editing) {
+          await this.updateRecord(this.plantId, editing.id, payload);
+          ToastService.showSuccess({ key: "plantdetail.record_updated" });
+        } else {
+          const created = await this.createRecord(this.plantId, payload);
+          ToastService.showToastWithAction(
+            { key: "plantdetail.record_saved" },
+            this.t("plantdetail.undo"),
+            () => void this.undoCreate(created.id),
+            TOAST_MS,
+          );
+        }
+        this.isSaving = false;
+        this.showModal = false;
+      } catch (error) {
+        console.error("Saving the watering failed:", error);
+        this.isSaving = false;
+        ToastService.showToastWithAction(
+          { key: "plantdetail.save_failed" },
+          this.t("toast.retry"),
+          () => void this.submitDraft(draft),
+          TOAST_MS,
+        );
       }
     },
-    mapWateringsToCalendar(records: WateringRecord[]): CalendarDates[] {
-      if (!this.wateringCategories.length) return [];
 
-      const getCategoryForRecord = (record: WateringRecord) => {
-        let category;
+    async undoCreate(recordId: number) {
+      try {
+        await this.removeRecord(this.plantId, recordId);
+        ToastService.showSuccess({ key: "plantdetail.undone" });
+      } catch (error) {
+        console.error("Undo watering failed:", error);
+      }
+    },
 
-        if (!record.usedFertilizer) {
-          // Default category for no fertilizer
-          category = this.wateringCategories.find(
-            (c) => c.name === "watering.category.no_fertilizer",
-          );
-        } else {
-          // Use fertilizerTypeId as index
-          category = this.wateringCategories[record.fertilizerTypeId || 0];
-        }
+    async deleteSelected() {
+      const record = this.selectedRecord;
+      if (!record || this.isSaving) return;
 
-        // Fallback if undefined
-        if (!category) {
-          category =
-            this.wateringCategories.find((c) => c.name === "watering.category.organic") ||
-            this.wateringCategories[0];
-        }
+      this.isSaving = true;
+      try {
+        await this.removeRecord(this.plantId, record.id);
+        this.isSaving = false;
+        this.showModal = false;
+        this.selectedRecord = null;
+        ToastService.showToastWithAction(
+          { key: "plantdetail.record_deleted" },
+          this.t("plantdetail.undo"),
+          () => void this.restore(record),
+          TOAST_MS,
+        );
+      } catch (error) {
+        console.error("Deleting the watering failed:", error);
+        this.isSaving = false;
+        ToastService.showToastWithAction(
+          { key: "plantdetail.delete_failed" },
+          this.t("toast.retry"),
+          () => void this.deleteSelected(),
+          TOAST_MS,
+        );
+      }
+    },
 
-        return category;
-      };
-
-      return records.map((record) => ({
-        date: new Date(record.date_millis).toISOString().split("T")[0],
-        category: getCategoryForRecord(record)!,
-      }));
+    async restore(record: WateringRecord) {
+      try {
+        await this.createRecord(this.plantId, {
+          date: record.date_millis,
+          usedFertilizer: record.usedFertilizer,
+          fertilizerTypeId: record.fertilizerTypeId,
+        });
+        ToastService.showSuccess({ key: "plantdetail.record_restored" });
+      } catch (error) {
+        console.error("Restoring the watering failed:", error);
+      }
     },
   },
 });
 </script>
+
+<style scoped>
+.records {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+}
+
+.records-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.records-title {
+  font-size: var(--text-lg);
+}
+
+.fertilizer-stat,
+.hint,
+.empty-message {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.empty-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.hint {
+  font-size: var(--text-xs);
+}
+</style>

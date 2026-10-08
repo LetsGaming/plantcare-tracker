@@ -3,39 +3,36 @@
     <ion-toolbar class="header-toolbar">
       <ion-buttons slot="start">
         <ion-back-button
-          v-if="defaultBackHref"
           :text="t('common.back')"
-          :defaultHref="defaultBackHref"
+          :default-href="defaultBackHref || undefined"
         ></ion-back-button>
-        <ion-back-button v-else :text="t('common.back')"></ion-back-button>
       </ion-buttons>
-      <template v-if="!isGuest">
-        <ion-icon
+      <ion-buttons v-if="!isGuest && (showUploadButton || showEditButton)" slot="end">
+        <icon-button
           v-if="showUploadButton"
-          :icon="cloudUpload"
-          style="width: 32px; height: 32px"
-          slot="end"
-          @click="onUploadClick"
+          :icon="icons.upload"
+          :label="t('a11y.upload_image')"
+          @press="handleUpload"
         />
-        <ion-icon
+        <icon-button
           v-if="showEditButton"
-          :icon="create"
-          style="width: 32px; height: 32px"
-          slot="end"
-          @click="onEditClick"
+          :icon="icons.edit"
+          :label="t('a11y.edit')"
+          @press="handleEdit"
         />
-      </template>
+      </ion-buttons>
     </ion-toolbar>
   </ion-header>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { IonHeader, IonToolbar, IonButtons, IonBackButton, IonIcon } from "@ionic/vue";
-import { create, cloudUpload } from "ionicons/icons";
+import { IonHeader, IonToolbar, IonButtons, IonBackButton } from "@ionic/vue";
+import { icons } from "@/theme/icons";
 import { mapState } from "pinia";
 import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
+import IconButton from "@/components/ui/IconButton.vue";
 
 export default defineComponent({
   name: "DetailsHeader",
@@ -44,7 +41,7 @@ export default defineComponent({
     IonToolbar,
     IonButtons,
     IonBackButton,
-    IonIcon,
+    IconButton,
   },
   props: {
     defaultBackHref: {
@@ -69,12 +66,7 @@ export default defineComponent({
     },
   },
   setup() {
-    return { create, cloudUpload };
-  },
-  data() {
-    return {
-      segmentValue: this.startingSegment,
-    };
+    return { icons };
   },
   computed: {
     ...mapState(useSessionStore, ["isGuest"]),
@@ -83,19 +75,26 @@ export default defineComponent({
     t(value: string) {
       return localizationService.t(value, undefined, value);
     },
+    handleEdit() {
+      this.onEditClick?.();
+    },
+    handleUpload() {
+      this.onUploadClick?.();
+    },
   },
 });
 </script>
 
 <style scoped>
 .header-toolbar {
-  background-color: var(--ion-color-primary);
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
+  --border-width: 0;
 }
 
-.segment-toolbar {
-  background-color: var(--ion-color-light);
-  position: sticky;
-  top: 0;
-  z-index: 1000;
+.header-toolbar ion-back-button,
+.header-toolbar :deep(.icon-button) {
+  --color: var(--ion-color-primary-contrast);
+  color: var(--ion-color-primary-contrast);
 }
 </style>

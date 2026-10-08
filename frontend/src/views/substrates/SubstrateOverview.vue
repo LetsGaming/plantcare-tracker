@@ -6,17 +6,17 @@
         {
           value: 'public',
           label: t('substrate.public_label'),
-          icon: peopleCircle,
+          icon: icons.segmentPublic,
         },
         {
           value: 'private',
           label: t('substrate.private_label'),
-          icon: personCircle,
+          icon: icons.segmentPrivate,
           hideFromGuests: true,
         },
       ]"
       :showAddButton="true"
-      :addIcon="addCircle"
+      :addIcon="icons.add"
       starting-segment="private"
       @segment-change="handleSegmentChange"
       @add-click="openAddModal"
@@ -24,8 +24,16 @@
 
     <items-overview
       :items="substrates"
+      kind="substrate"
+      :is-loading="isLoadingList"
+      :has-error="hasError"
+      :empty-title="emptyTitle"
+      :empty-message="emptyMessage"
+      :empty-action-label="emptyActionLabel"
       @item-click="navigateToSubstrate"
       @refresh-items="refreshSubstrates"
+      @retry="refreshSubstrates"
+      @empty-action="openAddModal"
     />
 
     <SubstrateAddingModal
@@ -41,10 +49,11 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonPage } from "@ionic/vue";
-import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
+import { icons } from "@/theme/icons";
 import { mapActions, mapState } from "pinia";
 import { useSubstratesStore } from "@/stores/substrates";
 import { useComponentsStore } from "@/stores/components";
+import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
 import ToastService from "@/services/general/ToastService";
 
@@ -63,13 +72,34 @@ export default defineComponent({
     };
   },
   setup() {
-    return { peopleCircle, personCircle, addCircle };
+    return { icons };
   },
   computed: {
-    ...mapState(useSubstratesStore, ["publicSubstrates", "privateSubstrates"]),
+    ...mapState(useSubstratesStore, ["publicSubstrates", "privateSubstrates", "status"]),
+    ...mapState(useSessionStore, ["isGuest"]),
     ...mapState(useComponentsStore, { allComponents: "items" }),
     isPublic() {
       return this.showPublic === "public";
+    },
+    isLoadingList(): boolean {
+      return this.status === "loading" || this.status === "idle";
+    },
+    hasError(): boolean {
+      return this.status === "error";
+    },
+    emptyTitle(): string {
+      return this.t(
+        this.isPublic ? "shell.empty_substrates_public_title" : "state.empty_substrates_title",
+      );
+    },
+    emptyMessage(): string {
+      if (this.isGuest) return this.t("state.guest_hint");
+      return this.t(
+        this.isPublic ? "shell.empty_substrates_public_message" : "state.empty_substrates_message",
+      );
+    },
+    emptyActionLabel(): string {
+      return !this.isGuest && !this.isPublic ? this.t("state.empty_substrates_action") : "";
     },
     /** The segment's substrates; the store repaints this after every mutation. */
     substrates(): Substrate[] {
@@ -109,11 +139,7 @@ export default defineComponent({
       try {
         await this.ensureSubstratesLoaded({ force: isRefresh });
 
-        if (this.substrates.length === 0) {
-          ToastService.showWarning({
-            key: this.isPublic ? "substrate.empty_public" : "substrate.empty_private",
-          });
-        } else if (isRefresh) {
+        if (isRefresh) {
           ToastService.showSuccess({
             key: "substrate.refreshed",
             vars: {
@@ -123,8 +149,9 @@ export default defineComponent({
             },
           });
         }
-      } catch {
-        ToastService.showError({ key: "substrate.fetch_error" });
+      } catch (error) {
+        // handleRequest has already shown the error toast.
+        console.error("Error loading substrates:", error);
       }
     },
 
@@ -189,12 +216,19 @@ export default defineComponent({
 
         if (!newSubstrateId) return;
 
+        let photoSaved = true;
         if (payload.meta.image) {
           // The upload refreshes the substrate (now including the image) in the store.
-          await this.uploadSubstrateImage(newSubstrateId, payload.meta.image);
+          try {
+            await this.uploadSubstrateImage(newSubstrateId, payload.meta.image);
+          } catch (error) {
+            console.error("Substrate image upload failed:", error);
+            photoSaved = false;
+          }
         }
 
-        ToastService.showSuccess({ key: "substrate.added" });
+        if (photoSaved) ToastService.showSuccess({ key: "substrate.added" });
+        else ToastService.showWarning({ key: "shell.photo_failed_substrate" });
         this.showAddingModal = false;
       } catch (error) {
         // handleRequest has already shown the error toast.

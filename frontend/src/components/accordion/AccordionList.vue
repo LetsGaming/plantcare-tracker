@@ -22,12 +22,12 @@ export default defineComponent({
 
 <style scoped>
 .accordion-list {
-  padding-left: 15px;
-  padding-right: 15px;
+  margin: 0;
+  padding: 0 var(--space-4);
   max-height: 250px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
 }
 </style>

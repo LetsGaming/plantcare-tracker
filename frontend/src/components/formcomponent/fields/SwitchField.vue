@@ -1,23 +1,25 @@
 <template>
   <div class="field-wrapper">
     <IonItem>
-      <IonLabel>{{ translateLabel() }}</IonLabel>
-      <IonToggle v-model="localValue" />
+      <IonToggle v-model="localValue" justify="space-between" @ionBlur="$emit('blur')">
+        {{ translateLabel() }}
+      </IonToggle>
     </IonItem>
-    <RequiredNote v-if="field.required" />
+    <FieldError :id="messageId" :message="error" />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonItem, IonLabel, IonToggle } from "@ionic/vue";
-import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import { IonItem, IonToggle } from "@ionic/vue";
+import FieldError from "@/components/formcomponent/FieldError.vue";
+import { fieldErrorProp, nextFieldId } from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SwitchFieldComponent",
-  emits: ["update:modelValue"],
-  components: { IonItem, IonLabel, IonToggle, RequiredNote },
+  emits: ["update:modelValue", "blur"],
+  components: { IonItem, IonToggle, FieldError },
   props: {
     field: {
       type: Object as () => SwitchField,
@@ -27,6 +29,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    ...fieldErrorProp,
+  },
+  data() {
+    return { messageId: nextFieldId("field-msg") };
   },
   computed: {
     localValue: {
@@ -48,6 +54,6 @@ export default defineComponent({
 
 <style scoped>
 .field-wrapper {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-3);
 }
 </style>

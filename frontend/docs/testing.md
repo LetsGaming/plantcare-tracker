@@ -40,7 +40,12 @@ src/tests/
 ├── apiErrorMessage.test.ts       Form-ready text for 400/409 answers
 ├── routerGuard.test.ts           Route table, guard decisions, dev-only debug route
 ├── viewReactivity.test.ts        Views and components rendering from stores
-├── formComponents.test.ts        Form field components
+├── formComponents.test.ts        Form field components, inline validation, server field errors
+├── formHelpers.test.ts, formModals.test.ts   Form state helpers, modal reset on open, discard guard, substrate parts
+├── requestFeedback.test.ts, toastService.test.ts   Resolved failure messages, retry action, toast dedupe
+├── localDateAndStats.test.ts, wateringStatus.test.ts   Local day keys, watering rhythm, Water now with Undo
+├── loadPhase.test.ts             Failed load to error or not-found
+├── offline.test.ts               Connectivity state, offline banner, runtime cache clearing
 ├── mapping.test.ts, sourceHealth.test.ts, utils.test.ts
 └── conventions.test.ts           No <script setup>; views stay off the transport layer
 ```

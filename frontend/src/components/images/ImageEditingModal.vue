@@ -1,54 +1,29 @@
 <template>
-  <IonModal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ModalHeader :headerTitle="t('image.edit.title')" @close="$emit('close')" />
-    <IonContent>
-      <div class="modal-card-container">
-        <form-component
-          :item="imageEditData"
-          :formFields="[
-            {
-              type: 'file',
-              label: t('image.field.file'),
-              modelKey: 'image',
-            },
-            {
-              type: 'date',
-              label: t('image.field.date'),
-              modelKey: 'date',
-              required: true,
-            },
-          ]"
-          :cardTitle="t('image.info.title')"
-          submitLabel="image.edit.submit"
-          :onSubmitClick="submitForm"
-          :onDeleteClick="deleteImage"
-          :isLoading="isLoading"
-        />
-      </div>
-    </IonContent>
-  </IonModal>
+  <BaseFormModal
+    :is-open="isOpen"
+    :is-loading="isLoading"
+    modal-title="image.edit.title"
+    form-title="image.info.title"
+    submit-label="image.edit.submit"
+    :form-data="imageEditData"
+    :form-fields="formFields"
+    :delete-handler="deleteImage"
+    :delete-label="deleteLabel"
+    @submit="submitForm"
+    @close="$emit('close')"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { IonModal, IonContent } from "@ionic/vue";
-import { closeOutline } from "ionicons/icons";
-
-import FormComponent from "../formcomponent/FormComponent.vue";
-import ModalHeader from "../modal/ModalHeader.vue";
-import ImageService from "../../services/ImageService";
-import ToastService from "@/services/general/ToastService";
+import BaseFormModal from "@/components/modal/BaseFormModal.vue";
+import ImageService from "@/services/ImageService";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ImageEditingModal",
   emits: ["close", "edited"],
-  components: {
-    IonModal,
-    IonContent,
-    ModalHeader,
-    FormComponent,
-  },
+  components: { BaseFormModal },
   props: {
     isOpen: {
       type: Boolean,
@@ -65,56 +40,56 @@ export default defineComponent({
   },
   data() {
     return {
-      imageEditData: {
-        file: undefined,
-        date: undefined,
-      } as EditImage,
+      imageEditData: { file: undefined, date: this.image.date_millis } as EditImage,
       isLoading: false,
     };
   },
-  setup() {
-    return {
-      closeOutline,
-    };
+  computed: {
+    deleteLabel(): string {
+      return localizationService.t("image.label", undefined, "Image");
+    },
+    formFields(): FormField[] {
+      return [
+        { type: "file", label: "image.field.file", modelKey: "file" },
+        { type: "date", label: "image.field.date", modelKey: "date", required: true },
+      ];
+    },
   },
-  mounted() {
-    this.imageEditData.date = this.image.date_millis;
+  watch: {
+    isOpen(open: boolean) {
+      if (open) this.resetDraft();
+    },
+    "image.id"() {
+      this.resetDraft();
+    },
   },
   methods: {
-    t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback);
+    resetDraft() {
+      this.imageEditData = { file: undefined, date: this.image.date_millis } as EditImage;
     },
     async submitForm() {
+      if (!this.imageEditData.file && !this.imageEditData.date) return;
+      this.isLoading = true;
       try {
-        if (!this.imageEditData.file && !this.imageEditData.date) {
-          ToastService.showError({
-            key: "image.edit.min_field",
-            fallback: "Please fill at least one field",
-          });
-          return;
-        }
-        this.isLoading = true;
         const response = await ImageService.editImage(
           this.image.id,
           this.imageEditData.date,
           this.imageEditData.file,
         );
-        if (response) {
-          this.isLoading = false;
-          this.$emit("edited");
-        }
-      } catch (error) {
-        console.error(error);
+        if (response) this.$emit("edited");
+      } catch {
+        // handleRequest has already reported the failure.
+      } finally {
+        this.isLoading = false;
       }
     },
     async deleteImage() {
+      this.isLoading = true;
       try {
-        this.isLoading = true;
         await ImageService.deleteImage(this.image.id);
-        this.isLoading = false;
         this.$emit("edited");
-      } catch (error) {
-        console.error(error);
+      } finally {
+        this.isLoading = false;
       }
     },
   },

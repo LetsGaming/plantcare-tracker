@@ -57,7 +57,18 @@ const IonRadioGroupStub = defineComponent({
   },
 });
 
+const IonSearchbarStub = defineComponent({
+  emits: ["ionInput"],
+  render() {
+    return h("input", {
+      onInput: (e: Event) =>
+        this.$emit("ionInput", { detail: { value: (e.target as HTMLInputElement).value } }),
+    });
+  },
+});
+
 const stubs = {
+  IonSearchbar: IonSearchbarStub,
   IonItem: passthrough(),
   IonLabel: passthrough("span"),
   IonInput: IonInputStub,
@@ -110,19 +121,58 @@ describe("FormComponent", () => {
     expect(item.name).toBe("Monstera");
   });
 
-  it("blocks submission and shows one toast while a required field is empty", async () => {
+  it("blocks submission and marks the empty required field after a failed submit", async () => {
     const { wrapper, onSubmitClick } = mountForm();
-    await wrapper.find("button").trigger("click");
+    expect(wrapper.find(".field-error").exists()).toBe(false);
+    await wrapper.find("form").trigger("submit");
     expect(onSubmitClick).not.toHaveBeenCalled();
-    expect(toast.showError).toHaveBeenCalledTimes(1);
+    expect(wrapper.find(".field-error").text()).toBe("This field is required.");
+    expect(toast.showError).not.toHaveBeenCalled();
   });
 
   it("submits once the required fields are filled", async () => {
     const { wrapper, onSubmitClick } = mountForm();
     await wrapper.findAll("input")[0].setValue("Monstera");
-    await wrapper.find("button").trigger("click");
+    await wrapper.find("form").trigger("submit");
     expect(onSubmitClick).toHaveBeenCalledOnce();
-    expect(toast.showError).not.toHaveBeenCalled();
+    expect(wrapper.find(".field-error").exists()).toBe(false);
+  });
+
+  it("treats 0 and false as filled-in values", async () => {
+    const { wrapper, onSubmitClick } = mountForm({
+      item: { count: 0, flag: false },
+      formFields: [
+        { type: "input", modelKey: "count", label: "Count", required: true },
+        { type: "switch", modelKey: "flag", label: "Flag", required: true },
+      ],
+    });
+    await wrapper.find("form").trigger("submit");
+    expect(onSubmitClick).toHaveBeenCalledOnce();
+  });
+
+  it("requires a select value that matches one of the options", async () => {
+    const { wrapper, onSubmitClick } = mountForm({
+      item: { substrateId: 0 },
+      formFields: [
+        {
+          type: "select",
+          modelKey: "substrateId",
+          label: "Substrate",
+          required: true,
+          options: [{ value: 3, label: "Peat" }],
+        },
+      ],
+    });
+    await wrapper.find("form").trigger("submit");
+    expect(onSubmitClick).not.toHaveBeenCalled();
+    expect(wrapper.find(".field-error").text()).toBe("Please choose an option.");
+  });
+
+  it("shows server field errors under the field and clears them when the field changes", async () => {
+    const { wrapper } = mountForm({ fieldErrors: { name: "Name already taken" } });
+    expect(wrapper.find(".field-error").text()).toBe("Name already taken");
+    await wrapper.findAll("input")[0].setValue("Other");
+    expect(wrapper.find(".field-error").exists()).toBe(false);
   });
 
   it("disables the submit button and shows the waiting label while loading", () => {

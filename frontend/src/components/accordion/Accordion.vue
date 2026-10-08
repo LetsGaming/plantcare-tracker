@@ -1,30 +1,31 @@
 <template>
   <li class="accordion-item">
-    <div
-      class="accordion-toggle ion-activatable ion-focusable"
-      role="button"
-      tabindex="0"
-      :aria-expanded="isOpen"
-      @click="toggle"
-      @keydown.enter.space.prevent="toggle"
-    >
-      <!-- REAL Ionic ripple -->
-      <ion-ripple-effect mode="md" />
-
-      <span class="accordion-title">{{ item.name }}</span>
-
-      <span class="icons-container">
+    <div class="accordion-row">
+      <button
+        type="button"
+        class="accordion-toggle ion-activatable ion-focusable"
+        :aria-expanded="isOpen"
+        :aria-controls="panelId"
+        @click="toggle"
+      >
+        <ion-ripple-effect mode="md" />
+        <span class="accordion-title">{{ item.name }}</span>
         <ion-icon
-          v-if="!isGuest && showEditButton"
-          :icon="create"
-          style="width: 24px; height: 24px"
-          @click.stop="onEditClick"
+          :icon="chevronDown"
+          class="toggle-icon"
+          :class="{ open: isOpen }"
+          aria-hidden="true"
         />
-        <span class="toggle-icon" :class="{ open: isOpen }">▼</span>
-      </span>
+      </button>
+      <icon-button
+        v-if="!isGuest && showEditButton"
+        :icon="create"
+        :label="t('a11y.edit', 'Edit')"
+        @press="onEditClick"
+      />
     </div>
 
-    <div class="accordion-content-wrapper" :class="{ open: isOpen }">
+    <div :id="panelId" class="accordion-content-wrapper" :class="{ open: isOpen }" :inert="!isOpen">
       <div class="accordion-content">
         <template v-if="item.details && Object.keys(item.details).length > 0">
           <p v-for="(value, key) in item.details" :key="key">
@@ -49,16 +50,20 @@
 <script lang="ts">
 import { defineComponent, ref } from "vue";
 import { IonIcon, IonRippleEffect } from "@ionic/vue";
-import { create } from "ionicons/icons";
+import { create, chevronDown } from "ionicons/icons";
+import IconButton from "@/components/ui/IconButton.vue";
 import { mapState } from "pinia";
 import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
+
+let accordionCount = 0;
 
 export default defineComponent({
   name: "Accordion",
   components: {
     IonIcon,
     IonRippleEffect,
+    IconButton,
   },
   emits: ["edit-click"],
   props: {
@@ -73,6 +78,7 @@ export default defineComponent({
   },
   setup() {
     const isOpen = ref(false);
+    const panelId = `accordion-panel-${++accordionCount}`;
 
     function toggle() {
       isOpen.value = !isOpen.value;
@@ -80,8 +86,10 @@ export default defineComponent({
 
     return {
       isOpen,
+      panelId,
       toggle,
       create,
+      chevronDown,
     };
   },
   computed: {
@@ -99,54 +107,56 @@ export default defineComponent({
 </script>
 
 <style scoped>
-/* Ionic-style list item */
 .accordion-item {
   width: 100%;
   list-style: none;
-  border-bottom: 1px solid var(--ion-color-light);
+  border-bottom: 1px solid var(--line);
 }
 
-/* Activation surface (matches ion-item) */
+.accordion-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .accordion-toggle {
   position: relative;
   overflow: hidden;
-
+  flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
-  padding: 14px 16px;
-  font-size: 1rem;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-md);
   font-weight: 600;
+  text-align: left;
   color: var(--ion-text-color);
   cursor: pointer;
 }
 
-/* Icons */
-.icons-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Arrow animation */
 .toggle-icon {
-  display: inline-block;
-  transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  flex: none;
+  width: 20px;
+  height: 20px;
+  transition: transform 280ms var(--ease-out);
 }
 
 .toggle-icon.open {
   transform: rotate(180deg);
 }
 
-/* Ionic accordion animation */
 .accordion-content-wrapper {
   overflow: hidden;
   max-height: 0;
   opacity: 0;
   transition:
-    max-height 280ms cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    max-height 280ms var(--ease-out),
+    opacity 200ms var(--ease-out);
 }
 
 .accordion-content-wrapper.open {
@@ -154,18 +164,16 @@ export default defineComponent({
   opacity: 1;
 }
 
-/* Content */
 .accordion-content {
-  padding: 0 16px 12px 16px;
-  font-size: 0.95rem;
-  color: var(--ion-color-medium);
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
 }
 
-/* Dynamic components */
 .components-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 8px;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 </style>

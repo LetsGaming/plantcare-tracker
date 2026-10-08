@@ -4,47 +4,39 @@
       <ion-router-outlet name="tabs"></ion-router-outlet>
 
       <ion-tab-bar slot="bottom" id="nav-tab-bar">
-        <ion-tab-button tab="tab1" href="/tabs/plants">
-          <ion-icon :icon="leaf" />
+        <ion-tab-button tab="plants" href="/tabs/plants">
+          <ion-icon :icon="tabIcon('plants')" aria-hidden="true" />
           <ion-label>{{ t("tabs.plants") }}</ion-label>
         </ion-tab-button>
 
-        <ion-tab-button tab="tab2" href="/tabs/substrates">
-          <ion-icon :icon="cube" />
+        <ion-tab-button tab="substrates" href="/tabs/substrates">
+          <ion-icon :icon="tabIcon('substrates')" aria-hidden="true" />
           <ion-label>{{ t("tabs.substrates") }}</ion-label>
         </ion-tab-button>
 
-        <ion-tab-button tab="tab3" href="/tabs/components">
-          <ion-icon :icon="grid" />
+        <ion-tab-button tab="components" href="/tabs/components">
+          <ion-icon :icon="tabIcon('components')" aria-hidden="true" />
           <ion-label>{{ t("tabs.components") }}</ion-label>
         </ion-tab-button>
 
-        <ion-tab-button tab="tab4" href="/tabs/debug" v-if="isDev">
-          <ion-icon :icon="bug" />
+        <ion-tab-button tab="sales" href="/tabs/sales">
+          <ion-icon :icon="tabIcon('sales')" aria-hidden="true" />
+          <ion-label>{{ t("tabs.sales") }}</ion-label>
+          <ion-badge
+            v-if="salesCount > 0"
+            color="secondary"
+            :aria-label="t('tabs.sales_new', { count: salesCount })"
+          >
+            {{ salesCount }}
+          </ion-badge>
+        </ion-tab-button>
+
+        <ion-tab-button tab="debug" href="/tabs/debug" v-if="isDev">
+          <ion-icon :icon="tabIcon('debug')" aria-hidden="true" />
           <ion-label>{{ t("tabs.debug") }}</ion-label>
         </ion-tab-button>
       </ion-tab-bar>
     </ion-tabs>
-
-    <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-      <ion-fab-button router-link="/sales">
-        <ion-icon :icon="pricetag" />
-      </ion-fab-button>
-      <ion-badge v-if="salesCount > 0" color="danger" class="sales-amount-badge">
-        {{ salesCount }}
-      </ion-badge>
-      <ion-badge
-        v-if="failingSources > 0"
-        color="warning"
-        class="sources-warning-badge"
-        role="status"
-        :aria-label="t('admin.scrapers.failing_badge', { count: failingSources })"
-        :title="t('admin.scrapers.failing_badge', { count: failingSources })"
-      >
-        <ion-icon :icon="warning" />
-        {{ failingSources }}
-      </ion-badge>
-    </ion-fab>
   </ion-page>
 </template>
 
@@ -59,11 +51,9 @@ import {
   IonIcon,
   IonPage,
   IonRouterOutlet,
-  IonFab,
-  IonFabButton,
   IonBadge,
 } from "@ionic/vue";
-import { cube, grid, leaf, pricetag, bug, warning } from "ionicons/icons";
+import { navIcons, type NavDestination } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 import { useSessionStore } from "@/stores/session";
 import { useSalesStore } from "@/stores/sales";
@@ -79,25 +69,19 @@ export default defineComponent({
     IonIcon,
     IonPage,
     IonRouterOutlet,
-    IonFab,
-    IonFabButton,
     IonBadge,
   },
   setup() {
     return {
-      cube,
-      grid,
-      leaf,
-      pricetag,
-      bug,
-      warning,
       isDev: import.meta.env.MODE === "development",
     };
   },
   computed: {
     ...mapState(useSessionStore, ["isAdmin"]),
+    activeTab(): string {
+      return /^\/tabs\/([^/]+)/.exec(this.$route?.path ?? "")?.[1] ?? "";
+    },
     ...mapState(useSalesStore, { salesCount: "newCount" }),
-    ...mapState(useAdminHealthStore, { failingSources: "needingAttention" }),
   },
   async mounted() {
     await this.restoreSales();
@@ -109,6 +93,9 @@ export default defineComponent({
     }
   },
   methods: {
+    tabIcon(tab: NavDestination): string {
+      return this.activeTab === tab ? navIcons[tab].selected : navIcons[tab].idle;
+    },
     ...mapActions(useSalesStore, { restoreSales: "restore" }),
     ...mapActions(useAdminHealthStore, { loadSourceHealth: "load" }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
@@ -119,41 +106,19 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.sales-amount-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  font-size: 0.75rem;
-  height: 28px;
-  min-width: 28px;
-  padding: 0 4px;
-  line-height: 18px;
-  border-radius: 50%;
-  justify-content: center;
-  display: flex;
-  align-items: center;
-  pointer-events: none; /* Prevents badge from blocking fab-button clicks */
+ion-tab-bar {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-.sources-warning-badge {
-  position: absolute;
-  top: -5px;
-  left: -5px;
-  font-size: 0.75rem;
-  height: 28px;
-  min-width: 28px;
-  padding: 0 6px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  pointer-events: none;
-}
-
-@media (max-width: 768px) {
-  ion-fab {
-    margin-bottom: 70px; /* Offset for the bottom tab bar on mobile */
+@media (min-width: 992px) {
+  ion-tab-bar {
+    display: none;
   }
+}
+
+ion-badge {
+  --padding-start: 6px;
+  --padding-end: 6px;
+  font-weight: 700;
 }
 </style>

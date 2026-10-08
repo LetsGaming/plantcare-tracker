@@ -1,70 +1,96 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-back-button default-href="/tabs/admin" />
-        </ion-buttons>
-        <ion-title>{{ t("admin.scrapers.title") }}</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <admin-header :title="t('admin.scrapers.title')" back-href="/tabs/admin">
+      <template #actions>
+        <icon-button
+          :icon="reloadIcon"
+          :label="t('admin2.reload')"
+          :disabled="loading"
+          @press="load"
+        />
+      </template>
+    </admin-header>
 
-    <PullToRefresh :onRefresh="load">
-      <p class="intro">{{ t("admin.scrapers.description") }}</p>
+    <ion-content>
+      <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
+        <ion-refresher-content />
+      </ion-refresher>
 
-      <ion-card v-if="loaded" class="summary" :class="`summary--${overall}`">
-        <ion-card-content>
-          <ion-icon :icon="overallIcon" />
-          <span>{{ summaryText }}</span>
-        </ion-card-content>
-      </ion-card>
+      <div class="page">
+        <p class="intro">{{ t("admin.scrapers.description") }}</p>
 
-      <p v-if="loaded && sources.length === 0" class="intro">
-        {{ t("admin.scrapers.empty") }}
-      </p>
+        <state-block
+          v-if="loading && !loaded"
+          kind="loading"
+          :title="t('state.loading')"
+          :skeletons="3"
+        />
 
-      <ion-card v-for="group in groups" :key="group.kind">
-        <ion-list lines="full">
-          <ion-list-header>
-            <ion-label>{{ t(`admin.scrapers.section.${group.kind}`) }}</ion-label>
-          </ion-list-header>
+        <state-block
+          v-else-if="failed && !loaded"
+          kind="error"
+          :title="t('state.error_title')"
+          :message="t('state.error_message')"
+          :action-label="t('state.retry')"
+          @action="load"
+        />
 
-          <ion-item v-for="source in group.sources" :key="source.key">
-            <ion-label class="ion-text-wrap">
-              <h2 class="source-title">
-                {{ source.seller }}
-                <ion-badge :color="statusColor(source.status)">
-                  {{ t(`admin.scrapers.status.${source.status}`) }}
-                </ion-badge>
-              </h2>
-              <p>{{ detailLine(source) }}</p>
-              <p v-if="source.consecutiveFailures > 1">
-                {{
-                  t("admin.scrapers.failures_in_a_row", {
-                    count: source.consecutiveFailures,
-                  })
-                }}
-              </p>
-              <p v-if="source.status !== 'ok' && source.lastError" class="source-error">
-                {{ source.lastError }}
-              </p>
-            </ion-label>
+        <template v-else>
+          <ion-card v-if="loaded" class="summary" :class="`summary--${overall}`">
+            <ion-card-content>
+              <ion-icon :icon="overallIcon" aria-hidden="true" />
+              <span>{{ summaryText }}</span>
+            </ion-card-content>
+          </ion-card>
 
-            <ion-button
-              v-if="source.kind === 'sales'"
-              slot="end"
-              fill="outline"
-              size="small"
-              :disabled="checking === source.key"
-              @click="recheck(source)"
-            >
-              <ion-spinner v-if="checking === source.key" name="dots" />
-              <template v-else>{{ t("admin.scrapers.recheck") }}</template>
-            </ion-button>
-          </ion-item>
-        </ion-list>
-      </ion-card>
-    </PullToRefresh>
+          <p v-if="loaded && sources.length === 0" class="intro">
+            {{ t("admin.scrapers.empty") }}
+          </p>
+
+          <ion-card v-for="group in groups" :key="group.kind">
+            <ion-list lines="full">
+              <ion-list-header>
+                <ion-label>{{ t(`admin.scrapers.section.${group.kind}`) }}</ion-label>
+              </ion-list-header>
+
+              <ion-item v-for="source in group.sources" :key="source.key">
+                <ion-label class="ion-text-wrap">
+                  <h2 class="source-title">
+                    {{ source.seller }}
+                    <ion-badge :color="statusColor(source.status)">
+                      {{ t(`admin.scrapers.status.${source.status}`) }}
+                    </ion-badge>
+                  </h2>
+                  <p>{{ detailLine(source) }}</p>
+                  <p v-if="source.consecutiveFailures > 1">
+                    {{
+                      t("admin.scrapers.failures_in_a_row", {
+                        count: source.consecutiveFailures,
+                      })
+                    }}
+                  </p>
+                  <p v-if="source.status !== 'ok' && source.lastError" class="source-error">
+                    {{ source.lastError }}
+                  </p>
+                </ion-label>
+
+                <ion-button
+                  v-if="source.kind === 'sales'"
+                  slot="end"
+                  fill="outline"
+                  size="small"
+                  :disabled="checking === source.key"
+                  @click="recheck(source)"
+                >
+                  <ion-spinner v-if="checking === source.key" name="dots" />
+                  <template v-else>{{ t("admin.scrapers.recheck") }}</template>
+                </ion-button>
+              </ion-item>
+            </ion-list>
+          </ion-card>
+        </template>
+      </div>
+    </ion-content>
   </ion-page>
 </template>
 
@@ -72,11 +98,9 @@
 import { defineComponent } from "vue";
 import {
   IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonBackButton,
+  IonContent,
+  IonRefresher,
+  IonRefresherContent,
   IonButton,
   IonCard,
   IonCardContent,
@@ -88,10 +112,12 @@ import {
   IonIcon,
   IonSpinner,
 } from "@ionic/vue";
-import { checkmarkCircle, warning, alertCircle } from "ionicons/icons";
+import { checkmarkCircle, warning, alertCircle, reload } from "ionicons/icons";
 import { DateTime } from "luxon";
 
-import PullToRefresh from "@/components/PullToRefresh.vue";
+import AdminHeader from "@/components/admin/AdminHeader.vue";
+import IconButton from "@/components/ui/IconButton.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
 import { mapActions, mapState } from "pinia";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 import ToastService from "@/services/general/ToastService";
@@ -110,11 +136,9 @@ export default defineComponent({
   name: "ScraperHealth",
   components: {
     IonPage,
-    IonHeader,
-    IonToolbar,
-    IonTitle,
-    IonButtons,
-    IonBackButton,
+    IonContent,
+    IonRefresher,
+    IonRefresherContent,
     IonButton,
     IonCard,
     IonCardContent,
@@ -125,11 +149,16 @@ export default defineComponent({
     IonBadge,
     IonIcon,
     IonSpinner,
-    PullToRefresh,
+    AdminHeader,
+    IconButton,
+    StateBlock,
   },
   data() {
     return {
       checking: null as string | null,
+      loading: false,
+      failed: false,
+      reloadIcon: reload,
     };
   },
   computed: {
@@ -180,12 +209,21 @@ export default defineComponent({
       return STATUS_COLORS[status];
     },
     async load(): Promise<void> {
+      this.loading = true;
+      this.failed = false;
       try {
         await this.loadHealth();
       } catch (error) {
         // handleRequest has already shown the error toast.
+        this.failed = true;
         console.error("Loading source health failed:", error);
+      } finally {
+        this.loading = false;
       }
+    },
+    async handleRefresh(event: CustomEvent): Promise<void> {
+      await this.load();
+      (event.target as HTMLIonRefresherElement).complete();
     },
     async recheck(source: SourceHealth): Promise<void> {
       this.checking = source.key;
@@ -231,15 +269,22 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.page {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-2);
+  box-sizing: border-box;
+}
+
 .intro {
-  margin: 0;
-  color: var(--ion-color-medium);
+  margin: 0 var(--space-3) var(--space-3);
+  color: var(--ink-soft);
 }
 
 .summary ion-card-content {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   font-weight: 600;
 }
 
@@ -259,7 +304,7 @@ export default defineComponent({
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   font-weight: 600;
 }
 

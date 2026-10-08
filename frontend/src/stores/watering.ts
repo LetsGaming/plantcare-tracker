@@ -84,6 +84,21 @@ export const useWateringStore = defineStore("watering", {
       });
     },
 
+    /** Warms the records of many plants, `limit` requests at a time; failures are skipped. */
+    async ensureRecordsFor(plantIds: number[], limit = 3): Promise<void> {
+      const queue = [...plantIds];
+      const worker = async () => {
+        for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+          try {
+            await this.ensureRecords(id);
+          } catch {
+            // The list simply shows no watering line for this plant.
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(limit, queue.length) }, worker));
+    },
+
     async fetchRecords(plantId: number): Promise<WateringRecord[]> {
       try {
         const response = await ApiUtils.get<APIWateringRecord[]>(

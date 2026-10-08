@@ -1,16 +1,16 @@
 <template>
   <section class="details-banner">
-    <ion-img
-      v-if="imageUrl"
-      :src="imageUrl"
-      :alt="bannerTitle + ' Image'"
-      @ion-error="($event) => ($event.target.src = '/no-image.png')"
-      class="details-banner__image"
-    />
-    <ion-img v-else src="/no-image.png" alt="No Image" class="details-banner__image no-image" />
-    <div class="details-banner__content">
-      <h2 class="details-banner__title">{{ bannerTitle }}</h2>
-      <p class="details-banner__subtitle" v-if="bannerSubtitle">
+    <div class="details-banner__media">
+      <progressive-image
+        :src="imageUrl ?? ''"
+        :alt="altText"
+        :kind="placeholderKind"
+        :seed="bannerTitle"
+      />
+    </div>
+    <div v-if="!imageOnly" class="details-banner__content">
+      <h1 class="details-banner__title break-words">{{ bannerTitle }}</h1>
+      <p class="details-banner__subtitle break-words" v-if="bannerSubtitle">
         {{ bannerSubtitle }}
       </p>
     </div>
@@ -18,14 +18,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-
-import { IonImg } from "@ionic/vue";
+import { defineComponent, PropType } from "vue";
+import ProgressiveImage from "@/components/ProgressiveImage.vue";
+import type { PlaceholderKind } from "@/components/ui/PlantPlaceholder.vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "DetailsBanner",
   components: {
-    IonImg,
+    ProgressiveImage,
   },
   props: {
     bannerTitle: {
@@ -40,64 +41,71 @@ export default defineComponent({
       type: String,
       required: false,
     },
+    /** Descriptive alt text; defaults to "Photo of {title}". */
+    imageAlt: {
+      type: String,
+      required: false,
+    },
+    placeholderKind: {
+      type: String as PropType<PlaceholderKind>,
+      default: "plant",
+    },
+    /** Renders the photo alone, for screens that show the title elsewhere. */
+    imageOnly: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  computed: {
+    altText(): string {
+      return (
+        this.imageAlt ??
+        localizationService.t(
+          "plantdetail.hero_alt",
+          { name: this.bannerTitle },
+          `Photo of ${this.bannerTitle}`,
+        )
+      );
+    },
   },
 });
 </script>
 
 <style scoped>
 .details-banner {
-  position: relative;
   width: 100%;
-  height: 850px;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.details-banner__media {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: 40vh;
   overflow: hidden;
-}
-
-.details-banner__image {
-  width: 100%;
-  height: 100%;
-}
-
-.details-banner__image::part(image) {
-  object-fit: cover;
-}
-
-.no-image::part(image) {
-  object-fit: contain !important;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
 }
 
 .details-banner__content {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.5); /* Dark overlay for readability */
-  color: white;
-  text-align: left;
+  padding: var(--space-4) var(--space-4) 0;
+  color: var(--ion-text-color);
 }
 
 .details-banner__title {
-  font-size: 2rem;
-  font-weight: bold;
-  margin: 0;
+  font-size: var(--text-xl);
 }
 
 .details-banner__subtitle {
-  font-size: 1.2rem;
-  margin-top: 5px;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  color: var(--ink-soft);
 }
 
-@media (max-width: 768px) {
-  .details-banner {
-    height: 500px;
-  }
-
+@media (min-width: 900px) {
   .details-banner__title {
-    font-size: 1.5rem;
-  }
-
-  .details-banner__subtitle {
-    font-size: 1rem;
+    font-size: var(--text-2xl);
   }
 }
 </style>

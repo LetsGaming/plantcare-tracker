@@ -4,6 +4,7 @@ import TokenUtils from "@/utils/tokenUtils";
 import Utils from "@/utils/utils";
 import storageService from "@/services/general/StorageService";
 import { handleRequest } from "@/utils/requestFeedback";
+import { clearRuntimeCaches } from "@/pwa";
 import { pinia as appPinia, resetAllStores } from "./pinia";
 
 const BASE_ENDPOINT = "/auth";
@@ -126,6 +127,7 @@ export const useSessionStore = defineStore("session", {
       resetAllStores();
       await TokenUtils.clearToken();
       await storageService.clear();
+      await clearRuntimeCaches();
       this.token = null;
       this.hydrated = true;
       await redirectToLogin?.();

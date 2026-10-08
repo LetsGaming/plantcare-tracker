@@ -1,24 +1,25 @@
 <template>
-  <div class="search-bar" lines="none">
-    <ion-input
-      class="search-input"
-      v-model="searchQuery"
-      :placeholder="placeholder"
-      @ionInput="emitSearch"
-      clear-input
-    ></ion-input>
-  </div>
+  <ion-searchbar
+    class="search-bar"
+    :value="searchQuery"
+    :placeholder="placeholder"
+    :debounce="0"
+    show-clear-button="focus"
+    inputmode="search"
+    enterkeyhint="search"
+    @ionInput="onInput"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonInput } from "@ionic/vue";
+import { IonSearchbar } from "@ionic/vue";
 
 export default defineComponent({
   name: "SearchBar",
   emits: ["search"],
   components: {
-    IonInput,
+    IonSearchbar,
   },
   props: {
     placeholder: {
@@ -36,8 +37,11 @@ export default defineComponent({
     this.emitSearch();
   },
   methods: {
+    onInput(event: CustomEvent) {
+      this.searchQuery = (event.detail.value ?? "").toString();
+      this.emitSearch();
+    },
     emitSearch() {
-      // Emit the current search query to the parent component
       this.$emit("search", this.searchQuery);
     },
     clearSearch() {
@@ -50,32 +54,15 @@ export default defineComponent({
 
 <style scoped>
 .search-bar {
-  width: 100%;
-  margin-top: 20px;
-  padding: 12px 16px;
-  border-radius: 20px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  border: 2px solid rgba(110, 110, 110, 0.1);
-}
-
-.search-input {
-  width: 100%;
-  font-size: 1rem;
-}
-
-.clear-icon {
-  cursor: pointer;
-  font-size: 1.5rem;
-  margin-left: 8px;
-}
-
-@media (max-width: 768px) {
-  .search-bar {
-    width: 80%;
-  }
-
-  .align-middle {
-    margin: 10px auto !important;
-  }
+  --background: var(--surface-raised);
+  --border-radius: var(--radius-md);
+  --box-shadow: inset 0 0 0 1px var(--line);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ink-soft);
+  --placeholder-opacity: 1;
+  --icon-color: var(--ink-soft);
+  --clear-button-color: var(--ink-soft);
+  padding: 0;
+  min-height: var(--tap-min);
 }
 </style>

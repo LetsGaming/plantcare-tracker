@@ -4,6 +4,7 @@ import { RouteRecordRaw } from "vue-router";
 import Utils from "@/utils/utils";
 import { pinia } from "@/stores/pinia";
 import { useSessionStore } from "@/stores/session";
+import ToastService from "@/services/general/ToastService";
 import { resolveAccess } from "./guards";
 
 // Dynamic imports for lazy loading
@@ -50,6 +51,8 @@ const routes: Array<RouteRecordRaw> = [
     component: Profile,
     meta: authMeta,
   },
+  { path: "/sales", redirect: "/tabs/sales" },
+  { path: "/sales/details/:id", redirect: (to) => `/tabs/sales/details/${to.params.id}` },
   {
     path: "/:catchAll(.*)",
     name: "not-found",
@@ -107,14 +110,14 @@ const routes: Array<RouteRecordRaw> = [
         component: ComponentDetails,
       },
       {
-        path: "/sales",
+        path: "sales",
         name: "sales",
         component: SalesOverview,
         meta: authMeta,
       },
       {
         name: "sales-details",
-        path: "/sales/details/:id",
+        path: "sales/details/:id",
         meta: authMeta,
         props: true,
         component: SalesDetails,
@@ -130,6 +133,12 @@ const routes: Array<RouteRecordRaw> = [
         path: "admin/scrapers",
         meta: adminMeta,
         component: ScraperHealth,
+      },
+      {
+        name: "tabs-not-found",
+        path: ":catchAll(.*)",
+        meta: authMeta,
+        component: NotFound,
       },
     ],
   },
@@ -157,13 +166,18 @@ router.beforeEach(async (to, from, next) => {
       },
     );
 
-    if (decision === "login") return next({ name: "login" });
-    if (decision === "home") return next({ name: "plant-overview" });
+    if (decision === "login") {
+      return next({ name: "login", query: { redirect: to.fullPath } });
+    }
+    if (decision === "home") {
+      ToastService.showWarning({ key: "admin.no_access" });
+      return next({ name: "plant-overview" });
+    }
 
     next();
   } catch (error) {
     console.error("Auth check failed:", error);
-    next({ name: "login" });
+    next({ name: "login", query: { redirect: to.fullPath } });
   }
 });
 

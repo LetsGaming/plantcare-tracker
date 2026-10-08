@@ -13,10 +13,12 @@ const session = vi.hoisted(() => ({
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
 import Utils from "@/utils/utils";
+import ToastService from "@/services/general/ToastService";
 import router from "@/router";
 
 beforeEach(async () => {
   vi.spyOn(Utils, "closeAllOpenModals").mockResolvedValue(undefined);
+  vi.spyOn(ToastService, "showWarning").mockImplementation(() => undefined);
   session.ensureAuthenticated.mockResolvedValue(true);
   session.isAdmin = false;
   await router.replace("/login").catch(() => undefined);
@@ -75,10 +77,25 @@ describe("global guard", () => {
     expect(router.currentRoute.value.name).toBe("login");
   });
 
-  it("sends signed-in non-admins away from admin routes to the plant overview", async () => {
+  it("remembers the requested url so the login can return to it", async () => {
+    session.ensureAuthenticated.mockResolvedValue(false);
+    await router.push("/tabs/plants/details/4/0");
+    expect(router.currentRoute.value.name).toBe("login");
+    expect(router.currentRoute.value.query.redirect).toBe("/tabs/plants/details/4/0");
+  });
+
+  it("sends signed-in non-admins away from admin routes to the plant overview with a notice", async () => {
     session.isAdmin = false;
     await router.push("/tabs/admin");
     expect(router.currentRoute.value.name).toBe("plant-overview");
+    expect(ToastService.showWarning).toHaveBeenCalledWith({ key: "admin.no_access" });
+  });
+
+  it("keeps unknown tab urls inside the shell instead of the top-level 404", async () => {
+    await router.push("/tabs/nothing/here");
+    expect(router.currentRoute.value.name).toBe("tabs-not-found");
+    await router.push("/nothing");
+    expect(router.currentRoute.value.name).toBe("not-found");
   });
 
   it("sends a failing authentication check to the login page", async () => {

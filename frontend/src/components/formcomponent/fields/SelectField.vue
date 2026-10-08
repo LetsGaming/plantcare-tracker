@@ -1,26 +1,39 @@
 <template>
   <div class="field-wrapper">
-    <IonItem>
-      <IonSelect v-model="localValue" :label="translatedLabel" :placeholder="translatedPlaceholder">
+    <IonItem :class="{ 'field-invalid': !!error }">
+      <IonSelect
+        v-model="localValue"
+        :placeholder="translatedPlaceholder"
+        :aria-invalid="error ? 'true' : undefined"
+        :aria-describedby="error ? messageId : undefined"
+        @ionBlur="$emit('blur')"
+        @ionDismiss="$emit('blur')"
+      >
+        <div slot="label">
+          {{ translatedLabel }}
+          <RequiredMark v-if="field.required" />
+        </div>
         <IonSelectOption v-for="option in field.options" :key="option.value" :value="option.value">
           {{ t(option.label, undefined, option.label) }}
         </IonSelectOption>
       </IonSelect>
     </IonItem>
-    <RequiredNote v-if="field.required" />
+    <FieldError :id="messageId" :message="error" :hint="translatedHint" />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonItem, IonSelect, IonSelectOption } from "@ionic/vue";
-import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import FieldError from "@/components/formcomponent/FieldError.vue";
+import RequiredMark from "@/components/formcomponent/RequiredMark.vue";
+import { fieldErrorProp, nextFieldId } from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SelectFieldComponent",
-  emits: ["update:modelValue"],
-  components: { IonItem, IonSelect, IonSelectOption, RequiredNote },
+  emits: ["update:modelValue", "blur"],
+  components: { IonItem, IonSelect, IonSelectOption, FieldError, RequiredMark },
   props: {
     field: {
       type: Object as () => SelectField,
@@ -30,6 +43,10 @@ export default defineComponent({
       type: [String, Number],
       default: "",
     },
+    ...fieldErrorProp,
+  },
+  data() {
+    return { messageId: nextFieldId("field-msg") };
   },
   computed: {
     translatedLabel(): string {
@@ -41,6 +58,11 @@ export default defineComponent({
         undefined,
         this.field.placeholder || "",
       );
+    },
+    translatedHint(): string {
+      return this.field.hint
+        ? localizationService.t(this.field.hint, undefined, this.field.hint)
+        : "";
     },
     localValue: {
       get() {
@@ -61,6 +83,10 @@ export default defineComponent({
 
 <style scoped>
 .field-wrapper {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-3);
+}
+
+.field-invalid {
+  --border-color: var(--ion-color-danger);
 }
 </style>

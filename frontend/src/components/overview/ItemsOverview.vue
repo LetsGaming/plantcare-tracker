@@ -9,92 +9,120 @@
       />
     </ion-refresher>
 
-    <div class="refresh-button-container" :style="isRefreshing ? 'right: 93.5%;' : ''">
-      <ion-button size="small" fill="clear" @click="manualRefresh" :disabled="isRefreshing">
-        <template v-if="isRefreshing">
-          <ion-spinner name="dots" />
-          {{ t("pullToRefresh.loading") }}
-        </template>
-        <template v-else>
-          <ion-icon :icon="refreshIcon" />
-        </template>
-      </ion-button>
-    </div>
-
     <ion-fab
       v-if="showScrollTop"
       vertical="bottom"
-      horizontal="end"
+      horizontal="start"
       slot="fixed"
       class="scroll-top-fab"
     >
-      <ion-fab-button size="small" @click="scrollToTop">
-        <ion-icon :icon="arrowUp" />
+      <ion-fab-button
+        size="small"
+        color="tertiary"
+        :aria-label="t('a11y.scroll_top')"
+        @click="scrollToTop"
+      >
+        <ion-icon :icon="arrowUp" aria-hidden="true" />
       </ion-fab-button>
     </ion-fab>
 
-    <div class="content-container">
-      <template v-if="items.length">
-        <div class="header-actions align-middle">
-          <search-bar
-            @search="filterItems"
-            :placeholder="t('search.placeholder')"
-            class="search-bar-flex"
-          />
-        </div>
+    <div class="overview">
+      <div v-if="items.length" class="search-row">
+        <search-bar
+          ref="search"
+          class="search-field"
+          :placeholder="t('search.placeholder')"
+          @search="filterItems"
+        />
+        <icon-button
+          :icon="refreshIcon"
+          :label="t('a11y.refresh')"
+          :disabled="isRefreshing"
+          class="refresh-action"
+          @press="manualRefresh"
+        />
+      </div>
 
-        <ion-text class="align-middle" color="tertiary">
-          {{ filteredItems.length }} {{ t("overview.items") }}
-        </ion-text>
-      </template>
+      <div v-if="items.length" class="count-row">
+        <p class="count" aria-live="polite">{{ filteredItems.length }} {{ t("overview.items") }}</p>
+        <slot name="count-actions" />
+      </div>
 
-      <template v-if="filteredItems.length">
-        <ion-grid class="item-grid">
-          <ion-row>
-            <ion-col
-              v-for="item in filteredItems"
-              :key="item.id"
-              size-sm="6"
-              size-md="4"
-              size-lg="3"
-              size-xl="4"
-              class="responsive-col"
-            >
-              <ion-card class="item-card" @click="navigateToItem(item.id)">
-                <ion-badge v-if="item.isNew" class="new-badge round-badge" color="danger">
-                  {{ t("label.new") }}
-                </ion-badge>
-                <div :class="['item-image-wrapper', { 'image-only': imageOnly }]">
-                  <ProgressiveImage
-                    :src="item.imageUrl"
-                    :alt="t('image.alt', { name: item.name })"
+      <state-block
+        v-if="isLoading && !items.length"
+        kind="loading"
+        :title="t('state.loading')"
+        :skeletons="6"
+      />
+
+      <state-block
+        v-else-if="hasError && !items.length"
+        kind="error"
+        :placeholder-kind="kind"
+        :title="t('state.error_title')"
+        :message="t('state.error_message')"
+        :action-label="t('state.retry')"
+        @action="$emit('retry')"
+      />
+
+      <state-block
+        v-else-if="!items.length"
+        kind="empty"
+        :placeholder-kind="kind"
+        :title="emptyTitle || t('overview.no_entries')"
+        :message="emptyMessage"
+        :action-label="emptyActionLabel"
+        @action="$emit('empty-action')"
+      />
+
+      <state-block
+        v-else-if="!filteredItems.length"
+        kind="empty"
+        :placeholder-kind="kind"
+        :title="t('state.no_results_title', { query: currentSearch })"
+        :message="t('state.no_results_message')"
+        :action-label="t('state.clear_search')"
+        @action="clearSearch"
+      />
+
+      <ul v-else class="grid" role="list">
+        <li v-for="item in filteredItems" :key="item.id">
+          <button type="button" class="tag-card" @click="navigateToItem(item.id)">
+            <span class="tag-media">
+              <progressive-image
+                :src="item.imageUrl"
+                :alt="item.name"
+                :kind="kind"
+                :seed="String(item.id)"
+              />
+              <span v-if="item.isNew" class="new-pill">{{ t("label.new") }}</span>
+            </span>
+            <span class="tag-body">
+              <span class="tag-hole" aria-hidden="true" />
+              <span class="tag-name break-words">{{ item.name }}</span>
+              <span v-if="item.description" class="tag-sub break-words">{{
+                item.description
+              }}</span>
+              <span v-if="item.statusLine" class="tag-status">
+                <span class="status-line break-words" :class="`tone-${item.statusTone ?? 'ok'}`">{{
+                  item.statusLine
+                }}</span>
+                <span
+                  v-if="item.statusLabel"
+                  class="status-chip"
+                  :class="`tone-${item.statusTone ?? 'ok'}`"
+                >
+                  <ion-icon
+                    :icon="item.statusTone === 'overdue' ? alertCircle : water"
+                    aria-hidden="true"
                   />
-                </div>
-
-                <ion-card-content v-if="!imageOnly" class="item-content">
-                  <ion-card-title class="item-title">
-                    {{ item.name }}
-                  </ion-card-title>
-
-                  <ion-card-subtitle v-if="item.description" class="item-description">
-                    {{ item.description }}
-                  </ion-card-subtitle>
-
-                  <ion-text color="medium" class="more-details">
-                    {{ t("overview.more_details") }}
-                  </ion-text>
-                </ion-card-content>
-              </ion-card>
-            </ion-col>
-          </ion-row>
-        </ion-grid>
-      </template>
-
-      <template v-else>
-        <ion-text color="secondary" class="align-middle align-horizontal">
-          {{ t("overview.no_entries") }}
-        </ion-text>
-      </template>
+                  {{ item.statusLabel }}
+                </span>
+              </span>
+            </span>
+          </button>
+        </li>
+      </ul>
     </div>
   </ion-content>
 </template>
@@ -102,30 +130,22 @@
 <script lang="ts">
 import { defineComponent, PropType, ref } from "vue";
 import {
-  IonGrid,
-  IonRow,
-  IonCol,
-  IonCard,
-  IonCardTitle,
-  IonCardContent,
-  IonCardSubtitle,
-  IonText,
-  IonBadge,
   IonContent,
   IonRefresher,
   IonRefresherContent,
-  IonButton,
   IonIcon,
-  IonSpinner,
   IonFab,
   IonFabButton,
 } from "@ionic/vue";
-import { chevronDownCircleOutline, reload, arrowUp } from "ionicons/icons";
+import { alertCircle, chevronDownCircleOutline, reload, arrowUp, water } from "ionicons/icons";
 
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
 import localizationService from "@/services/general/LocalizationService";
 import ProgressiveImage from "@/components/ProgressiveImage.vue";
+import IconButton from "@/components/ui/IconButton.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
+import type { PlaceholderKind } from "@/components/ui/PlantPlaceholder.vue";
 
 export interface OverviewItem {
   id: string | number;
@@ -133,39 +153,31 @@ export interface OverviewItem {
   imageUrl?: string;
   description?: string;
   isNew?: boolean;
+  /** Watering state shown in the tag body; sortRank orders ascending ahead of unranked items. */
+  statusLine?: string;
+  statusTone?: "due" | "overdue" | "ok";
+  statusLabel?: string;
+  sortRank?: number;
 }
 
 export default defineComponent({
   name: "ItemsOverview",
   components: {
-    IonGrid,
-    IonRow,
-    IonCol,
-    IonCard,
-    IonCardTitle,
-    IonCardSubtitle,
-    IonCardContent,
-    IonText,
-    IonBadge,
     SearchBar,
     IonContent,
     IonRefresher,
     IonRefresherContent,
-    IonButton,
     IonIcon,
-    IonSpinner,
     IonFab,
     IonFabButton,
     ProgressiveImage,
+    IconButton,
+    StateBlock,
   },
   props: {
     items: {
       type: Array as PropType<OverviewItem[]>,
       required: true,
-    },
-    imageOnly: {
-      type: Boolean,
-      default: false,
     },
     onItemClick: {
       type: Function as PropType<(id: any) => void>,
@@ -175,7 +187,32 @@ export default defineComponent({
       type: Function as PropType<() => Promise<void>>,
       required: true,
     },
+    kind: {
+      type: String as PropType<PlaceholderKind>,
+      default: "plant",
+    },
+    isLoading: {
+      type: Boolean,
+      default: false,
+    },
+    hasError: {
+      type: Boolean,
+      default: false,
+    },
+    emptyTitle: {
+      type: String,
+      default: "",
+    },
+    emptyMessage: {
+      type: String,
+      default: "",
+    },
+    emptyActionLabel: {
+      type: String,
+      default: "",
+    },
   },
+  emits: ["retry", "empty-action"],
   setup() {
     const contentRef = ref<InstanceType<typeof IonContent> | null>(null);
     return { contentRef };
@@ -187,6 +224,8 @@ export default defineComponent({
       chevronDown: chevronDownCircleOutline,
       refreshIcon: reload,
       arrowUp: arrowUp,
+      alertCircle,
+      water,
       isRefreshing: false,
       showScrollTop: false,
     };
@@ -196,13 +235,11 @@ export default defineComponent({
       return localizationService.t(key, vars, fallback || key);
     },
     handleScroll(event: CustomEvent) {
-      // Show button if user scrolled down more than 300px
       this.showScrollTop = event.detail.scrollTop > 300;
     },
     async scrollToTop() {
       if (this.contentRef) {
-        // Use the native scrollToTop method
-        await this.contentRef.$el.scrollToTop(500); // 500ms duration
+        await this.contentRef.$el.scrollToTop(500);
       }
     },
     handleRefresh(event: any) {
@@ -223,11 +260,17 @@ export default defineComponent({
       const filtered = Utils.baseSearchFilter(query, this.items);
       this.filteredItems = this.sortItems(filtered);
     },
+    clearSearch() {
+      (this.$refs.search as InstanceType<typeof SearchBar> | undefined)?.clearSearch();
+    },
     sortItems(items: OverviewItem[]) {
+      const locale = localizationService.getLocale();
       return [...items].sort((a, b) => {
+        const rankDelta = (a.sortRank ?? 0) - (b.sortRank ?? 0);
+        if (rankDelta !== 0) return rankDelta;
         if (a.isNew && !b.isNew) return -1;
         if (!a.isNew && b.isNew) return 1;
-        return a.name.localeCompare(b.name);
+        return a.name.localeCompare(b.name, locale);
       });
     },
     navigateToItem(id: number | string) {
@@ -254,181 +297,206 @@ export default defineComponent({
 </script>
 
 <style scoped>
-/* SCROLL TOP STYLES */
-.scroll-top-fab {
-  margin-bottom: 10vh;
-}
-
-.scroll-top-fab ion-fab-button {
-  --box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  --background: var(--ion-color-tertiary);
-  --color: white;
-  transition: background-color 0.3s ease;
-}
-
-/* REFRESHER & LAYOUT STYLES */
-.refresh-button-container {
-  position: absolute;
-  right: 95%;
-  padding: 8px 16px;
-  z-index: 10;
-}
-
-.content-container {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.search-bar-flex {
-  flex: 1;
-}
-
-.extra-filters-wrapper {
-  flex-shrink: 0;
-}
-
-ion-refresher {
-  --background: #f0f0f0;
-  --pulling-icon-color: #3880ff;
-  --refreshing-icon-color: #3880ff;
-}
-
 ion-content {
   --padding-top: 0;
   --padding-bottom: 0;
+  --background: var(--ion-background-color);
 }
 
-/* YOUR ORIGINAL STYLING RESTORED EXACTLY */
-ion-col {
-  flex-basis: auto !important;
+.scroll-top-fab {
+  margin-bottom: var(--space-3);
+  margin-inline-start: var(--space-3);
 }
 
-.item-grid {
+.overview {
   width: 100%;
-  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.item-card {
-  position: relative;
-  overflow: visible;
-  height: 90%;
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search-field {
+  flex: 1;
+}
+
+.count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.count {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1100px;
+    margin-inline: auto;
+    justify-content: center;
+  }
+}
+
+.tag-card {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   cursor: pointer;
-  border-radius: 15px;
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
-}
-
-.item-card:hover {
-  transform: scale(1.03);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-}
-
-.new-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 20;
-  font-size: 0.7rem;
-  font-weight: bold;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  border: 2px solid white;
-}
-
-.item-image-wrapper {
-  width: 100%;
-  aspect-ratio: 1 / 1;
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
-  border-radius: 15px 15px 0 0;
+  transition:
+    transform 0.25s var(--ease-out),
+    box-shadow 0.25s var(--ease-out);
 }
 
-.image-only {
-  height: 100% !important;
-  width: 100% !important;
-  border-radius: 15px !important;
+.tag-card:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
-.item-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 4px;
-  max-width: 85%;
+@media (hover: hover) {
+  .tag-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lift);
+  }
 }
 
-.item-content {
-  flex: 1;
+.tag-card:active {
+  transform: scale(0.985);
+}
+
+.tag-media {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.new-pill {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--ion-color-secondary);
+  color: var(--ion-color-secondary-contrast);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.tag-body {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  text-align: center;
+  gap: 2px;
+  padding: var(--space-4) var(--space-3) var(--space-3);
+  border-top: 2px dashed var(--line);
 }
 
-.more-details {
-  margin-top: auto;
-  font-weight: 500;
-  text-align: center;
+.tag-hole {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1.5px var(--line);
 }
 
-@media (min-width: 1081px) {
-  .item-card {
-    flex-direction: row;
-    height: 250px;
-  }
-
-  .item-image-wrapper {
-    width: 250px;
-    height: 100%;
-    aspect-ratio: unset;
-    flex-shrink: 0;
-    border-radius: 15px 0 0 15px;
-  }
-
-  .item-content {
-    text-align: left;
-    padding-left: 12px;
-  }
+.tag-name {
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-size: var(--text-md);
+  line-height: 1.2;
+  color: var(--ion-text-color);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-@media (min-width: 2560px) {
-  .responsive-col {
-    flex: 0 0 calc(calc(3 / 12) * 100%) !important;
-    width: calc(calc(3 / 12) * 100%) !important;
-    max-width: calc(calc(3 / 12) * 100%) !important;
-  }
+.tag-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-@media (max-width: 1024px) and (min-width: 769px) {
-  .item-image-wrapper {
-    height: 200px;
-  }
+.tag-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
 }
 
-@media (max-width: 1440px) and (min-width: 769px) {
-  .refresh-button-container {
-    right: 90%;
-  }
+.status-line {
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
 }
 
-@media (max-width: 1024px) {
-  .item-title {
-    max-width: 100%;
-  }
+.status-line.tone-due,
+.status-line.tone-overdue {
+  color: var(--ion-color-tertiary-shade);
+  font-weight: 600;
 }
 
-@media (max-width: 768px) {
-  .refresh-button-container {
-    display: none;
-  }
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.status-chip.tone-due {
+  background: var(--ion-color-tertiary);
+  color: var(--ion-color-tertiary-contrast);
+}
+
+.status-chip.tone-overdue {
+  background: var(--ion-color-secondary);
+  color: var(--ion-color-secondary-contrast);
 }
 </style>

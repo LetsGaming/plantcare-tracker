@@ -10,6 +10,7 @@
     :extraContentComponent="SubstrateContainer"
     :extraContentData="{ substrate: selectedSubstrate }"
     :deleteHandler="onDelete"
+    :deleteLabel="plant.name"
     @submit="submit"
     @close="$emit('close')"
   />
@@ -59,13 +60,16 @@ export default defineComponent({
     };
   },
 
+  created() {
+    this.resetFromPlant();
+  },
+
   watch: {
-    plant: {
-      immediate: true,
-      deep: true,
-      handler() {
-        this.resetFromPlant();
-      },
+    isOpen(open: boolean) {
+      if (open) this.resetFromPlant();
+    },
+    "plant.id"() {
+      this.resetFromPlant();
     },
   },
 
@@ -76,11 +80,17 @@ export default defineComponent({
           type: "input",
           modelKey: "name",
           label: "plant.field.name",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "input",
           modelKey: "species",
           label: "plant.field.species",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "select",

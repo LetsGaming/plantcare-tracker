@@ -21,7 +21,7 @@
   },
   "src/components/formcomponent/FormComponent.vue": {
     "vue/no-mutating-props": {
-      "count": 8
+      "count": 1
     }
   },
   "src/views/Login.vue": {

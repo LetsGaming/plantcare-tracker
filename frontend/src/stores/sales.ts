@@ -153,6 +153,11 @@ export const useSalesStore = defineStore("sales", {
       if (sale) sale.isNew = false;
     },
 
+    markAllSeen(): void {
+      this.items.forEach((sale) => (sale.isNew = false));
+      this.incoming.forEach((sale) => (sale.isNew = false));
+    },
+
     /** Records the sale's price when it differs from the last known one. */
     addPricePoint(sale: Sale): void {
       const points = this.priceHistory[sale.id] ?? [];

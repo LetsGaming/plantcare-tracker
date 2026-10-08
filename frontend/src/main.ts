@@ -18,6 +18,7 @@ import "@ionic/vue/css/text-transformation.css";
 import "@ionic/vue/css/flex-utils.css";
 import "@ionic/vue/css/display.css";
 import "@ionic/vue/css/palettes/dark.class.css";
+import "./theme/fonts";
 import "./theme/variables.css";
 import "./theme/custom.css";
 import "./theme/scrollbar.css";
@@ -25,6 +26,8 @@ import "./theme/scrollbar.css";
 /* Services */
 import Utils from "./utils/utils";
 import TokenUtils from "./utils/tokenUtils";
+import { applyInitialTheme } from "./theme/darkMode";
+import { registerServiceWorker } from "./pwa";
 import localizationService from "@/services/general/LocalizationService";
 
 /**
@@ -52,6 +55,7 @@ for (const path in localeLoaders) {
 async function initializeApp() {
   document.title = Utils.getAppTitle();
   if (devToken) await TokenUtils.setToken(devToken);
+  await applyInitialTheme();
   connectSessionToTransport(pinia);
   // Once the local session is gone: leave for the login screen and reload so no
   // account data survives in memory. Nothing to do when already there.
@@ -76,6 +80,7 @@ async function initializeApp() {
   await Promise.all([router.isReady(), localizationService.resolveInitialLocale()]);
 
   app.mount("#app");
+  void registerServiceWorker();
 }
 
 initializeApp();

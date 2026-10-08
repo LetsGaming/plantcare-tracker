@@ -4,19 +4,19 @@
  * AI care guide and reference links for a plant, streamed from the backend
  * (SSE) per plant name and language. While a stream runs, the partial result
  * lives in `drafts` and is shown; `byKey` (the persisted part) is only
- * written when the stream completes.
+ * written when the stream completes. A stream that errors or ends with a status
+ * other than completed rejects, keeps its partial draft for display and is
+ * never cached. Failures are not toasted: the guide section presents them inline.
  */
 
 import { defineStore } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
 import MoreInfoMapper from "@/mapping/MoreInfoMapping";
 import localizationService from "@/services/general/LocalizationService";
-import { handleRequest } from "@/utils/requestFeedback";
 import { renderMarkdown } from "@/utils/markdown";
 import { coalesced, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/more-info";
-const RESOURCE_KEY = "moreinfo.title";
 
 /** One guide per plant name and language. */
 export const moreInfoKey = (plantName: string, lang: string): string => `${lang}:${plantName}`;
@@ -70,7 +70,7 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           await this.$hydrate();
           if (this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null)) return;
         }
-        await handleRequest(this.runStream(plantName, key), RESOURCE_KEY);
+        await this.runStream(plantName, key);
       });
     },
 
@@ -89,9 +89,11 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           this.streaming[key] = false;
           delete this.drafts[key];
         };
+        // A failed run keeps its partial draft visible (never cached or persisted);
+        // the next run clears it.
         const fail = (error: unknown) => {
           stop?.();
-          finish();
+          this.streaming[key] = false;
           reject(error);
         };
 
@@ -118,10 +120,11 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           },
           fail,
           (done) => {
-            stop?.();
             if (done?.status && done.status !== "completed") {
-              console.warn("MoreInfo stream ended with status:", done.status);
+              fail(new Error(`Information stream ended with status: ${done.status}`));
+              return;
             }
+            stop?.();
             this.byKey[key] = render();
             this.fetchedAtByKey[key] = Date.now();
             finish();

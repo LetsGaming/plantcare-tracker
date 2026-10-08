@@ -17,12 +17,13 @@
   <BaseFormModal
     :is-open="isModalOpen"
     :is-loading="isLoading"
-    modal-title="calendar.reminder.add.title"
+    :modal-title="isEditing ? 'calendar2.reminder_edit_title' : 'calendar.reminder.add.title'"
     form-title="calendar.reminder.form.title"
     submit-label="action.save"
     :form-data="formData"
     :form-fields="formFields"
-    :delete-handler="onDeleteDate"
+    :delete-handler="isEditing ? onDeleteDate : undefined"
+    :delete-label="deleteLabel"
     @close="isModalOpen = false"
     @submit="submitHandler"
   />
@@ -34,6 +35,22 @@ import Calendar from "@/components/calendar/Calendar.vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import { mapActions, mapState } from "pinia";
 import { useCalendarStore } from "@/stores/calendar";
+import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+/** Local calendar day of a timestamp as yyyy-MM-dd, the key reminders are stored under. */
+const dayKey = (millis: number): string => {
+  const date = new Date(millis);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+/** Local midnight of a yyyy-MM-dd key. */
+const keyToMillis = (key: string): number => {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day).getTime();
+};
 
 export default defineComponent({
   name: "MenuCalendar",
@@ -55,6 +72,7 @@ export default defineComponent({
 
       isPopoverOpen: false,
       isModalOpen: false,
+      isEditing: false,
       isLoading: false,
 
       formData: {
@@ -67,6 +85,7 @@ export default defineComponent({
           modelKey: "date",
           label: "calendar.reminder.form.date",
           type: "date",
+          mode: "date",
           required: true,
         },
         {
@@ -74,6 +93,7 @@ export default defineComponent({
           label: "calendar.reminder.form.category",
           type: "select",
           required: true,
+          hint: "",
           options: [] as { label: string; value: string }[],
         },
       ] as FormField[],
@@ -99,13 +119,16 @@ export default defineComponent({
       if (!item) return;
 
       return {
-        title: `Erinnerung am ${item.date}`,
+        title: this.t("calendar2.reminder_on", { date: item.date }),
         fields: [
-          { label: "Kategorie", value: item.category.name },
-          { label: "Textfarbe", value: item.category.textColor },
-          { label: "Hintergrund", value: item.category.backgroundColor },
+          { label: this.t("calendar2.category"), value: item.category.name },
+          { label: this.t("calendar2.text_color"), value: item.category.textColor },
+          { label: this.t("calendar2.background"), value: item.category.backgroundColor },
         ],
       };
+    },
+    deleteLabel(): string {
+      return this.formData.date ? dayKey(this.formData.date) : "";
     },
   },
 
@@ -115,9 +138,9 @@ export default defineComponent({
       saveDates: "saveDates",
     }),
 
-    /* =============================================================
-       UI interactions
-       ============================================================= */
+    t(key: string, vars?: Record<string, string>) {
+      return localizationService.t(key, vars, key);
+    },
 
     onDateSelected(date: string) {
       const normalized = date.split("T")[0];
@@ -131,9 +154,10 @@ export default defineComponent({
 
       if (this.selectedDate === normalized) {
         this.formData = {
-          date: new Date(normalized).getTime(),
+          date: keyToMillis(normalized),
           category: null,
         };
+        this.isEditing = false;
         this.isModalOpen = true;
       }
 
@@ -146,30 +170,31 @@ export default defineComponent({
       if (!existing) return;
 
       this.formData = {
-        date: new Date(existing.date).getTime(),
+        date: keyToMillis(existing.date),
         category: existing.category.name,
       };
 
+      this.isPopoverOpen = false;
+      this.isEditing = true;
       this.isModalOpen = true;
     },
 
-    /* =============================================================
-       Persistence
-       ============================================================= */
+    submitHandler() {
+      const category = this.categories.find((c) => c.name === this.formData.category);
+      if (!category || !this.formData.date) {
+        ToastService.showError({
+          key: "calendar2.reminder_incomplete",
+          fallback: "Choose a date and a category first.",
+        });
+        return;
+      }
 
-    async submitHandler() {
       this.isLoading = true;
-
       try {
-        const category = this.categories.find((c) => c.name === this.formData.category);
-        if (!category || !this.formData.date) return;
-
-        const dateIso = new Date(this.formData.date).toISOString().split("T")[0];
-
-        const updated = this.reminderDates.filter((d) => d.date !== dateIso);
-
+        const dateKey = dayKey(this.formData.date);
+        const updated = this.reminderDates.filter((d) => d.date !== dateKey);
         updated.push({
-          date: dateIso,
+          date: dateKey,
           category: {
             name: category.name,
             textColor: category.textColor,
@@ -179,20 +204,29 @@ export default defineComponent({
 
         this.saveDates(updated);
         this.isModalOpen = false;
+        ToastService.showSuccess({ key: "calendar2.reminder_saved", fallback: "Reminder saved." });
+      } catch {
+        ToastService.showError({
+          key: "calendar2.reminder_save_failed",
+          fallback: "The reminder could not be saved.",
+        });
       } finally {
         this.isLoading = false;
       }
     },
 
-    async onDeleteDate() {
+    onDeleteDate() {
       if (!this.formData.date) return;
+      const dateKey = dayKey(this.formData.date);
+      const previous = this.reminderDates;
 
-      const updated = this.reminderDates.filter(
-        (d) => new Date(d.date).getTime() !== this.formData.date,
-      );
-
-      this.saveDates(updated);
+      this.saveDates(previous.filter((d) => d.date !== dateKey));
       this.isModalOpen = false;
+      ToastService.showToastWithAction(
+        { key: "calendar2.reminder_deleted", fallback: "Reminder deleted." },
+        localizationService.t("toast2.undo", undefined, "Undo"),
+        () => this.saveDates(previous),
+      );
     },
 
     /* =============================================================
@@ -210,6 +244,7 @@ export default defineComponent({
         label: c.name,
         value: c.name,
       }));
+      field.hint = this.categories.length === 0 ? "calendar2.no_categories" : "";
     },
   },
 });

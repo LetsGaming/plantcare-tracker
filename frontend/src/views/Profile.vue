@@ -3,50 +3,38 @@
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button @click="goBack">
-            <ion-icon :icon="close"></ion-icon>
-          </ion-button>
+          <IconButton :icon="close" :label="t('a11y.close')" @press="goBack" />
         </ion-buttons>
         <ion-title>{{ t("profile.title") }}</ion-title>
       </ion-toolbar>
     </ion-header>
 
     <ion-content>
-      <ion-card class="align-middle align-horizontal" style="display: block">
-        <ion-list>
-          <ion-item lines="none">
-            <ion-grid>
-              <ion-row>
-                <ion-col>
-                  <ion-label class="profile-label">{{ t("profile.username.label") }}</ion-label>
-                </ion-col>
-                <ion-col>
-                  <ion-label>{{ username }}</ion-label>
-                </ion-col>
-              </ion-row>
-            </ion-grid>
-          </ion-item>
-          <ion-item lines="none">
-            <ion-grid>
-              <ion-row>
-                <ion-col>
-                  <ion-label class="profile-label">{{ t("profile.role.label") }}</ion-label>
-                </ion-col>
-                <ion-col>
-                  <ion-label>{{ role }}</ion-label>
-                </ion-col>
-              </ion-row>
-            </ion-grid>
-          </ion-item>
-        </ion-list>
+      <div class="page-column profile-column">
+        <ion-card class="profile-card">
+          <ion-card-content>
+            <dl class="profile-facts">
+              <div class="fact">
+                <dt>{{ t("profile.username.label") }}</dt>
+                <dd class="break-words">{{ username }}</dd>
+              </div>
+              <div class="fact">
+                <dt>{{ t("profile.role.label") }}</dt>
+                <dd>{{ role }}</dd>
+              </div>
+            </dl>
 
-        <ion-button v-if="showEditButton" expand="full" @click="openEditingModal">{{
-          t("profile.edit")
-        }}</ion-button>
-        <ion-button v-if="isAdmin" expand="full" fill="outline" @click="openAdmin">{{
-          t("admin.menu.open")
-        }}</ion-button>
-      </ion-card>
+            <div class="profile-actions">
+              <ion-button v-if="showEditButton" expand="block" @click="openEditingModal">
+                {{ t("profile.edit") }}
+              </ion-button>
+              <ion-button v-if="isAdmin" expand="block" fill="outline" @click="openAdmin">
+                {{ t("admin.menu.open") }}
+              </ion-button>
+            </div>
+          </ion-card-content>
+        </ion-card>
+      </div>
 
       <profile-editing-modal
         :is-open="showEditingModal"
@@ -54,6 +42,8 @@
         :formFields="profileFormFields"
         :is-loading="isLoading"
         :show-delete="true"
+        :account-name="username"
+        :field-errors="profileErrors"
         @save="editProfile"
         @delete="deleteProfile"
         @close="showEditingModal = false"
@@ -70,24 +60,27 @@ import {
   IonToolbar,
   IonTitle,
   IonContent,
-  IonList,
-  IonItem,
   IonButtons,
   IonButton,
-  IonIcon,
-  IonLabel,
-  IonGrid,
-  IonRow,
-  IonCol,
   IonCard,
+  IonCardContent,
 } from "@ionic/vue";
 import { close } from "ionicons/icons";
 import ProfileEditingModal from "@/components/profile/ProfileEditingModal.vue";
+import IconButton from "@/components/ui/IconButton.vue";
 import { mapActions, mapState } from "pinia";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
+import { fieldErrorsFrom } from "@/utils/apiErrorMessage";
+import { showRequestFailure, withoutErrorToasts } from "@/utils/requestFeedback";
+
+const blankProfile = (username: string): EditProfile => ({
+  username,
+  password: "",
+  passwordConfirmation: "",
+});
 
 export default defineComponent({
   name: "ProfilePage",
@@ -97,17 +90,12 @@ export default defineComponent({
     IonToolbar,
     IonTitle,
     IonContent,
-    IonList,
-    IonItem,
     IonButtons,
     IonButton,
-    IonIcon,
-    IonLabel,
-    IonGrid,
-    IonRow,
-    IonCol,
     IonCard,
+    IonCardContent,
     ProfileEditingModal,
+    IconButton,
   },
   setup() {
     return { close };
@@ -117,11 +105,8 @@ export default defineComponent({
       showEditingModal: false,
       isLoading: false,
       username: "",
-      editProfileData: {
-        username: "",
-        password: "",
-        passwordConfirmation: "",
-      } as EditProfile,
+      editProfileData: blankProfile(""),
+      profileErrors: {} as Record<string, string>,
     };
   },
   computed: {
@@ -143,26 +128,40 @@ export default defineComponent({
           type: "input",
           modelKey: "username",
           label: "profile.field.username.placeholder",
-          required: false,
+          autocomplete: "username",
+          autocapitalize: "off",
+          enterkeyhint: "next",
         },
         {
           type: "password",
           modelKey: "password",
           label: "profile.field.password.placeholder",
-          required: false,
+          autocomplete: "new-password",
+          enterkeyhint: "next",
         },
         {
           type: "password",
           modelKey: "passwordConfirmation",
           label: "profile.field.confirm_password.placeholder",
-          required: false,
+          autocomplete: "new-password",
+          enterkeyhint: "done",
         },
       ];
     },
   },
-  mounted() {
-    this.username = this.sessionUsername;
-    this.editProfileData.username = this.username;
+  watch: {
+    showEditingModal(open: boolean) {
+      if (open) {
+        this.editProfileData = blankProfile(this.username);
+        this.profileErrors = {};
+      }
+    },
+    sessionUsername: {
+      immediate: true,
+      handler(next: string) {
+        this.username = next;
+      },
+    },
   },
   methods: {
     ...mapActions(useSessionStore, { saveProfile: "editProfile", removeProfile: "deleteProfile" }),
@@ -175,36 +174,41 @@ export default defineComponent({
     openAdmin() {
       this.$router.push({ name: "admin-dashboard" });
     },
-    t(key: string) {
-      return localizationService.t(key, undefined, key);
+    t(key: string, vars?: Record<string, string>) {
+      return localizationService.t(key, vars, key);
     },
     async editProfile(profile: EditProfile) {
-      if (!profile.username && !profile.password) {
-        ToastService.showError({
-          key: "profile.error_min_fields",
-          fallback: "Please fill at least one field",
-        });
+      this.profileErrors = {};
+      const changesUsername = !!profile.username && profile.username !== this.username;
+      const changesPassword = !!profile.password;
+
+      if (!changesUsername && !changesPassword) {
+        this.profileErrors = { username: this.t("account.error_min_fields") };
         return;
       }
-      if (profile.password && profile.password !== profile.passwordConfirmation) {
-        ToastService.showError({
-          key: "profile.error_password_mismatch",
-          fallback: "Passwords do not match",
-        });
+      if (changesPassword && profile.password !== profile.passwordConfirmation) {
+        this.profileErrors = { passwordConfirmation: this.t("account.error_password_mismatch") };
         return;
       }
 
       this.isLoading = true;
       try {
-        // V2: PATCH /auth/me answers { data: null } — success is "no
-        // throw", never a truthy body. The backend also invalidates all
-        // sessions; the access token keeps working until it expires.
-        await this.saveProfile(profile);
+        await withoutErrorToasts(() => this.saveProfile(profile));
         this.username = profile.username || this.username;
         this.showEditingModal = false;
+        ToastService.showSuccess({
+          key: "account.saved_signout",
+          fallback:
+            "Saved. Because your sign-in details changed, you will be signed out again soon.",
+        });
       } catch (error) {
-        // handleRequest has already shown the error toast.
-        console.error("Profile update failed:", error);
+        const fields = fieldErrorsFrom(error);
+        if (Object.keys(fields).length > 0) this.profileErrors = fields;
+        else {
+          showRequestFailure(error, "profile.title", "profile.update_failed", {
+            retry: () => void this.editProfile(profile),
+          });
+        }
       } finally {
         this.isLoading = false;
       }
@@ -212,13 +216,9 @@ export default defineComponent({
     async deleteProfile() {
       this.isLoading = true;
       try {
-        // V2: DELETE /auth/me answers 204 — success is "no throw".
-        // The service performs the full local teardown (memory cache,
-        // tokens, storage) and redirects to the login page itself.
         await this.removeProfile();
         this.showEditingModal = false;
       } catch (error) {
-        // handleRequest has already shown the error toast.
         console.error("Profile delete failed:", error);
       } finally {
         this.isLoading = false;
@@ -229,8 +229,40 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.profile-label {
-  font-weight: bold;
-  color: var(--ion-color-primary);
+.profile-column {
+  max-width: 560px;
+}
+
+.profile-card {
+  margin: var(--space-5) 0 0;
+}
+
+.profile-facts {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-5);
+}
+
+.fact {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.fact dt {
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--ion-text-color);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 650;
+}
+
+.profile-actions {
+  display: grid;
+  gap: var(--space-2);
 }
 </style>

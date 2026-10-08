@@ -18,6 +18,12 @@ import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import { mapActions, mapState } from "pinia";
 import { useComponentsStore } from "@/stores/components";
 
+const blankComponent = (): AddComponent => ({
+  name: "",
+  finenessId: 0,
+  image: undefined,
+});
+
 export default defineComponent({
   name: "ComponentAddingModal",
   components: { BaseFormModal },
@@ -27,13 +33,12 @@ export default defineComponent({
   },
   emits: ["close", "save"],
   data() {
-    return {
-      componentData: {
-        name: "",
-        finenessId: 0,
-        image: undefined,
-      } as AddComponent,
-    };
+    return { componentData: blankComponent() };
+  },
+  watch: {
+    isOpen(open: boolean) {
+      if (open) this.componentData = blankComponent();
+    },
   },
   async created() {
     await this.ensureFinenessLevels();
@@ -42,11 +47,19 @@ export default defineComponent({
     ...mapState(useComponentsStore, ["finenessLevels"]),
     componentFormFields(): FormField[] {
       return [
-        { type: "input", modelKey: "name", label: "component.field.name" },
+        {
+          type: "input",
+          modelKey: "name",
+          label: "component.field.name",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
+        },
         {
           type: "select",
           modelKey: "finenessId",
           label: "component.field.fineness",
+          required: true,
           placeholder: "component.field.fineness_placeholder",
           options: this.finenessLevels.map((f) => ({
             value: f.fineness_id,
@@ -61,10 +74,6 @@ export default defineComponent({
     ...mapActions(useComponentsStore, ["ensureFinenessLevels"]),
     submit() {
       this.$emit("save", { ...this.componentData });
-      this.clearComponentData();
-    },
-    clearComponentData() {
-      this.componentData = { name: "", finenessId: 0, image: undefined };
     },
   },
 });

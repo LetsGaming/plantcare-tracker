@@ -1,81 +1,78 @@
 <template>
-  <ion-card class="component-container align-middle">
-    <ion-card-header style="max-width: 100%">
-      <ion-title>{{ t(title) }}</ion-title>
-      <SearchBar :placeholder="t('component.search.placeholder')" @search="filterComponents" />
-      <div class="selected-only-toggle">
-        <IonCheckbox v-model="showSelectedOnly" />
-        <ion-label>{{ t("component.selection.only_selected") }}</ion-label>
-      </div>
-    </ion-card-header>
+  <section class="selection">
+    <h3 class="selection-title">{{ t(title) }}</h3>
+    <SearchBar :placeholder="t('component.search.placeholder')" @search="filterComponents" />
 
-    <ion-card-content style="max-width: 100%">
-      <div class="component-list">
-        <ion-row>
-          <ion-col
-            v-for="component in filteredComponents"
-            :key="component.id"
-            class="component-item"
-            size="2"
-            size-xs="6"
+    <IonItem lines="none" class="only-selected">
+      <IonCheckbox v-model="showSelectedOnly" label-placement="end" justify="start">
+        {{ t("component.selection.only_selected") }}
+      </IonCheckbox>
+    </IonItem>
+
+    <ul class="parts-list">
+      <li
+        v-for="component in filteredComponents"
+        :key="component.id"
+        class="part-row"
+        :class="{ selected: isSelected(component.id) }"
+      >
+        <div class="part-pick">
+          <IonCheckbox
+            :checked="isSelected(component.id)"
+            label-placement="end"
+            justify="start"
+            @ionChange="toggleSelectedComponent(component.id)"
           >
-            <div class="component-content">
-              <ion-label>
-                <h3>{{ component.name }}</h3>
-                <p>{{ t("component.fineness_prefix") }} {{ component.fineness }}</p>
-              </ion-label>
-              <div class="component-selection">
-                <IonCheckbox
-                  :checked="selectedComponentIds.includes(component.id)"
-                  @ionChange="toggleSelectedComponent(component.id)"
-                />
-                <IonInput
-                  :disabled="!selectedComponentIds.includes(component.id)"
-                  :value="componentParts[component.id]"
-                  @ionInput="updatePart(component.id, $event)"
-                  type="number"
-                  :placeholder="t('component.selection.placeholder')"
-                  min="0.1"
-                />
-              </div>
-            </div>
-          </ion-col>
-        </ion-row>
-      </div>
-    </ion-card-content>
-  </ion-card>
+            <span class="part-name">{{ component.name }}</span>
+            <span class="part-meta">
+              {{ t("component.fineness_prefix") }} {{ component.fineness }}
+            </span>
+          </IonCheckbox>
+        </div>
+
+        <div class="part-input">
+          <IonInput
+            :value="componentParts[component.id]"
+            :disabled="!isSelected(component.id)"
+            :aria-label="`${t('component.selection.placeholder')}: ${component.name}`"
+            :placeholder="
+              isSelected(component.id)
+                ? t('component.selection.placeholder')
+                : t('component.selection.disabled_hint')
+            "
+            :class="{ 'part-invalid': partError(component.id) }"
+            type="text"
+            inputmode="decimal"
+            enterkeyhint="done"
+            autocomplete="off"
+            :aria-invalid="partError(component.id) ? 'true' : undefined"
+            @ionInput="updatePart(component.id, $event)"
+            @ionBlur="touched[component.id] = true"
+          />
+          <p v-if="partError(component.id)" class="part-error" role="alert">
+            {{ t("component.selection.error_positive") }}
+          </p>
+        </div>
+      </li>
+    </ul>
+  </section>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import {
-  IonCard,
-  IonCardHeader,
-  IonCardContent,
-  IonTitle,
-  IonCheckbox,
-  IonInput,
-  IonRow,
-  IonCol,
-  IonLabel,
-} from "@ionic/vue";
+import { IonCheckbox, IonInput, IonItem } from "@ionic/vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
+import { parsePart } from "@/utils/substrateParts";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ComponentSelection",
   emits: ["toggle-component", "update-part"],
   components: {
-    IonCard,
-    IonCardHeader,
-    IonCardContent,
-    IonTitle,
     IonCheckbox,
     IonInput,
-    IonRow,
-    IonCol,
-    IonLabel,
+    IonItem,
     SearchBar,
   },
   props: {
@@ -92,10 +89,15 @@ export default defineComponent({
       required: true,
     },
     componentParts: {
-      type: Object as PropType<Record<number, number>>,
+      type: Object as PropType<Record<number, number | string>>,
       required: true,
     },
     showSelectedOnlyDefault: {
+      type: Boolean,
+      default: false,
+    },
+    /** Show part errors for every selected component, not only the ones already visited. */
+    showErrors: {
       type: Boolean,
       default: false,
     },
@@ -104,19 +106,18 @@ export default defineComponent({
     return {
       searchQuery: "",
       showSelectedOnly: this.showSelectedOnlyDefault,
+      touched: {} as Record<number, boolean>,
     };
   },
   computed: {
     filteredComponents(): SubstrateComponent[] {
-      let list = this.components;
-
-      list = Utils.baseSearchFilter(this.searchQuery, list);
+      let list = Utils.baseSearchFilter(this.searchQuery, this.components);
 
       if (this.showSelectedOnly) {
         list = list.filter((component) => this.selectedComponentIds.includes(component.id));
       }
 
-      return list.sort((a, b) => {
+      return [...list].sort((a, b) => {
         const aSelected = this.selectedComponentIds.includes(a.id);
         const bSelected = this.selectedComponentIds.includes(b.id);
         if (aSelected && !bSelected) return -1;
@@ -126,6 +127,14 @@ export default defineComponent({
     },
   },
   methods: {
+    isSelected(id: number): boolean {
+      return this.selectedComponentIds.includes(id);
+    },
+    partError(id: number): boolean {
+      if (!this.isSelected(id)) return false;
+      if (!this.showErrors && !this.touched[id]) return false;
+      return parsePart(this.componentParts[id]) === null;
+    },
     toggleSelectedComponent(id: number) {
       this.$emit("toggle-component", id);
     },
@@ -143,34 +152,74 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.component-container {
-  margin: 10px !important;
+.selection {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
 }
 
-.component-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.selection-title {
+  font-size: var(--text-lg);
 }
-.component-selection {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+
+.only-selected {
+  --padding-start: 0;
 }
-.selected-only-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  margin-left: 5px;
-}
-ion-label h3 {
-  font-size: 18px;
+
+.parts-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
-ion-label p {
-  font-size: 14px;
-  color: var(--ion-text-color-medium);
-  margin: 0;
+
+.part-row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.part-row.selected {
+  border-color: var(--ion-color-primary);
+  background: var(--leaf-wash);
+}
+
+.part-name {
+  display: block;
+  font-weight: 650;
+}
+
+.part-meta {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+
+.part-input ion-input {
+  min-height: var(--tap-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  --padding-start: var(--space-3);
+  background: var(--surface-raised);
+}
+
+.part-input ion-input.part-invalid {
+  border-color: var(--ion-color-danger);
+}
+
+.part-error {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ion-color-danger);
 }
 </style>

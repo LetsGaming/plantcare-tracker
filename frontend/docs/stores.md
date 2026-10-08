@@ -85,14 +85,16 @@ Streamed sales. Persisted with `keepOnClear` and no expiry: `sales_data`, `sales
 | `visibleSales`, `newCount`, `byId`, `historyOf(id)` | Getters |
 | `load({ force })` | Streams unless fresh sales are in memory; concurrent callers share one stream |
 | `restore()` | Loads stored sales without the network (tab badge) |
-| `markSeen(id)`, `addPricePoint(sale)` | New flag; price history capped at 30 points, unchanged prices skipped |
+| `markSeen(id)`, `markAllSeen()`, `addPricePoint(sale)` | New flag; price history capped at 30 points, unchanged prices skipped |
 
 ## moreInfo
 
 AI care guide and links per plant name and language (key `lang:name`). Persisted: `more_info_data`.
 
 `ensureInfo(plantName, { force })` streams the guide; `infoFor(plantName)` returns the running
-draft, else the stored guide. Entries written under an older shape are ignored.
+draft, else the stored guide. A stream that ends with any status other than `completed` is a failure:
+nothing is cached or persisted, and the partial draft stays available for display. Entries written
+under an older shape are ignored.
 
 ## adminHealth
 

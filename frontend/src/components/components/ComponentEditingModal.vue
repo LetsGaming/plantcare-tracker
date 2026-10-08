@@ -10,6 +10,7 @@
     @submit="submit"
     @close="$emit('close')"
     :delete-handler="emitDelete"
+    :delete-label="component.name"
   />
 </template>
 
@@ -37,14 +38,15 @@ export default defineComponent({
     };
   },
   async created() {
+    this.resetFromComponent();
     await this.ensureFinenessLevels();
   },
   watch: {
-    component: {
-      immediate: true,
-      handler() {
-        this.resetFromComponent();
-      },
+    isOpen(open: boolean) {
+      if (open) this.resetFromComponent();
+    },
+    "component.id"() {
+      this.resetFromComponent();
     },
   },
   computed: {
@@ -55,11 +57,15 @@ export default defineComponent({
           type: "input",
           modelKey: "name",
           label: "component.field.name",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "select",
           modelKey: "fineness",
           label: "component.field.fineness",
+          required: true,
           placeholder: "component.field.fineness_placeholder",
           options: this.finenessLevels.map((f) => ({
             value: f.fineness_id,
