@@ -62,7 +62,7 @@ instead. CI runs the whole migration against a PM2 managed backend with real dat
 
 The sections below describe running the backend without Docker.
 
-### Updating an installation
+## Updating an installation
 
 After this release `git pull` never needs a manual merge for settings: they live in the gitignored `.env`
 files, and `frontend/src/config.json` no longer exists. Frontend settings are `VITE_API_URL`, `VITE_APP_TITLE`
