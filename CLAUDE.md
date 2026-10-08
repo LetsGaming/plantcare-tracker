@@ -20,6 +20,22 @@ The backend runs `backend/src/tools/devServer.ts`: the real app with mocked shop
 guide (a plant name containing "fail" ends its stream with an error) and mocked link searchers.
 Nothing leaves the machine.
 
+## What the seed covers
+
+| Feature | How to test it |
+|---------|----------------|
+| Roles | `admin` (components, scraper health), `grower` (owns most data), `collector` (owns public plants and a public substrate), `newbie` (empty account), guest button on login |
+| Plant list watering states | `grower`: ok (Monty, Pink Princess, Gummibaum Ünal, Calathea Cleo, Snake Plant), watered today (Dracaena Dave), due (Failing Fern, Spike), overdue (Sunny Pothos, the long named plant), never watered (Unknown Orchid, Blue Echeveria) |
+| Public tab and ownership | Public plants and substrates of `admin` and `collector` appear for everyone; `Private Treasure` is private and must not appear for others |
+| Watering records | Fertilizer organic and synthetic, short and long rhythms, edit and delete through the calendar |
+| Photos | Monty (4 dated photos), Calathea Cleo (3), Pink Princess and Rare Albo (2), single photos, and many plants without any |
+| Substrates | Four components, seven components (component search), none (`Moss pole filler`), public and private |
+| Components | Admin only; some with photos, three fineness levels |
+| Care guide | Success (any plant), error mid stream (`Failing Fern`), no external link (`Unknown Orchid`) |
+| Sales | Three mock shops (healthy, degraded, failing), NEW pills, tab badge; prices of every third item drop on each of the first four loads, so open Sales and pull to refresh twice to get price history charts |
+| Scraper health (admin) | Sales sources ok, degraded, failing, plus three link search sources (kind search) ok, degraded, failing |
+| Local only | Reminders, categories, first weekday, language and dark mode live in the browser; create them in the app |
+
 ## Adding mock data for a new feature
 
 Seeding goes through the real HTTP API. Add `scripts/dev/seed/steps/NN-name.mjs` exporting

@@ -9,6 +9,9 @@ const PLANT_PHOTOS = {
   "Pink Princess": 2,
   "Gummibaum Ünal": 1,
   "Office Hoya": 1,
+  "Rare Albo": 2,
+  "Sunny Pothos": 1,
+  "Calathea Cleo": 3,
 };
 const SUBSTRATE_PHOTOS = { "Aroid chunky mix": 1 };
 const COMPONENT_PHOTOS = { Perlite: 1, "Pine bark": 1 };

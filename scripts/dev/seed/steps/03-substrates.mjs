@@ -1,3 +1,5 @@
+/** parts: component name to parts. An empty list covers the "no components" state; the seven component
+ *  mix covers the component search of the substrate details. */
 const SUBSTRATES = [
   {
     owner: "grower",
@@ -24,10 +26,30 @@ const SUBSTRATES = [
     parts: {},
   },
   {
+    owner: "grower",
+    name: "Everything bagel",
+    isPublic: false,
+    parts: {
+      "Pine bark": 2,
+      Perlite: 2,
+      "Coco coir": 2,
+      Pumice: 1,
+      Zeolite: 1,
+      Leca: 1,
+      "Worm castings": 0.25,
+    },
+  },
+  {
     owner: "admin",
     name: "Orchid bark blend",
     isPublic: true,
     parts: { "Orchid bark": 4, Leca: 1, "Sphagnum moss": 1 },
+  },
+  {
+    owner: "collector",
+    name: "Semi hydro starter",
+    isPublic: true,
+    parts: { Leca: 5, Zeolite: 1 },
   },
 ];
 

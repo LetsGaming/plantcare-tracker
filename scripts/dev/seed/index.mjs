@@ -13,8 +13,18 @@ import plants from "./steps/04-plants.mjs";
 import watering from "./steps/05-watering.mjs";
 import images from "./steps/06-images.mjs";
 import scraperHealth from "./steps/07-scraper-health.mjs";
+import searchHealth from "./steps/08-search-health.mjs";
 
-export const STEPS = [users, components, substrates, plants, watering, images, scraperHealth];
+export const STEPS = [
+  users,
+  components,
+  substrates,
+  plants,
+  watering,
+  images,
+  scraperHealth,
+  searchHealth,
+];
 
 export const runSeed = async (ctx) => {
   for (const step of STEPS) {
