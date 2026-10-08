@@ -18,21 +18,15 @@ async function main() {
   const type = process.argv[2];
 
   if (!VERSION_TYPES.includes(type)) {
-    console.error(
-      `Invalid version type: "${type}". Allowed types: ${VERSION_TYPES.join(
-        ", "
-      )}`
-    );
+    console.error(`Invalid version type: "${type}". Allowed types: ${VERSION_TYPES.join(", ")}`);
     process.exit(1);
   }
 
-  console.log(
-    `Bumping ${type} version in package.json and package-lock.json...`
-  );
+  console.log(`Bumping ${type} version in package.json and package-lock.json...`);
 
   const newVersion = runCommand(
     `npm version ${type} --no-git-tag-version`,
-    "Failed to bump version"
+    "Failed to bump version",
   );
 
   console.log(`New version set: ${newVersion}`);

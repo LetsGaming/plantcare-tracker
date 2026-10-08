@@ -1,7 +1,7 @@
-import type { HTMLElement } from "node-html-parser";
-import type { RawSaleItem } from "../../domain/Sale";
-import type { StrategyName } from "../../../../core/scrapeHealth/SourceHealth";
-import type { FetchedDocument } from "../HttpFetcher";
+import type { HTMLElement } from 'node-html-parser';
+import type { RawSaleItem } from '../../domain/Sale';
+import type { StrategyName } from '../../../../core/scrapeHealth/SourceHealth';
+import type { FetchedDocument } from '../HttpFetcher';
 
 /** One selector, or several candidates of which the first match wins. */
 export type SelectorList = string | string[];

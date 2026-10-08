@@ -30,17 +30,20 @@ import { parseOrThrow } from '../../../core/validation';
 const MAX_PLANT_NAME_LENGTH = 100;
 /** RFC 5646 recommends 35 chars as a safe language-tag buffer size. */
 const MAX_LANGUAGE_TAG_LENGTH = 35;
+/** Primary language plus up to two subtags, e.g. "en", "de-DE", "zh-Hant-TW". */
+const LANGUAGE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/;
 
 const PlantInfoQuerySchema = z.object({
   plantName: z
     .string()
     .min(1, 'plantName query parameter is required.')
-    .max(
-      MAX_PLANT_NAME_LENGTH,
-      `plantName must be at most ${MAX_PLANT_NAME_LENGTH} characters.`,
-    ),
+    .max(MAX_PLANT_NAME_LENGTH, `plantName must be at most ${MAX_PLANT_NAME_LENGTH} characters.`),
   htmlFormatting: z.string().optional(),
-  lang: z.string().max(MAX_LANGUAGE_TAG_LENGTH).optional(),
+  lang: z
+    .string()
+    .max(MAX_LANGUAGE_TAG_LENGTH)
+    .regex(LANGUAGE_TAG, 'lang must be a language tag such as "en" or "de-DE"')
+    .optional(),
 });
 
 const DEFAULT_LANGUAGE = 'en';
@@ -48,6 +51,12 @@ const DEFAULT_LANGUAGE = 'en';
 /** Strips parenthesised suffixes and special characters from a name. */
 const cleanPlantName = (name: string): string =>
   name.replace(/\s*\([^)]*\)/g, '').replace(/[^a-zA-Z0-9 ]/g, '');
+
+/** First entry of an Accept-Language header when it is a well-formed language tag. */
+const languageFromHeader = (header: string | undefined): string | undefined => {
+  const first = header?.split(',')[0]?.split(';')[0]?.trim();
+  return first && LANGUAGE_TAG.test(first) ? first : undefined;
+};
 
 /**
  * Parses and normalises the raw query into a PlantInfoRequest.
@@ -68,10 +77,7 @@ export function parsePlantInfoQuery(
   return {
     plantName: cleanPlantName(parsed.plantName),
     htmlFormatting: parsed.htmlFormatting === 'true',
-    language:
-      parsed.lang ??
-      acceptLanguageHeader?.split(',')[0] ??
-      DEFAULT_LANGUAGE,
+    language: parsed.lang ?? languageFromHeader(acceptLanguageHeader) ?? DEFAULT_LANGUAGE,
   };
 }
 

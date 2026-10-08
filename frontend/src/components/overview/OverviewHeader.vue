@@ -1,49 +1,44 @@
 <template>
   <ion-header>
     <ion-toolbar class="header-toolbar">
-      <ion-buttons slot="start" class="menu-button">
-        <ion-menu-button></ion-menu-button>
+      <ion-buttons slot="start">
+        <ion-menu-button :aria-label="t('a11y.menu')" />
       </ion-buttons>
       <ion-title>{{ translateTitle(title) }}</ion-title>
-      <ion-icon
-        :icon="logOutOutline"
-        slot="end"
-        @click="logUserOut"
-        style="padding-right: 20px"
-      ></ion-icon>
+      <ion-buttons slot="end">
+        <icon-button
+          v-if="showToolbarAdd"
+          :icon="addIcon ?? ''"
+          :label="t('a11y.add')"
+          @press="onAddClick"
+        />
+        <icon-button :icon="icons.logout" :label="t('a11y.logout')" @press="confirmLogout" />
+      </ion-buttons>
     </ion-toolbar>
 
-    <ion-toolbar class="segment-toolbar">
-      <ion-segment v-model="segmentValue" @ionChange="handleSegmentChange">
-        <template v-for="segment in segments">
+    <ion-toolbar v-if="showSegments" class="segment-toolbar">
+      <div class="segment-row">
+        <ion-segment v-model="segmentValue" class="segment" @ionChange="handleSegmentChange">
           <ion-segment-button
-            v-if="!segment.hideFromGuests || !isGuest"
+            v-for="segment in visibleSegments"
             :key="segment.value"
             :value="segment.value"
           >
-            <ion-icon :icon="segment.icon" />
+            <ion-icon :icon="segment.icon" aria-hidden="true" />
             <ion-label>{{ translateSegmentLabel(segment.label) }}</ion-label>
           </ion-segment-button>
-        </template>
-      </ion-segment>
+        </ion-segment>
 
-      <template v-if="!isGuest && showAddButton">
-        <ion-icon
-          v-if="onAddClick && addIcon"
-          :icon="addIcon"
-          slot="end"
-          @click="onAddClick"
-          class="add-icon"
+        <icon-button
+          v-if="canAdd"
+          :icon="addIcon ?? ''"
+          :label="t('a11y.add')"
+          fill="solid"
+          color="primary"
+          class="add-button"
+          @press="onAddClick"
         />
-
-        <ion-icon
-          v-else-if="onAddClick"
-          :name="addIconName"
-          slot="end"
-          @click="onAddClick"
-          class="add-icon"
-        />
-      </template>
+      </div>
     </ion-toolbar>
   </ion-header>
 </template>
@@ -61,9 +56,12 @@ import {
   IonButtons,
   IonMenuButton,
 } from "@ionic/vue";
-import { logOutOutline } from "ionicons/icons";
-import UserService from "@/services/UserService";
-import localizationService from '@/services/general/LocalizationService'
+import { icons } from "@/theme/icons";
+import { mapActions, mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
+import localizationService from "@/services/general/LocalizationService";
+import IconButton from "@/components/ui/IconButton.vue";
+import { confirmLogout } from "@/utils/confirmLogout";
 
 export default defineComponent({
   name: "OverviewHeader",
@@ -77,6 +75,7 @@ export default defineComponent({
     IonIcon,
     IonButtons,
     IonMenuButton,
+    IconButton,
   },
   props: {
     title: {
@@ -92,7 +91,7 @@ export default defineComponent({
           hideFromGuests?: boolean;
         }>
       >,
-      required: true,
+      default: () => [],
     },
     showAddButton: {
       type: Boolean,
@@ -102,17 +101,13 @@ export default defineComponent({
       type: String,
       required: false,
     },
-    addIconName: {
-      type: String,
-      default: "addCircle",
-    },
     startingSegment: {
       type: String,
-      required: true,
+      default: "",
     },
     onSegmentChange: {
       type: Function as PropType<(value: string) => void>,
-      required: true,
+      required: false,
     },
     onAddClick: {
       type: Function as PropType<() => void>,
@@ -122,23 +117,32 @@ export default defineComponent({
   data() {
     return {
       segmentValue: this.startingSegment,
-      isGuest: false,
     };
   },
-  setup() {
-    return { logOutOutline };
+  computed: {
+    ...mapState(useSessionStore, ["isGuest"]),
+    visibleSegments(): Array<{ value: string; label: string; icon: string }> {
+      return this.segments.filter((segment) => !segment.hideFromGuests || !this.isGuest);
+    },
+    showSegments(): boolean {
+      return this.visibleSegments.length > 1;
+    },
+    canAdd(): boolean {
+      return !this.isGuest && this.showAddButton && !!this.onAddClick && !!this.addIcon;
+    },
+    showToolbarAdd(): boolean {
+      return this.canAdd && !this.showSegments;
+    },
   },
-  async mounted() {
-    this.isGuest = await UserService.isGuest();
-
+  setup() {
+    return { icons };
+  },
+  mounted() {
     if (this.isGuest) {
-      // If the user is a guest, and the starting segment is hidden, find the first visible segment
-      const visibleSegments = this.segments.filter(
-        (segment) => !segment.hideFromGuests
-      );
+      // A guest cannot see hidden segments, so the first visible one is selected.
+      const visibleSegments = this.segments.filter((segment) => !segment.hideFromGuests);
       if (visibleSegments.length > 0) {
-        this.segmentValue = visibleSegments[0].value; // Select the first visible segment for guests
-        // Manually trigger the segment change to emit the value change
+        this.segmentValue = visibleSegments[0].value;
         this.handleSegmentChange({
           detail: { value: this.segmentValue },
         });
@@ -146,18 +150,21 @@ export default defineComponent({
     }
   },
   methods: {
-    async logUserOut() {
-      await UserService.logout();
+    ...mapActions(useSessionStore, { logUserOut: "logout" }),
+    t(key: string, vars?: Record<string, string | number>, fallback?: string) {
+      return localizationService.t(key, vars, fallback || key);
+    },
+    confirmLogout() {
+      return confirmLogout(() => this.logUserOut());
     },
     handleSegmentChange(event: any) {
-      const value = event.detail.value;
-      this.onSegmentChange(value); // Emit the segment change
+      this.onSegmentChange?.(event.detail.value);
     },
     translateTitle(value: string) {
-      return localizationService.t(value, undefined, value)
+      return localizationService.t(value, undefined, value);
     },
     translateSegmentLabel(value: string) {
-      return localizationService.t(value, undefined, value)
+      return localizationService.t(value, undefined, value);
     },
   },
 });
@@ -165,14 +172,52 @@ export default defineComponent({
 
 <style scoped>
 .header-toolbar {
-  text-align: center;
-  background-color: var(--ion-color-primary);
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
+  --border-width: 0;
+}
+
+.header-toolbar ion-title {
+  color: var(--ion-color-primary-contrast);
+}
+
+.header-toolbar ion-menu-button,
+.header-toolbar .icon-button {
+  --color: var(--ion-color-primary-contrast);
+  color: var(--ion-color-primary-contrast);
 }
 
 .segment-toolbar {
-  background-color: var(--ion-color-light);
+  --background: var(--ion-background-color);
+  --border-width: 0;
   position: sticky;
   top: 0;
-  z-index: 1000;
+  z-index: 10;
+}
+
+.segment-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header-toolbar ion-menu-button {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+.segment {
+  flex: 1;
+}
+
+.segment ion-segment-button {
+  min-height: var(--tap-min);
+}
+
+.add-button {
+  flex-shrink: 0;
 }
 </style>

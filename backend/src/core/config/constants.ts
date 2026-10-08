@@ -24,15 +24,16 @@ export const HTTP_STATUS = {
 // ── Authentication & sessions ─────────────────────────────────────────────────
 
 export const AUTH = {
-  /** Maximum concurrent refresh-token sessions kept per user. */
+  /** Maximum concurrent sessions kept per regular user. */
   MAX_SESSIONS_PER_USER: 3,
+  /** Upper bound for concurrent guest sessions (the guest account is shared). */
+  MAX_GUEST_SESSIONS: 1000,
   /** Lifetime of a one-time SSE ticket. */
   SSE_TICKET_TTL_MS: 60_000,
   /** bcrypt cost factor for password hashing. */
   BCRYPT_SALT_ROUNDS: 10,
-  /** Cookie names used on the wire — shared with the frontend contract. */
+  /** Cookie name used on the wire, shared with the frontend contract. */
   REFRESH_TOKEN_COOKIE: 'refreshToken',
-  ACCESS_TOKEN_COOKIE: 'accessToken',
   /** Refresh cookie lifetime for a full login (mirrors JWT_REFRESH_EXPIRATION default). */
   REFRESH_COOKIE_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000,
   /** Guest sessions are short-lived by design. */
@@ -45,6 +46,15 @@ export const AUTH_RATE_LIMIT = {
   MAX_PER_IP: 50,
   /** Requests per window against a single account (email/username). */
   MAX_PER_ACCOUNT: 10,
+} as const;
+
+/** Per-user limits on endpoints that cost money or start outbound work. */
+export const USER_RATE_LIMIT = {
+  WINDOW_MS: 15 * 60 * 1000,
+  /** SSE tickets issued per user per window. */
+  MAX_TICKETS: 60,
+  /** AI care guide streams per user per window. */
+  MAX_AI_STREAMS: 20,
 } as const;
 
 // ── Server-Sent Events ─────────────────────────────────────────────────────────

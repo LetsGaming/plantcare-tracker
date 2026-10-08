@@ -2,12 +2,12 @@
  * modules/images/presentation/imageController.ts
  *
  * Thin controller for the images module: extract HTTP inputs (params,
- * query, multer file), call the use case, shape the response. All
- * rules — validation, deletion ordering, URL building — live in the
+ * query, multipart parts), call the use case, shape the response. All
+ * rules (validation, deletion ordering, URL building) live in the
  * application layer.
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   UploadImageUseCase,
   ListEntityImagesUseCase,
@@ -16,16 +16,19 @@ import {
   DeleteImageUseCase,
   DeleteEntityImagesUseCase,
 } from '../application/ImageUseCases';
+import type { ImageAccessPolicy } from '../application/ImageAccessPolicy';
 import type {
+  ImageActor,
   ImageRepository,
   ImageStorage,
   ImageRecord,
   EntityType,
-  UploadedFile,
 } from '../domain/Image';
-import { asyncHandler } from '../../../core/middleware';
+import { numericParam, type Handler } from '../../../core/middleware';
 import { HTTP_STATUS } from '../../../core/config';
+import { ValidationError } from '../../../core/errors';
 import { formatToDBDate } from '../../../core/utils';
+import { readUpload } from './multipartUpload';
 
 // ── Serving constants ─────────────────────────────────────────────────────────
 
@@ -35,118 +38,118 @@ const SERVED_IMAGE_CACHE_CONTROL = 'public, max-age=86400';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface UploadImageResponse { data: { path: string; date: string } }
-export interface ImageListResponse { data: ImageRecord[] }
-export interface ImageResponse { data: ImageRecord }
+export interface UploadImageResponse {
+  data: { path: string; date: string };
+}
+export interface ImageListResponse {
+  data: ImageRecord[];
+}
+export interface ImageResponse {
+  data: ImageRecord;
+}
 
 // ── HTTP input helpers ────────────────────────────────────────────────────────
 
-const entityTypeParam = (req: Request): EntityType =>
-  req.params.entityType as EntityType; // validated by validateEntityType middleware
+const entityTypeParam = (req: FastifyRequest): EntityType =>
+  (req.params as { entityType: string }).entityType as EntityType; // validated by the entity type hook
 
-const publicBaseUrl = (req: Request): string =>
-  `${req.protocol}://${req.get('host')}`;
+const actorOf = (req: FastifyRequest): ImageActor => ({ id: req.user!.id, role: req.user!.role });
 
-const uploadedFile = (req: Request): UploadedFile => ({
-  buffer: req.file!.buffer,
-  originalName: req.file!.originalname,
-});
-
-/**
- * HTTP handlers exposed by the images module.
- *
- * Explicitly typed so the declaration emit never has to name
- * transitive express types (ParamsDictionary/ParsedQs) — those are
- * not reachable by name under pnpm's non-hoisted node_modules
- * layout (TS2883).
- */
 export interface ImageController {
-  uploadImage: RequestHandler;
-  listEntityImages: RequestHandler;
-  serveEntityImage: RequestHandler;
-  updateImage: RequestHandler;
-  deleteImage: RequestHandler;
-  deleteEntityImages: RequestHandler;
+  uploadImage: Handler;
+  listEntityImages: Handler;
+  serveEntityImage: Handler;
+  updateImage: Handler;
+  deleteImage: Handler;
+  deleteEntityImages: Handler;
 }
 
 export const createImageController = (
   repo: ImageRepository,
   storage: ImageStorage,
+  access: ImageAccessPolicy,
 ): ImageController => {
-  const upload = new UploadImageUseCase(repo, storage);
-  const list = new ListEntityImagesUseCase(repo);
-  const serve = new ServeEntityImageUseCase(repo, storage);
-  const update = new UpdateImageUseCase(repo, storage);
-  const remove = new DeleteImageUseCase(repo, storage);
-  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage);
+  const upload = new UploadImageUseCase(repo, storage, access);
+  const list = new ListEntityImagesUseCase(repo, access);
+  const serve = new ServeEntityImageUseCase(repo, storage, access);
+  const update = new UpdateImageUseCase(repo, storage, access);
+  const remove = new DeleteImageUseCase(repo, storage, access);
+  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access);
 
   return {
-    uploadImage: asyncHandler(async (req: Request, res: Response) => {
+    uploadImage: async (req: FastifyRequest, reply: FastifyReply) => {
       const entityType = entityTypeParam(req);
-      const entityId = Number(req.params.entityId);
+      const entityId = numericParam(req, 'entityId');
+      const { file } = await readUpload(req);
+      if (!file) throw new ValidationError('No image file provided.');
 
       const { url, capturedAt } = await upload.execute({
+        actor: actorOf(req),
         entityType,
         entityId,
-        file: uploadedFile(req),
-        publicBaseUrl: publicBaseUrl(req),
+        file,
       });
 
       const body: UploadImageResponse = {
         data: { path: url, date: formatToDBDate(capturedAt.getTime()) },
       };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/images/${entityType}/${entityId}`)
-        .json(body);
-    }),
+      return reply
+        .code(HTTP_STATUS.CREATED)
+        .header('Location', `/images/${entityType}/${entityId}`)
+        .send(body);
+    },
 
-    listEntityImages: asyncHandler(async (req: Request, res: Response) => {
+    listEntityImages: async (req: FastifyRequest) => {
       const images = await list.execute(
         entityTypeParam(req),
-        Number(req.query.entityId),
+        Number((req.query as { entityId?: string }).entityId),
+        actorOf(req),
       );
       const body: ImageListResponse = { data: images };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    serveEntityImage: asyncHandler(async (req: Request, res: Response) => {
-      const sizeParam = req.query.size as string | undefined;
+    serveEntityImage: async (req: FastifyRequest, reply: FastifyReply) => {
+      const sizeParam = (req.query as { size?: string }).size;
       const width = sizeParam ? parseInt(sizeParam, 10) : undefined;
 
       const buffer = await serve.execute(
         entityTypeParam(req),
-        Number(req.params.entityId),
+        numericParam(req, 'entityId'),
+        actorOf(req),
         width !== undefined && !isNaN(width) && width > 0 ? width : undefined,
       );
 
-      res.set('Content-Type', SERVED_IMAGE_CONTENT_TYPE);
-      res.set('Cache-Control', SERVED_IMAGE_CACHE_CONTROL);
-      res.send(buffer);
-    }),
+      return reply
+        .header('Content-Type', SERVED_IMAGE_CONTENT_TYPE)
+        .header('Cache-Control', SERVED_IMAGE_CACHE_CONTROL)
+        .send(buffer);
+    },
 
-    updateImage: asyncHandler(async (req: Request, res: Response) => {
+    updateImage: async (req: FastifyRequest) => {
+      const { file, fields } = await readUpload(req);
       const record = await update.execute({
-        imageId: Number(req.params.id),
-        file: req.file ? uploadedFile(req) : undefined,
-        date: (req.body as { date?: string | number }).date,
-        publicBaseUrl: publicBaseUrl(req),
+        actor: actorOf(req),
+        imageId: numericParam(req, 'id'),
+        file,
+        date: fields['date'],
       });
       const body: ImageResponse = { data: record };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    deleteImage: asyncHandler(async (req: Request, res: Response) => {
-      await remove.execute(Number(req.params.id));
-      res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    deleteImage: async (req: FastifyRequest, reply: FastifyReply) => {
+      await remove.execute(numericParam(req, 'id'), actorOf(req));
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
+    },
 
-    deleteEntityImages: asyncHandler(async (req: Request, res: Response) => {
+    deleteEntityImages: async (req: FastifyRequest, reply: FastifyReply) => {
       await removeForEntity.execute(
         entityTypeParam(req),
-        Number(req.params.entityId),
+        numericParam(req, 'entityId'),
+        actorOf(req),
       );
-      res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
+    },
   };
 };

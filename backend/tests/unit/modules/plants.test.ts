@@ -24,7 +24,7 @@ const makePlantData = (overrides = {}) => ({
   plant_name: 'Monstera deliciosa',
   plant_species: 'Monstera deliciosa',
   is_public: true,
-  plant_created_at: '2024-01-01',
+  plant_created_at: 1704067200,
   image_url: null,
   substrate: { substrate_id: 1, substrate_name: 'Aroid Mix' },
   images: [],
@@ -106,20 +106,25 @@ describe('GetPlantUseCase', () => {
     const repo = makeMockRepo();
     (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(plant);
 
-    const result = await new GetPlantUseCase(repo).execute(1);
+    const result = await new GetPlantUseCase(repo).execute(1, null);
     expect(result.id).toBe(1);
   });
 
   it('throws NotFoundError when plant does not exist', async () => {
     const repo = makeMockRepo();
-    await expect(new GetPlantUseCase(repo).execute(999)).rejects.toThrow(NotFoundError);
+    await expect(new GetPlantUseCase(repo).execute(999, null)).rejects.toThrow(NotFoundError);
   });
 });
 
 // ── CreatePlantUseCase ────────────────────────────────────────────────────────
 
 describe('CreatePlantUseCase', () => {
-  const validInput = { name: 'Pothos', species: 'Epipremnum aureum', substrateId: 1, isPublic: false };
+  const validInput = {
+    name: 'Pothos',
+    species: 'Epipremnum aureum',
+    substrateId: 1,
+    isPublic: false,
+  };
 
   it('creates plant and returns the full read-back resource', async () => {
     const repo = makeMockRepo();
@@ -139,9 +144,9 @@ describe('CreatePlantUseCase', () => {
     (repo.create as ReturnType<typeof vi.fn>).mockResolvedValue(42);
     // default findById mock resolves null → read-back fails
 
-    await expect(
-      new CreatePlantUseCase(repo).execute(validInput, 2),
-    ).rejects.toThrow(InternalError);
+    await expect(new CreatePlantUseCase(repo).execute(validInput, 2)).rejects.toThrow(
+      InternalError,
+    );
   });
 
   it('throws ValidationError for missing name', async () => {
@@ -190,7 +195,9 @@ describe('UpdatePlantUseCase', () => {
   it('throws NotFoundError when update returns false', async () => {
     const repo = makeMockRepo();
     (repo.update as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new UpdatePlantUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(NotFoundError);
+    await expect(new UpdatePlantUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('throws ValidationError when no fields provided', async () => {
@@ -202,15 +209,22 @@ describe('UpdatePlantUseCase', () => {
 // ── DeletePlantUseCase ────────────────────────────────────────────────────────
 
 describe('DeletePlantUseCase', () => {
-  it('deletes existing plant', async () => {
+  const images = { removeAll: vi.fn().mockResolvedValue(undefined) };
+  beforeEach(() => images.removeAll.mockClear());
+
+  it('deletes existing plant and its images', async () => {
     const repo = makeMockRepo();
-    await new DeletePlantUseCase(repo).execute(1, 2);
+    await new DeletePlantUseCase(repo, images).execute(1, 2);
     expect(repo.delete).toHaveBeenCalledWith(1, 2);
+    expect(images.removeAll).toHaveBeenCalledWith('plant', 1);
   });
 
-  it('throws NotFoundError when delete returns false', async () => {
+  it('throws NotFoundError and keeps the images when delete returns false', async () => {
     const repo = makeMockRepo();
     (repo.delete as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new DeletePlantUseCase(repo).execute(999, 2)).rejects.toThrow(NotFoundError);
+    await expect(new DeletePlantUseCase(repo, images).execute(999, 2)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(images.removeAll).not.toHaveBeenCalled();
   });
 });

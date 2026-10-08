@@ -1,20 +1,12 @@
 <template>
-  <ion-modal :is-open="isOpen" @didDismiss="$emit('close')">
-    <modal-header
-      :header-title="t('calendar.settings.title')"
-      @close="$emit('close')"
-    />
+  <ion-modal v-if="mounted" :is-open="isOpen" @didDismiss="onDidDismiss">
+    <modal-header :header-title="t('calendar.settings.title')" @close="$emit('close')" />
 
     <ion-content>
-      <!-- GENERAL SETTINGS -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>
-            {{ t("calendar.settings.general_settings") }}
-          </ion-card-title>
-        </ion-card-header>
+      <div class="settings-column">
+        <section class="settings-card">
+          <h2 class="settings-heading">{{ t("calendar.settings.general_settings") }}</h2>
 
-        <ion-card-content>
           <ion-item>
             <ion-select
               :label="t('calendar.settings.first_weekday_label')"
@@ -34,108 +26,132 @@
 
           <ion-item>
             <ion-toggle
+              justify="space-between"
               :checked="doDeleteAfterThirty"
-              @ionChange="
-                $emit('update:deleteAfterThirty', $event.detail.checked)
-              "
+              @ionChange="$emit('update:deleteAfterThirty', $event.detail.checked)"
             >
               {{ t("calendar.settings.auto_delete_label") }}
             </ion-toggle>
           </ion-item>
-        </ion-card-content>
-      </ion-card>
+        </section>
 
-      <!-- WATERING CATEGORIES -->
-      <ion-card>
-        <ion-card-header>
-          <ion-toolbar>
-            <ion-title class="ion-text-start">
-              {{ t("calendar.settings.watering_categories") }}
-            </ion-title>
-            <ion-buttons slot="end">
-              <ion-button
-                fill="clear"
-                color="warning"
-                @click="$emit('reset-watering-categories')"
-              >
-                <ion-icon :icon="refreshCircle" />
-              </ion-button>
-            </ion-buttons>
-          </ion-toolbar>
-        </ion-card-header>
+        <section class="settings-card">
+          <div class="settings-heading-row">
+            <h2 class="settings-heading">{{ t("modal2.watering_categories") }}</h2>
+            <ion-button size="small" fill="outline" color="medium" @click="showResetConfirm = true">
+              <ion-icon slot="start" :icon="refreshOutline" aria-hidden="true" />
+              {{ t("modal2.reset_colors") }}
+            </ion-button>
+          </div>
 
-        <ion-card-content>
           <ion-list>
-            <ion-item
-              v-for="(category, index) in wateringCategories"
-              :key="index"
-            >
+            <ion-item v-for="(category, index) in localWatering" :key="index">
               <ion-label>{{ t(category.name) }}</ion-label>
               <input
-                type="color"
                 v-model="category.backgroundColor"
+                type="color"
+                class="color-input"
+                :aria-label="t('calendar2.color_for', { name: t(category.name) })"
                 @input="debouncedUpdateWateringCategories(index)"
               />
             </ion-item>
           </ion-list>
 
-          <small class="text-muted">
-            {{ t("calendar.settings.watering_categories_info") }}
-          </small>
-        </ion-card-content>
-      </ion-card>
+          <p class="settings-note">{{ t("calendar.settings.watering_categories_info") }}</p>
+        </section>
 
-      <!-- CATEGORIES -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>
-            {{ t("calendar.settings.categories") }}
-          </ion-card-title>
-        </ion-card-header>
+        <section class="settings-card">
+          <h2 class="settings-heading">{{ t("modal2.reminder_categories") }}</h2>
 
-        <ion-card-content>
-          <ion-list>
-            <ion-item v-for="(category, index) in categories" :key="index">
-              <ion-input
-                v-model="category.name"
-                :placeholder="t('calendar.category.name_placeholder')"
-                @ionInput="$emit('update:categories', categories)"
-              />
+          <p v-if="localCategories.length === 0" class="settings-note">
+            {{ t("modal2.no_reminder_categories") }}
+          </p>
 
-              <input
-                type="color"
-                v-model="category.backgroundColor"
-                @input="debouncedUpdateCategories(index)"
-              />
-
-              <ion-button
-                fill="clear"
-                color="danger"
-                @click="$emit('delete-category', index)"
-              >
-                <ion-icon :icon="trash" />
-              </ion-button>
-            </ion-item>
+          <ion-list v-if="localCategories.length > 0">
+            <div v-for="(category, index) in localCategories" :key="index" class="category-row">
+              <ion-item lines="full">
+                <ion-input
+                  v-model="category.name"
+                  :aria-label="t('calendar2.category_name')"
+                  :placeholder="t('calendar.category.name_placeholder')"
+                  autocapitalize="words"
+                  autocorrect="off"
+                  :aria-invalid="nameErrors[index] ? 'true' : undefined"
+                  @ionInput="onNameInput(index)"
+                />
+                <input
+                  v-model="category.backgroundColor"
+                  type="color"
+                  class="color-input"
+                  :aria-label="t('calendar2.color_for', { name: category.name })"
+                  @input="debouncedUpdateCategories(index)"
+                />
+                <icon-button
+                  :icon="trashOutline"
+                  :label="t('calendar2.delete_category', { name: category.name })"
+                  color="danger"
+                  @press="askDelete(index)"
+                />
+              </ion-item>
+              <p v-if="nameErrors[index]" class="item-error" role="alert">
+                {{ nameErrors[index] }}
+              </p>
+            </div>
           </ion-list>
 
-          <ion-item>
-            <ion-input
-              v-model="newCategory.name"
-              :placeholder="t('calendar.category.new_placeholder')"
-            />
-            <input
-              type="color"
-              v-model="newCategory.backgroundColor"
-              @input="setContrastColor(newCategory)"
-            />
-            <ion-button @click="addCategory">
+          <form class="new-category" novalidate @submit.prevent="addCategory">
+            <label class="new-category-label" for="new-category-name">
+              {{ t("final2.category_name_label") }}
+            </label>
+            <ion-item>
+              <ion-input
+                id="new-category-name"
+                v-model="newCategory.name"
+                :aria-label="t('final2.category_name_label')"
+                :placeholder="t('calendar.category.new_placeholder')"
+                autocapitalize="words"
+                autocorrect="off"
+                enterkeyhint="done"
+                :aria-invalid="newCategoryError ? 'true' : undefined"
+                @ionInput="newCategoryError = ''"
+              />
+              <input
+                v-model="newCategory.backgroundColor"
+                type="color"
+                class="color-input"
+                :aria-label="t('final2.pick_color')"
+                :title="t('final2.pick_color')"
+                @input="newCategory.textColor = contrastTextColor(newCategory.backgroundColor)"
+              />
+            </ion-item>
+            <p v-if="newCategoryError" class="item-error" role="alert">{{ newCategoryError }}</p>
+            <ion-button type="submit" expand="block" fill="outline">
               {{ t("calendar.category.add_button") }}
             </ion-button>
-          </ion-item>
-        </ion-card-content>
-      </ion-card>
+          </form>
+        </section>
+      </div>
     </ion-content>
   </ion-modal>
+
+  <confirm-dialog
+    :is-open="showResetConfirm"
+    :title="t('calendar2.reset_title')"
+    :message="t('calendar2.reset_message')"
+    :confirm-label="t('calendar2.reset_confirm')"
+    @confirm="confirmReset"
+    @cancel="showResetConfirm = false"
+  />
+
+  <confirm-dialog
+    :is-open="pendingDelete !== null"
+    :title="t('calendar2.delete_title', { name: pendingDeleteName })"
+    :message="t('calendar2.delete_message')"
+    :confirm-label="t('modal.delete')"
+    danger
+    @confirm="confirmDelete"
+    @cancel="pendingDelete = null"
+  />
 </template>
 
 <script lang="ts">
@@ -147,24 +163,30 @@ import {
   IonSelect,
   IonSelectOption,
   IonToggle,
-  IonIcon,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-  IonToolbar,
-  IonButtons,
-  IonTitle,
   IonList,
   IonInput,
   IonButton,
   IonLabel,
+  IonIcon,
 } from "@ionic/vue";
-import { trash, refreshCircle } from "ionicons/icons";
+import { trashOutline, refreshOutline } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
+import ConfirmDialog from "../modal/ConfirmDialog.vue";
+import IconButton from "../ui/IconButton.vue";
+import { useMountWhileOpen } from "../modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
+import { categoryNameProblem, contrastTextColor } from "@/utils/categoryColors";
 
 import Utils from "@/utils/utils";
+
+const copyCategories = (list: readonly Category[]): Category[] =>
+  list.map((category) => ({ ...category }));
+
+const blankCategory = (): Category => ({
+  name: "",
+  textColor: "#000000",
+  backgroundColor: "#FFFFFF",
+});
 
 export default defineComponent({
   name: "CalendarSettingsModal",
@@ -175,19 +197,14 @@ export default defineComponent({
     IonSelect,
     IonSelectOption,
     IonToggle,
-    IonIcon,
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
-    IonToolbar,
-    IonButtons,
-    IonTitle,
     IonList,
     IonInput,
     IonButton,
     IonLabel,
+    IonIcon,
     ModalHeader,
+    ConfirmDialog,
+    IconButton,
   },
   props: {
     isOpen: Boolean,
@@ -212,39 +229,46 @@ export default defineComponent({
     "delete-category",
     "add-category",
   ],
-  setup() {
-    return { trash, refreshCircle };
+  setup(props) {
+    return {
+      ...useMountWhileOpen(() => props.isOpen),
+      trashOutline,
+      refreshOutline,
+      contrastTextColor,
+    };
   },
   data() {
     return {
-      newCategory: {
-        name: "",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-      } as Category,
-      debouncedUpdateCategories: ((index: number) => {
-        console.warn('debouncedUpdateCategories called before initialization');
-      }) as (index: number) => void,
-      debouncedUpdateWateringCategories: ((index: number) => {
-        console.warn('debouncedUpdateWateringCategories called before initialization');
-      }) as (index: number) => void,
+      localCategories: copyCategories(this.categories),
+      localWatering: copyCategories(this.wateringCategories),
+      nameErrors: {} as Record<number, string>,
+      newCategory: blankCategory(),
+      newCategoryError: "",
+      showResetConfirm: false,
+      pendingDelete: null as number | null,
+      debouncedUpdateCategories: (() => undefined) as (index: number) => void,
+      debouncedUpdateWateringCategories: (() => undefined) as (index: number) => void,
     };
   },
   created() {
     this.debouncedUpdateCategories = Utils.debounce((index: number) => {
-      this.setContrastColor(this.categories[index]);
-      this.$emit("update:categories", this.categories);
+      const category = this.localCategories[index];
+      if (!category) return;
+      category.textColor = contrastTextColor(category.backgroundColor);
+      this.emitCategories();
     }, 300);
 
     this.debouncedUpdateWateringCategories = Utils.debounce((index: number) => {
-      this.setContrastColor(this.wateringCategories[index]);
-      this.$emit("update:wateringCategories", this.wateringCategories);
+      const category = this.localWatering[index];
+      if (!category) return;
+      category.textColor = contrastTextColor(category.backgroundColor);
+      this.$emit("update:wateringCategories", copyCategories(this.localWatering));
     }, 500);
   },
   computed: {
     localizedWeekdays() {
       const base = new Date(2021, 7, 1);
-      const fmt = new Intl.DateTimeFormat(navigator.language, {
+      const fmt = new Intl.DateTimeFormat(localizationService.getLocale(), {
         weekday: "long",
       });
       return Array.from({ length: 7 }, (_, i) => {
@@ -253,88 +277,149 @@ export default defineComponent({
         return { value: i, label: fmt.format(d) };
       });
     },
+    pendingDeleteName(): string {
+      return this.pendingDelete === null
+        ? ""
+        : (this.localCategories[this.pendingDelete]?.name ?? "");
+    },
+  },
+  watch: {
+    isOpen(open: boolean) {
+      if (open) this.syncFromProps();
+    },
+    "categories.length"() {
+      this.localCategories = copyCategories(this.categories);
+      this.nameErrors = {};
+    },
+    wateringCategories() {
+      this.localWatering = copyCategories(this.wateringCategories);
+    },
   },
   methods: {
-    t(key: string) {
-      return localizationService.t(key, undefined, key);
+    t(key: string, vars?: Record<string, string>) {
+      return localizationService.t(key, vars, key);
+    },
+    onDidDismiss() {
+      this.$emit("close");
+      this.release();
+    },
+    syncFromProps() {
+      this.localCategories = copyCategories(this.categories);
+      this.localWatering = copyCategories(this.wateringCategories);
+      this.nameErrors = {};
+      this.newCategory = blankCategory();
+      this.newCategoryError = "";
+    },
+    problemText(problem: "empty" | "duplicate" | null): string {
+      if (problem === "empty") return this.t("calendar2.name_required");
+      if (problem === "duplicate") return this.t("calendar2.name_taken");
+      return "";
+    },
+    otherNames(index: number): string[] {
+      return this.localCategories.filter((_, i) => i !== index).map((c) => c.name);
+    },
+    emitCategories() {
+      if (Object.values(this.nameErrors).some(Boolean)) return;
+      this.$emit("update:categories", copyCategories(this.localCategories));
+    },
+    onNameInput(index: number) {
+      const problem = categoryNameProblem(
+        this.localCategories[index]?.name ?? "",
+        this.otherNames(index),
+      );
+      this.nameErrors = { ...this.nameErrors, [index]: this.problemText(problem) };
+      this.emitCategories();
     },
     addCategory() {
-      if (!this.newCategory.name.trim()) return;
-      this.setContrastColor(this.newCategory);
+      const problem = categoryNameProblem(
+        this.newCategory.name,
+        this.localCategories.map((c) => c.name),
+      );
+      if (problem) {
+        this.newCategoryError = this.problemText(problem);
+        return;
+      }
+      this.newCategory.name = this.newCategory.name.trim();
+      this.newCategory.textColor = contrastTextColor(this.newCategory.backgroundColor);
       this.$emit("add-category", { ...this.newCategory });
-      this.newCategory = {
-        name: "",
-        textColor: "#000000",
-        backgroundColor: "#FFFFFF",
-      };
+      this.newCategory = blankCategory();
+      this.newCategoryError = "";
     },
-
-    /** COLOR HELPERS **/
-    setContrastColor(category: Category) {
-      function hexToHsl(hex: string): [number, number, number] {
-        let r = parseInt(hex.substring(1, 3), 16) / 255;
-        let g = parseInt(hex.substring(3, 5), 16) / 255;
-        let b = parseInt(hex.substring(5, 7), 16) / 255;
-        let max = Math.max(r, g, b),
-          min = Math.min(r, g, b);
-        let h = 0,
-          s = 0,
-          l = (max + min) / 2;
-        if (max !== min) {
-          let d = max - min;
-          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-          switch (max) {
-            case r:
-              h = (g - b) / d + (g < b ? 6 : 0);
-              break;
-            case g:
-              h = (b - r) / d + 2;
-              break;
-            case b:
-              h = (r - g) / d + 4;
-              break;
-          }
-          h /= 6;
-        }
-        return [h * 360, s, l];
-      }
-      function hslToHex(h: number, s: number, l: number): string {
-        let r, g, b;
-        function hueToRgb(p: number, q: number, t: number) {
-          if (t < 0) t += 1;
-          if (t > 1) t -= 1;
-          if (t < 1 / 6) return p + (q - p) * 6 * t;
-          if (t < 1 / 2) return q;
-          if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-          return p;
-        }
-        if (s === 0) {
-          r = g = b = l;
-        } else {
-          let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-          let p = 2 * l - q;
-          r = hueToRgb(p, q, h / 360 + 1 / 3);
-          g = hueToRgb(p, q, h / 360);
-          b = hueToRgb(p, q, h / 360 - 1 / 3);
-        }
-        return (
-          "#" +
-          (
-            (1 << 24) +
-            (Math.round(r * 255) << 16) +
-            (Math.round(g * 255) << 8) +
-            Math.round(b * 255)
-          )
-            .toString(16)
-            .slice(1)
-        );
-      }
-      let [h, s, l] = hexToHsl(category.backgroundColor);
-      h = (h + 180) % 360;
-      s = Math.max(0.6, s);
-      l = l > 0.5 ? 0.2 : 0.8;
-      category.textColor = hslToHex(h, s, l);
+    askDelete(index: number) {
+      this.pendingDelete = index;
+    },
+    confirmDelete() {
+      if (this.pendingDelete !== null) this.$emit("delete-category", this.pendingDelete);
+      this.pendingDelete = null;
+    },
+    confirmReset() {
+      this.showResetConfirm = false;
+      this.$emit("reset-watering-categories");
     },
   },
 });
 </script>
+
+<style scoped>
+.settings-column {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
+}
+
+.settings-card {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+}
+
+.settings-heading {
+  font-size: var(--text-md);
+}
+
+.settings-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.settings-note {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.color-input {
+  width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.item-error {
+  margin: var(--space-1) 0 0;
+  color: var(--ion-color-danger);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.new-category-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.new-category {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+</style>

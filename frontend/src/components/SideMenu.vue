@@ -1,57 +1,113 @@
 <template>
-  <ion-menu side="start" content-id="main">
+  <ion-menu side="start" content-id="main" menu-id="main-menu" :aria-label="t('shell.menu_label')">
     <ion-header>
       <ion-toolbar>
         <ion-title>{{ t("menu.title") }}</ion-title>
         <ion-buttons slot="end">
-          <ion-menu-toggle>
-            <ion-button>
-              <ion-icon slot="icon-only" :icon="closeIcon" />
-            </ion-button>
+          <ion-menu-toggle auto-hide>
+            <icon-button :icon="closeIcon" :label="t('shell.close_menu')" />
           </ion-menu-toggle>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
     <ion-content>
-      <ion-list>
-        <ion-item button @click="navigateToProfile">
-          <ion-icon slot="start" :icon="personIcon" />
-          <ion-label>{{ t("menu.profile") }}</ion-label>
+      <ion-list
+        lines="none"
+        class="section nav-section"
+        :aria-label="t('chrome.section_navigation')"
+      >
+        <h2 class="section-title">{{ t("chrome.section_navigation") }}</h2>
+        <ion-item
+          v-for="dest in destinations"
+          :key="dest.tab"
+          button
+          :class="{ active: isTabActive(dest.tab) }"
+          :aria-current="isTabActive(dest.tab) ? 'page' : undefined"
+          @click="navigate(`/tabs/${dest.tab}`)"
+        >
+          <ion-icon slot="start" :icon="tabIcon(dest.tab)" aria-hidden="true" />
+          <ion-label>{{ t(dest.label) }}</ion-label>
+          <ion-badge
+            v-if="dest.tab === 'sales' && salesCount > 0"
+            slot="end"
+            color="secondary"
+            :aria-label="t('tabs.sales_new', { count: salesCount })"
+          >
+            {{ salesCount }}
+          </ion-badge>
         </ion-item>
+      </ion-list>
 
-        <ion-item lines="none">
-          <menu-calendar
-            :show-settings-button="true"
-            @settings-click="showDateSettings = true"
-          />
+      <ion-list lines="none" class="section">
+        <h2 class="section-title">{{ t("shell.section_account") }}</h2>
+        <ion-item
+          button
+          :class="{ active: isActive('profile') }"
+          :aria-current="isActive('profile') ? 'page' : undefined"
+          @click="navigate({ name: 'profile' })"
+        >
+          <ion-icon slot="start" :icon="personIcon" aria-hidden="true" />
+          <ion-label>{{ t("shell.profile") }}</ion-label>
+        </ion-item>
+      </ion-list>
+
+      <ion-list v-if="isAdmin" lines="none" class="section">
+        <h2 class="section-title">{{ t("shell.section_admin") }}</h2>
+        <ion-item
+          button
+          :class="{ active: isActive('admin-dashboard') }"
+          :aria-current="isActive('admin-dashboard') ? 'page' : undefined"
+          @click="navigate({ name: 'admin-dashboard' })"
+        >
+          <ion-icon slot="start" :icon="settingsIcon" aria-hidden="true" />
+          <ion-label>{{ t("shell.admin_dashboard") }}</ion-label>
+        </ion-item>
+        <ion-item
+          button
+          :class="{ active: isActive('admin-scrapers') }"
+          :aria-current="isActive('admin-scrapers') ? 'page' : undefined"
+          @click="navigate({ name: 'admin-scrapers' })"
+        >
+          <ion-icon slot="start" :icon="pulseIcon" aria-hidden="true" />
+          <ion-label>{{ t("shell.admin_scrapers") }}</ion-label>
+          <ion-badge v-if="failingSources > 0" slot="end" :color="failingColor">
+            {{ t("shell.scrapers_failing", { count: failingSources }) }}
+          </ion-badge>
+        </ion-item>
+      </ion-list>
+
+      <div class="section calendar">
+        <menu-calendar :show-settings-button="true" @settings-click="showDateSettings = true" />
+      </div>
+
+      <ion-list lines="none" class="section">
+        <h2 class="section-title">{{ t("shell.section_preferences") }}</h2>
+        <ion-item>
+          <ion-select
+            :label="t('shell.language')"
+            label-placement="start"
+            :value="selectedLocale"
+            @ionChange="changeLocale"
+          >
+            <ion-select-option v-for="loc in availableLocales" :key="loc" :value="loc">
+              {{ localeLabel(loc) }}
+            </ion-select-option>
+          </ion-select>
+        </ion-item>
+        <ion-item>
+          <ion-toggle label-placement="start" :checked="darkMode" @ionChange="toggleDarkModeEvent">
+            {{ t("menu.dark_mode") }}
+          </ion-toggle>
         </ion-item>
       </ion-list>
     </ion-content>
 
     <ion-footer>
       <ion-toolbar>
-        <ion-item lines="none">
-          <ion-label>{{ localizationLabel }}</ion-label>
-          <ion-select :value="selectedLocale" @ionChange="changeLocale">
-            <ion-select-option
-              v-for="loc in availableLocales"
-              :key="loc"
-              :value="loc"
-            >
-              {{ localeLabel(loc) }}
-            </ion-select-option>
-          </ion-select>
-        </ion-item>
-
-        <ion-item lines="none">
-          <ion-toggle
-            label-placement="start"
-            :checked="darkMode"
-            @ionChange="toggleDarkModeEvent"
-          >
-            {{ t("menu.dark_mode") }}
-          </ion-toggle>
+        <ion-item button lines="none" @click="logout">
+          <ion-icon slot="start" :icon="logOutIcon" aria-hidden="true" />
+          <ion-label>{{ t("shell.logout") }}</ion-label>
         </ion-item>
       </ion-toolbar>
     </ion-footer>
@@ -88,21 +144,29 @@ import {
   IonSelectOption,
   IonButtons,
   IonMenuToggle,
-  IonButton,
+  IonBadge,
   IonIcon,
   IonLabel,
   IonToggle,
   IonFooter,
   menuController,
 } from "@ionic/vue";
-import { close, person } from "ionicons/icons";
+import { icons, navIcons, type NavDestination } from "@/theme/icons";
 
 import MenuCalendar from "./calendar/MenuCalendar.vue";
 import CalendarSettingsModal from "./calendar/CalendarSettingsModal.vue";
+import IconButton from "@/components/ui/IconButton.vue";
 
-import storageService from "@/services/general/StorageService";
+import { isDarkMode, setDarkMode } from "@/theme/darkMode";
 import localizationService from "@/services/general/LocalizationService";
-import CalendarService from "@/services/CalendarService";
+import { mapActions, mapState } from "pinia";
+import { useCalendarStore } from "@/stores/calendar";
+import { useSessionStore } from "@/stores/session";
+import { useSalesStore } from "@/stores/sales";
+import { useAdminHealthStore } from "@/stores/adminHealth";
+import { confirmLogout } from "@/utils/confirmLogout";
+import { statusIonColor } from "@/utils/sourceStatus";
+import type { RouteLocationRaw } from "vue-router";
 
 const LOCALE_LABELS: Record<string, string> = {
   en: "English",
@@ -123,8 +187,9 @@ export default defineComponent({
     IonSelectOption,
     IonButtons,
     IonMenuToggle,
-    IonButton,
+    IonBadge,
     IonIcon,
+    IconButton,
     IonLabel,
     IonToggle,
     IonFooter,
@@ -136,47 +201,47 @@ export default defineComponent({
     return {
       // UI
       darkMode: false,
-      closeIcon: close,
-      personIcon: person,
+      failingColor: statusIonColor("failing"),
+      closeIcon: icons.close,
+      personIcon: icons.profile,
+      logOutIcon: icons.logout,
+      settingsIcon: icons.settings,
+      pulseIcon: icons.pulse,
       showDateSettings: false,
 
       // Localization
       selectedLocale: localizationService.getLocale(),
-
-      // Calendar state
-      firstDayOfWeek: 0,
-      doDeleteAfterThirty: false,
-      categories: [] as Category[],
-      wateringCategories: [] as Category[],
     };
   },
 
   async mounted() {
-    /* ---------- Dark mode ---------- */
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
-    try {
-      const storedDark = await storageService.get("darkMode");
-      const isDark =
-        typeof storedDark === "boolean" ? storedDark : prefersDark.matches;
-      this.toggleDarkMode(isDark);
-    } catch (error) {
-      console.error("Failed to retrieve dark mode preference:", error);
-      this.toggleDarkMode(prefersDark.matches);
-    }
+    this.darkMode = isDarkMode();
 
     /* ---------- Calendar settings ---------- */
-    this.firstDayOfWeek = await CalendarService.getFirstDayOfWeek().catch(
-      () => 0
-    );
-    this.doDeleteAfterThirty = await CalendarService.getDeleteAfterThirty();
-
-    await CalendarService.deleteOldDates();
-
-    this.categories = await CalendarService.getCategories();
-    this.wateringCategories = await CalendarService.getWateringCategories();
+    await this.ensureCalendarLoaded();
+    this.deleteOldDates();
   },
 
   computed: {
+    ...mapState(useSessionStore, ["isAdmin"]),
+    ...mapState(useSalesStore, { salesCount: "newCount" }),
+    destinations(): Array<{ tab: NavDestination; label: string }> {
+      const list: Array<{ tab: NavDestination; label: string }> = [
+        { tab: "plants", label: "tabs.plants" },
+        { tab: "substrates", label: "tabs.substrates" },
+        { tab: "components", label: "tabs.components" },
+        { tab: "sales", label: "tabs.sales" },
+      ];
+      if (import.meta.env.MODE === "development") list.push({ tab: "debug", label: "tabs.debug" });
+      return list;
+    },
+    ...mapState(useAdminHealthStore, { failingSources: "needingAttention" }),
+    ...mapState(useCalendarStore, {
+      firstDayOfWeek: "firstDayOfWeek",
+      doDeleteAfterThirty: "deleteAfterThirty",
+      categories: "categories",
+      wateringCategories: "wateringCategories",
+    }),
     availableLocales() {
       return localizationService.availableLocales();
     },
@@ -186,6 +251,17 @@ export default defineComponent({
   },
 
   methods: {
+    ...mapActions(useSessionStore, { logUserOut: "logout" }),
+    ...mapActions(useCalendarStore, {
+      ensureCalendarLoaded: "ensureLoaded",
+      deleteOldDates: "deleteOldDates",
+      saveFirstDayOfWeek: "saveFirstDayOfWeek",
+      saveDeleteAfterThirty: "saveDeleteAfterThirty",
+      saveCategories: "saveCategories",
+      saveWateringCategories: "saveWateringCategories",
+      resetWateringCategories: "resetWateringCategories",
+    }),
+
     /* ---------- Localization ---------- */
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
@@ -201,9 +277,22 @@ export default defineComponent({
     },
 
     /* ---------- Navigation ---------- */
-    async navigateToProfile() {
-      this.$router.push({ name: "profile" });
+    isActive(name: string): boolean {
+      return this.$route?.name === name;
+    },
+    isTabActive(tab: NavDestination): boolean {
+      return (this.$route?.path ?? "").startsWith(`/tabs/${tab}`);
+    },
+    tabIcon(tab: NavDestination): string {
+      return this.isTabActive(tab) ? navIcons[tab].selected : navIcons[tab].idle;
+    },
+    async navigate(to: RouteLocationRaw) {
       await menuController.close();
+      await this.$router.push(to);
+    },
+    async logout() {
+      await menuController.close();
+      await confirmLogout(() => this.logUserOut());
     },
 
     /* ---------- Dark mode ---------- */
@@ -212,43 +301,32 @@ export default defineComponent({
     },
     async toggleDarkMode(value: boolean) {
       this.darkMode = value;
-      await storageService.set("darkMode", value);
-      document.documentElement.classList.toggle("ion-palette-dark", value);
+      await setDarkMode(value);
     },
 
     /* ---------- Calendar logic ---------- */
-    async updateFirstDayOfWeek(value: number) {
-      this.firstDayOfWeek = value;
-      await CalendarService.saveFirstDayOfWeek(value);
+    updateFirstDayOfWeek(value: number) {
+      this.saveFirstDayOfWeek(value);
     },
 
-    async updateDeleteAfterThirty(value: boolean) {
-      this.doDeleteAfterThirty = value;
-      await CalendarService.saveDeleteAfterThirty(value);
+    updateDeleteAfterThirty(value: boolean) {
+      this.saveDeleteAfterThirty(value);
     },
 
-    async updateCategories(categories: Category[]) {
-      this.categories = categories;
-      await CalendarService.saveCategories(categories);
+    updateCategories(categories: Category[]) {
+      this.saveCategories(categories);
     },
 
-    async updateWateringCategories(categories: Category[]) {
-      this.wateringCategories = categories;
-      await CalendarService.saveWateringCategories(categories);
+    updateWateringCategories(categories: Category[]) {
+      this.saveWateringCategories(categories);
     },
 
-    async resetWateringCategories() {
-      this.wateringCategories = await CalendarService.resetWateringCategories();
+    addCategory(category: Category) {
+      this.saveCategories([...this.categories, category]);
     },
 
-    async addCategory(category: Category) {
-      this.categories.push(category);
-      await CalendarService.saveCategories(this.categories);
-    },
-
-    async deleteCategory(index: number) {
-      this.categories.splice(index, 1);
-      await CalendarService.saveCategories(this.categories);
+    deleteCategory(index: number) {
+      this.saveCategories(this.categories.filter((_, i) => i !== index));
     },
   },
 });
@@ -256,18 +334,66 @@ export default defineComponent({
 
 <style scoped>
 ion-menu {
-  --width: 15%;
+  --width: 320px;
+  --max-width: 88vw;
+  --background: var(--ion-background-color);
 }
 
-@media (max-width: 1920px) {
-  ion-menu {
-    --width: 20%;
-  }
+ion-content {
+  --background: var(--ion-background-color);
 }
 
-@media (max-width: 768px) {
-  ion-menu {
-    --width: 80%;
+ion-toolbar {
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
+  --border-width: 0;
+}
+
+ion-header ion-title,
+ion-header :deep(.icon-button) {
+  color: var(--ion-color-primary-contrast);
+  --color: var(--ion-color-primary-contrast);
+}
+
+ion-footer ion-toolbar {
+  --background: var(--ion-background-color);
+  --color: var(--ion-text-color);
+  --border-width: 1px 0 0;
+}
+
+.section {
+  padding: var(--space-2) 0;
+  background: transparent;
+}
+
+.section-title {
+  font-size: var(--text-md);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  color: var(--ink-soft);
+}
+
+ion-item {
+  --min-height: var(--tap-min);
+  --background: transparent;
+  font-size: var(--text-md);
+}
+
+ion-item.active {
+  --background: var(--leaf-wash);
+  font-weight: 600;
+}
+
+.calendar {
+  padding-inline: var(--space-3);
+}
+
+.nav-section {
+  display: none;
+}
+
+@media (min-width: 992px) {
+  .nav-section {
+    display: block;
   }
 }
 </style>

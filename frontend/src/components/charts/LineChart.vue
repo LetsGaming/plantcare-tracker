@@ -1,10 +1,7 @@
 <template>
-  <Line
-    v-if="chartData"
-    :data="chartData"
-    :options="chartOptions"
-    style="width: 100%; height: 100%"
-  />
+  <div class="line-chart" role="img" :aria-label="ariaLabel || undefined">
+    <Line v-if="chartData" :data="chartData" :options="chartOptions" aria-hidden="true" />
+  </div>
 </template>
 
 <script lang="ts">
@@ -22,6 +19,7 @@ import {
   Filler,
 } from "chart.js";
 import type { ChartData, ChartOptions } from "chart.js";
+import localizationService from "@/services/general/LocalizationService";
 
 ChartJS.register(
   Title,
@@ -35,9 +33,7 @@ ChartJS.register(
 );
 
 function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 export default defineComponent({
@@ -52,6 +48,10 @@ export default defineComponent({
     options: {
       type: Object as PropType<ChartOptions<"line">>,
       default: () => ({}),
+    },
+    ariaLabel: {
+      type: String,
+      default: "",
     },
   },
 
@@ -99,19 +99,33 @@ export default defineComponent({
       const textColor = cssVar("--chart-text-color");
       const gridColor = cssVar("--chart-grid-color");
 
-      const values = this.data.datasets[0].data as number[];
+      const values = this.data.datasets.flatMap((ds) => ds.data as number[]);
       const { min, max } = this.computeYAxisBounds(values);
+      const currency = new Intl.NumberFormat(localizationService.getLocale(), {
+        style: "currency",
+        currency: "EUR",
+      });
       this.chartData = {
         ...this.data,
-        datasets: this.data.datasets.map((ds) => ({
-          ...ds,
-          borderColor: lineColor,
-          backgroundColor: fillColor,
-          pointBackgroundColor: lineColor,
-          pointBorderColor: lineColor,
-          fill: true,
-          tension: 0.3,
-        })),
+        datasets: this.data.datasets.map((ds) =>
+          ds.borderDash
+            ? {
+                ...ds,
+                borderColor: textColor,
+                backgroundColor: "transparent",
+                pointRadius: 0,
+                fill: false,
+              }
+            : {
+                ...ds,
+                borderColor: lineColor,
+                backgroundColor: fillColor,
+                pointBackgroundColor: lineColor,
+                pointBorderColor: lineColor,
+                fill: true,
+                tension: 0.3,
+              },
+        ),
       };
 
       this.chartOptions = {
@@ -125,7 +139,7 @@ export default defineComponent({
             callbacks: {
               label: (ctx) => {
                 const y = ctx.parsed?.y ?? null;
-                return y == null ? "" : `${Number(y).toFixed(2)} €`;
+                return y == null ? "" : currency.format(Number(y));
               },
             },
           },
@@ -141,7 +155,7 @@ export default defineComponent({
             ticks: {
               color: textColor,
               maxTicksLimit: 5,
-              callback: (value) => `${Number(value).toFixed(2)} €`,
+              callback: (value) => currency.format(Number(value)),
             },
             grid: { color: gridColor },
           },
@@ -162,3 +176,11 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+.line-chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+</style>

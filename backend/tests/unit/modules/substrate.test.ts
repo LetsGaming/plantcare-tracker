@@ -7,7 +7,7 @@
  * array), and the update orchestration.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type {
   SubstrateRepository,
   SubstrateData,
@@ -60,7 +60,7 @@ describe('GetAllSubstratesUseCase', () => {
   it('merges public and own substrates, deduplicating by substrate_id', async () => {
     const repo = makeMockRepo();
     const shared = makeSubstrate({ substrate_id: 1 });
-    const own = makeSubstrate({ substrate_id: 2, is_public: 0 });
+    const own = makeSubstrate({ substrate_id: 2, is_public: false });
     asMock(repo.findAllPublic).mockResolvedValue([shared]);
     asMock(repo.findAllByUser).mockResolvedValue([shared, own]);
 
@@ -83,7 +83,7 @@ describe('GetAllSubstratesUseCase', () => {
 describe('GetSubstrateUseCase', () => {
   it('throws NotFoundError for a missing substrate', async () => {
     const repo = makeMockRepo();
-    await expect(new GetSubstrateUseCase(repo).execute(999)).rejects.toThrow(NotFoundError);
+    await expect(new GetSubstrateUseCase(repo).execute(999, null)).rejects.toThrow(NotFoundError);
   });
 });
 
@@ -111,9 +111,9 @@ describe('CreateSubstrateUseCase', () => {
 
   it('throws InternalError when the created substrate cannot be read back', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new CreateSubstrateUseCase(repo).execute({ name: 'x' }, 2),
-    ).rejects.toThrow(InternalError);
+    await expect(new CreateSubstrateUseCase(repo).execute({ name: 'x' }, 2)).rejects.toThrow(
+      InternalError,
+    );
   });
 });
 
@@ -122,22 +122,24 @@ describe('CreateSubstrateUseCase', () => {
 describe('UpdateSubstrateUseCase', () => {
   it('throws NotFoundError when the substrate does not exist', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new UpdateSubstrateUseCase(repo).execute(999, 2, { name: 'x' }),
-    ).rejects.toThrow(NotFoundError);
+    await expect(new UpdateSubstrateUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('throws ForbiddenError when the substrate belongs to someone else', async () => {
     const repo = makeMockRepo();
     asMock(repo.findById).mockResolvedValue(makeSubstrate({ substrate_user_id: 99 }));
-    await expect(
-      new UpdateSubstrateUseCase(repo).execute(1, 2, { name: 'x' }),
-    ).rejects.toThrow(ForbiddenError);
+    await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, { name: 'x' })).rejects.toThrow(
+      ForbiddenError,
+    );
   });
 
   it('throws ValidationError when no fields are provided', async () => {
     const repo = makeMockRepo();
-    await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, {})).rejects.toThrow(ValidationError);
+    await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, {})).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('updates metadata without touching components when none are removed', async () => {
@@ -211,9 +213,22 @@ describe('UpsertSubstrateComponentsUseCase', () => {
 // ── DeleteSubstrateUseCase ────────────────────────────────────────────────────
 
 describe('DeleteSubstrateUseCase', () => {
+  const images = { removeAll: vi.fn().mockResolvedValue(undefined) };
+  beforeEach(() => images.removeAll.mockClear());
+
   it('answers missing and foreign substrates uniformly with NotFoundError', async () => {
     const repo = makeMockRepo();
     asMock(repo.delete).mockResolvedValue(false);
-    await expect(new DeleteSubstrateUseCase(repo).execute(1, 2)).rejects.toThrow(NotFoundError);
+    await expect(new DeleteSubstrateUseCase(repo, images).execute(1, 2)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(images.removeAll).not.toHaveBeenCalled();
+  });
+
+  it('removes the images of a deleted substrate', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.delete).mockResolvedValue(true);
+    await new DeleteSubstrateUseCase(repo, images).execute(3, 2);
+    expect(images.removeAll).toHaveBeenCalledWith('substrate', 3);
   });
 });

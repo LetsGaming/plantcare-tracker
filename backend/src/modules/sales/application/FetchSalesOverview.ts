@@ -22,31 +22,28 @@ const log = createModuleLogger('FetchSalesOverview');
 
 type Task<T> = () => Promise<T>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const createLimiter = (max: number) => {
   let active = 0;
-  const queue: Array<{
-    fn: Task<any>;
-    resolve: (value: any) => void;
-    reject: (reason: unknown) => void;
-  }> = [];
+  const queue: Array<() => void> = [];
 
   const next = () => {
-    if (queue.length === 0 || active >= max) return;
+    if (active >= max) return;
+    const start = queue.shift();
+    if (!start) return;
     active++;
-    const { fn, resolve, reject } = queue.shift()!;
-    fn()
-      .then(resolve)
-      .catch(reject)
-      .finally(() => {
-        active--;
-        next();
-      });
+    start();
   };
 
   return <T>(fn: Task<T>): Promise<T> =>
     new Promise<T>((resolve, reject) => {
-      queue.push({ fn, resolve, reject });
+      queue.push(() => {
+        void fn()
+          .then(resolve, reject)
+          .finally(() => {
+            active--;
+            next();
+          });
+      });
       next();
     });
 };
@@ -97,9 +94,7 @@ export class FetchSalesOverview {
     };
 
     // Sort by priority, then fan out all jobs
-    const sortedSources = [...this.sources].sort(
-      (a, b) => (a.priority ?? 99) - (b.priority ?? 99),
-    );
+    const sortedSources = [...this.sources].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
     const jobs = sortedSources.flatMap((source) =>
       Array.from({ length: source.maxPages }, (_, i) => {

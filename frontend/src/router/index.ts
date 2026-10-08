@@ -2,7 +2,9 @@ import { createRouter, createWebHashHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 
 import Utils from "@/utils/utils";
-import UserService from "@/services/UserService";
+import { pinia } from "@/stores/pinia";
+import { useSessionStore } from "@/stores/session";
+import ToastService from "@/services/general/ToastService";
 import { resolveAccess } from "./guards";
 
 // Dynamic imports for lazy loading
@@ -14,15 +16,11 @@ const NotFound = () => import("@/views/NotFound.vue");
 const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
 const PlantDetails = () => import("@/views/plants/PlantDetails.vue");
 
-const SubstrateOverview = () =>
-  import("@/views/substrates/SubstrateOverview.vue");
-const SubstrateDetails = () =>
-  import("@/views/substrates/SubstrateDetails.vue");
+const SubstrateOverview = () => import("@/views/substrates/SubstrateOverview.vue");
+const SubstrateDetails = () => import("@/views/substrates/SubstrateDetails.vue");
 
-const ComponentOverview = () =>
-  import("@/views/components/ComponentOverview.vue");
-const ComponentDetails = () =>
-  import("@/views/components/ComponentDetails.vue");
+const ComponentOverview = () => import("@/views/components/ComponentOverview.vue");
+const ComponentDetails = () => import("@/views/components/ComponentDetails.vue");
 
 const SalesOverview = () => import("@/views/sales/SalesOverview.vue");
 const SalesDetails = () => import("@/views/sales/SalesDetails.vue");
@@ -31,6 +29,7 @@ const AdminDashboard = () => import("@/views/admin/AdminDashboard.vue");
 const ScraperHealth = () => import("@/views/admin/ScraperHealth.vue");
 
 const Debug = () => import("@/views/Debug.vue");
+const isDevelopment = import.meta.env.MODE === "development";
 
 const authMeta = { requiresAuth: true };
 const adminMeta = { requiresAuth: true, requiresAdmin: true };
@@ -52,6 +51,8 @@ const routes: Array<RouteRecordRaw> = [
     component: Profile,
     meta: authMeta,
   },
+  { path: "/sales", redirect: "/tabs/sales" },
+  { path: "/sales/details/:id", redirect: (to) => `/tabs/sales/details/${to.params.id}` },
   {
     path: "/:catchAll(.*)",
     name: "not-found",
@@ -65,12 +66,10 @@ const routes: Array<RouteRecordRaw> = [
     name: "tabs",
     redirect: "/tabs/plants",
     children: [
-      {
-        name: "debug",
-        path: "debug",
-        meta: authMeta,
-        component: Debug,
-      },
+      // The debug tools exist only in development builds.
+      ...(isDevelopment
+        ? [{ name: "debug", path: "debug", meta: authMeta, component: Debug }]
+        : []),
       {
         name: "plant-overview",
         path: "plants",
@@ -111,14 +110,14 @@ const routes: Array<RouteRecordRaw> = [
         component: ComponentDetails,
       },
       {
-        path: "/sales",
+        path: "sales",
         name: "sales",
         component: SalesOverview,
         meta: authMeta,
       },
       {
         name: "sales-details",
-        path: "/sales/details/:id",
+        path: "sales/details/:id",
         meta: authMeta,
         props: true,
         component: SalesDetails,
@@ -135,6 +134,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: adminMeta,
         component: ScraperHealth,
       },
+      {
+        name: "tabs-not-found",
+        path: ":catchAll(.*)",
+        meta: authMeta,
+        component: NotFound,
+      },
     ],
   },
 ];
@@ -149,24 +154,30 @@ router.beforeEach(async (to, from, next) => {
   await Utils.closeAllOpenModals();
 
   try {
+    const session = useSessionStore(pinia);
     const decision = await resolveAccess(
       {
         requiresAuth: to.meta.requiresAuth === true,
         requiresAdmin: to.meta.requiresAdmin === true,
       },
       {
-        isAuthenticated: () => UserService.isAuthenticated(),
-        isAdmin: () => UserService.isAdmin(),
+        isAuthenticated: () => session.ensureAuthenticated(),
+        isAdmin: async () => session.isAdmin,
       },
     );
 
-    if (decision === "login") return next({ name: "login" });
-    if (decision === "home") return next({ name: "plant-overview" });
+    if (decision === "login") {
+      return next({ name: "login", query: { redirect: to.fullPath } });
+    }
+    if (decision === "home") {
+      ToastService.showWarning({ key: "admin.no_access" });
+      return next({ name: "plant-overview" });
+    }
 
     next();
   } catch (error) {
     console.error("Auth check failed:", error);
-    next({ name: "login" });
+    next({ name: "login", query: { redirect: to.fullPath } });
   }
 });
 

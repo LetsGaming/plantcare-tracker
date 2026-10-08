@@ -4,7 +4,7 @@
  * Tests for all Auth use cases.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import bcrypt from 'bcryptjs';
 import type { UserRepository } from '../../../src/modules/auth/domain/User';
 import {
@@ -22,7 +22,7 @@ import {
   NotFoundError,
   ConflictError,
 } from '../../../src/core/errors';
-import { sessionStore } from '../../../src/core/middleware/auth';
+import { issueSession, sessionStore, verifyRefreshToken } from '../../../src/core/auth';
 import { makeUserRow } from '../../helpers/mockFactory';
 
 const makeMockRepo = (): UserRepository => ({
@@ -37,25 +37,36 @@ const makeMockRepo = (): UserRepository => ({
 describe('RegisterUseCase', () => {
   it('registers a new user and returns id + username', async () => {
     const repo = makeMockRepo();
-    const result = await new RegisterUseCase(repo).execute({ username: 'alice', password: 'pass123' });
+    const result = await new RegisterUseCase(repo).execute({
+      username: 'alice',
+      password: 'pass1234',
+    });
     expect(result.username).toBe('newuser');
     expect(result.id).toBe(1);
   });
 
   it('throws ConflictError when username already exists', async () => {
     const repo = makeMockRepo();
-    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(makeUserRow({ username: 'alice' }));
-    await expect(new RegisterUseCase(repo).execute({ username: 'alice', password: 'pass' })).rejects.toThrow(ConflictError);
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ username: 'alice' }),
+    );
+    await expect(
+      new RegisterUseCase(repo).execute({ username: 'alice', password: 'password1' }),
+    ).rejects.toThrow(ConflictError);
   });
 
   it('throws ValidationError for empty username', async () => {
     const repo = makeMockRepo();
-    await expect(new RegisterUseCase(repo).execute({ username: '', password: 'pass' })).rejects.toThrow(ValidationError);
+    await expect(
+      new RegisterUseCase(repo).execute({ username: '', password: 'pass' }),
+    ).rejects.toThrow(ValidationError);
   });
 
   it('throws ValidationError for empty password', async () => {
     const repo = makeMockRepo();
-    await expect(new RegisterUseCase(repo).execute({ username: 'alice', password: '' })).rejects.toThrow(ValidationError);
+    await expect(
+      new RegisterUseCase(repo).execute({ username: 'alice', password: '' }),
+    ).rejects.toThrow(ValidationError);
   });
 
   it('hashes the password before storing', async () => {
@@ -77,7 +88,10 @@ describe('LoginUseCase', () => {
       makeUserRow({ id: 5, username: 'alice', password: hash, role: 'user' }),
     );
 
-    const { accessToken, refreshToken } = await new LoginUseCase(repo).execute({ username: 'alice', password: 'correctpass' });
+    const { accessToken, refreshToken } = await new LoginUseCase(repo).execute({
+      username: 'alice',
+      password: 'correctpass',
+    });
     expect(accessToken).toBeTruthy();
     expect(refreshToken).toBeTruthy();
   });
@@ -88,22 +102,29 @@ describe('LoginUseCase', () => {
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ password: hash }),
     );
-    await expect(new LoginUseCase(repo).execute({ username: 'alice', password: 'wrong' })).rejects.toThrow(UnauthorizedError);
+    await expect(
+      new LoginUseCase(repo).execute({ username: 'alice', password: 'wrong' }),
+    ).rejects.toThrow(UnauthorizedError);
   });
 
   it('throws UnauthorizedError when user does not exist', async () => {
     const repo = makeMockRepo();
-    await expect(new LoginUseCase(repo).execute({ username: 'ghost', password: 'x' })).rejects.toThrow(UnauthorizedError);
+    await expect(
+      new LoginUseCase(repo).execute({ username: 'ghost', password: 'x' }),
+    ).rejects.toThrow(UnauthorizedError);
   });
 
-  it('saves refresh token to session store', async () => {
+  it('starts a session for the refresh token', async () => {
     const hash = await bcrypt.hash('pass', 10);
     const repo = makeMockRepo();
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ id: 99, password: hash }),
     );
-    const { refreshToken } = await new LoginUseCase(repo).execute({ username: 'alice', password: 'pass' });
-    expect(sessionStore.findUser(refreshToken)).toBe(99);
+    const { refreshToken } = await new LoginUseCase(repo).execute({
+      username: 'alice',
+      password: 'pass',
+    });
+    expect(sessionStore.has(99, verifyRefreshToken(refreshToken)!.sid)).toBe(true);
     sessionStore.deleteAll(99);
   });
 });
@@ -130,10 +151,15 @@ describe('GuestLoginUseCase', () => {
 // ── LogoutUseCase ─────────────────────────────────────────────────────────────
 
 describe('LogoutUseCase', () => {
-  it('removes refresh token from session store', () => {
-    sessionStore.save(50, 'logout-token');
-    new LogoutUseCase().execute('logout-token');
-    expect(sessionStore.findUser('logout-token')).toBeNull();
+  it('ends the session of the refresh token', () => {
+    const { refreshToken } = issueSession({ id: 50, username: 'u', role: 'user' });
+    const { sid } = verifyRefreshToken(refreshToken)!;
+    new LogoutUseCase().execute(refreshToken);
+    expect(sessionStore.has(50, sid)).toBe(false);
+  });
+
+  it('ignores a token that is not a refresh token', () => {
+    expect(() => new LogoutUseCase().execute('not-a-token')).not.toThrow();
   });
 
   it('does nothing when no token provided', () => {
@@ -161,39 +187,44 @@ describe('UpdateProfileUseCase', () => {
 
   it('throws ValidationError when password confirmation missing', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new UpdateProfileUseCase(repo).execute(1, { password: 'new' }),
-    ).rejects.toThrow(ValidationError);
+    await expect(new UpdateProfileUseCase(repo).execute(1, { password: 'new' })).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('throws ValidationError when passwords do not match', async () => {
     const repo = makeMockRepo();
     await expect(
-      new UpdateProfileUseCase(repo).execute(1, { password: 'new', passwordConfirmation: 'different' }),
+      new UpdateProfileUseCase(repo).execute(1, {
+        password: 'new',
+        passwordConfirmation: 'different',
+      }),
     ).rejects.toThrow(ValidationError);
   });
 
   it('hashes password before update', async () => {
     const repo = makeMockRepo();
     await new UpdateProfileUseCase(repo).execute(1, {
-      password: 'newpass',
-      passwordConfirmation: 'newpass',
+      password: 'newpassword',
+      passwordConfirmation: 'newpassword',
     });
     const passArg = (repo.update as ReturnType<typeof vi.fn>).mock.calls[0][1].password;
-    expect(await bcrypt.compare('newpass', passArg)).toBe(true);
+    expect(await bcrypt.compare('newpassword', passArg)).toBe(true);
   });
 
   it('throws NotFoundError when update returns false', async () => {
     const repo = makeMockRepo();
     (repo.update as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new UpdateProfileUseCase(repo).execute(1, { username: 'x' })).rejects.toThrow(NotFoundError);
+    await expect(new UpdateProfileUseCase(repo).execute(1, { username: 'xyz' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('invalidates all sessions after update', async () => {
-    sessionStore.save(1, 'old-token');
+    sessionStore.create(1);
     const repo = makeMockRepo();
     await new UpdateProfileUseCase(repo).execute(1, { username: 'newname' });
-    expect(sessionStore.get(1)).toHaveLength(0);
+    expect(sessionStore.count(1)).toBe(0);
   });
 });
 
@@ -201,11 +232,11 @@ describe('UpdateProfileUseCase', () => {
 
 describe('DeleteProfileUseCase', () => {
   it('deletes user and clears sessions', async () => {
-    sessionStore.save(77, 'a-token');
+    sessionStore.create(77);
     const repo = makeMockRepo();
     await new DeleteProfileUseCase(repo).execute(77);
     expect(repo.delete).toHaveBeenCalledWith(77);
-    expect(sessionStore.get(77)).toHaveLength(0);
+    expect(sessionStore.count(77)).toBe(0);
   });
 
   it('throws NotFoundError when delete returns false', async () => {

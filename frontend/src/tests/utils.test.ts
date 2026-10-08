@@ -264,4 +264,3 @@ describe("debounce", () => {
     expect(fn).toHaveBeenCalledWith("second");
   });
 });
-

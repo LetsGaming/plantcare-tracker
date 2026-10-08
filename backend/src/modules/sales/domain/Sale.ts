@@ -100,9 +100,6 @@ export class Sale {
 
   private static generateId(seller: string, link: string): string {
     const normalized = Sale.normalizeUrl(link);
-    return crypto
-      .createHash('sha1')
-      .update(`${seller.toLowerCase()}|${normalized}`)
-      .digest('hex');
+    return crypto.createHash('sha1').update(`${seller.toLowerCase()}|${normalized}`).digest('hex');
   }
 }

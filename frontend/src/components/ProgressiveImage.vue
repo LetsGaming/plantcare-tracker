@@ -1,22 +1,29 @@
 <template>
   <div class="progressive-img-container">
+    <PlantPlaceholder v-if="showPlaceholder" :kind="kind" :seed="seed || alt" :label="alt" />
     <ion-img
+      v-else
       :src="currentSrc"
       :alt="alt"
       :class="{ 'is-loading': isLoading }"
-      @ion-error="handleError"
+      @ion-error="failed = true"
     />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 import { IonImg } from "@ionic/vue";
+import PlantPlaceholder, { PlaceholderKind } from "@/components/ui/PlantPlaceholder.vue";
+
+/** Inline sources cannot take a size query, so they skip the low resolution step. */
+const isInline = (url: string): boolean => url.startsWith("data:") || url.startsWith("blob:");
 
 export default defineComponent({
   name: "ProgressiveImage",
   components: {
     IonImg,
+    PlantPlaceholder,
   },
   props: {
     src: {
@@ -27,6 +34,14 @@ export default defineComponent({
       type: String,
       default: "",
     },
+    kind: {
+      type: String as PropType<PlaceholderKind>,
+      default: "plant",
+    },
+    seed: {
+      type: String,
+      default: "",
+    },
     lowResSize: {
       type: [String, Number],
       default: 128,
@@ -34,54 +49,55 @@ export default defineComponent({
   },
   data() {
     return {
-      currentSrc: "/no-image.png",
+      currentSrc: "",
       isLoading: false,
-      fallbackUrl: "/no-image.png",
+      failed: false,
       // Reference to the current loading high-res image to allow cancellation
       highResLoader: null as HTMLImageElement | null,
     };
   },
+  computed: {
+    showPlaceholder(): boolean {
+      return this.failed || !this.src || !this.currentSrc;
+    },
+  },
   watch: {
     src: {
       immediate: true,
-      handler(newVal) {
+      handler(newVal: string | null) {
         this.processImage(newVal);
       },
     },
   },
   methods: {
     processImage(url: string | null) {
-      if (!url) {
-        this.handleError();
-        return;
-      }
+      this.cancelHighRes();
+      this.failed = false;
+      this.currentSrc = "";
 
-      // Cancel any existing background loads if the src changes mid-flight
-      if (this.highResLoader) {
-        this.highResLoader.onload = null;
-        this.highResLoader.onerror = null;
-        this.highResLoader = null;
+      if (!url) {
+        this.isLoading = false;
+        return;
       }
 
       this.isLoading = true;
 
+      if (isInline(url)) {
+        this.fetchHighRes(url);
+        return;
+      }
+
       const separator = url.includes("?") ? "&" : "?";
       const lowResUrl = `${url}${separator}size=${this.lowResSize}`;
-
-      // 1. Create a loader for the low-res version first
       const lowResImg = new Image();
       lowResImg.src = lowResUrl;
 
       lowResImg.onload = () => {
-        // 2. Only show the low-res once it's actually ready
         this.currentSrc = lowResUrl;
-
-        // 3. Now that the low-res is visible, start fetching the high-res in the background
         this.fetchHighRes(url);
       };
 
       lowResImg.onerror = () => {
-        // If low-res fails, try to jump straight to high-res
         this.fetchHighRes(url);
       };
     },
@@ -98,26 +114,21 @@ export default defineComponent({
       };
 
       img.onerror = () => {
-        // If we haven't even managed to show the low-res yet, show fallback
-        if (this.currentSrc === this.fallbackUrl) {
-          this.handleError();
-        }
+        if (!this.currentSrc) this.failed = true;
         this.isLoading = false;
         this.highResLoader = null;
       };
     },
 
-    handleError() {
-      this.currentSrc = this.fallbackUrl;
-      this.isLoading = false;
+    cancelHighRes() {
+      if (!this.highResLoader) return;
+      this.highResLoader.onload = null;
+      this.highResLoader.onerror = null;
+      this.highResLoader = null;
     },
   },
   beforeUnmount() {
-    // Cleanup to prevent memory leaks or state updates on unmounted components
-    if (this.highResLoader) {
-      this.highResLoader.onload = null;
-      this.highResLoader.onerror = null;
-    }
+    this.cancelHighRes();
   },
 });
 </script>
@@ -143,10 +154,11 @@ ion-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 0;
 }
 
 .is-loading {
   filter: blur(10px);
-  transition: filter 0.2s ease-in-out;
+  transition: filter 0.2s var(--ease-out);
 }
 </style>

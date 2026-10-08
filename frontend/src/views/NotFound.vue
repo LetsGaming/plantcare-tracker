@@ -5,38 +5,22 @@
         <ion-title>{{ t("pageNotFound.title") }}</ion-title>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
-      <ion-card class="align-middle align-horizontal not-found-card">
-        <ion-card-header>
-          <ion-card-title>{{ t("pageNotFound.title") }}</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <p>{{ t("pageNotFound.message") }}</p>
-          <ion-button expand="block" @click="navigateHome">
-            {{ t("pageNotFound.goHome") }}
-          </ion-button>
-        </ion-card-content>
-      </ion-card>
+    <ion-content>
+      <StateBlock
+        kind="not-found"
+        :title="t('pageNotFound.title')"
+        :message="t('pageNotFound.message')"
+        :action-label="t('pageNotFound.goHome')"
+        @action="navigateHome"
+      />
     </ion-content>
   </ion-page>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-
-import {
-  IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonContent,
-  IonButton,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-} from "@ionic/vue";
-
+import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent } from "@ionic/vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -47,28 +31,15 @@ export default defineComponent({
     IonToolbar,
     IonTitle,
     IonContent,
-    IonButton,
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
+    StateBlock,
   },
   methods: {
     t(value: string) {
       return localizationService.t(value, undefined, value);
     },
     navigateHome() {
-      // Replace the current NotFound page with the home page
-      this.$router
-        .replace({ name: "tabs" })
-        .then(() => window.location.reload());
+      this.$router.replace({ name: "plant-overview" });
     },
   },
 });
 </script>
-
-<style scoped>
-.not-found-card {
-  display: block;
-}
-</style>

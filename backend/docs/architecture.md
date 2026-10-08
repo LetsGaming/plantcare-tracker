@@ -36,31 +36,34 @@ Every module mirrors this tree — plants, watering, substrate, components, imag
 ```
 src/modules/plants/
 ├── domain/
-│   └── Plant.ts                 # Plant entity + PlantRepository port
+│   ├── Plant.ts                 # Plant entity + PlantRepository port
+│   └── SpeciesResolver.ts       # Species matching service + SpeciesCatalog port
 ├── application/
 │   └── PlantUseCases.ts         # GetAll, GetOne, Create, Update, Delete + zod schemas
 ├── infrastructure/
-│   └── SQLitePlantRepository.ts # Implements PlantRepository with SQL
+│   ├── SQLitePlantRepository.ts # Implements PlantRepository with SQL
+│   └── SQLiteSpeciesCatalog.ts  # Implements SpeciesCatalog
 └── presentation/
-    ├── plantsController.ts      # Thin HTTP adapter (asyncHandler + typed responses)
-    └── plantsRoutes.ts          # Express Router, middleware wiring (composition root)
+    ├── plantsController.ts      # Thin HTTP adapter (typed responses)
+    └── plantsRoutes.ts          # Fastify plugin, hook wiring (composition root)
 ```
 
 Two modules have additional ports beyond the repository:
 
 - **images** — `ImageStorage` (implemented by `LocalImageStorage`): converts uploads to WebP, extracts EXIF capture dates, serves resized reads, deletes files. A future object-storage backend only has to satisfy this interface.
+  The module also exports `EntityImageCleanup` (`createImageCleanup()`): plants, substrates and components call it after deleting an entity, which removes the image rows and files. Cleanup failures are logged, never raised, because the entity is already gone.
 - **moreInfo** — `PlantGuideStreamer` (OpenAI adapter) and `PlantLinkSearcher` (7 scraper/API adapters), orchestrated by the `StreamPlantInfoUseCase`.
 
 ## Dependency Injection
 
-Dependencies are injected via constructors — plain factory functions and `new`, no DI container. Since the SQLite handle is a process-wide singleton (`core/database/db.ts`), each **router factory is its own composition root**:
+Dependencies are injected via constructors, using plain factory functions and `new` (no DI container). Since the database connection is a process-wide singleton (`core/database/db.ts`), each **route plugin is its own composition root**:
 
 ```typescript
-// server.ts — mounts the routers, nothing else
-app.use(`${V}/plants`, createPlantsRouter());
+// app.ts: registers the plugins, nothing else
+await app.register(plantsRoutes, { prefix: `${V}/plants` });
 
 // plantsRoutes.ts — composition root of the module
-export const createPlantsRouter = (): Router => {
+export const plantsRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLitePlantRepository();     // concrete infra (uses db singleton)
   const ctrl = createPlantsController(repo);    // use cases injected with the port
   // ...
@@ -89,9 +92,10 @@ Create and update use cases return the **full, freshly-read resource** (create �
 
 Single source of truth for values that must agree across files:
 
-- **`constants.ts`** — `HTTP_STATUS` (success codes used by controllers), `AUTH` (bcrypt cost, session limits, cookie names/lifetimes, SSE ticket TTL), `AUTH_RATE_LIMIT`, `SSE` (heartbeat interval, chunk size, event names)
-- **`apiVersion.ts`** — `getApiVersionPath()` / `getApiBasePath()`: resolves `/api/vX` from `API_VERSION_PATH` or package.json (used by `server.ts` and the auth module's cookie scoping)
-- **`uploads.ts`** — `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`: the static mount in `server.ts` and the URL builder in the images module resolve from the same place
+- **`constants.ts`**: `HTTP_STATUS` (success codes used by controllers), `AUTH` (bcrypt cost, session limits, refresh cookie name/lifetimes, SSE ticket TTL), `AUTH_RATE_LIMIT`, `USER_RATE_LIMIT`, `SSE` (heartbeat interval, chunk size, event names)
+- **`env.ts`**: the only reader of `process.env`. `loadConfig()` returns a typed, validated `AppConfig` (ports, origins, database and upload paths, JWT settings, OpenAI key, headless flag) and throws when `JWT_SECRET` or `JWT_REFRESH_SECRET` is missing; `getConfig()` memoizes it. `server.ts` resolves it first thing so a misconfigured process fails at boot.
+- **`apiVersion.ts`**: `getApiVersionPath()` / `getApiBasePath()` resolve `/api/vX` from `API_VERSION_PATH` or package.json (used by `app.ts` and the auth module's cookie scoping)
+- **`uploads.ts`**: `STATIC_UPLOADS_ROUTE` + `getUploadsDirectory()`, plus `toStoredImagePath()` (the origin-free path persisted for an upload) and `toPublicImageUrl()` (adds `PUBLIC_BASE_URL`, else the request origin held in `requestContext`, to a stored path). Repositories apply it on read, so responses keep absolute URLs.
 
 Error status codes are **not** listed here — each `AppError` subclass owns its code (see [Error Handling](./error-handling.md)).
 
@@ -113,10 +117,16 @@ AppError (base)
 └── InternalError      500
 ```
 
+### `core/auth/`
+
+Framework-free authentication primitives, importable from application code: the session store and policies, the one-time ticket store, token signing and verification (`issueSession`, `signAccessToken`, `verifyRefreshToken`, `readAccessSession`) and the `AuthUser` / `TokenIdentity` / `JwtPayload` types.
+
 ### `core/middleware/`
 
-- **`auth.ts`** — JWT verification, session store, ticket store, `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `checkGuestPermission`, `makeAuthenticateSSE({ loadUserFromDb })`
-- **`asyncHandler.ts`** — re-export of `express-async-handler`; wraps every async controller so rejections reach the global error handler
+- **`auth.ts`**: Fastify hooks over `core/auth`: `authenticateToken`, `optionalAuthenticateToken`, `isAdmin`, `makeGuestReadOnly(basePath)`, `makeAuthenticateSSE({ loadUserFromDb })`. Hooks throw AppErrors.
+- **`rateLimit.ts`**: `createLimiter(app, options)` returns a `preHandler` hook with its own bucket (several limiters can guard one route); `perUserKey`
+- **`requestId.ts`**: request id generation (a client id is honored only when short and URL-safe) and the `AsyncLocalStorage` request context
+- **`types.ts`**: `Handler`, `Hook`, `numericParam`, and the `request.user` augmentation
 - **`errorHandler.ts`** — `globalErrorHandler` (maps `AppError` to the JSON error envelope) + `notFoundHandler`
 - **`requestId.ts`** — assigns UUID per request, stores in `AsyncLocalStorage`
 
@@ -153,7 +163,9 @@ interface CacheService {
 
 ### `core/database/`
 
-`db.ts` — the better-sqlite3 singleton plus thin `query` / `execute` / `transaction` helpers used by every repository. WAL mode, schema auto-applied on first run.
+- **`db.ts`**: the better-sqlite3 connection (WAL, foreign keys on) and a Kysely instance over it. Repositories use `getKysely()` for typed queries and transactions; `getSqlite()` is the raw handle for health checks and the synchronous source-health store. `initDatabase()` applies pending migrations and must finish before the server listens.
+- **`schema.ts`**: the `Database` interface (one type per table) that Kysely checks queries against. Keep it in step with the migrations.
+- **`migrations/`**: ordered migrations registered in `index.ts`. `0001_baseline` is idempotent, so it is simply recorded on databases created before migrations existed. Kysely keeps the history in the `kysely_migration` table. Add schema changes as new numbered files; never edit an applied one.
 
 ### `core/utils/`
 
@@ -198,7 +210,7 @@ The concurrency limiter prevents overloading Playwright by running at most 2 Chr
 
 ### Source health
 
-Each page 1 scrape reports a `ScrapeOutcome` to `core/scrapeHealth`, which stores one row per source in `scrape_source_health` (created idempotently on every boot by `ensureSchemaExtensions` in `core/database/db.ts`). The plant link searchers of the MoreInfo module report to the same table under `search:<shop>` keys. Admins read the rows through `GET /sales/health` (see the API reference). Reporting failures are logged and never break a scrape.
+Each page 1 scrape reports a `ScrapeOutcome` to `core/scrapeHealth`, which stores one row per source in `scrape_source_health` (created by the baseline migration). The plant link searchers of the MoreInfo module report to the same table under `search:<shop>` keys. Admins read the rows through `GET /sales/health` (see the API reference). Reporting failures are logged and never break a scrape.
 
 Strategies are always tried in configuration order. A source stays `degraded` while a fallback carries it and returns to `ok` on its own once the primary strategy works again.
 

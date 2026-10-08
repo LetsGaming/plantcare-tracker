@@ -21,9 +21,6 @@ export interface ComponentRepository {
   findById(id: number): Promise<ComponentData | null>;
   findFinenessLevels(): Promise<FinenessLevel[]>;
   create(name: string, finenessId: number): Promise<number>;
-  update(
-    id: number,
-    fields: { name?: string; fineness?: number },
-  ): Promise<boolean>;
+  update(id: number, fields: { name?: string; fineness?: number }): Promise<boolean>;
   delete(id: number): Promise<boolean>;
 }

@@ -1,0 +1,7 @@
+version: 2
+
+# Fake credentials for automated tests and for the local mock-data stack only.
+secret:
+  ignored-paths:
+    - "backend/tests/**"
+    - "scripts/dev/seed/**"

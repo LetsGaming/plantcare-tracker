@@ -43,9 +43,7 @@ export class SourceHealthTracker implements SourceHealthReporter {
         status,
         active_strategy: outcome.strategy,
         last_item_count: outcome.itemCount,
-        consecutive_failures: failed
-          ? (previous?.consecutive_failures ?? 0) + 1
-          : 0,
+        consecutive_failures: failed ? (previous?.consecutive_failures ?? 0) + 1 : 0,
         last_success_at: failed ? (previous?.last_success_at ?? null) : timestamp,
         last_failure_at: failed ? timestamp : (previous?.last_failure_at ?? null),
         last_error: outcome.error ?? previous?.last_error ?? null,

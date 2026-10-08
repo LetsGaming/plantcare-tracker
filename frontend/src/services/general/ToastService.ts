@@ -30,7 +30,7 @@ interface LocalizedMessage {
 interface ToastOptions {
   /** The message body or a localization object */
   message: string | LocalizedMessage;
-  /** Duration in ms before auto-dismissal (default: 2000) */
+  /** Duration in ms before auto-dismissal (default scales with the message length) */
   duration?: number;
   /** Screen position */
   position?: ToastPosition;
@@ -48,6 +48,28 @@ interface ToastOptions {
   actionHandler?: () => void;
 }
 
+/** An optional follow-up the user can trigger from an error toast. */
+export interface ToastAction {
+  text: string;
+  handler: () => void;
+}
+
+const MIN_DURATION_MS = 3000;
+const MAX_DURATION_MS = 9000;
+const BASE_DURATION_MS = 2000;
+const MS_PER_CHARACTER = 55;
+const ERROR_EXTRA_MS = 1500;
+
+type ResolvedToast = ToastOptions & { text: string };
+
+/** Reading time for a message: short ones stay short, long ones stay long enough to read. */
+export const toastDurationFor = (text: string, isError = false): number => {
+  const raw = BASE_DURATION_MS + text.length * MS_PER_CHARACTER + (isError ? ERROR_EXTRA_MS : 0);
+  return Math.min(MAX_DURATION_MS, Math.max(MIN_DURATION_MS, raw));
+};
+
+const dedupeKey = (toast: ResolvedToast): string => `${toast.color ?? "dark"}|${toast.text}`;
+
 /**
  * High-performance, queued Toast notification service.
  * * Features:
@@ -57,7 +79,9 @@ interface ToastOptions {
  */
 class ToastService {
   /** Queue of pending toast configurations */
-  private static toastQueue: ToastOptions[] = [];
+  private static toastQueue: ResolvedToast[] = [];
+  /** Dedupe key of the toast currently on screen */
+  private static activeKey: string | null = null;
   /** Semaphore to track if a toast is currently animating or visible */
   private static isDisplayingToast: boolean = false;
 
@@ -74,9 +98,10 @@ class ToastService {
     this.isDisplayingToast = true;
 
     const options = this.toastQueue.shift()!;
+    this.activeKey = dedupeKey(options);
     const {
-      message: msgOrLoc,
-      duration = 2000,
+      text: finalMessage,
+      duration = toastDurationFor(options.text, options.color === "danger"),
       position = "bottom",
       positionAnchor = "nav-tab-bar",
       color = "dark",
@@ -86,18 +111,13 @@ class ToastService {
       actionHandler,
     } = options;
 
-    // Resolve localization immediately before creation
-    const finalMessage =
-      typeof msgOrLoc === "string"
-        ? msgOrLoc
-        : localizationService.t(msgOrLoc.key, msgOrLoc.vars, msgOrLoc.fallback);
-
-    // Pre-calculate button array to keep .create() clean
-    let buttons: ToastButton[] | undefined = undefined;
+    const buttons: ToastButton[] = [];
+    if (actionText) buttons.push({ text: actionText, handler: actionHandler });
     if (showCloseButton) {
-      buttons = [{ text: closeButtonText || "Close", role: "cancel" }];
-    } else if (actionText) {
-      buttons = [{ text: actionText, handler: actionHandler }];
+      buttons.push({
+        text: closeButtonText || localizationService.t("toast.dismiss", undefined, "Dismiss"),
+        role: "cancel",
+      });
     }
 
     try {
@@ -107,7 +127,7 @@ class ToastService {
         position,
         positionAnchor: positionAnchor || undefined,
         color,
-        buttons,
+        buttons: buttons.length > 0 ? buttons : undefined,
         cssClass: "toast-custom-class",
       });
 
@@ -116,11 +136,13 @@ class ToastService {
       // Listen for dismissal to trigger the next toast in line
       toast.onDidDismiss().then(() => {
         this.isDisplayingToast = false;
+        this.activeKey = null;
         this.showNextToast();
       });
     } catch (error) {
       console.error("[ToastService] Failed to present toast:", error);
       this.isDisplayingToast = false;
+      this.activeKey = null;
       this.showNextToast();
     }
   }
@@ -130,7 +152,20 @@ class ToastService {
    * @param {ToastOptions} options Toast configuration object.
    */
   static addToast(options: ToastOptions): void {
-    this.toastQueue.push(options);
+    const text =
+      typeof options.message === "string"
+        ? options.message
+        : localizationService.t(
+            options.message.key,
+            options.message.vars,
+            options.message.fallback,
+          );
+    const resolved: ResolvedToast = { ...options, text };
+    const key = dedupeKey(resolved);
+    if (key === this.activeKey || this.toastQueue.some((queued) => dedupeKey(queued) === key)) {
+      return;
+    }
+    this.toastQueue.push(resolved);
     this.showNextToast();
   }
 
@@ -154,14 +189,15 @@ class ToastService {
   }
 
   /**
-   * Displays an error notification (Red).
+   * Displays an error notification (Red) with a close button and an optional follow-up action.
    * @param message String or LocalizedMessage object.
    */
   static showError(
     message: string | LocalizedMessage,
-    duration: number = 4000,
+    duration?: number,
     position?: ToastPosition,
     positionAnchor?: string,
+    action?: ToastAction,
   ): void {
     this.addToast({
       message,
@@ -169,6 +205,9 @@ class ToastService {
       position,
       positionAnchor,
       color: "danger",
+      showCloseButton: true,
+      actionText: action?.text,
+      actionHandler: action?.handler,
     });
   }
 
@@ -199,11 +238,7 @@ class ToastService {
    */
   static showToastWithAction(
     message: string | LocalizedMessage,
-    actionText: string = localizationService.t(
-      "toast.retry",
-      undefined,
-      "Retry",
-    ),
+    actionText: string = localizationService.t("toast.retry", undefined, "Retry"),
     actionHandler: () => void,
     duration: number = 4000,
     position: ToastPosition = "bottom",
@@ -238,8 +273,7 @@ class ToastService {
       color,
       showCloseButton: true,
       closeButtonText:
-        dismissButtonText ||
-        localizationService.t("toast.dismiss", undefined, "Dismiss"),
+        dismissButtonText || localizationService.t("toast.dismiss", undefined, "Dismiss"),
     });
   }
 
@@ -248,6 +282,7 @@ class ToastService {
    */
   static async dismissAllToasts(): Promise<void> {
     this.toastQueue = [];
+    this.activeKey = null;
     await toastController.dismiss();
     this.isDisplayingToast = false;
   }

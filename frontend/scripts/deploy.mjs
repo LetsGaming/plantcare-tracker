@@ -114,9 +114,7 @@ function which(bin) {
 
 function pm2Running(name) {
   try {
-    const out = execSync(`pm2 pid ${name}`, { cwd: BASE_DIR, stdio: "pipe" })
-      .toString()
-      .trim();
+    const out = execSync(`pm2 pid ${name}`, { cwd: BASE_DIR, stdio: "pipe" }).toString().trim();
     return out !== "" && out !== "0";
   } catch {
     return false;
@@ -151,15 +149,14 @@ const pm = resolvePackageManager();
 const cmds = PM_COMMANDS[pm];
 
 for (const bin of ["node", pm, "pm2"]) {
-  if (!which(bin))
-    die(
-      `${bin} not found${bin === "pm2" ? " — install with: npm i -g pm2" : ""}`,
-    );
+  if (!which(bin)) die(`${bin} not found${bin === "pm2" ? " — install with: npm i -g pm2" : ""}`);
 }
 
 if (!existsSync(SERVE_SRC)) die(`Server entry not found at ${SERVE_SRC}`);
 
-console.log(c.bold(`\nUsing ${c.green(pm)} · app ${c.green(CONFIG.appName)} · port ${c.green(CONFIG.port)}`));
+console.log(
+  c.bold(`\nUsing ${c.green(pm)} · app ${c.green(CONFIG.appName)} · port ${c.green(CONFIG.port)}`),
+);
 
 // ─── 1. Install ───────────────────────────────────────────────────────────────
 if (CONFIG.skipInstall) {

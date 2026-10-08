@@ -11,12 +11,16 @@ import { OpenAI } from 'openai';
 import type { CacheService } from '../../../core/cache/CacheService';
 import type { PlantGuideStreamer } from '../domain/PlantInfo';
 import { createModuleLogger } from '../../../core/logging';
+import { getConfig } from '../../../core/config';
 
 const log = createModuleLogger('OpenAIClient');
 
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 const formatToHTML = (text: string, htmlFormatting: boolean): string => {
   if (!htmlFormatting) return text;
-  let t = text.trim()
+  let t = escapeHtml(text.trim())
     .replace(/^## (.*)$/gm, '<h2>$1</h2>')
     .replace(/^### (.*)$/gm, '<h3>$1</h3>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -34,10 +38,11 @@ const formatToHTML = (text: string, htmlFormatting: boolean): string => {
 export class OpenAIPlantClient implements PlantGuideStreamer {
   private readonly client: OpenAI | null;
 
-  constructor(private readonly cache: CacheService) {
-    this.client = process.env.OPENAI_API_KEY
-      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-      : null;
+  constructor(
+    private readonly cache: CacheService,
+    apiKey: string | null = getConfig().openAiApiKey,
+  ) {
+    this.client = apiKey ? new OpenAI({ apiKey }) : null;
     if (!this.client) log.warn('OPENAI_API_KEY not set — AI responses disabled');
   }
 
@@ -48,7 +53,7 @@ export class OpenAIPlantClient implements PlantGuideStreamer {
     language = 'en',
     model = 'gpt-4o-mini',
   ): Promise<void> {
-    if (!this.client) return;
+    if (!this.client) throw new Error('OPENAI_API_KEY is not configured');
 
     const cacheKey = `ai_${language}_${plantName.toLowerCase()}`;
     const cached = this.cache.get<string>(cacheKey);
@@ -75,7 +80,10 @@ export class OpenAIPlantClient implements PlantGuideStreamer {
       const stream = await this.client.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: `You are a professional horticulturist and botanical scientist. You communicate exclusively in ${language}.` },
+          {
+            role: 'system',
+            content: `You are a professional horticulturist and botanical scientist. You communicate exclusively in ${language}.`,
+          },
           { role: 'user', content: prompt },
         ],
         temperature: 0.3,
@@ -107,6 +115,7 @@ export class OpenAIPlantClient implements PlantGuideStreamer {
       this.cache.set(cacheKey, fullText);
     } catch (err: unknown) {
       log.error('OpenAI stream failed', { err });
+      throw err;
     }
   }
 }

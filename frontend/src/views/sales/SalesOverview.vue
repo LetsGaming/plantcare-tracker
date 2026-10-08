@@ -1,153 +1,138 @@
 <template>
   <ion-page>
-    <OverviewHeader
-      :title="t('sales.title')"
-      :segments="[{ value: 'all', label: t('segment.all'), icon: pricetag }]"
-      starting-segment="all"
-      :on-segment-change="onSegmentChange"
-      @search="handleSearch"
-      :show-add-button="false"
-    />
+    <overview-header :title="t('sales.title')" :show-add-button="false" />
 
-    <ion-content>
-      <ItemsOverview
-        :items="mappedSales"
-        item-type="sale"
-        :empty-message="t('sales.empty')"
-        :onItemClick="onItemClick"
-        :onRefreshItems="fetchSales"
-      >
-      </ItemsOverview>
-    </ion-content>
+    <items-overview
+      :items="mappedSales"
+      kind="sale"
+      :is-loading="isLoadingList"
+      :has-error="failed"
+      :empty-title="t('state.empty_sales_title')"
+      :empty-message="t('state.empty_sales_message')"
+      @item-click="onItemClick"
+      @refresh-items="fetchSales"
+      @retry="fetchSales"
+    >
+      <template #count-actions="{ newInView }">
+        <span v-if="streaming" class="checking" role="status">
+          <ion-spinner name="dots" aria-hidden="true" />
+          {{ t("sales2.checking") }}
+        </span>
+        <ion-button v-else-if="newInView > 0" fill="clear" class="mark-all" @click="markAllSeen">
+          {{ t("sales2.mark_all_seen") }}
+        </ion-button>
+      </template>
+    </items-overview>
   </ion-page>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonPage, IonContent } from "@ionic/vue";
-import { pricetag } from "ionicons/icons";
+import { IonPage, IonButton, IonSpinner } from "@ionic/vue";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { discountPercent, formatDiscount, formatPrice } from "@/utils/formatPrice";
 
-import SalesService from "@/services/SalesServices";
+import { mapActions, mapState } from "pinia";
+import { useSalesStore } from "@/stores/sales";
 
 export default defineComponent({
   name: "SalesOverview",
   components: {
     IonPage,
-    IonContent,
+    IonButton,
+    IonSpinner,
     OverviewHeader,
     ItemsOverview,
   },
   data() {
     return {
-      sales: [] as Sale[],
-      allSales: [] as Sale[],
-      stopStream: null as null | (() => void),
-      loading: true,
+      failed: false,
+      loadedOnce: false,
+      openedId: null as string | null,
     };
   },
-  setup() {
-    return { pricetag };
-  },
   computed: {
-    mappedSales(): Array<{
-      id: string;
-      name: string;
-      imageUrl?: string;
-      description?: string;
-      isNew?: boolean;
-    }> {
+    ...mapState(useSalesStore, {
+      sales: "visibleSales",
+      streaming: "streaming",
+    }),
+    isLoadingList(): boolean {
+      return this.streaming || !this.loadedOnce;
+    },
+    mappedSales(): OverviewItem[] {
       return this.sales.map((sale: Sale) => ({
         id: sale.id,
         name: sale.name,
         imageUrl: sale.imageUrl,
-        description: `${sale.seller ?? ""}${
-          sale.price ? " - " + sale.price + "€" : ""
-        }`,
+        description: sale.seller,
         isNew: sale.isNew,
+        priceText: sale.price ? formatPrice(sale.price) : undefined,
+        oldPriceText: discountPercent(sale.price, sale.oldPrice)
+          ? formatPrice(sale.oldPrice)
+          : undefined,
+        discountText: formatDiscount(sale.price, sale.oldPrice) || undefined,
       }));
     },
   },
   mounted() {
-    this.initSales();
+    void this.fetchSales(false);
   },
-  beforeUnmount() {
-    // stop the SSE stream when leaving the page
-    this.stopStream?.();
+  ionViewWillEnter() {
+    if (this.openedId === null) return;
+    this.markSeen(this.openedId);
+    this.openedId = null;
   },
   methods: {
+    ...mapActions(useSalesStore, {
+      loadSales: "load",
+      markSeen: "markSeen",
+      markAllSeen: "markAllSeen",
+    }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
-    async initSales() {
-      this.loading = true;
+    async fetchSales(force = true) {
+      this.failed = false;
       try {
-        const all = await SalesService.getAllSales({
-          onUpdate: (chunk: Sale[]) => {
-            chunk.forEach((sale) => {
-              if (!this.sales.find((s) => s.id === sale.id)) {
-                this.sales.push(sale);
-              }
-            });
-            this.allSales = this.sales;
-          },
-        });
-
-        // initial / final resolved result
-        this.sales = all;
-        this.allSales = all;
+        await this.loadSales({ force: force === true });
       } catch (err) {
+        // handleRequest has already shown the error toast.
+        this.failed = true;
         console.error("Error fetching sales:", err);
       } finally {
-        this.loading = false;
+        this.loadedOnce = true;
       }
-    },
-
-    async fetchSales() {
-      // explicit fetch without streaming
-      this.loading = true;
-      try {
-        const all = await SalesService.getAllSales({ forceUpdate: true });
-        this.sales = all;
-        this.allSales = all;
-      } catch (err) {
-        console.error("Error fetching sales:", err);
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    handleSearch(query: string) {
-      const lowerQuery = query.toLowerCase();
-      this.sales = this.allSales.filter((sale: Sale) =>
-        sale.name.toLowerCase().includes(lowerQuery)
-      );
-    },
-
-    onSegmentChange(value: string) {
-      // no-op
     },
 
     async onItemClick(id: string) {
-      const sale = this.sales.find((s) => s.id === id);
-      if (!sale) return;
+      if (!this.sales.find((s: Sale) => s.id === id)) return;
 
+      this.openedId = id;
       await this.$router.push({ name: "sales-details", params: { id } });
-      
-      // mark as seen first
-      await SalesService.markSaleAsSeen(sale.id);
-
-      // update local state from cache reactively
-      const cached = await SalesService.getCachedSales();
-      if (cached) {
-        this.sales = [...cached];
-        this.allSales = [...cached];
-      }
-
     },
   },
 });
 </script>
+
+<style scoped>
+.mark-all {
+  margin: 0;
+  min-height: var(--tap-min);
+}
+
+.checking {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.checking ion-spinner {
+  width: 24px;
+  height: 24px;
+}
+</style>

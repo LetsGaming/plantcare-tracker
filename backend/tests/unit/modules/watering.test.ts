@@ -17,11 +17,7 @@ import {
   UpdateWateringRecordUseCase,
   DeleteWateringRecordUseCase,
 } from '../../../src/modules/watering/application/WateringUseCases';
-import {
-  NotFoundError,
-  ValidationError,
-  InternalError,
-} from '../../../src/core/errors';
+import { NotFoundError, ValidationError, InternalError } from '../../../src/core/errors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -170,17 +166,17 @@ describe('CreateWateringRecordUseCase', () => {
   it('throws NotFoundError(Plant) when the insert matched no owned plant', async () => {
     const repo = makeMockRepo();
     asMock(repo.create).mockResolvedValue(0);
-    await expect(
-      new CreateWateringRecordUseCase(repo).execute(999, 2, {}),
-    ).rejects.toThrow(NotFoundError);
+    await expect(new CreateWateringRecordUseCase(repo).execute(999, 2, {})).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('throws InternalError when the created record cannot be read back', async () => {
     const repo = makeMockRepo();
     // create succeeds (id 7), default findById resolves null
-    await expect(
-      new CreateWateringRecordUseCase(repo).execute(1, 2, {}),
-    ).rejects.toThrow(InternalError);
+    await expect(new CreateWateringRecordUseCase(repo).execute(1, 2, {})).rejects.toThrow(
+      InternalError,
+    );
   });
 });
 
@@ -216,9 +212,9 @@ describe('UpdateWateringRecordUseCase', () => {
 
   it('throws ValidationError when no fields are provided', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new UpdateWateringRecordUseCase(repo).execute(7, 2, {}),
-    ).rejects.toThrow(ValidationError);
+    await expect(new UpdateWateringRecordUseCase(repo).execute(7, 2, {})).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('throws NotFoundError when the update matched nothing', async () => {
@@ -242,6 +238,8 @@ describe('DeleteWateringRecordUseCase', () => {
   it('throws NotFoundError when nothing was deleted', async () => {
     const repo = makeMockRepo();
     asMock(repo.delete).mockResolvedValue(false);
-    await expect(new DeleteWateringRecordUseCase(repo).execute(999, 2)).rejects.toThrow(NotFoundError);
+    await expect(new DeleteWateringRecordUseCase(repo).execute(999, 2)).rejects.toThrow(
+      NotFoundError,
+    );
   });
 });

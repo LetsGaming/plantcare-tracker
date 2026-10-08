@@ -2,46 +2,9 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import TokenUtils from "./tokenUtils";
 import Utils from "./utils";
-import UserService from "@/services/UserService";
 
 /** Pre-computed API URL to eliminate repeated string concatenation logic */
 const API_BASE_URL = Utils.getApiBaseUrl();
-
-// ── V2 Response envelope ──────────────────────────────────────────────────────
-
-/**
- * Success envelope: { data: T }
- */
-interface ApiSuccessResponse<T = any> {
-  data: T;
-}
-
-/**
- * V2 error envelope: { error: { type, message, statusCode, fields? } }
- */
-interface ApiErrorBody {
-  error?: {
-    type?: string;
-    message?: string;
-    statusCode?: number;
-    /** Present only on ValidationError (400) */
-    fields?: Record<string, string>;
-  };
-  success?: false;
-}
-
-type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorBody;
-
-// ── SSE types ─────────────────────────────────────────────────────────────────
-
-/** Structure for individual Server-Sent Events (SSE) */
-interface StreamEvent<T = any> {
-  data: T;
-  event?: string;
-}
-
-/** Callback definition for processing stream events */
-type StreamCallback<T = any> = (event: StreamEvent<T>) => void;
 
 // ── ApiError ──────────────────────────────────────────────────────────────────
 
@@ -62,8 +25,7 @@ class ApiError extends Error {
     message?: string,
   ) {
     const errorObj = data?.error ?? null;
-    const finalMessage =
-      message || errorObj?.message || data?.message || "API error";
+    const finalMessage = message || errorObj?.message || data?.message || "API error";
 
     super(finalMessage);
     this.name = "ApiError";
@@ -95,11 +57,7 @@ class ApiError extends Error {
 
 // ── Response handler ──────────────────────────────────────────────────────────
 
-const NO_REFRESH_ENDPOINTS = [
-  "/auth/refresh-token",
-  "/auth/login",
-  "/auth/logout",
-];
+const NO_REFRESH_ENDPOINTS = ["/auth/refresh-token", "/auth/login", "/auth/logout"];
 
 /**
  * Processes the raw Fetch Response into a typed data object.
@@ -127,8 +85,8 @@ const handleResponse = async (response: Response): Promise<any> => {
   // Success path: HTTP 2xx — return .data if present, else the full body.
   // Guard against null / primitive JSON bodies before using the `in` operator.
   if (response.ok) {
-    if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
-      return 'data' in responseData ? responseData.data : responseData;
+    if (responseData && typeof responseData === "object" && !Array.isArray(responseData)) {
+      return "data" in responseData ? responseData.data : responseData;
     }
     return responseData ?? null;
   }
@@ -136,9 +94,7 @@ const handleResponse = async (response: Response): Promise<any> => {
   // Error path: extract the best human-readable message.
   // Handles V2 { error: { message } }, V1 { error: "string" }, and { message }.
   const errObj =
-    responseData.error && typeof responseData.error === "object"
-      ? responseData.error
-      : null;
+    responseData.error && typeof responseData.error === "object" ? responseData.error : null;
   const message =
     errObj?.message ||
     (typeof responseData.error === "string" ? responseData.error : undefined) ||
@@ -150,9 +106,7 @@ const handleResponse = async (response: Response): Promise<any> => {
 
 // ── Headers ───────────────────────────────────────────────────────────────────
 
-const getHeaders = async (
-  isFileUpload: boolean = false,
-): Promise<HeadersInit> => {
+const getHeaders = async (isFileUpload: boolean = false): Promise<HeadersInit> => {
   const token = await TokenUtils.getToken();
   const headers: Record<string, string> = {};
 
@@ -169,18 +123,32 @@ const getHeaders = async (
 
 // ── Auth retry ────────────────────────────────────────────────────────────────
 
-const handleNoAuth = async (
-  requestFn: () => Promise<Response>,
-): Promise<Response> => {
+/** What the transport needs from the session; registered once at startup. */
+export interface AuthBridge {
+  /** Gets a new access token; rejects when the session cannot be renewed. */
+  refresh(): Promise<unknown>;
+  /** Tears the local session down after a failed refresh. */
+  onAuthFailure(): Promise<void>;
+}
+
+let authBridge: AuthBridge | null = null;
+
+const requireAuthBridge = (): AuthBridge => {
+  if (!authBridge) throw new Error("ApiUtils: no auth bridge configured");
+  return authBridge;
+};
+
+const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Response> => {
+  const bridge = requireAuthBridge();
   try {
-    await UserService.refreshToken();
+    await bridge.refresh();
     return await requestFn();
-  } catch (error) {
+  } catch {
     // Local teardown only: the refresh just failed, so the session is
     // already dead server-side — a POST /logout would be a no-op. The
     // full logout() here used to clear a token that a parallel login had
     // just stored and then reloaded the page mid-login.
-    await UserService.handleLocalLogout();
+    await bridge.onAuthFailure();
     const msg = localizationService.t(
       "auth.session_expired",
       undefined,
@@ -213,24 +181,15 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
       headers,
       signal,
       credentials: "include",
-      body: isFileUpload
-        ? data
-        : data !== undefined
-          ? JSON.stringify(data)
-          : undefined,
+      body: isFileUpload ? data : data !== undefined ? JSON.stringify(data) : undefined,
     });
   };
 
   let response = await requestFn();
 
-  const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) =>
-    endpoint.startsWith(e),
-  );
+  const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) => endpoint.startsWith(e));
 
-  if (
-    (response.status === 401 || response.status === 403) &&
-    !shouldSkipRefresh
-  ) {
+  if (response.status === 401 && !shouldSkipRefresh) {
     // Only enter the refresh/teardown cycle if the request was actually
     // made while signed in. A 401 on an unauthenticated call (anything
     // fired while the user is still on the login screen) must never
@@ -252,6 +211,10 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
  * Provides a type-safe interface for RESTful communication and SSE streaming.
  */
 const ApiUtils = {
+  configureAuth(bridge: AuthBridge | null): void {
+    authBridge = bridge;
+  },
+
   isApiError(error: unknown): error is ApiError {
     return error instanceof ApiError;
   },
@@ -326,9 +289,7 @@ const ApiUtils = {
   ): Promise<() => void> {
     try {
       // V2: POST /auth/ticket requires no request body
-      const { ticket } = await this.post<null, { ticket: string }>(
-        "/auth/ticket",
-      );
+      const { ticket } = await this.post<null, { ticket: string }>("/auth/ticket");
 
       if (!ticket) throw new Error("SSE Ticket Missing");
 

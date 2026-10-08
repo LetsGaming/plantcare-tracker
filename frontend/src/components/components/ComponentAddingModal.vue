@@ -15,7 +15,15 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
-import ComponentService from "@/services/ComponentService";
+import { mapActions, mapState } from "pinia";
+import { useComponentsStore } from "@/stores/components";
+import { finenessLabel } from "@/utils/enumLabels";
+
+const blankComponent = (): AddComponent => ({
+  name: "",
+  finenessId: 0,
+  image: undefined,
+});
 
 export default defineComponent({
   name: "ComponentAddingModal",
@@ -26,30 +34,37 @@ export default defineComponent({
   },
   emits: ["close", "save"],
   data() {
-    return {
-      componentData: {
-        name: "",
-        finenessId: 0,
-        image: undefined,
-      } as AddComponent,
-      finenessLevels: [] as APIFinenessLevel[],
-    };
+    return { componentData: blankComponent() };
+  },
+  watch: {
+    isOpen(open: boolean) {
+      if (open) this.componentData = blankComponent();
+    },
   },
   async created() {
-    this.finenessLevels = await ComponentService.getFinenessLevels();
+    await this.ensureFinenessLevels();
   },
   computed: {
+    ...mapState(useComponentsStore, ["finenessLevels"]),
     componentFormFields(): FormField[] {
       return [
-        { type: "input", modelKey: "name", label: "component.field.name" },
+        {
+          type: "input",
+          modelKey: "name",
+          label: "component.field.name",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
+        },
         {
           type: "select",
           modelKey: "finenessId",
           label: "component.field.fineness",
+          required: true,
           placeholder: "component.field.fineness_placeholder",
           options: this.finenessLevels.map((f) => ({
             value: f.fineness_id,
-            label: f.fineness_name,
+            label: finenessLabel(f.fineness_name),
           })),
         },
         { type: "file", modelKey: "image", label: "component.image.upload" },
@@ -57,12 +72,9 @@ export default defineComponent({
     },
   },
   methods: {
+    ...mapActions(useComponentsStore, ["ensureFinenessLevels"]),
     submit() {
       this.$emit("save", { ...this.componentData });
-      this.clearComponentData();
-    },
-    clearComponentData() {
-      this.componentData = { name: "", finenessId: 0, image: undefined };
     },
   },
 });

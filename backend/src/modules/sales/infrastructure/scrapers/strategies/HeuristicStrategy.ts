@@ -1,17 +1,12 @@
-import { parse, type HTMLElement } from "node-html-parser";
-import type { RawSaleItem } from "../../../domain/Sale";
-import {
-  commercialRound,
-  extractImageUrl,
-  parsePrice,
-  resolveLink,
-} from "../../scrapeHelpers";
-import type { ExtractionStrategy, StrategyContext } from "../types";
+import { parse, type HTMLElement } from 'node-html-parser';
+import type { RawSaleItem } from '../../../domain/Sale';
+import { commercialRound, extractImageUrl, parsePrice, resolveLink } from '../../scrapeHelpers';
+import type { ExtractionStrategy, StrategyContext } from '../types';
 
 const STRUCK_PRICE_SELECTOR = [
-  "del",
-  "s",
-  "strike",
+  'del',
+  's',
+  'strike',
   '[class*="line-through"]',
   '[class*="compare"]',
   '[class*="price-item--regular"]',
@@ -19,7 +14,7 @@ const STRUCK_PRICE_SELECTOR = [
   '[class*="old-price"]',
   '[class*="original"]',
   '[class*="price--discount"]',
-].join(", ");
+].join(', ');
 
 const MAX_CARD_DEPTH = 10;
 const SOLD_OUT = /ausverkauft|sold out|out of stock|nicht verf(ü|u)gbar|nicht lieferbar/i;
@@ -41,8 +36,8 @@ const safeQueryAll = (root: HTMLElement, selector: string): HTMLElement[] => {
 const findCard = (el: HTMLElement): HTMLElement | null => {
   let node: HTMLElement | null = el.parentNode;
   for (let depth = 0; node && depth < MAX_CARD_DEPTH; depth++) {
-    if (["BODY", "HTML"].includes(node.tagName)) return null;
-    if (node.querySelector("a[href]") && node.querySelector("img")) return node;
+    if (['BODY', 'HTML'].includes(node.tagName)) return null;
+    if (node.querySelector('a[href]') && node.querySelector('img')) return node;
     node = node.parentNode;
   }
   return null;
@@ -51,8 +46,8 @@ const findCard = (el: HTMLElement): HTMLElement | null => {
 const productHrefs = (card: HTMLElement): string[] => [
   ...new Set(
     card
-      .querySelectorAll("a[href]")
-      .map((a) => a.getAttribute("href")!)
+      .querySelectorAll('a[href]')
+      .map((a) => a.getAttribute('href')!)
       .filter((href) => !NON_PRODUCT_HREF.test(href)),
   ),
 ];
@@ -65,17 +60,17 @@ const productHrefs = (card: HTMLElement): string[] => [
 const pickLink = (card: HTMLElement): string | undefined => {
   const hrefs = productHrefs(card);
   const productLinks = new Set(
-    hrefs.filter((href) => /\/product/i.test(href)).map((href) => href.split("?")[0]),
+    hrefs.filter((href) => /\/product/i.test(href)).map((href) => href.split('?')[0]),
   );
   if (productLinks.size > 1) return undefined;
   return hrefs.find((href) => /\/product/i.test(href)) ?? hrefs[0];
 };
 
 const pickName = (card: HTMLElement, linkTitle?: string | null): string | null =>
-  card.querySelector("h1, h2, h3, h4, h5, h6")?.text.trim() ||
+  card.querySelector('h1, h2, h3, h4, h5, h6')?.text.trim() ||
   card.querySelector('[class*="title"]')?.text.trim() ||
   linkTitle?.trim() ||
-  card.querySelector("img")?.getAttribute("alt")?.trim() ||
+  card.querySelector('img')?.getAttribute('alt')?.trim() ||
   null;
 
 /** The sale price is the first price after the struck-through one. */
@@ -94,7 +89,7 @@ const pickNewPrice = (card: HTMLElement, struck: HTMLElement, oldPrice: number) 
 };
 
 const pickImage = (card: HTMLElement, baseUrl: string): string | null => {
-  for (const img of card.querySelectorAll("img")) {
+  for (const img of card.querySelectorAll('img')) {
     const url = extractImageUrl(img, baseUrl);
     if (url) return url;
   }
@@ -106,7 +101,7 @@ const pickImage = (card: HTMLElement, baseUrl: string): string | null => {
  * through prices and reads everything else from the surrounding card.
  */
 export class HeuristicStrategy implements ExtractionStrategy {
-  readonly name = "heuristic" as const;
+  readonly name = 'heuristic' as const;
   readonly authoritative = false;
 
   isApplicable(): boolean {
@@ -115,7 +110,7 @@ export class HeuristicStrategy implements ExtractionStrategy {
 
   async extract(ctx: StrategyContext): Promise<RawSaleItem[]> {
     const doc = await ctx.loadHtml();
-    if (!doc) throw new Error("No HTML returned");
+    if (!doc) throw new Error('No HTML returned');
 
     const root = parse(doc.html);
     const cards = new Map<HTMLElement, HTMLElement>();
@@ -137,9 +132,9 @@ export class HeuristicStrategy implements ExtractionStrategy {
       if (newPrice === null || !href) continue;
 
       const linkTitle = card
-        .querySelectorAll("a[href]")
-        .find((a) => a.getAttribute("href") === href)
-        ?.getAttribute("title");
+        .querySelectorAll('a[href]')
+        .find((a) => a.getAttribute('href') === href)
+        ?.getAttribute('title');
 
       items.push({
         name: pickName(card, linkTitle),

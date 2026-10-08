@@ -8,7 +8,6 @@
  */
 
 import bcrypt from 'bcryptjs';
-import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 import type { UserRepository } from '../domain/User';
 import {
@@ -16,29 +15,55 @@ import {
   UnauthorizedError,
   NotFoundError,
   ConflictError,
-  ForbiddenError,
 } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
 import { AUTH } from '../../../core/config';
-import { generateTokens, sessionStore, ticketStore, jwtConfig } from '../../../core/middleware/auth';
+import {
+  issueSession,
+  signAccessToken,
+  sessionStore,
+  ticketStore,
+  verifyRefreshToken,
+} from '../../../core/auth';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
-const CredentialsSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 64;
+const PASSWORD_MIN = 8;
+/** bcrypt ignores everything past 72 bytes, so longer passwords are rejected instead of truncated. */
+const PASSWORD_MAX_BYTES = 72;
+const LOGIN_PASSWORD_MAX = 1024;
+
+const usernameRule = z
+  .string()
+  .min(USERNAME_MIN, `Username must be at least ${USERNAME_MIN} characters`)
+  .max(USERNAME_MAX, `Username must be at most ${USERNAME_MAX} characters`);
+
+const passwordRule = z
+  .string()
+  .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`)
+  .refine((p) => Buffer.byteLength(p, 'utf8') <= PASSWORD_MAX_BYTES, {
+    message: `Password must be at most ${PASSWORD_MAX_BYTES} bytes`,
+  });
+
+const RegisterSchema = z.object({ username: usernameRule, password: passwordRule });
+
+/** Login stays lenient so accounts created under older rules keep working. */
+const LoginSchema = z.object({
+  username: z.string().min(1, 'Username is required').max(USERNAME_MAX),
+  password: z.string().min(1, 'Password is required').max(LOGIN_PASSWORD_MAX),
 });
 
 export const UpdateProfileSchema = z
   .object({
-    username: z.string().min(1, 'Username must not be empty').optional(),
-    password: z.string().min(1, 'Password must not be empty').optional(),
+    username: usernameRule.optional(),
+    password: passwordRule.optional(),
     passwordConfirmation: z.string().optional(),
   })
-  .refine(
-    (d) => d.username !== undefined || d.password !== undefined,
-    { message: 'No fields provided' },
-  );
+  .refine((d) => d.username !== undefined || d.password !== undefined, {
+    message: 'No fields provided',
+  });
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
@@ -47,7 +72,7 @@ export class RegisterUseCase {
 
   async execute(input: unknown): Promise<{ id: number; username: string }> {
     const { username, password } = parseOrThrow(
-      CredentialsSchema,
+      RegisterSchema,
       input,
       'Username and password are required',
     );
@@ -65,7 +90,7 @@ export class LoginUseCase {
 
   async execute(input: unknown): Promise<{ accessToken: string; refreshToken: string }> {
     const { username, password } = parseOrThrow(
-      CredentialsSchema,
+      LoginSchema,
       input,
       'Username and password are required',
     );
@@ -75,9 +100,7 @@ export class LoginUseCase {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    const tokens = generateTokens({ id: user.id, username: user.username, role: user.role });
-    sessionStore.save(user.id, tokens.refreshToken);
-    return tokens;
+    return issueSession({ id: user.id, username: user.username, role: user.role });
   }
 }
 
@@ -88,9 +111,7 @@ export class GuestLoginUseCase {
     const guest = await this.repo.findByUsername('guest');
     if (!guest) throw new NotFoundError('Guest user');
 
-    const tokens = generateTokens({ id: guest.id, username: guest.username, role: guest.role });
-    sessionStore.save(guest.id, tokens.refreshToken);
-    return tokens;
+    return issueSession({ id: guest.id, username: guest.username, role: guest.role });
   }
 }
 
@@ -98,33 +119,23 @@ export class RefreshTokenUseCase {
   execute(refreshToken: string | undefined): string {
     if (!refreshToken) throw new UnauthorizedError('Refresh token required');
 
-    const userId = sessionStore.findUser(refreshToken);
-    if (!userId) throw new ForbiddenError('Invalid refresh token');
-
-    try {
-      const decoded = jwt.verify(refreshToken, jwtConfig.JWT_REFRESH_SECRET as Secret) as {
-        id: number;
-        username: string;
-        role: string;
-      };
-
-      if (decoded.id !== userId) throw new ForbiddenError('Invalid refresh token');
-
-      const payload = { id: decoded.id, username: decoded.username, role: decoded.role };
-      const signOptions: SignOptions = { expiresIn: jwtConfig.JWT_EXPIRATION as SignOptions['expiresIn'] };
-
-      return jwt.sign(payload, jwtConfig.JWT_SECRET as Secret, signOptions);
-    } catch {
-      throw new ForbiddenError('Invalid refresh token');
+    const claims = verifyRefreshToken(refreshToken);
+    if (!claims || !sessionStore.has(claims.id, claims.sid)) {
+      throw new UnauthorizedError('Invalid refresh token');
     }
+
+    return signAccessToken(
+      { id: claims.id, username: claims.username, role: claims.role },
+      claims.sid,
+    );
   }
 }
 
 export class LogoutUseCase {
   execute(refreshToken: string | undefined): void {
     if (!refreshToken) return;
-    const userId = sessionStore.findUser(refreshToken);
-    if (userId) sessionStore.invalidate(userId, refreshToken);
+    const claims = verifyRefreshToken(refreshToken, { ignoreExpiration: true });
+    if (claims) sessionStore.end(claims.id, claims.sid);
   }
 }
 
@@ -151,6 +162,11 @@ export class UpdateProfileUseCase {
       }
       updateFields['password'] = await bcrypt.hash(fields.password, AUTH.BCRYPT_SALT_ROUNDS);
       delete updateFields['passwordConfirmation'];
+    }
+
+    if (fields.username !== undefined) {
+      const taken = await this.repo.findByUsername(fields.username);
+      if (taken && taken.id !== userId) throw new ConflictError('Username already exists');
     }
 
     const updated = await this.repo.update(userId, updateFields);

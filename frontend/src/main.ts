@@ -1,7 +1,10 @@
+import { devToken } from "./devToken";
 import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import { IonicVue } from "@ionic/vue";
+import { pinia } from "./stores/pinia";
+import { connectSessionToTransport, setLoginRedirect } from "./stores/session";
 
 /* Ionic & Theme CSS */
 import "@ionic/vue/css/core.css";
@@ -15,12 +18,16 @@ import "@ionic/vue/css/text-transformation.css";
 import "@ionic/vue/css/flex-utils.css";
 import "@ionic/vue/css/display.css";
 import "@ionic/vue/css/palettes/dark.class.css";
+import "./theme/fonts";
 import "./theme/variables.css";
 import "./theme/custom.css";
 import "./theme/scrollbar.css";
 
 /* Services */
 import Utils from "./utils/utils";
+import TokenUtils from "./utils/tokenUtils";
+import { applyInitialTheme } from "./theme/darkMode";
+import { registerServiceWorker } from "./pwa";
 import localizationService from "@/services/general/LocalizationService";
 
 /**
@@ -36,9 +43,7 @@ for (const path in localeLoaders) {
 
   if (match) {
     const localeKey = match[1];
-    localizationService.registerLoader(localeKey, () =>
-      loader().then((mod) => mod.default),
-    );
+    localizationService.registerLoader(localeKey, () => loader().then((mod) => mod.default));
   }
 }
 
@@ -49,28 +54,33 @@ for (const path in localeLoaders) {
  */
 async function initializeApp() {
   document.title = Utils.getAppTitle();
-  const app = createApp(App).use(IonicVue).use(router);
+  if (devToken) await TokenUtils.setToken(devToken);
+  await applyInitialTheme();
+  connectSessionToTransport(pinia);
+  // Once the local session is gone: leave for the login screen and reload so no
+  // account data survives in memory. Nothing to do when already there.
+  setLoginRedirect(async () => {
+    if (router.currentRoute.value.name === "login") return;
+    await router.replace({ name: "login" });
+    window.location.reload();
+  });
+
+  const app = createApp(App).use(IonicVue).use(pinia).use(router);
 
   // We provide the service globally
   app.config.globalProperties.$i18n = localizationService;
 
   // We create a global helper that explicitly depends on the reactive locale
-  app.config.globalProperties.$t = (
-    key: string,
-    vars?: any,
-    fallback?: string,
-  ) => {
+  app.config.globalProperties.$t = (key: string, vars?: any, fallback?: string) => {
     // Accessing .value here registers this function in Vue's dependency tracker
-    const _ = localizationService.locale.value;
+    void localizationService.locale.value;
     return localizationService.t(key, vars, fallback);
   };
 
-  await Promise.all([
-    router.isReady(),
-    localizationService.resolveInitialLocale(),
-  ]);
+  await Promise.all([router.isReady(), localizationService.resolveInitialLocale()]);
 
   app.mount("#app");
+  void registerServiceWorker();
 }
 
 initializeApp();

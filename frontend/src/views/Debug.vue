@@ -16,44 +16,25 @@
       <ion-grid class="ion-no-padding">
         <ion-row>
           <ion-col size="6">
-            <ion-button
-              expand="block"
-              fill="outline"
-              color="success"
-              @click="showToastSuccess"
-            >
+            <ion-button expand="block" fill="outline" color="success" @click="showToastSuccess">
               <ion-icon slot="start" :icon="checkmarkCircleOutline"></ion-icon>
               Success
             </ion-button>
           </ion-col>
           <ion-col size="6">
-            <ion-button
-              expand="block"
-              fill="outline"
-              color="danger"
-              @click="showToastError"
-            >
+            <ion-button expand="block" fill="outline" color="danger" @click="showToastError">
               <ion-icon slot="start" :icon="alertCircleOutline"></ion-icon>
               Error
             </ion-button>
           </ion-col>
           <ion-col size="6">
-            <ion-button
-              expand="block"
-              fill="outline"
-              @click="showToastLineBreak"
-            >
+            <ion-button expand="block" fill="outline" @click="showToastLineBreak">
               <ion-icon slot="start" :icon="checkmarkCircleOutline"></ion-icon>
               Toast w/ Multi-line
             </ion-button>
           </ion-col>
           <ion-col size="6">
-            <ion-button
-              expand="block"
-              fill="outline"
-              color="medium"
-              @click="dismissToast"
-            >
+            <ion-button expand="block" fill="outline" color="medium" @click="dismissToast">
               <ion-icon slot="start" :icon="trashOutline"></ion-icon>
               Dismiss All Toasts
             </ion-button>
@@ -103,11 +84,7 @@
             </ion-button>
           </ion-col>
           <ion-col size="6">
-            <ion-button
-              expand="block"
-              color="light"
-              @click="simulateOfflineSave"
-            >
+            <ion-button expand="block" color="light" @click="simulateOfflineSave">
               <ion-icon slot="start" :icon="saveOutline"></ion-icon>
               Save Offline
             </ion-button>
@@ -135,20 +112,11 @@
             <label for="file-id" class="custom-file-label">
               {{ selectedFile ? selectedFile.name : "Select Image..." }}
             </label>
-            <ion-button
-              :disabled="!selectedFile"
-              @click="uploadImage"
-              size="small"
-            >
+            <ion-button :disabled="!selectedFile" @click="uploadImage" size="small">
               <ion-icon slot="icon-only" :icon="cloudUploadOutline"></ion-icon>
             </ion-button>
           </div>
-          <ion-button
-            expand="block"
-            fill="clear"
-            size="small"
-            @click="copyClipboard"
-          >
+          <ion-button expand="block" fill="clear" size="small" @click="copyClipboard">
             <ion-icon slot="start" :icon="copyOutline"></ion-icon>
             Copy Sample Text
           </ion-button>
@@ -161,12 +129,7 @@
           <ion-icon slot="start" :icon="trashOutline"></ion-icon>
           Clear Logs
         </ion-button>
-        <ion-item
-          v-for="(l, idx) in logs"
-          :key="idx"
-          lines="full"
-          class="log-item"
-        >
+        <ion-item v-for="(l, idx) in logs" :key="idx" lines="full" class="log-item">
           <ion-label>
             <div class="log-header">
               <span class="log-timestamp">{{ l.timestamp }}</span>
@@ -221,9 +184,8 @@ import {
 } from "ionicons/icons";
 
 import ToastService from "@/services/general/ToastService";
-import UserService from "@/services/UserService";
-import PlantService from "@/services/PlantService";
-import ApiUtils from "@/utils/apiUtils";
+import { useSessionStore } from "@/stores/session";
+import { usePlantsStore } from "@/stores/plants";
 import StorageService from "@/services/general/StorageService";
 
 export default defineComponent({
@@ -271,10 +233,7 @@ export default defineComponent({
   },
   methods: {
     pushLog(title: string, payload: any) {
-      const p =
-        typeof payload === "string"
-          ? payload
-          : JSON.stringify(payload, null, 2);
+      const p = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
       this.logs.unshift({
         title,
         payload: p,
@@ -337,7 +296,7 @@ export default defineComponent({
     async loginSample() {
       try {
         const creds = { username: "demo@demo.com", password: "password" };
-        const res = await UserService.login(creds);
+        const res = await useSessionStore().login(creds);
         this.pushLog("Auth: Login", res);
         ToastService.showSuccess("Logged in (debug)");
       } catch (err) {
@@ -348,7 +307,7 @@ export default defineComponent({
 
     async logout() {
       try {
-        await UserService.logout();
+        await useSessionStore().logout();
         this.pushLog("Auth: Logout", "ok");
         ToastService.addToast({ message: "Logged out", color: "medium" });
       } catch (err) {
@@ -358,7 +317,8 @@ export default defineComponent({
 
     async getPlants() {
       try {
-        const res = await PlantService.getAllPlants();
+        await usePlantsStore().ensureLoaded({ force: true });
+        const res = usePlantsStore().items;
         this.pushLog("Get Plants", res);
       } catch (err) {
         this.pushLog("Get Plants Error", err);
@@ -372,7 +332,8 @@ export default defineComponent({
 
     async triggerApiError() {
       try {
-        await ApiUtils.get("/api/debug/trigger-error");
+        // A plant that cannot exist: the request fails with a 404.
+        await usePlantsStore().fetchOne(-1);
       } catch (err) {
         this.pushLog("API Error (expected)", err);
         ToastService.showError("API error triggered");
@@ -395,8 +356,7 @@ export default defineComponent({
       this.pushLog("Upload Image", { name: this.selectedFile.name });
       ToastService.showSuccess("Image uploaded (debug)");
       this.selectedFile = null;
-      if (this.$refs.fileInput)
-        (this.$refs.fileInput as HTMLInputElement).value = "";
+      if (this.$refs.fileInput) (this.$refs.fileInput as HTMLInputElement).value = "";
     },
 
     async copyClipboard() {

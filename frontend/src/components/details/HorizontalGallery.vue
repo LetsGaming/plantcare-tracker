@@ -1,47 +1,63 @@
 <template>
-  <div class="gallery-container">
-    <div class="gallery" ref="gallery">
-      <div
-        v-for="(image, index) in sortedImages"
-        :key="index"
-        class="gallery-item"
-      >
-        <ion-img
-          :src="image.url"
-          alt="Gallery image"
-          class="gallery-image"
-          @click="enlargeImage(image)"
-          @ion-error="($event) => ($event.target.src = '/no-image.png')"
-        />
-        <div v-if="image.date" class="image-date">{{ image.date }}</div>
-      </div>
-    </div>
+  <section class="gallery-section" :aria-labelledby="headingId">
+    <h2 :id="headingId" class="gallery-heading">{{ t("plantdetail.photos_title") }}</h2>
 
-    <!-- Use Ion Modal -->
+    <state-block
+      v-if="sortedImages.length === 0"
+      kind="empty"
+      class="gallery-empty"
+      :title="t('plantdetail.no_photos_title')"
+      :message="t('plantdetail.no_photos_message')"
+      :action-label="showEditButton ? t('plantdetail.upload_first') : ''"
+      @action="$emit('upload-click')"
+    />
+
+    <ul v-else class="gallery">
+      <li v-for="image in sortedImages" :key="image.id" class="gallery-item">
+        <button type="button" class="gallery-open" @click="enlargeImage(image)">
+          <span class="gallery-image">
+            <progressive-image
+              :src="image.url"
+              :alt="altFor(image)"
+              :seed="`${plantName}:${image.id}`"
+            />
+          </span>
+          <span v-if="image.date" class="image-date">{{ captionFor(image) }}</span>
+        </button>
+      </li>
+    </ul>
+
     <ImageModal
       v-if="enlargedImage"
       :isOpen="isModalVisible"
       :imageUrl="enlargedImage.url"
-      :label="enlargedImage.date"
+      :label="captionFor(enlargedImage)"
       :showEditButton="showEditButton"
       @close="closeModal"
       @editClick="editClick"
     />
-  </div>
+  </section>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonImg } from "@ionic/vue";
+import { mapState } from "pinia";
 import ImageModal from "../images/ImageModal.vue";
-import UserService from "@/services/UserService";
+import ProgressiveImage from "@/components/ProgressiveImage.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
+import { useSessionStore } from "@/stores/session";
+import localizationService from "@/services/general/LocalizationService";
+import { formatDisplayDate } from "@/utils/localDate";
+
+let galleryCount = 0;
 
 export default defineComponent({
   name: "HorizontalGallery",
-  emits: ["edit-click"],
+  emits: ["edit-click", "upload-click"],
   components: {
-    IonImg,
     ImageModal,
+    ProgressiveImage,
+    StateBlock,
   },
   props: {
     images: {
@@ -52,27 +68,42 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** Used in the alt text of each photo. */
+    plantName: {
+      type: String,
+      default: "",
+    },
   },
   data() {
     return {
       enlargedImage: null as Image | null,
       isModalVisible: false,
-      showEditButton: false,
+      headingId: `gallery-heading-${++galleryCount}`,
     };
   },
   computed: {
-    sortedImages() {
-      return [...this.images].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
+    ...mapState(useSessionStore, ["isGuest"]),
+    showEditButton(): boolean {
+      return !this.isPublic && !this.isGuest;
+    },
+    /** Newest photo first. */
+    sortedImages(): Image[] {
+      return [...this.images].sort((a, b) => b.date_millis - a.date_millis || b.id - a.id);
     },
   },
-  async mounted() {
-    await this.setShowEdit();
-  },
   methods: {
-    async setShowEdit() {
-      this.showEditButton = !this.isPublic && !(await UserService.isGuest());
+    t(key: string, vars?: Record<string, string | number>) {
+      return localizationService.t(key, vars, key);
+    },
+    captionFor(image: Image): string {
+      if (!image.date_millis) return image.date;
+      return formatDisplayDate(image.date_millis, localizationService.getLocale());
+    },
+    altFor(image: Image): string {
+      return this.t("plantdetail.gallery_alt", {
+        name: this.plantName,
+        date: this.captionFor(image),
+      });
     },
     enlargeImage(image: Image) {
       this.enlargedImage = image;
@@ -95,49 +126,69 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.gallery-container {
-  display: flex;
-  justify-content: center;
-  padding: 10px;
-  overflow: hidden; /* Prevent overflow */
+.gallery-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.gallery-heading {
+  font-size: var(--text-lg);
 }
 
 .gallery {
   display: flex;
-  overflow-x: auto; /* Allow horizontal scrolling */
-  scroll-behavior: smooth; /* Enables smooth scrolling */
-  white-space: nowrap; /* Prevent items from wrapping */
-  padding: 10px 0;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
 }
 
 .gallery-item {
-  position: relative;
-  margin: 0 5px; /* Adjust spacing between items */
-  flex: 0 0 auto; /* Prevent flex items from shrinking */
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.gallery-open {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .gallery-image {
-  width: 350px; /* Adjust the width of images */
-  height: 300px; /* Adjust the height of images */
-  border-radius: 10px; /* Modern rounded corners */
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); /* Shadow effect */
-  cursor: pointer; /* Pointer cursor for clickable images */
-}
-
-.gallery-image::part(image) {
-  width: 350px;
-  height: 300px;
-  object-fit: cover;
+  display: block;
+  width: 168px;
+  height: 168px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
 }
 
 .image-date {
-  position: absolute;
-  bottom: 5px;
-  left: 5px;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 5px;
-  border-radius: 5px;
-  font-size: 24px;
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+
+.gallery-empty {
+  margin: 0;
+  max-width: none;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+@media (min-width: 900px) {
+  .gallery-image {
+    width: 148px;
+    height: 148px;
+  }
 }
 </style>

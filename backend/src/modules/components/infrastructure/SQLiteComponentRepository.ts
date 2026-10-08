@@ -1,11 +1,6 @@
-import { query, execute } from "../../../core/database/db";
-import type {
-  ComponentData,
-  FinenessLevel,
-  ComponentRepository,
-} from "../domain/Component";
-
-type SqlParam = string | number | boolean | null;
+import { getKysely } from '../../../core/database/db';
+import { toPublicImageUrl } from '../../../core/config';
+import type { ComponentData, FinenessLevel, ComponentRepository } from '../domain/Component';
 
 interface ComponentRow {
   component_id: number;
@@ -17,75 +12,79 @@ interface ComponentRow {
   upload_date: number | null;
 }
 
-// ── Base query using consolidated images ───────────────────────────────
-const BASE_QUERY = `
-  SELECT
-    c.id AS component_id, c.name AS component_name,
-    c.fineness_id, fl.name AS fineness_name,
-    img.id AS image_id, img.image_url, img.upload_date
-  FROM components c
-  JOIN fineness_levels fl ON c.fineness_id = fl.id
-  LEFT JOIN images img ON img.entity_type = 'component' AND img.entity_id = c.id
-`;
+const componentRows = () =>
+  getKysely()
+    .selectFrom('components as c')
+    .innerJoin('fineness_levels as fl', 'c.fineness_id', 'fl.id')
+    .leftJoin('images as img', (join) =>
+      join.onRef('img.entity_id', '=', 'c.id').on('img.entity_type', '=', 'component'),
+    )
+    .select([
+      'c.id as component_id',
+      'c.name as component_name',
+      'c.fineness_id',
+      'fl.name as fineness_name',
+      'img.id as image_id',
+      'img.image_url',
+      'img.upload_date',
+    ]);
 
 export class SQLiteComponentRepository implements ComponentRepository {
   async findAll(): Promise<ComponentData[]> {
-    const rows = query<ComponentRow>(`${BASE_QUERY} ORDER BY c.name`);
+    const rows = await componentRows()
+      .orderBy('c.name')
+      .orderBy('img.upload_date')
+      .orderBy('img.id')
+      .execute();
     return this.groupRows(rows);
   }
 
   async findById(id: number): Promise<ComponentData | null> {
-    const rows = query<ComponentRow>(`${BASE_QUERY} WHERE c.id = ?`, [id]);
-    const result = this.groupRows(rows);
-    return result[0] ?? null;
+    const rows = await componentRows()
+      .where('c.id', '=', id)
+      .orderBy('img.upload_date')
+      .orderBy('img.id')
+      .execute();
+    return this.groupRows(rows)[0] ?? null;
   }
 
   async findFinenessLevels(): Promise<FinenessLevel[]> {
-    const rows = query<{ id: number; name: string }>(
-      "SELECT id, name FROM fineness_levels",
-    );
+    const rows = await getKysely().selectFrom('fineness_levels').select(['id', 'name']).execute();
     return rows.map((r) => ({ fineness_id: r.id, fineness_name: r.name }));
   }
 
   async create(name: string, finenessId: number): Promise<number> {
-    const result = execute(
-      "INSERT INTO components (name, fineness_id) VALUES (?, ?)",
-      [name, finenessId],
-    );
-    return result.insertId as number;
+    const result = await getKysely()
+      .insertInto('components')
+      .values({ name, fineness_id: finenessId })
+      .executeTakeFirstOrThrow();
+    return Number(result.insertId);
   }
 
-  async update(
-    id: number,
-    fields: { name?: string; fineness?: number },
-  ): Promise<boolean> {
-    const updates: string[] = [];
-    const params: SqlParam[] = [];
-
-    if (fields.name !== undefined) {
-      updates.push("name = ?");
-      params.push(fields.name);
-    }
+  async update(id: number, fields: { name?: string; fineness?: number }): Promise<boolean> {
+    const changes: { name?: string; fineness_id?: number } = {};
+    if (fields.name !== undefined) changes.name = fields.name;
     if (fields.fineness !== undefined && Number.isInteger(fields.fineness) && fields.fineness > 0) {
-      updates.push("fineness_id = ?");
-      params.push(fields.fineness);
+      changes.fineness_id = fields.fineness;
     }
-    if (!updates.length) return false;
+    if (!Object.keys(changes).length) return false;
 
-    params.push(id);
-    const result = execute(
-      `UPDATE components SET ${updates.join(", ")} WHERE id = ?`,
-      params,
-    );
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .updateTable('components')
+      .set(changes)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return Number(result.numUpdatedRows) > 0;
   }
 
   async delete(id: number): Promise<boolean> {
-    const result = execute("DELETE FROM components WHERE id = ?", [id]);
-    return result.affectedRows > 0;
+    const result = await getKysely()
+      .deleteFrom('components')
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return Number(result.numDeletedRows) > 0;
   }
 
-  // ── Helper: group rows into ComponentData ───────────────────────────
   private groupRows(rows: ComponentRow[]): ComponentData[] {
     const map = new Map<number, ComponentData>();
 
@@ -103,13 +102,9 @@ export class SQLiteComponentRepository implements ComponentRepository {
       const c = map.get(row.component_id)!;
 
       if (row.image_id && !c.images.find((i) => i.id === row.image_id)) {
-        const imageRef = {
-          id: row.image_id,
-          url: row.image_url ?? "",
-          date: row.upload_date ?? 0,
-        };
-        c.images.push(imageRef);
-        c.image_url = row.image_url ?? null;
+        const url = row.image_url ? toPublicImageUrl(row.image_url) : '';
+        c.images.push({ id: row.image_id, url, date: row.upload_date ?? 0 });
+        c.image_url = url || null;
       }
     }
 

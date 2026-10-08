@@ -4,7 +4,7 @@
  * Tests for the components application layer (ComponentUseCases).
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComponentRepository } from '../../../src/modules/components/domain/Component';
 import {
   GetAllComponentsUseCase,
@@ -14,11 +14,7 @@ import {
   UpdateComponentUseCase,
   DeleteComponentUseCase,
 } from '../../../src/modules/components/application/ComponentUseCases';
-import {
-  NotFoundError,
-  ValidationError,
-  InternalError,
-} from '../../../src/core/errors';
+import { NotFoundError, ValidationError, InternalError } from '../../../src/core/errors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -82,9 +78,9 @@ describe('CreateComponentUseCase', () => {
 
   it('throws ValidationError for a missing name', async () => {
     const repo = makeMockRepo();
-    await expect(
-      new CreateComponentUseCase(repo).execute({ fineness: 1 }),
-    ).rejects.toThrow(ValidationError);
+    await expect(new CreateComponentUseCase(repo).execute({ fineness: 1 })).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('throws InternalError when the created component cannot be read back', async () => {
@@ -115,18 +111,31 @@ describe('UpdateComponentUseCase', () => {
   it('throws NotFoundError when the update matched nothing', async () => {
     const repo = makeMockRepo();
     asMock(repo.update).mockResolvedValue(false);
-    await expect(
-      new UpdateComponentUseCase(repo).execute(999, { name: 'x' }),
-    ).rejects.toThrow(NotFoundError);
+    await expect(new UpdateComponentUseCase(repo).execute(999, { name: 'x' })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 });
 
 // ── DeleteComponentUseCase ────────────────────────────────────────────────────
 
 describe('DeleteComponentUseCase', () => {
+  const images = { removeAll: vi.fn().mockResolvedValue(undefined) };
+  beforeEach(() => images.removeAll.mockClear());
+
   it('throws NotFoundError when nothing was deleted', async () => {
     const repo = makeMockRepo();
     asMock(repo.delete).mockResolvedValue(false);
-    await expect(new DeleteComponentUseCase(repo).execute(999)).rejects.toThrow(NotFoundError);
+    await expect(new DeleteComponentUseCase(repo, images).execute(999)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(images.removeAll).not.toHaveBeenCalled();
+  });
+
+  it('removes the images of a deleted component', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.delete).mockResolvedValue(true);
+    await new DeleteComponentUseCase(repo, images).execute(7);
+    expect(images.removeAll).toHaveBeenCalledWith('component', 7);
   });
 });

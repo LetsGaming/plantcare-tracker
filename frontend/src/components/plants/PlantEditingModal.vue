@@ -7,25 +7,23 @@
     :submitLabel="t('plant.edit.submit')"
     :formData="editPlantData"
     :formFields="formFields"
-    :extraContentComponent="SubstrateContainer"
-    :extraContentData="{ substrate: selectedSubstrate }"
     :deleteHandler="onDelete"
+    :deleteLabel="plant.name"
+    :deleteConsequence="t('modal2.plant_delete_consequence')"
     @submit="submit"
     @close="$emit('close')"
   />
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType, watch } from "vue";
+import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
-import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "PlantEditingModal",
   components: {
     BaseFormModal,
-    SubstrateContainer,
   },
   emits: ["close", "save", "delete"],
   props: {
@@ -46,9 +44,6 @@ export default defineComponent({
       required: true,
     },
   },
-  setup() {
-    return { SubstrateContainer };
-  },
   data() {
     return {
       editPlantData: {
@@ -60,13 +55,16 @@ export default defineComponent({
     };
   },
 
+  created() {
+    this.resetFromPlant();
+  },
+
   watch: {
-    plant: {
-      immediate: true,
-      deep: true,
-      handler()  {
-        this.resetFromPlant();
-      },
+    isOpen(open: boolean) {
+      if (open) this.resetFromPlant();
+    },
+    "plant.id"() {
+      this.resetFromPlant();
     },
   },
 
@@ -77,11 +75,17 @@ export default defineComponent({
           type: "input",
           modelKey: "name",
           label: "plant.field.name",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "input",
           modelKey: "species",
           label: "plant.field.species",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "select",
@@ -92,6 +96,7 @@ export default defineComponent({
             value: s.id,
             label: s.name,
           })),
+          required: true,
         },
         {
           type: "radio",
@@ -104,12 +109,6 @@ export default defineComponent({
           defaultValue: Boolean(this.plant.isPublic),
         },
       ];
-    },
-
-    selectedSubstrate() {
-      return this.substrates.find(
-        (s) => s.id === this.editPlantData.substrateId,
-      );
     },
   },
 
@@ -131,7 +130,7 @@ export default defineComponent({
         name: this.plant.name,
         species: this.plant.species,
         substrateId: this.plant.substrate?.id,
-        isPublic: this.plant.isPublic
+        isPublic: this.plant.isPublic,
       };
     },
   },

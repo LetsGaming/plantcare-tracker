@@ -16,15 +16,15 @@ export default defineComponent({
   },
   methods: {
     t(key: string | undefined, vars?: Record<string, string>, fallback?: string) {
-      return localizationService.t(key || '', vars, fallback || key || '');
-    }
+      return localizationService.t(key || "", vars, fallback || key || "");
+    },
   },
 });
 </script>
 <style scoped>
 .info-note {
   display: block;
-  font-size: 12px;
-  color: red;
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
 }
 </style>

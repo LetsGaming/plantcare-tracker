@@ -10,66 +10,21 @@
  * storage.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
+import { createTestingPinia } from "@pinia/testing";
 
-// ── Hoisted service spies ────────────────────────────────────────────────────
-
-const spies = vi.hoisted(() => ({
-  // WateringService
-  getWateringRecords: vi.fn(async (): Promise<unknown[]> => []),
-  getFertilizerTypes: vi.fn(async (): Promise<unknown[]> => []),
-  addWateringRecord: vi.fn(),
-  editWateringRecord: vi.fn(),
-  deleteWateringRecord: vi.fn(),
-  // PlantService
-  getPersonalPlants: vi.fn(async (): Promise<unknown[]> => []),
-  getPublicPlants: vi.fn(async (): Promise<unknown[]> => []),
-  addPlant: vi.fn(),
-  // Substrate/Component/User/Calendar helpers used during mount
-  getAllSubstrates: vi.fn(async (): Promise<unknown[]> => []),
-  isGuest: vi.fn(async () => false),
-  getWateringCategories: vi.fn(async (): Promise<unknown[]> => []),
-}));
-
-vi.mock("@/services/WateringService", () => ({
-  default: {
-    getWateringRecords: spies.getWateringRecords,
-    getFertilizerTypes: spies.getFertilizerTypes,
-    addWateringRecord: spies.addWateringRecord,
-    editWateringRecord: spies.editWateringRecord,
-    deleteWateringRecord: spies.deleteWateringRecord,
-  },
-  WateringEvents: {
-    RECORDS_CHANGED: "watering-records-changed",
-    FERTILIZER_TYPES_CHANGED: "fertilizer-types-changed",
-  },
-}));
-
-vi.mock("@/services/PlantService", () => ({
-  default: {
-    getPersonalPlants: spies.getPersonalPlants,
-    getPublicPlants: spies.getPublicPlants,
-    addPlant: spies.addPlant,
-  },
-  PlantEvents: { PLANTS_UPDATED: "plants-updated" },
-}));
-
-vi.mock("@/services/SubstrateService", () => ({
-  default: { getAllSubstrates: spies.getAllSubstrates },
-  SubstrateEvents: { SUBSTRATES_UPDATED: "substrates-updated" },
-}));
-
-vi.mock("@/services/UserService", () => ({
-  default: { isGuest: spies.isGuest },
-}));
-
-vi.mock("@/services/CalendarService", () => ({
-  default: { getWateringCategories: spies.getWateringCategories },
+vi.mock("@/stores/session", () => ({
+  useSessionStore: () => ({ isGuest: false, userId: 1 }),
 }));
 
 vi.mock("@/services/general/ToastService", () => ({
-  default: { showError: vi.fn(), showSuccess: vi.fn(), showWarning: vi.fn() },
+  default: {
+    showError: vi.fn(),
+    showSuccess: vi.fn(),
+    showWarning: vi.fn(),
+    showToastWithAction: vi.fn(),
+  },
 }));
 
 vi.mock("@/services/general/LocalizationService", () => ({
@@ -78,6 +33,8 @@ vi.mock("@/services/general/LocalizationService", () => ({
 
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import PlantOverview from "@/views/plants/PlantOverview.vue";
+import { usePlantsStore } from "@/stores/plants";
+import { useWateringStore } from "@/stores/watering";
 
 const record = (id: number, millis: number) => ({
   id,
@@ -88,122 +45,145 @@ const record = (id: number, millis: number) => ({
   usedFertilizer: false,
 });
 
-beforeEach(() => {
-  Object.values(spies).forEach((s) => s.mockClear());
-  spies.getWateringRecords.mockResolvedValue([]);
-  spies.getPersonalPlants.mockResolvedValue([]);
-  spies.getPublicPlants.mockResolvedValue([]);
-});
-
 // ── WateringRecords component ────────────────────────────────────────────────
 
-describe("WateringRecords — event-driven re-derivation", () => {
-  it("re-derives from the getter on RECORDS_CHANGED without calling mutations", async () => {
-    spies.getWateringRecords.mockResolvedValue([record(1, 1_700_000_000_000)]);
+const mountRecords = (records: unknown[] = []) => {
+  const pinia = createTestingPinia({ createSpy: vi.fn });
+  const store = useWateringStore(pinia);
+  store.byPlantId = { 1: records as WateringRecord[] };
+  const wrapper = shallowMount(WateringRecords, {
+    props: { plantId: 1 },
+    global: { plugins: [pinia] },
+  });
+  return { wrapper, store };
+};
 
-    const wrapper = shallowMount(WateringRecords, {
-      props: { plantId: 1 },
-    });
+describe("WateringRecords: store-driven records", () => {
+  it("loads through the store on mount and repaints when the store changes", async () => {
+    const { wrapper, store } = mountRecords([record(1, 1_700_000_000_000)]);
     await flushPromises();
 
-    // mounted() loaded once through the getter
-    expect(spies.getWateringRecords).toHaveBeenCalledTimes(1);
-    expect(spies.getWateringRecords).toHaveBeenCalledWith(1);
+    expect(store.ensureRecords).toHaveBeenCalledWith(1);
+    expect(store.ensureFertilizerTypes).toHaveBeenCalled();
     expect((wrapper.vm as any).records).toHaveLength(1);
 
-    // A service paint (optimistic add elsewhere) fires the event…
-    spies.getWateringRecords.mockResolvedValue([
-      record(1, 1_700_000_000_000),
-      record(-5, Date.now()),
-    ]);
-    document.dispatchEvent(new CustomEvent("watering-records-changed"));
+    // an optimistic paint elsewhere shows up without any event
+    store.byPlantId[1].push(record(-5, Date.now()) as WateringRecord);
     await flushPromises();
-
-    // …and the component re-derives via the getter only.
-    expect(spies.getWateringRecords).toHaveBeenCalledTimes(2);
     expect((wrapper.vm as any).records).toHaveLength(2);
-    expect(spies.addWateringRecord).not.toHaveBeenCalled();
-    expect(spies.editWateringRecord).not.toHaveBeenCalled();
-    expect(spies.deleteWateringRecord).not.toHaveBeenCalled();
-
-    // Listener is removed on unmount — further events are ignored.
+    expect(store.addRecord).not.toHaveBeenCalled();
+    expect(store.editRecord).not.toHaveBeenCalled();
+    expect(store.deleteRecord).not.toHaveBeenCalled();
     wrapper.unmount();
-    document.dispatchEvent(new CustomEvent("watering-records-changed"));
-    await flushPromises();
-    expect(spies.getWateringRecords).toHaveBeenCalledTimes(2);
   });
 
-  it("closes the add modal immediately and lets the event repaint (optimistic)", async () => {
-    const wrapper = shallowMount(WateringRecords, {
-      props: { plantId: 1 },
-    });
+  it("offers no fertilizer first, then the fertilizer types from the store", async () => {
+    const { wrapper, store } = mountRecords([record(1, Date.now() - 2 * 86_400_000)]);
+    store.fertilizerTypes = [{ id: 2, name: "synthetic" }] as FertilizerType[];
+    await flushPromises();
+    expect((wrapper.vm as any).fertilizerOptions.map((o: { value: number }) => o.value)).toEqual([
+      -1, 2,
+    ]);
+    wrapper.unmount();
+  });
+
+  it("keeps the form open and pending until the request settles, then closes it", async () => {
+    const { wrapper, store } = mountRecords();
     await flushPromises();
 
     let resolveAdd!: (value: unknown) => void;
-    spies.addWateringRecord.mockReturnValue(
+    vi.mocked(store.addRecord).mockReturnValue(
       new Promise((res) => {
         resolveAdd = res;
-      }),
+      }) as never,
     );
 
-    (wrapper.vm as any).showAddingModal = true;
-    const pending = (wrapper.vm as any).addRecord({
-      date: undefined,
-      usedFertilizer: false,
-      fertilizerTypeId: -1,
-    });
+    (wrapper.vm as any).openAdd();
+    const pending = (wrapper.vm as any).submitDraft({ date: 1_700_000_000_000 });
     await flushPromises();
 
-    // Modal is closed before the request settles — the optimistic paint
-    // has already updated the calendar through RECORDS_CHANGED.
-    expect((wrapper.vm as any).showAddingModal).toBe(false);
-    expect(spies.addWateringRecord).toHaveBeenCalledTimes(1);
+    expect((wrapper.vm as any).showModal).toBe(true);
+    expect((wrapper.vm as any).isSaving).toBe(true);
+    expect(store.addRecord).toHaveBeenCalledWith(1, {
+      date: 1_700_000_000_000,
+      usedFertilizer: false,
+      fertilizerTypeId: undefined,
+    });
 
     resolveAdd(record(15, Date.now()));
     await pending;
+    expect((wrapper.vm as any).showModal).toBe(false);
+    expect((wrapper.vm as any).isSaving).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("keeps the form open with the draft when saving fails", async () => {
+    const { wrapper, store } = mountRecords();
+    await flushPromises();
+    vi.mocked(store.addRecord).mockRejectedValue(new Error("offline"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    (wrapper.vm as any).openAdd();
+    await (wrapper.vm as any).submitDraft({ date: 1_700_000_000_000 });
+
+    expect((wrapper.vm as any).showModal).toBe(true);
+    expect((wrapper.vm as any).isSaving).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("maps records to local day keys and fertilizer markers", async () => {
+    const day = new Date(2026, 4, 3, 23, 30).getTime();
+    const { wrapper } = mountRecords([
+      { ...record(1, day), usedFertilizer: false },
+      { ...record(2, day + 86_400_000), usedFertilizer: true, fertilizerTypeId: 2 },
+    ]);
+    await flushPromises();
+    expect(
+      (wrapper.vm as any).mappedRecords.map((d: CalendarDates) => [d.date, d.category.name]),
+    ).toEqual([
+      ["2026-05-03", "watering.category.no_fertilizer"],
+      ["2026-05-04", "watering.category.organic"],
+    ]);
     wrapper.unmount();
   });
 });
 
 // ── PlantOverview view ───────────────────────────────────────────────────────
 
-describe("PlantOverview — event-driven re-derivation", () => {
-  it("re-derives the private segment from the getter on PLANTS_UPDATED", async () => {
-    const wrapper = shallowMount(PlantOverview);
-    await flushPromises();
+const mountOverview = () => {
+  const pinia = createTestingPinia({ createSpy: vi.fn });
+  const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
+  return { wrapper, store: usePlantsStore(pinia) };
+};
 
-    // No ionViewWillEnter in the test harness → nothing loaded yet.
+const plant = (id: number, userId: number, isPublic: boolean) =>
+  ({ id, userId, name: `plant ${id}`, isPublic }) as Plant;
+
+describe("PlantOverview: store-driven lists", () => {
+  it("shows the active segment's plants and repaints when the store changes", async () => {
+    const { wrapper, store } = mountOverview();
+    await flushPromises();
     expect((wrapper.vm as any).plants).toEqual([]);
 
-    spies.getPersonalPlants.mockResolvedValue([
-      { id: -100, name: "optimistic", isPublic: false },
-    ]);
-    document.dispatchEvent(new CustomEvent("plants-updated"));
+    store.items = [plant(1, 1, false), plant(2, 1, true), plant(3, 9, true)];
     await flushPromises();
+    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2]);
 
-    expect(spies.getPersonalPlants).toHaveBeenCalledTimes(1);
-    // default segment is "private" — the public getter is never used
-    expect(spies.getPublicPlants).not.toHaveBeenCalled();
-    expect((wrapper.vm as any).plants).toEqual([
-      { id: -100, name: "optimistic", isPublic: false },
-    ]);
+    // an optimistic paint elsewhere shows up without any event or refetch
+    store.items.push(plant(-100, 1, false));
+    await flushPromises();
+    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2, -100]);
 
+    (wrapper.vm as any).handleSegmentChange("public");
+    await flushPromises();
+    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([2, 3]);
     wrapper.unmount();
-    document.dispatchEvent(new CustomEvent("plants-updated"));
-    await flushPromises();
-    expect(spies.getPersonalPlants).toHaveBeenCalledTimes(1);
   });
 
   it("uses the reconciled plant id for the dependent image upload", async () => {
-    const uploadPlantImage = vi.fn(async () => ({}));
-    // augment the mocked default export for this case
-    const PlantService = (await import("@/services/PlantService")).default as any;
-    PlantService.uploadPlantImage = uploadPlantImage;
-
-    spies.addPlant.mockResolvedValue({ id: 7, name: "Monstera" });
-
-    const wrapper = shallowMount(PlantOverview);
+    const { wrapper, store } = mountOverview();
     await flushPromises();
+    vi.mocked(store.addPlant).mockResolvedValue({ id: 7, name: "Monstera" } as Plant);
 
     const image = new File(["x"], "img.jpg", { type: "image/jpeg" });
     await (wrapper.vm as any).addPlant({
@@ -214,9 +194,9 @@ describe("PlantOverview — event-driven re-derivation", () => {
     });
     await flushPromises();
 
-    // The upload received the SERVER id from the reconciled plant —
+    // The upload received the SERVER id from the reconciled plant,
     // never a raw snake_case field off the response.
-    expect(uploadPlantImage).toHaveBeenCalledWith(7, image);
+    expect(store.uploadPlantImage).toHaveBeenCalledWith(7, image);
     wrapper.unmount();
   });
 });

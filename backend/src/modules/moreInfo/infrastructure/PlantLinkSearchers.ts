@@ -16,7 +16,12 @@ const log = createModuleLogger('PlantLinkSearchers');
 
 // ── Relevance scoring ─────────────────────────────────────────────────────────
 
-const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/);
+const normalize = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .trim()
+    .split(/\s+/);
 
 const score = (query: string, url: string): number => {
   const qWords = normalize(query);
@@ -32,15 +37,23 @@ const score = (query: string, url: string): number => {
 
 const findBestMatch = (query: string, links: string[]): string | null =>
   links.reduce<{ link: string | null; score: number }>(
-    (best, link) => { const s = score(query, link); return s > best.score ? { link, score: s } : best; },
+    (best, link) => {
+      const s = score(query, link);
+      return s > best.score ? { link, score: s } : best;
+    },
     { link: null, score: 0 },
   ).link;
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
-const fetchJson = async (url: string, options?: { method?: string; data?: unknown }): Promise<unknown> => {
+const fetchJson = async (
+  url: string,
+  options?: { method?: string; data?: unknown },
+): Promise<unknown> => {
   const res = await axios({
-    url, method: options?.method ?? 'GET', data: options?.data,
+    url,
+    method: options?.method ?? 'GET',
+    data: options?.data,
     headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
     timeout: 10_000,
   });
@@ -81,12 +94,10 @@ interface ShopSearchConfig {
 }
 
 /** Candidate links from the shop's search results page. */
-const htmlSearchLinks = async (
-  config: ShopSearchConfig,
-  plantName: string,
-): Promise<string[]> => {
+const htmlSearchLinks = async (config: ShopSearchConfig, plantName: string): Promise<string[]> => {
   const root = parse(await fetchHtml(config.searchUrl(encodeURIComponent(plantName))));
-  const hrefs = root.querySelectorAll(config.selector)
+  const hrefs = root
+    .querySelectorAll(config.selector)
     .map((a) => a.getAttribute('href'))
     .filter((href): href is string => !!href && (!config.filter || config.filter(href)));
   return [...new Set(hrefs)].map((href) => resolveLink(href, config.baseUrl)!);
@@ -105,9 +116,9 @@ const suggestSearchLinks = async (
   plantName: string,
 ): Promise<string[] | null> => {
   const origin = new URL(config.baseUrl).origin;
-  const data = await fetchJson(
+  const data = (await fetchJson(
     `${origin}/search/suggest.json?q=${encodeURIComponent(plantName)}&resources[type]=product&resources[limit]=10`,
-  ) as SuggestResponse | null;
+  )) as SuggestResponse | null;
   const products = data?.resources?.results?.products;
   if (!Array.isArray(products)) return null;
   return products.map((p) => `${origin}/products/${p.handle}`);
@@ -119,7 +130,8 @@ const suggestSearchLinks = async (
  * from the HTML page carries no signal (it could be a broken selector or a
  * missing plant) and is not reported.
  */
-const shopSearcher = (config: ShopSearchConfig): Searcher =>
+const shopSearcher =
+  (config: ShopSearchConfig): Searcher =>
   async (plantName) => {
     const cacheKey = `${config.key}_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
     const cached = config.cache.get<string>(cacheKey);
@@ -144,8 +156,12 @@ const shopSearcher = (config: ShopSearchConfig): Searcher =>
         const result = findBestMatch(plantName, links);
         config.cache.set(cacheKey, result ?? '', 86_400);
         config.health?.record({
-          key: healthKey, seller: config.seller, kind: 'search',
-          strategy, usedFallback: index > 0, itemCount: links.length,
+          key: healthKey,
+          seller: config.seller,
+          kind: 'search',
+          strategy,
+          usedFallback: index > 0,
+          itemCount: links.length,
           error: failures.join('; ') || null,
         });
         return result;
@@ -157,8 +173,12 @@ const shopSearcher = (config: ShopSearchConfig): Searcher =>
     if (failures.length === attempts.length) {
       log.warn(`[${config.key}] search failed`, { failures });
       config.health?.record({
-        key: healthKey, seller: config.seller, kind: 'search',
-        strategy: null, usedFallback: false, itemCount: 0,
+        key: healthKey,
+        seller: config.seller,
+        kind: 'search',
+        strategy: null,
+        usedFallback: false,
+        itemCount: 0,
         error: failures.join('; '),
       });
     }
@@ -167,59 +187,82 @@ const shopSearcher = (config: ShopSearchConfig): Searcher =>
 
 // ── API-based searchers ───────────────────────────────────────────────────────
 
-const wikipediaSearcher = (cache: CacheService): Searcher =>
+const wikipediaSearcher =
+  (cache: CacheService): Searcher =>
   async (plantName) => {
     const cacheKey = `wikipedia_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
     const cached = cache.get<string>(cacheKey);
     if (cached !== undefined) return cached;
     try {
-      const data = await fetchJson(
+      const data = (await fetchJson(
         `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(plantName)}&format=json`,
-      ) as { query?: { search?: { title: string }[] } };
-      const links = (data.query?.search ?? []).map((r) => `https://en.wikipedia.org/wiki/${r.title.replace(/ /g, '_')}`);
+      )) as { query?: { search?: { title: string }[] } };
+      const links = (data.query?.search ?? []).map(
+        (r) => `https://en.wikipedia.org/wiki/${r.title.replace(/ /g, '_')}`,
+      );
       const result = findBestMatch(plantName, links);
       cache.set(cacheKey, result ?? '', 86_400);
       return result;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
-const gbifSearcher = (cache: CacheService): Searcher =>
+const gbifSearcher =
+  (cache: CacheService): Searcher =>
   async (plantName) => {
     const cacheKey = `gbif_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
     const cached = cache.get<string>(cacheKey);
     if (cached !== undefined) return cached;
     try {
-      const data = await fetchJson(
+      const data = (await fetchJson(
         `https://api.gbif.org/v1/species/search?q=${encodeURIComponent(plantName)}&limit=5`,
-      ) as { results?: { species: string; nubKey?: number }[] };
+      )) as { results?: { species: string; nubKey?: number }[] };
       const results = data.results ?? [];
-      const bestName = findBestMatch(plantName, results.map((r) => r.species));
+      const bestName = findBestMatch(
+        plantName,
+        results.map((r) => r.species),
+      );
       const match = results.find((r) => r.species === bestName);
       const result = match?.nubKey ? `https://www.gbif.org/species/${match.nubKey}` : null;
       cache.set(cacheKey, result ?? '', 86_400);
       return result;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
-const rhsSearcher = (cache: CacheService): Searcher =>
+const rhsSearcher =
+  (cache: CacheService): Searcher =>
   async (plantName) => {
     const cacheKey = `rhs_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
     const cached = cache.get<string>(cacheKey);
     if (cached !== undefined) return cached;
     try {
-      const data = await fetchJson(
+      const data = (await fetchJson(
         'https://lwapp-uks-prod-psearch-01.azurewebsites.net/api/v1/plants/search/advanced',
-        { method: 'POST', data: { startFrom: 0, pageSize: 20, keywords: plantName, includeAggregation: true } },
-      ) as { hits?: { id: string; botanicalName: string }[] };
-      const hits = (data.hits ?? []).map((h) => ({ id: h.id, name: h.botanicalName.replace(/<[^>]+>/g, '').trim() }));
-      const bestName = findBestMatch(plantName, hits.map((h) => h.name));
+        {
+          method: 'POST',
+          data: { startFrom: 0, pageSize: 20, keywords: plantName, includeAggregation: true },
+        },
+      )) as { hits?: { id: string; botanicalName: string }[] };
+      const hits = (data.hits ?? []).map((h) => ({
+        id: h.id,
+        name: h.botanicalName.replace(/<[^>]+>/g, '').trim(),
+      }));
+      const bestName = findBestMatch(
+        plantName,
+        hits.map((h) => h.name),
+      );
       const best = hits.find((h) => h.name === bestName);
       const result = best
         ? `https://www.rhs.org.uk/plants/${best.id}/${best.name.replace(/ /g, '-').toLowerCase()}/details`
         : null;
       cache.set(cacheKey, result ?? '', 86_400);
       return result;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
 // ── Registry factory ──────────────────────────────────────────────────────────
@@ -228,18 +271,43 @@ export const createPlantLinkSearchers = (
   cache: CacheService,
   health?: SourceHealthReporter,
 ): Searcher[] => [
-  shopSearcher({ key: 'jungleLeaves', seller: 'Jungle Leaves', baseUrl: 'https://www.jungle-leaves.de', cache, health,
+  shopSearcher({
+    key: 'jungleLeaves',
+    seller: 'Jungle Leaves',
+    baseUrl: 'https://www.jungle-leaves.de',
+    cache,
+    health,
     searchUrl: (q) => `https://www.jungle-leaves.de/search?type=product&q=${q}`,
-    selector: 'product-card a.product-card-title' }),
-  shopSearcher({ key: 'harmonyPlants', seller: 'Harmony Plants', baseUrl: 'https://www.harmony-plants.com', cache, health,
+    selector: 'product-card a.product-card-title',
+  }),
+  shopSearcher({
+    key: 'harmonyPlants',
+    seller: 'Harmony Plants',
+    baseUrl: 'https://www.harmony-plants.com',
+    cache,
+    health,
     searchUrl: (q) => `https://www.harmony-plants.com/search?type=product&q=${q}`,
-    selector: '.card-information__text' }),
-  shopSearcher({ key: 'foliageDreams', seller: 'Foliage Dreams', baseUrl: 'https://www.foliagedreams.com', cache, health,
+    selector: '.card-information__text',
+  }),
+  shopSearcher({
+    key: 'foliageDreams',
+    seller: 'Foliage Dreams',
+    baseUrl: 'https://www.foliagedreams.com',
+    cache,
+    health,
     searchUrl: (q) => `https://www.foliagedreams.com/search?q=${q}`,
-    selector: '.grid-product__link' }),
-  shopSearcher({ key: 'whiteLeafPlants', seller: 'White Leaf Plants', baseUrl: 'https://www.whiteleafplants.com', cache, health,
+    selector: '.grid-product__link',
+  }),
+  shopSearcher({
+    key: 'whiteLeafPlants',
+    seller: 'White Leaf Plants',
+    baseUrl: 'https://www.whiteleafplants.com',
+    cache,
+    health,
     searchUrl: (q) => `https://www.whiteleafplants.com/search?q=${q}`,
-    selector: '.card-title', filter: (h) => !h.includes('author') }),
+    selector: '.card-title',
+    filter: (h) => !h.includes('author'),
+  }),
   wikipediaSearcher(cache),
   gbifSearcher(cache),
   rhsSearcher(cache),

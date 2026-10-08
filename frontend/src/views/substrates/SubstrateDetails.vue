@@ -1,24 +1,58 @@
 <template>
   <ion-page>
     <details-header
-      :show-edit-button="!isPublic"
+      :show-edit-button="!isPublic && !!substrate"
       @edit-click="showEditModal = true"
-      :show-upload-button="!isPublic"
+      :show-upload-button="!isPublic && !!substrate"
       @upload-click="toggleUpload"
-      default-href="/tabs/substrates"
+      default-back-href="/tabs/substrates"
     ></details-header>
 
     <ion-content>
-      <div v-if="substrate">
-        <details-banner
-          :banner-title="substrate.name"
-          :image-url="substrate.imageUrl"
-        />
+      <pull-refresher :handler="refresh" />
 
-        <section class="substrate-info align-middle">
+      <div v-if="substrate" class="detail-column">
+        <detail-hero
+          :title="substrate.name"
+          :image-url="substrate.imageUrl"
+          :image-alt="t('subdetail.image_alt', { name: substrate.name })"
+          kind="substrate"
+          :is-public="substrate.isPublic"
+        >
+          <span v-if="substrate.created_at">
+            {{ t("subdetail.created", { date: substrate.created_at }) }}
+          </span>
+        </detail-hero>
+
+        <div class="detail-body">
           <SubstrateContainer :substrate="substrate"></SubstrateContainer>
-        </section>
+        </div>
       </div>
+
+      <state-block
+        v-else-if="phase === 'loading'"
+        kind="loading"
+        :title="t('subdetail.loading')"
+        :skeletons="2"
+      />
+      <state-block
+        v-else-if="phase === 'not-found'"
+        kind="not-found"
+        placeholder-kind="substrate"
+        :title="t('state.not_found_title')"
+        :message="t('state.not_found_message')"
+        :action-label="t('state.back_to_list')"
+        @action="goToList"
+      />
+      <state-block
+        v-else
+        kind="error"
+        placeholder-kind="substrate"
+        :title="t('state.error_title')"
+        :message="t('state.error_message')"
+        :action-label="t('state.retry')"
+        @action="reload"
+      />
 
       <ImageUploadModal
         :is-open="showUploadModal"
@@ -45,13 +79,19 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonPage, IonContent } from "@ionic/vue";
-import SubstrateService, { SubstrateEvents } from "@/services/SubstrateService";
-import ComponentService from "@/services/ComponentService";
+import { mapActions, mapState } from "pinia";
+import { useSubstratesStore } from "@/stores/substrates";
+import { useComponentsStore } from "@/stores/components";
+import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { finenessLabel } from "@/utils/enumLabels";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
-import DetailsBanner from "@/components/details/DetailsBanner.vue";
+import DetailHero from "@/components/ui/DetailHero.vue";
+import PullRefresher from "@/components/ui/PullRefresher.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
+import { LoadPhase, phaseFromError } from "@/utils/loadPhase";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import SubstrateEditingModal from "@/components/substrates/SubstrateEditingModal.vue";
@@ -62,7 +102,9 @@ export default defineComponent({
     IonPage,
     IonContent,
     DetailsHeader,
-    DetailsBanner,
+    DetailHero,
+    StateBlock,
+    PullRefresher,
     SubstrateContainer,
     ImageUploadModal,
     SubstrateEditingModal,
@@ -73,78 +115,75 @@ export default defineComponent({
   },
   data() {
     return {
-      substrate: null as null | Substrate,
-      availableComponents: [] as SubstrateComponent[],
       showUploadModal: false,
       showEditModal: false,
       isLoading: false, // For image upload
       isSubmitting: false, // For substrate editing
+      phase: "loading" as LoadPhase,
     };
   },
   computed: {
+    ...mapState(useSubstratesStore, ["byId"]),
+    ...mapState(useSessionStore, ["userId"]),
+    ...mapState(useComponentsStore, { allComponents: "items" }),
+    /** This page's substrate, straight from the store so every update repaints it. */
+    substrate(): Substrate | null {
+      return this.byId(this.substrateId) ?? null;
+    },
+    availableComponents(): SubstrateComponent[] {
+      return this.allComponents
+        .map((comp: Component) => ({
+          ...comp,
+          description: finenessLabel(comp.fineness),
+          parts: 0,
+        }))
+        .sort((a: SubstrateComponent, b: SubstrateComponent) =>
+          a.name.localeCompare(b.name, localizationService.getLocale()),
+        );
+    },
     substrateId(): number {
       return Number.parseInt(this.id);
     },
     isPublic(): boolean {
-      return this.public === "1";
+      return this.substrate ? this.substrate.userId !== this.userId : this.public === "1";
     },
   },
-  async mounted() {
-    document.addEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
-    await Promise.all([this.fetchSubstrate(), this.fetchAvailableComponents()]);
-  },
-
-  beforeUnmount() {
-    document.removeEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
+  async ionViewWillEnter() {
+    await this.reload();
   },
   methods: {
+    ...mapActions(useSubstratesStore, {
+      loadSubstrate: "getSubstrate",
+      saveSubstrateComponents: "editSubstrateComponents",
+      saveSubstrate: "editSubstrate",
+      removeSubstrate: "deleteSubstrate",
+      uploadSubstrateImage: "uploadSubstrateImage",
+    }),
+    ...mapActions(useComponentsStore, { ensureComponentsLoaded: "ensureLoaded" }),
+
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
 
-    async fetchSubstrate(forceUpdate = false) {
-      try {
-        this.substrate = await SubstrateService.getSubstrateById(
-          this.substrateId,
-          forceUpdate,
-        );
-      } catch (error) {
-        console.error("Error fetching substrate:", error);
+    async reload(forceUpdate = false) {
+      if (!this.substrate) this.phase = "loading";
+      const [substrateResult] = await Promise.allSettled([
+        this.loadSubstrate(this.substrateId, forceUpdate),
+        this.ensureComponentsLoaded(),
+      ]);
+      if (substrateResult.status === "rejected") {
+        this.phase = phaseFromError(substrateResult.reason);
+        return;
       }
+      this.phase = this.substrate ? "ready" : "not-found";
     },
 
-    /**
-     * Reacts to SUBSTRATES_UPDATED (the service writes server truth into
-     * the cache after every mutation). Re-derives this page's substrate
-     * from the cache — never triggers a network call.
-     */
-    async handleSubstratesUpdated() {
-      const substrates = await SubstrateService.getAllSubstrates();
-      this.substrate =
-        substrates.find((sub) => sub.id === this.substrateId) ?? null;
+    refresh() {
+      return this.reload(true);
     },
 
-    async fetchAvailableComponents() {
-      try {
-        const response = await ComponentService.getAllComponents();
-        this.availableComponents = response
-          .map((comp: Component) => ({
-            ...comp,
-            description: comp.fineness || "",
-            parts: 0,
-          }))
-          .sort((a: SubstrateComponent, b: SubstrateComponent) =>
-            a.name.localeCompare(b.name),
-          );
-      } catch (error) {
-        console.error("Error fetching available components:", error);
-      }
+    goToList() {
+      this.$router.replace({ name: "substrate-overview" });
     },
 
     toggleUpload() {
@@ -169,15 +208,8 @@ export default defineComponent({
 
       this.isSubmitting = true;
       try {
-        // The service upserts the server-confirmed substrate into the
-        // cache; this page re-derives via SUBSTRATES_UPDATED.
-        await this.updateSubstrate(
-          metaChanged,
-          componentsChanged,
-          meta,
-          componentIds,
-          parts,
-        );
+        // The store upserts the server-confirmed substrate; this page repaints from it.
+        await this.updateSubstrate(metaChanged, componentsChanged, meta, componentIds, parts);
         this.showEditModal = false;
       } catch (error) {
         // handleRequest has already shown the error toast.
@@ -197,10 +229,7 @@ export default defineComponent({
     },
 
     /** Check if component list changed */
-    haveComponentsChanged(
-      componentIds: number[],
-      parts: Record<number, number>,
-    ): boolean {
+    haveComponentsChanged(componentIds: number[], parts: Record<number, number>): boolean {
       const currentComps = this.sortedComponents(componentIds, parts);
       const oldComps = this.sortedComponentsFromSubstrate();
       return JSON.stringify(currentComps) !== JSON.stringify(oldComps);
@@ -232,7 +261,7 @@ export default defineComponent({
 
       if (componentsChanged) {
         tasks.push(
-          SubstrateService.editSubstrateComponents(
+          this.saveSubstrateComponents(
             this.substrate?.id || -1,
             this.sortedComponents(componentIds, parts),
           ),
@@ -241,9 +270,9 @@ export default defineComponent({
 
       if (metaChanged) {
         tasks.push(
-          SubstrateService.editSubstrate(this.substrate?.id || -1, {
+          this.saveSubstrate(this.substrate?.id || -1, {
             name: meta.name,
-            isPublic: meta.isPublic
+            isPublic: meta.isPublic,
           }),
         );
       }
@@ -262,10 +291,10 @@ export default defineComponent({
     async handleSubstrateDelete(id: number) {
       try {
         this.isSubmitting = true;
-        await SubstrateService.deleteSubstrate(id);
+        await this.removeSubstrate(id);
         ToastService.showSuccess({ key: "substrate.deleted" });
         this.showEditModal = false;
-        this.$router.push({ name: "substrate-overview" });
+        this.$router.replace({ name: "substrate-overview" });
       } catch (error) {
         // handleRequest has already shown the error toast.
         console.error("Substrate delete failed:", error);
@@ -278,13 +307,8 @@ export default defineComponent({
       if (!this.substrate) return;
       try {
         this.isLoading = true;
-        // uploadSubstrateImage refreshes this substrate's cache entry
-        // itself; the page re-renders via SUBSTRATES_UPDATED.
-        await SubstrateService.uploadSubstrateImage(
-          this.substrate.id,
-          fileItem.file,
-          fileItem.date,
-        );
+        // The store refreshes this substrate itself; the page re-renders from it.
+        await this.uploadSubstrateImage(this.substrate.id, fileItem.file, fileItem.date);
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);
@@ -297,55 +321,14 @@ export default defineComponent({
 </script>
 
 <style scoped>
-:root {
-  --background-color: var(--ion-color-light);
-  --card-background-color: var(--ion-color-white);
-  --header-background-color: var(--ion-color-light-tint);
-  --text-color: var(--ion-color-dark);
-  --detail-text-color: var(--ion-color-medium);
-  --accent-color: var(--ion-color-primary);
-}
-
-.substrate-banner {
-  position: relative;
+.detail-column {
   width: 100%;
-  height: 500px;
-  overflow: hidden;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-bottom: var(--space-6);
 }
 
-.substrate-banner-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.substrate-banner-content {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.5); /* Dark overlay for readability */
-  color: white;
-  text-align: left;
-}
-
-.substrate-name {
-  font-size: 2rem;
-  font-weight: bold;
-  margin: 0;
-}
-
-.substrate-type {
-  font-size: 1.2rem;
-  margin-top: 5px;
-}
-
-.substrate-info {
-  padding: 20px;
-  background: var(--card-background-color);
-  border-radius: 16px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-  transition: background 0.3s ease;
+.detail-body {
+  padding: var(--space-5) var(--space-4) 0;
 }
 </style>

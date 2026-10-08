@@ -1,22 +1,25 @@
 <template>
-  <div class="field-wrapper">
-    <IonItem>
-      <IonLabel>{{ translateLabel() }}</IonLabel>
-      <IonToggle v-model="localValue" />
-    </IonItem>
-    <RequiredNote v-if="field.required" />
+  <div class="switch-field">
+    <div class="switch-box">
+      <IonToggle v-model="localValue" justify="space-between" @ionBlur="$emit('blur')">
+        {{ translateLabel() }}
+      </IonToggle>
+    </div>
+    <FieldError :id="messageId" :message="error" />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonItem, IonLabel, IonToggle } from "@ionic/vue";
-import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import { IonToggle } from "@ionic/vue";
+import FieldError from "@/components/formcomponent/FieldError.vue";
+import { fieldErrorProp, nextFieldId } from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SwitchFieldComponent",
-  components: { IonItem, IonLabel, IonToggle, RequiredNote },
+  emits: ["update:modelValue", "blur"],
+  components: { IonToggle, FieldError },
   props: {
     field: {
       type: Object as () => SwitchField,
@@ -26,6 +29,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    ...fieldErrorProp,
+  },
+  data() {
+    return { messageId: nextFieldId("field-msg") };
   },
   computed: {
     localValue: {
@@ -39,18 +46,30 @@ export default defineComponent({
   },
   methods: {
     translateLabel(): string {
-      return localizationService.t(
-        this.field.label,
-        undefined,
-        this.field.label
-      );
+      return localizationService.t(this.field.label, undefined, this.field.label);
     },
   },
 });
 </script>
 
 <style scoped>
-.field-wrapper {
-  margin-bottom: 16px;
+.switch-field {
+  margin-bottom: var(--space-4);
+}
+
+.switch-box {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.switch-box ion-toggle {
+  width: 100%;
+  font-weight: 600;
 }
 </style>

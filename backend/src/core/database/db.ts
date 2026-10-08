@@ -1,192 +1,79 @@
 /**
  * src/core/database/db.ts
  *
- * SQLite connection wrapper using better-sqlite3.
+ * SQLite connection and Kysely instance.
  *
- * Design decisions for performance & correctness:
+ *  - WAL mode lets reads proceed while a write is in progress.
+ *  - synchronous NORMAL is safe with WAL and faster than FULL.
+ *  - foreign_keys must be enabled per connection.
+ *  - One connection per process: better-sqlite3 is synchronous, so a pool
+ *    would only add overhead.
  *
- *  • WAL mode       — allows concurrent reads while a write is in progress.
- *                     Best choice for a web server with frequent reads.
- *  • synchronous NORMAL — safe with WAL (a crash cannot corrupt the DB);
- *                         faster than FULL while still durable on power-loss.
- *  • foreign_keys ON  — enforced at connection open; required every session.
- *  • cache_size 64 MB — reduces I/O for repeated scans of the same pages.
- *  • temp_store MEMORY — aggregates / sorts done in RAM, not temp files.
- *  • Singleton pattern — one Database instance per process (better-sqlite3
- *    is NOT async; keeping one connection avoids per-request open overhead).
- *
- * Query helper API — the only surface repositories are allowed to use:
- *
- *   query(sql, params?)   → rows[]   (SELECT)
- *   execute(sql, params?) → { affectedRows, insertId }  (INSERT/UPDATE/DELETE)
- *   transaction(fn)       → wraps fn in BEGIN/COMMIT, rolls back on throw
+ * `initDatabase()` applies pending migrations and must complete before the
+ * app serves requests. Repositories use `getKysely()`; the raw handle
+ * (`getSqlite()`) is for health checks and the synchronous source-health
+ * store.
  */
 
 import BetterSqlite3 from 'better-sqlite3';
-import type { Database as BetterSqlite3DB } from 'better-sqlite3';
+import type { Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { Kysely, SqliteDialect } from 'kysely';
+import { Migrator } from 'kysely/migration';
 import { logger } from '../logging';
+import { getConfig } from '../config';
+import type { Database } from './schema';
+import { migrationProvider } from './migrations';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+let sqlite: SqliteDatabase | null = null;
+let kysely: Kysely<Database> | null = null;
 
-export type SqlParam = string | number | boolean | null | Buffer;
+const IN_MEMORY = ':memory:';
 
-export interface RunResult {
-  affectedRows: number;
-  insertId: number;
-}
-
-// ── Singleton ─────────────────────────────────────────────────────────────────
-
-let _instance: BetterSqlite3DB | null = null;
-
-function openDb(): BetterSqlite3DB {
-  const dbPath = process.env.DB_PATH
-    ? path.resolve(process.env.DB_PATH)
-    : path.resolve(process.cwd(), 'data', 'plantcare.db');
-
-  // Ensure the directory exists
-  const dbDir = path.dirname(dbPath);
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
+const openSqlite = (): SqliteDatabase => {
+  const { dbPath } = getConfig();
+  if (dbPath !== IN_MEMORY) fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const db = new BetterSqlite3(dbPath);
-
-  // Performance & safety PRAGMAs (applied once per connection)
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
-  db.pragma('cache_size = -64000');   // 64 MB
+  db.pragma('cache_size = -64000'); // 64 MB
   db.pragma('temp_store = MEMORY');
   db.pragma('mmap_size = 134217728'); // 128 MB memory-mapped I/O
 
   logger.debug(`SQLite database opened at ${dbPath}`);
   return db;
-}
+};
 
-/**
- * Returns the singleton SQLite database instance, opening it on first call.
- */
-export function getDb(): BetterSqlite3DB {
-  if (!_instance) {
-    _instance = openDb();
-    initSchema(_instance);
-    ensureSchemaExtensions(_instance);
-  }
-  return _instance;
-}
+/** The raw better-sqlite3 connection, opened on first use. */
+export const getSqlite = (): SqliteDatabase => (sqlite ??= openSqlite());
 
-/**
- * Tables added after the base schema shipped. initSchema only runs on a fresh
- * database, so these idempotent statements run on every boot to reach
- * existing installs as well.
- */
-function ensureSchemaExtensions(db: BetterSqlite3DB): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS scrape_source_health (
-      source_key           TEXT PRIMARY KEY,
-      kind                 TEXT NOT NULL CHECK (kind IN ('sales', 'search')),
-      seller               TEXT NOT NULL,
-      status               TEXT NOT NULL CHECK (status IN ('ok', 'degraded', 'failing', 'unknown')),
-      active_strategy      TEXT,
-      last_item_count      INTEGER,
-      consecutive_failures INTEGER NOT NULL DEFAULT 0,
-      last_success_at      TEXT,
-      last_failure_at      TEXT,
-      last_error           TEXT,
-      updated_at           TEXT NOT NULL
-    );
-  `);
-}
+/** The typed query builder over the shared connection. */
+export const getKysely = (): Kysely<Database> =>
+  (kysely ??= new Kysely<Database>({ dialect: new SqliteDialect({ database: getSqlite() }) }));
 
-/**
- * Applies the schema SQL only when the database has never been initialised
- * (i.e. the `users` table does not yet exist in sqlite_master).
- * All CREATE TABLE statements use IF NOT EXISTS, but skipping the exec on
- * subsequent boots avoids unnecessary I/O and prevents re-running any seed
- * INSERT statements that may be present in the schema file.
- */
-function initSchema(db: BetterSqlite3DB): void {
-  const schemaPath = path.resolve(process.cwd(), 'database', 'database-v3-sqlite.sql');
-  if (!fs.existsSync(schemaPath)) {
-    logger.warn(`Schema file not found at ${schemaPath} — skipping auto-init`);
-    return;
-  }
+/** Applies every pending migration to the given database. Throws when one fails. */
+export const applyMigrations = async (db: Kysely<Database>): Promise<string[]> => {
+  const migrator = new Migrator({ db, provider: migrationProvider });
+  const { error, results } = await migrator.migrateToLatest();
+  if (error) throw error instanceof Error ? error : new Error(String(error));
+  return (results ?? []).filter((r) => r.status === 'Success').map((r) => r.migrationName);
+};
 
-  // Check whether the DB has already been initialised by looking for a known table.
-  const tableExists = (db.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
-  ).get() as { name: string } | undefined);
+/** Brings the process database up to date; must finish before requests are served. */
+export const initDatabase = async (): Promise<void> => {
+  for (const name of await applyMigrations(getKysely())) logger.info(`Applied migration ${name}`);
+};
 
-  if (tableExists) {
-    logger.debug('SQLite schema already initialised — skipping');
-    return;
-  }
-
-  const schema = fs.readFileSync(schemaPath, 'utf-8');
-  db.exec(schema);
-  logger.debug('SQLite schema initialised');
-}
-
-/**
- * Closes the database connection gracefully.
- * Call this during process shutdown (SIGTERM / SIGINT).
- */
-export function closeDb(): void {
-  if (_instance) {
-    _instance.close();
-    _instance = null;
-    logger.debug('SQLite database closed.');
-  }
-}
-
-// ── Thin helper layer ─────────────────────────────────────────────────────────
-//
-// better-sqlite3 is *synchronous*, but the repositories are still declared
-// async so that callers never need to know which driver is underneath —
-// swapping in an async driver later would not ripple through the domain
-// or application layers.
-
-/**
- * Execute a SELECT statement and return all matching rows.
- * T can be any object shape — better-sqlite3 returns plain objects,
- * so there is no RowDataPacket constraint to satisfy.
- */
-export function query<T extends object>(
-  sql: string,
-  params: SqlParam[] = [],
-): T[] {
-  const db = getDb();
-  const stmt = db.prepare(sql);
-  return stmt.all(...params) as T[];
-}
-
-/**
- * Execute an INSERT, UPDATE, or DELETE statement.
- * Returns { affectedRows, insertId } — the write-result shape every
- * repository in this codebase is written against.
- */
-export function execute(
-  sql: string,
-  params: SqlParam[] = [],
-): RunResult {
-  const db = getDb();
-  const stmt = db.prepare(sql);
-  const result = stmt.run(...params);
-  return {
-    affectedRows: result.changes,
-    insertId: Number(result.lastInsertRowid),
-  };
-}
-
-/**
- * Run multiple operations inside a single BEGIN/COMMIT transaction.
- * Automatically rolls back on any thrown error.
- */
-export function transaction<T>(fn: (helpers: { query: typeof query; execute: typeof execute }) => T): T {
-  const db = getDb();
-  const run = db.transaction(() => fn({ query, execute }));
-  return run();
-}
+/** Closes the connection; call during shutdown so the WAL is checkpointed. */
+export const closeDb = async (): Promise<void> => {
+  if (!sqlite) return;
+  // Destroying Kysely closes the underlying connection.
+  if (kysely) await kysely.destroy();
+  else sqlite.close();
+  kysely = null;
+  sqlite = null;
+  logger.debug('SQLite database closed.');
+};

@@ -20,7 +20,8 @@
  * reported as a named `error` event.
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { OutgoingHttpHeaders } from 'node:http';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SseManager } from './SseManager';
 import { createModuleLogger } from '../logging';
 
@@ -31,8 +32,8 @@ export interface SseContext {
   sse: SseManager;
   /** True once the client has disconnected; long tasks should poll this. */
   isAborted: () => boolean;
-  req: Request;
-  res: Response;
+  request: FastifyRequest;
+  reply: FastifyReply;
 }
 
 export interface SseEndpointOptions<TPrepared = void> {
@@ -47,36 +48,34 @@ export interface SseEndpointOptions<TPrepared = void> {
   doneMessage?: () => Record<string, unknown>;
   /**
    * Pre-stream step: parse and validate the request. Errors thrown here
-   * become regular JSON error responses via next(err).
+   * become regular JSON error responses.
    */
-  prepare?: (req: Request) => TPrepared;
+  prepare?: (request: FastifyRequest) => TPrepared;
   /** The endpoint's actual work. Throwing triggers the `error` event. */
   run: (ctx: SseContext, prepared: TPrepared) => Promise<void>;
 }
 
-export const createSseEndpoint = <TPrepared = void>(
-  options: SseEndpointOptions<TPrepared>,
-): RequestHandler =>
-  async (req: Request, res: Response, next): Promise<void> => {
-    let prepared: TPrepared;
-    try {
-      prepared = options.prepare
-        ? options.prepare(req)
-        : (undefined as TPrepared);
-    } catch (err) {
-      next(err);
-      return;
-    }
+export const createSseEndpoint =
+  <TPrepared = void>(options: SseEndpointOptions<TPrepared>) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    // Throws here (validation) propagate to the error handler as a normal JSON answer.
+    const prepared = options.prepare ? options.prepare(request) : (undefined as TPrepared);
+
+    // From here on the response is written by hand. Headers set by earlier
+    // hooks (CORS, request id) are carried over explicitly.
+    const inherited = reply.getHeaders() as OutgoingHttpHeaders;
+    reply.hijack();
+    const raw = reply.raw;
 
     let aborted = false;
-    req.on('close', () => {
-      aborted = true;
+    raw.on('close', () => {
+      if (!raw.writableFinished) aborted = true;
     });
 
-    const sse = new SseManager(res);
+    const sse = new SseManager(raw, inherited);
 
     try {
-      await options.run({ sse, isAborted: () => aborted, req, res }, prepared);
+      await options.run({ sse, isAborted: () => aborted, request, reply }, prepared);
 
       if (!aborted) {
         await sse.end(options.doneMessage?.());

@@ -8,7 +8,6 @@
  * duplicated between this file and moreInfo.
  */
 
-import type { RequestHandler } from 'express';
 import { FetchSalesOverview } from '../application/FetchSalesOverview';
 import type { SalesSource } from '../domain/SalesSource';
 import { createSseEndpoint } from '../../../core/sse';
@@ -17,7 +16,7 @@ import { createSseEndpoint } from '../../../core/sse';
  * Factory — sources are injected so the controller is fully testable
  * without any actual HTTP or scraping.
  */
-export const createSalesController = (sources: SalesSource[]): RequestHandler => {
+export const createSalesController = (sources: SalesSource[]) => {
   const useCase = new FetchSalesOverview(sources);
 
   return createSseEndpoint({

@@ -8,7 +8,7 @@ The `sessionStore` and `ticketStore` live in process memory. All active sessions
 
 **Impact:** Low for personal/hobby use. High for any multi-instance or frequently-restarted deployment.
 
-**Fix:** Replace with Redis. The `CacheService` interface (`src/core/cache/CacheService.ts`) is already abstracted. Add a `RedisAdapter` that implements the same `get / set / delete / flush` methods and swap it in `server.ts`.
+**Fix:** Replace the stores in `src/core/auth/sessions.ts` with a persistent implementation (Redis or a SQLite table) behind the same `sessionStore` / `ticketStore` interface (`create`, `has`, `count`, `end`, `deleteAll`; `create`, `validateAndBurn`). Nothing else depends on how sessions are stored.
 
 ---
 
@@ -36,33 +36,11 @@ Playwright launches a full Chromium browser for 5 of the 9 scrapers. The concurr
 
 ---
 
-### No Request Body Size Limit
-
-Express's `json()` middleware has no configured size limit. Large payloads are accepted.
-
-**Fix:**
-
-```typescript
-app.use(express.json({ limit: '1mb' }));
-```
-
----
-
 ## Potential Improvements
 
 ### Redis-Backed Sessions
 
-Replace the in-memory session store with Redis for persistence across restarts and horizontal scaling. The `CacheService` abstraction is already in place — only `server.ts` needs to change:
-
-```typescript
-// Replace:
-const cache = new NodeCacheAdapter();
-
-// With:
-import { createClient } from 'redis';
-const redis = createClient({ url: process.env.REDIS_URL });
-const cache = new RedisCacheAdapter(redis);
-```
+Replace the in-memory session store with a persistent one for survival across restarts and horizontal scaling. Only `src/core/auth/sessions.ts` changes; the `AUTH` limits in `core/config` stay the source of truth for session counts and lifetimes.
 
 ---
 
@@ -80,13 +58,13 @@ Winston is already configured. Adding a transport for a log aggregation service 
 
 ### Image CDN Integration
 
-Images are currently served directly from Node.js via `express.static`. For better performance, store originals in object storage (S3, MinIO, Cloudflare R2) and serve via CDN. The images module already isolates file handling behind the `ImageStorage` port (`LocalImageStorage` today) — an S3/R2 backend is a second adapter implementing the same interface; no use case or route changes required.
+Images are currently served directly from Node.js via `@fastify/static`. For better performance, store originals in object storage (S3, MinIO, Cloudflare R2) and serve via CDN. The images module already isolates file handling behind the `ImageStorage` port (`LocalImageStorage` today) — an S3/R2 backend is a second adapter implementing the same interface; no use case or route changes required.
 
 ---
 
 ### E2E Test Suite
 
-The current test suite covers unit and integration layers with a mocked database. A true E2E suite (Playwright or Supertest against a throwaway SQLite file) would catch schema drift and migration issues. Since SQLite is embedded, a temp-file database per test run replaces the container setup entirely.
+The contract suite already drives the whole app over HTTP against a real SQLite file. A browser-level E2E suite for the frontend against a running backend is still missing.
 
 ---
 
@@ -96,4 +74,4 @@ An OpenAPI 3 spec would enable automatic client SDK generation and interactive A
 
 ---
 
-← [Migration from V1](./migration.md) · [Back to index](./index.md)
+← [Deployment](./deployment.md) · [Back to index](./index.md)

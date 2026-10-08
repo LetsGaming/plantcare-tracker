@@ -1,11 +1,160 @@
+/* Global typography, surfaces and browser details. Tokens live in variables.css. */
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  background: var(--ion-background-color);
+  color: var(--ion-text-color);
+}
+
+h1,
+h2,
+h3,
+h4,
+.display {
+  font-family: var(--font-display);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--text-2xl);
+}
+
+h2 {
+  font-size: var(--text-xl);
+}
+
+h3 {
+  font-size: var(--text-lg);
+}
+
+p {
+  max-width: 68ch;
+}
+
+ion-title {
+  font-family: var(--font-display);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+ion-toolbar {
+  text-align: center;
+  --background: var(--ion-toolbar-background);
+  --border-color: var(--line);
+}
+
+/* Browser surfaces that would otherwise keep defaults */
+::selection {
+  background: rgba(var(--ion-color-primary-rgb), 0.28);
+  color: inherit;
+}
+
+input,
+textarea,
+ion-input,
+ion-textarea {
+  caret-color: var(--ion-color-primary);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+ion-button:focus-visible,
+ion-segment-button:focus-visible,
+ion-tab-button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+
+/* Controls */
+ion-button {
+  --border-radius: var(--radius-md);
+  --box-shadow: none;
+  min-height: var(--tap-min);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Ionic paints colored solid buttons from --ion-color-base, so a disabled one is re-based here. */
+ion-button.button-solid.button-disabled.ion-color.ion-color {
+  opacity: 1;
+  --ion-color-base: var(--surface-sunken) !important;
+  --ion-color-contrast: var(--ink-soft) !important;
+  --background: var(--surface-sunken);
+  --color: var(--ink-soft);
+}
+
+ion-fab-button {
+  --box-shadow: var(--shadow-lift);
+}
+
+ion-segment {
+  --background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+ion-segment-button {
+  --indicator-color: var(--surface-raised);
+  --color-checked: var(--ion-color-primary);
+  --border-radius: var(--radius-md);
+  min-height: var(--tap-min);
+  font-weight: 600;
+  text-transform: none;
+}
+
+ion-tab-bar {
+  --border: 1px solid var(--line);
+}
+
+ion-tab-button {
+  --color-selected: var(--ion-color-primary);
+  font-weight: 600;
+}
+
+ion-card {
+  width: -webkit-fill-available;
+  margin: var(--space-3) 0;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  background: var(--surface-raised);
+}
+
+ion-img::part(image) {
+  border-radius: var(--radius-sm);
+}
+
+ion-toast {
+  --white-space: pre-wrap;
+  --border-radius: var(--radius-md);
+}
+
+/* Layout helpers */
 .align-middle {
-  max-width: 750px;
-  margin: 10px auto;
+  max-width: var(--content-max);
+  margin: var(--space-3) auto;
   box-sizing: border-box;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.page-column {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
 }
 
 .align-horizontal {
@@ -13,7 +162,6 @@
 }
 
 .round-badge {
-  /* Making it round */
   width: 46px;
   height: 46px;
   display: flex;
@@ -22,37 +170,49 @@
   border-radius: 50%;
 }
 
-@media (max-width: 768px) {
-  .align-middle {
-    margin: 10px;
-  }
-}
-
-ion-card {
-  width: -webkit-fill-available;
-}
-
-ion-img::part(image) {
-  border-radius: 10px;
-}
-
-ion-icon {
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
-}
-
-ion-toolbar {
-  text-align: center;
-}
-
-ion-toast {
-  --white-space: pre-wrap;
-}
-
 .modal-card-container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100%;
+}
+
+.text-soft {
+  color: var(--ink-soft);
+}
+
+.break-words {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .align-middle {
+    margin: var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+ion-input.field-input {
+  --border-radius: var(--radius-md);
+  --border-width: 1.5px;
+  --border-color: var(--line);
+  --highlight-color-focused: var(--focus-ring);
+  --placeholder-color: var(--ink-soft);
+  --placeholder-opacity: 1;
+  min-height: var(--tap-min);
+}
+
+ion-input.field-input.field-invalid {
+  --border-color: var(--ion-color-danger);
+  --highlight-color-focused: var(--ion-color-danger);
 }

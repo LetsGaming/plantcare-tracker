@@ -10,7 +10,8 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { numericParam, type Handler } from '../../../core/middleware';
 import {
   GetAllSubstratesUseCase,
   GetSubstrateUseCase,
@@ -21,13 +22,17 @@ import {
   DeleteSubstrateUseCase,
 } from '../application/SubstrateUseCases';
 import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
-import { asyncHandler } from '../../../core/middleware';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface SubstrateListResponse { data: SubstrateData[] }
-export interface SubstrateResponse { data: SubstrateData }
+export interface SubstrateListResponse {
+  data: SubstrateData[];
+}
+export interface SubstrateResponse {
+  data: SubstrateData;
+}
 
 /**
  * HTTP handlers exposed by the substrates module.
@@ -38,82 +43,81 @@ export interface SubstrateResponse { data: SubstrateData }
  * layout (TS2883).
  */
 export interface SubstrateController {
-  getAllSubstrates: RequestHandler;
-  getSubstrate: RequestHandler;
-  addSubstrate: RequestHandler;
-  editSubstrate: RequestHandler;
-  addComponents: RequestHandler;
-  upsertComponents: RequestHandler;
-  deleteSubstrate: RequestHandler;
+  getAllSubstrates: Handler;
+  getSubstrate: Handler;
+  addSubstrate: Handler;
+  editSubstrate: Handler;
+  addComponents: Handler;
+  upsertComponents: Handler;
+  deleteSubstrate: Handler;
 }
 
-export const createSubstrateController = (repo: SubstrateRepository): SubstrateController => {
+export const createSubstrateController = (
+  repo: SubstrateRepository,
+  imageCleanup: EntityImageCleanup,
+): SubstrateController => {
   const getAll = new GetAllSubstratesUseCase(repo);
   const getOne = new GetSubstrateUseCase(repo);
   const create = new CreateSubstrateUseCase(repo);
   const update = new UpdateSubstrateUseCase(repo);
   const addComponents = new AddSubstrateComponentsUseCase(repo);
   const upsertComponents = new UpsertSubstrateComponentsUseCase(repo);
-  const remove = new DeleteSubstrateUseCase(repo);
+  const remove = new DeleteSubstrateUseCase(repo, imageCleanup);
 
   return {
-    getAllSubstrates: asyncHandler(async (req: Request, res: Response) => {
+    getAllSubstrates: async (req: FastifyRequest) => {
       const substrates = await getAll.execute(req.user?.id ?? null);
       const body: SubstrateListResponse = { data: substrates };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    getSubstrate: asyncHandler(async (req: Request, res: Response) => {
-      const substrate = await getOne.execute(Number(req.params.id));
+    getSubstrate: async (req: FastifyRequest) => {
+      const substrate = await getOne.execute(numericParam(req, 'id'), req.user?.id ?? null);
       const body: SubstrateResponse = { data: substrate };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    addSubstrate: asyncHandler(async (req: Request, res: Response) => {
+    addSubstrate: async (req: FastifyRequest, reply: FastifyReply) => {
       const substrate = await create.execute(req.body, req.user!.id);
       const body: SubstrateResponse = { data: substrate };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/substrates/${substrate.substrate_id}`)
-        .json(body);
-    }),
+      return reply
+        .code(HTTP_STATUS.CREATED)
+        .header('Location', `/substrates/${substrate.substrate_id}`)
+        .send(body);
+    },
 
-    editSubstrate: asyncHandler(async (req: Request, res: Response) => {
-      const substrate = await update.execute(
-        Number(req.params.id),
-        req.user!.id,
-        req.body,
-      );
+    editSubstrate: async (req: FastifyRequest) => {
+      const substrate = await update.execute(numericParam(req, 'id'), req.user!.id, req.body);
       const body: SubstrateResponse = { data: substrate };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    addComponents: asyncHandler(async (req: Request, res: Response) => {
+    addComponents: async (req: FastifyRequest, reply: FastifyReply) => {
       const substrate = await addComponents.execute(
-        Number(req.params.id),
+        numericParam(req, 'id'),
         req.user!.id,
         req.body,
       );
       const body: SubstrateResponse = { data: substrate };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/substrates/${substrate.substrate_id}`)
-        .json(body);
-    }),
+      return reply
+        .code(HTTP_STATUS.CREATED)
+        .header('Location', `/substrates/${substrate.substrate_id}`)
+        .send(body);
+    },
 
-    upsertComponents: asyncHandler(async (req: Request, res: Response) => {
+    upsertComponents: async (req: FastifyRequest) => {
       const substrate = await upsertComponents.execute(
-        Number(req.params.id),
+        numericParam(req, 'id'),
         req.user!.id,
         req.body,
       );
       const body: SubstrateResponse = { data: substrate };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    deleteSubstrate: asyncHandler(async (req: Request, res: Response) => {
-      await remove.execute(Number(req.params.id), req.user!.id);
-      res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    deleteSubstrate: async (req: FastifyRequest, reply: FastifyReply) => {
+      await remove.execute(numericParam(req, 'id'), req.user!.id);
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
+    },
   };
 };
