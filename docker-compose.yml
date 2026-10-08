@@ -1,0 +1,54 @@
+# PlantCare Tracker, production-style stack: nginx serving the PWA and proxying
+# the API, plus the Fastify backend with its data volume.
+#
+#   cp .env.docker.example .env      # set the two JWT secrets
+#   docker compose up -d --build
+#   open http://localhost:8080
+#
+# Only the frontend container publishes a port; the backend is reachable from
+# the frontend container only. Put a TLS-terminating reverse proxy in front of
+# the frontend for public use (see docs in backend/docs/deployment.md).
+
+name: plantcare
+
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+    volumes:
+      - plantcare-data:/data
+      - plantcare-logs:/app/logs
+    expose:
+      - "5000"
+    shm_size: 512m
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api/v2}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  plantcare-data:
+  plantcare-logs:

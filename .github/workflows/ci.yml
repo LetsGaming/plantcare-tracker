@@ -113,3 +113,120 @@ jobs:
       # both the typecheck and the production bundle.
       - name: Typecheck & production build
         run: pnpm run build
+
+  docker:
+    name: Docker (build and smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create a throwaway environment
+        run: |
+          {
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "JWT_REFRESH_SECRET=$(openssl rand -hex 32)"
+          } > .env
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Start the stack
+        run: docker compose up -d --wait --wait-timeout 240
+
+      - name: Smoke test through nginx
+        run: |
+          set -e
+          base=http://localhost:8080
+          curl -fsS "$base/healthz"
+          curl -fsS "$base/" | grep -q 'id="app"'
+          curl -fsS "$base/api/v2/health" | grep -q '"status":"ok"'
+          curl -fsS -X POST -H 'content-type: application/json' \
+            -d '{"username":"smoke-user","password":"smoke-pass-1"}' \
+            "$base/api/v2/auth/register" > /dev/null
+          token=$(curl -fsS -X POST -H 'content-type: application/json' \
+            -d '{"username":"smoke-user","password":"smoke-pass-1"}' \
+            "$base/api/v2/auth/login" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+          test -n "$token"
+          curl -fsS -H "authorization: Bearer $token" "$base/api/v2/plants" > /dev/null
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
+
+  migrate-pm2:
+    name: PM2 to Docker migration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: backend/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - name: Build the backend for the old deployment
+        working-directory: backend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Start an old style deployment under PM2
+        run: |
+          set -e
+          npm install -g pm2
+          old="$RUNNER_TEMP/old-backend"
+          mkdir -p "$old"
+          {
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "JWT_REFRESH_SECRET=$(openssl rand -hex 32)"
+            echo "DB_PATH=./data/plantcare.db"
+            echo "NAS_PATH=./uploads"
+            echo "PORT=5000"
+          } > "$old/.env"
+          (cd "$old" && set -a && . ./.env && set +a && NODE_ENV=production pm2 start "$GITHUB_WORKSPACE/backend/dist/server.js" --name plantcare-backend --cwd "$old")
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:5000/api/v2/health >/dev/null && break; sleep 1; done
+          json='content-type: application/json'
+          creds='{"username":"migrated-user","password":"migrate-pass-1"}'
+          curl -fsS -X POST -H "$json" -d "$creds" http://127.0.0.1:5000/api/v2/auth/register >/dev/null
+          token=$(curl -fsS -X POST -H "$json" -d "$creds" http://127.0.0.1:5000/api/v2/auth/login | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+          sub=$(curl -fsS -X POST -H "$json" -H "authorization: Bearer $token" -d '{"name":"Legacy mix","isPublic":false}' http://127.0.0.1:5000/api/v2/substrates | grep -o '"substrate_id":[0-9]*' | cut -d: -f2)
+          curl -fsS -X POST -H "$json" -H "authorization: Bearer $token" -d "{\"name\":\"Legacy Monstera\",\"species\":\"Monstera deliciosa\",\"substrateId\":$sub,\"isPublic\":false}" http://127.0.0.1:5000/api/v2/plants >/dev/null
+          mkdir -p "$old/uploads/plant"
+          echo legacy > "$old/uploads/plant/legacy.webp"
+          pm2 describe plantcare-backend > /dev/null
+
+      - name: Run the migration script
+        run: scripts/migrate-pm2-to-docker.sh --yes --remove-pm2 --backend-dir "$RUNNER_TEMP/old-backend" --http-port 8080 --backup-dir "$RUNNER_TEMP/migration-backup"
+
+      - name: The data survived and PM2 is gone
+        run: |
+          set -e
+          base=http://localhost:8080
+          json='content-type: application/json'
+          token=$(curl -fsS -X POST -H "$json" -d '{"username":"migrated-user","password":"migrate-pass-1"}' "$base/api/v2/auth/login" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+          test -n "$token"
+          curl -fsS -H "authorization: Bearer $token" "$base/api/v2/plants" | grep -q 'Legacy Monstera'
+          curl -fsS "$base/uploads/plant/legacy.webp" | grep -q legacy
+          ls "$RUNNER_TEMP/migration-backup/plantcare.db"
+          if pm2 describe plantcare-backend > /dev/null 2>&1; then echo "PM2 app still registered"; exit 1; fi
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v

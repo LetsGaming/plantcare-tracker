@@ -11,6 +11,7 @@ plantcare/
 ├── backend/     Fastify 5 + TypeScript + SQLite (Kysely) REST/SSE API
 ├── frontend/    Ionic + Vue 3 app (Vite, installable PWA)
 ├── scripts/     dev-up and dev-down: isolated local stack with mock data
+├── docker-compose.yml   Production-style stack (nginx + backend + data volume)
 ├── docs/        Entry point to the backend and frontend documentation
 ├── PRODUCT.md   Who the app is for and its principles
 ├── DESIGN.md    The visual system
@@ -69,8 +70,8 @@ pnpm run dev                # http://localhost:5173
 ```
 
 The API location comes from `frontend/src/config.json` (`development` points at
-`http://localhost:5000/api/v2`; set your domain in the `production` block before building). A development
-build also honors `VITE_API_URL`.
+`http://localhost:5000/api/v2`; set your domain in the `production` block before building). Setting
+`VITE_API_URL` overrides it (the Docker image builds with the relative `/api/v2`).
 
 ## Checks
 
@@ -117,6 +118,11 @@ single-use tickets from `POST /api/v2/auth/ticket`, valid for 60 seconds. Cross-
 | All documentation (entry point) | [`docs/`](docs/README.md) |
 
 ## Production notes
+
+- **Docker**: `cp .env.docker.example .env`, set the two JWT secrets, then `docker compose up -d --build` serves the
+  app on port 8080 (nginx for the PWA, proxy for `/api` and `/uploads`, backend with a data volume). Details in
+  [`backend/docs/deployment.md`](backend/docs/deployment.md). An existing PM2 installation moves over with
+  `scripts/migrate-pm2-to-docker.sh` (installs Docker if needed, copies the database and images, verifies).
 
 - The backend ships a PM2 config (`backend/ecosystem.config.js`, production by default); `pnpm run build` emits
   JavaScript and `pnpm start` runs it.

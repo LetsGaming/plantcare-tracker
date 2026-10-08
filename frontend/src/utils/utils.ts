@@ -11,7 +11,7 @@ const ACTIVE_CONFIG = config[ENV];
 
 /** Pre-computed API URL */
 const API_URL = (() => {
-  if (import.meta.env.DEV && import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
   const { server } = ACTIVE_CONFIG;
   const port = "port" in server ? `:${server.port}` : "";
   return `${server.base_url}${port}${server.base_path}${server.api_version}`;

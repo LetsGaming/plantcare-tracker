@@ -1,5 +1,67 @@
 # Deployment
 
+## Docker
+
+The repository root has a Compose stack: an nginx container that serves the PWA and proxies `/api` and
+`/uploads` to the backend container, and the backend with a named volume for its SQLite file and the uploaded
+images. The browser only talks to nginx, so no CORS configuration is needed.
+
+```bash
+cp .env.docker.example .env      # set JWT_SECRET and JWT_REFRESH_SECRET (openssl rand -hex 48)
+docker compose up -d --build
+# → http://localhost:8080 (HTTP_PORT in .env changes it)
+```
+
+| Piece | Details |
+|-------|---------|
+| `backend/Dockerfile` | Multi-stage: build with pnpm, prune to production dependencies, runtime on `node:22-bookworm-slim` with Playwright Chromium for the shop scrapers, runs as the `node` user, health check on `/api/v2/health/ready` |
+| `frontend/Dockerfile` | Builds the app with `VITE_API_URL=/api/v2` (relative), serves it from `nginx:1.27-alpine` |
+| `frontend/nginx.conf` | Static files with long caching for hashed assets and `no-cache` for `index.html` and `sw.js`, `/api/` proxy with buffering off (server-sent events), `/uploads/` proxy with a long cache, 12 MB upload limit, `X-Forwarded-Proto` passed through |
+| Volumes | `plantcare-data`: `/data/plantcare.db` and `/data/uploads`, migrations run on start; `plantcare-logs`: the winston file logs (`error.log`, `combined.log`), the same entries go to stdout for `docker compose logs` |
+| Secrets | Only through `.env` (gitignored); compose refuses to start without the two JWT secrets |
+
+Operations:
+
+```bash
+docker compose logs -f backend                      # follow the API log
+docker compose pull && docker compose up -d --build # update after a git pull
+docker compose stop backend    # the SQLite file is in WAL mode: stop before copying it
+docker run --rm -v plantcare_plantcare-data:/data -v "$PWD":/backup alpine tar czf /backup/plantcare-data.tgz -C /data .
+docker compose start backend
+```
+
+For public use put a TLS-terminating reverse proxy (Caddy, Traefik, another nginx) in front of the frontend
+container and forward `X-Forwarded-Proto`; the backend then sets the `Secure` flag on the refresh cookie. Set
+`PUBLIC_BASE_URL` when that proxy rewrites the `Host` header. Back up the volume before an upgrade: migration
+`0002` deletes orphan image rows and files. CI builds both images and smoke tests the running stack (health,
+registration, login, an authenticated read) on every push.
+
+### Migrating a PM2 deployment
+
+`scripts/migrate-pm2-to-docker.sh` moves an existing PM2 installation (Linux or macOS server) to the Docker
+stack, including its data, from a checkout of this repository:
+
+```bash
+scripts/migrate-pm2-to-docker.sh --dry-run                 # print the plan, change nothing
+scripts/migrate-pm2-to-docker.sh --backend-dir /srv/plantcare/backend --http-port 8080
+```
+
+| Step | What happens |
+|------|--------------|
+| Docker | Installs Docker Engine and the Compose plugin when they are missing (the official `get.docker.com` script on Linux, the package manager for the plugin; asks first, needs root or sudo; on macOS it asks you to install Docker Desktop) |
+| Environment | Reads the old `backend/.env` (never sources it) and writes the compose `.env` from it: JWT secrets, token lifetimes, OpenAI key, `ALLOWED_ORIGINS`, `PUBLIC_BASE_URL`. An existing `.env` is kept unless `--force` |
+| Stop and back up | Builds the images first, then stops the PM2 app so the SQLite file is consistent, and copies the database (including WAL files) and the old `.env` to a backup directory (`~/plantcare-migration-<time>`, mode 700) |
+| Copy | Copies the database and the uploads folder into the `plantcare-data` volume with a throwaway container; the old folders are mounted read-only and stay untouched. It refuses a volume that already holds a database unless `--force` |
+| Verify | Compares row counts (users, plants, watering records, substrates, components, images) and uploaded file counts between old and copied data, starts the stack and waits for the health checks through nginx |
+| Safety | If a step fails before the new stack is verified, the PM2 app is started again. `--remove-pm2` deletes the PM2 app and runs `pm2 save` after a verified migration; without it the app stays stopped |
+
+Options: `--env-file`, `--pm2-name` (default `plantcare-backend`), `--backup-dir`, `--skip-docker-install`,
+`--yes`. Image URLs stored with an absolute origin are converted to relative paths by the backend migrations
+on its first start. A reverse proxy on the host that pointed to port 5000 must point to the new HTTP port
+instead. CI runs the whole migration against a PM2 managed backend with real data on every push.
+
+The sections below describe running the backend without Docker.
+
 ## Production Build
 
 TypeScript is compiled to JavaScript before deployment. The output goes to `./dist/`.
