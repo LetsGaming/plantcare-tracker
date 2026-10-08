@@ -31,8 +31,10 @@ pnpm install
 pnpm run dev            # http://localhost:5173, expects the backend on :5000
 ```
 
-The API location comes from `src/config.json`; setting `VITE_API_URL` at build or dev time overrides it (the
-Docker image builds with the relative `/api/v2`).
+Settings are `VITE_*` variables in `frontend/.env` (`VITE_API_URL`, `VITE_APP_TITLE`,
+`VITE_CACHE_EXPIRE_HOURS`). `pnpm run dev` and `pnpm run build` create the file from `.env.example` and add new
+settings after updates without touching your values; every setting has a default. The Docker image builds with
+the relative `/api/v2`.
 
 For a complete local stack with mock data (backend with mocked shops and AI guide, seeded accounts), run from
 the repository root:

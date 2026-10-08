@@ -1,24 +1,26 @@
 import { DateTime } from "luxon";
 import { modalController } from "@ionic/vue";
-import config from "@/config.json";
 
-/** Environment identifiers */
-type Environment = "development" | "production";
+/**
+ * Settings come from `VITE_*` variables (see `.env.example`). Every one has a default, so a missing or
+ * empty value never breaks the app.
+ */
+const isProduction = import.meta.env.MODE === "production";
+const setting = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
-const ENV: Environment = import.meta.env.MODE === "production" ? "production" : "development";
+const API_URL = (
+  setting(import.meta.env.VITE_API_URL) ||
+  (isProduction
+    ? "/api/v2"
+    : `${window.location.protocol}//${window.location.hostname}:5000/api/v2`)
+).replace(/\/+$/, "");
 
-const ACTIVE_CONFIG = config[ENV];
+const APP_TITLE = setting(import.meta.env.VITE_APP_TITLE) || "Plantcare Tracker";
 
-/** Pre-computed API URL */
-const API_URL = (() => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  const { server } = ACTIVE_CONFIG;
-  const port = "port" in server ? `:${server.port}` : "";
-  return `${server.base_url}${port}${server.base_path}${server.api_version}`;
-})();
-
-/** Cache expiry */
-const CACHE_EXPIRY_MS = ACTIVE_CONFIG.storage.expire_h * 60 * 60 * 1000;
+const configuredHours = Number(setting(import.meta.env.VITE_CACHE_EXPIRE_HOURS));
+const CACHE_EXPIRY_HOURS =
+  Number.isFinite(configuredHours) && configuredHours > 0 ? configuredHours : isProduction ? 24 : 6;
+const CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
 
 /**
  * Safer universal date parser
@@ -48,12 +50,8 @@ const toDateTime = (input: string | number | Date): DateTime => {
 };
 
 const Utils = {
-  getConfig() {
-    return ACTIVE_CONFIG;
-  },
-
   getAppTitle(): string {
-    return ACTIVE_CONFIG.frontend.app_title;
+    return APP_TITLE;
   },
 
   getApiBaseUrl(): string {

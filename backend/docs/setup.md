@@ -19,7 +19,9 @@ pnpm exec playwright install chromium
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` in the `backend` folder and fill it in. `core/config/env.ts` reads and validates the environment once at startup. Everything is optional except the two JWT secrets.
+`pnpm run dev` and `pnpm start` create `backend/.env` from `.env.example` when it is missing (with generated JWT
+secrets) and append settings that a later version added, without changing your values (`scripts/ensure-env.mjs`).
+Edit the file to change anything. `core/config/env.ts` reads and validates the environment once at startup. Everything is optional except the two JWT secrets.
 
 ```env
 # ── Database ───────────────────────────────────────────────────────────────────

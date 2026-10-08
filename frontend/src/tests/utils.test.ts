@@ -14,35 +14,11 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-// ── Mock Ionic Vue and config before importing Utils ──────────────────────────
+// ── Mock Ionic Vue before importing Utils ──────────────────────────
 vi.mock("@ionic/vue", () => ({
   modalController: {
     getTop: vi.fn().mockResolvedValue(null),
     dismiss: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
-vi.mock("@/config.json", () => ({
-  default: {
-    development: {
-      server: {
-        base_url: "http://localhost",
-        port: "5000",
-        base_path: "/api",
-        api_version: "/v2",
-      },
-      frontend: { app_title: "Test App" },
-      storage: { expire_h: 6 },
-    },
-    production: {
-      server: {
-        base_url: "https://example.com",
-        base_path: "/api",
-        api_version: "/v2",
-      },
-      frontend: { app_title: "Test App" },
-      storage: { expire_h: 24 },
-    },
   },
 }));
 

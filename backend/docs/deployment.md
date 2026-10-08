@@ -62,6 +62,26 @@ instead. CI runs the whole migration against a PM2 managed backend with real dat
 
 The sections below describe running the backend without Docker.
 
+## Updating an installation
+
+After this release `git pull` never needs a manual merge for settings: they live in the gitignored `.env`
+files, and `frontend/src/config.json` no longer exists. Frontend settings are `VITE_API_URL`, `VITE_APP_TITLE`
+and `VITE_CACHE_EXPIRE_HOURS`; the former `base_url`, `base_path` and `api_version` of the production block
+become one `VITE_API_URL`, for example `http://plants.lan.net/api/v2`. Leave it empty when the API is served on
+the same origin as the app (`/api/v2`).
+
+Once, on a checkout whose `frontend/src/config.json` (or another tracked file) was edited locally, git refuses
+to pull. Note your values, set the local edits aside, pull and drop them:
+
+```bash
+git stash && git pull && git stash drop
+cd frontend && pnpm run build      # creates frontend/.env; put your VITE_API_URL there and build again
+pm2 restart plantcare-backend      # PM2: the start script completes backend/.env with any new settings
+```
+
+From then on `pnpm run dev`, `pnpm run build` and the PM2 start add settings introduced by an update to your
+`.env` (with documentation and a default) and never overwrite values you set.
+
 ## Production Build
 
 TypeScript is compiled to JavaScript before deployment. The output goes to `./dist/`.

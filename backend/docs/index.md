@@ -11,7 +11,7 @@
 pnpm install
 
 # Configure
-cp .env.example .env        # set the two JWT secrets
+# .env is created automatically on the first dev or start, with generated JWT secrets
 
 # Database
 # Migrations are applied automatically on first start

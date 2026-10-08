@@ -54,9 +54,9 @@ for and how to add mock data for a new feature.
 
 ```bash
 cd backend
-cp .env.example .env        # set JWT_SECRET and JWT_REFRESH_SECRET (the OpenAI key is optional)
 pnpm install
-pnpm run dev                # http://localhost:5000/api/v2, migrations run on start
+pnpm run dev                # http://localhost:5000/api/v2; creates .env with generated JWT secrets, runs migrations
+# optional: add OPENAI_API_KEY to backend/.env for the AI care guides
 ```
 
 To import an installation from a MySQL dump: `pnpm run db:import -- path/to/dump.sql`.
@@ -69,9 +69,18 @@ pnpm install
 pnpm run dev                # http://localhost:5173
 ```
 
-The API location comes from `frontend/src/config.json` (`development` points at
-`http://localhost:5000/api/v2`; set your domain in the `production` block before building). Setting
-`VITE_API_URL` overrides it (the Docker image builds with the relative `/api/v2`).
+Settings live in `frontend/.env` (`VITE_API_URL`, `VITE_APP_TITLE`, `VITE_CACHE_EXPIRE_HOURS`). Nothing needs to
+be edited by hand to get started: the file is created from `.env.example` when you run `dev` or `build`, and
+every setting has a default (the API on the same host at port 5000 in development, `/api/v2` on the same origin
+in a production build).
+
+## Settings that never conflict with updates
+
+Machine specific settings are not tracked by git. Each package has a committed `.env.example` and a gitignored
+`.env` that heals itself: `pnpm run dev`, `pnpm run build` and `pnpm start` (PM2) create the file when it is
+missing and append settings that were added to the example in an update, with their documentation and default.
+Values you set are never touched, a key you commented out stays off, and the backend's JWT secrets are generated
+for you. After `git pull` nothing has to be merged by hand.
 
 ## Checks
 

@@ -7,3 +7,6 @@ public
 *.md
 eslint-suppressions.json
 .impeccable/
+# Identical copy of backend/scripts (formatted with the backend style)
+scripts/ensure-env.mjs
+scripts/ensure-env.d.mts
