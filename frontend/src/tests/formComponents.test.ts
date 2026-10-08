@@ -185,6 +185,8 @@ describe("FormComponent", () => {
   it("calls the delete handler from the confirmation button", async () => {
     const onDeleteClick = vi.fn();
     const { wrapper } = mountForm({ onDeleteClick });
+    expect(wrapper.text()).not.toContain("This cannot be undone.");
+    await wrapper.find("button[aria-label='Delete']").trigger("click");
     const confirm = wrapper.findAll("button").find((b) => b.text().trim() === "Delete");
     await confirm!.trigger("click");
     expect(onDeleteClick).toHaveBeenCalledOnce();

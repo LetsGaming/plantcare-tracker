@@ -6,8 +6,6 @@
     submitLabel="plant.add.submit"
     :formData="plant"
     :formFields="plantFormFields"
-    :extra-content-component="SubstrateContainer"
-    :extra-content-data="{ substrate: selectedSubstrate }"
     :is-loading="isLoading"
     @submit="submit"
     @close="$emit('close')"
@@ -17,7 +15,6 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
-import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 
 const blankPlant = (): AddPlant => ({
   name: "",
@@ -38,9 +35,6 @@ export default defineComponent({
       type: Array as PropType<Substrate[]>,
       required: true,
     },
-  },
-  setup() {
-    return { SubstrateContainer };
   },
   data() {
     return { plant: blankPlant() };
@@ -96,10 +90,6 @@ export default defineComponent({
           label: "plant.image.upload",
         },
       ] as FormField[];
-    },
-
-    selectedSubstrate() {
-      return this.substrates.find((s) => s.id === this.plant.substrateId);
     },
   },
   methods: {

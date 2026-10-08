@@ -1,5 +1,6 @@
 import {
   addCircleOutline,
+  chevronDownOutline,
   bug,
   bugOutline,
   closeOutline,
@@ -23,6 +24,7 @@ import {
 /** One outline family for the whole app. Filled glyphs only mark a selected state. */
 export const icons = {
   add: addCircleOutline,
+  chevronDown: chevronDownOutline,
   close: closeOutline,
   edit: createOutline,
   upload: cloudUploadOutline,

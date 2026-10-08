@@ -28,12 +28,10 @@
               }"
             >
               <span class="component-name">{{ item.name }}</span>
-              <span class="component-fineness">{{ item.fineness }}</span>
+              <span class="component-fineness">{{ finenessLabel(item.fineness) }}</span>
             </router-link>
             <span class="component-amount">
-              <span class="amount-parts">{{
-                t("subdetail.parts_value", { count: item.parts })
-              }}</span>
+              <span class="amount-parts">{{ partsLabel(item.parts) }}</span>
               <span class="amount-share">{{ item.percent }}</span>
             </span>
           </li>
@@ -52,6 +50,7 @@ import PieChart from "@/components/charts/PieChart.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
+import { finenessLabel, partsLabel } from "@/utils/enumLabels";
 
 const SEARCH_THRESHOLD = 5;
 const PALETTE_SIZE = 6;
@@ -99,12 +98,14 @@ export default defineComponent({
     },
     chartData(): { name: string; parts: number }[] {
       return this.components.map((component) => ({
-        name: `${component.name} (${component.fineness})`,
+        name: `${component.name} (${finenessLabel(component.fineness)})`,
         parts: component.parts,
       }));
     },
   },
   methods: {
+    finenessLabel,
+    partsLabel,
     filterComponents(query: string) {
       this.query = query;
     },

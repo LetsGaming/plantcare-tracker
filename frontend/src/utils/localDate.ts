@@ -36,3 +36,34 @@ export const calendarDaysBetween = (fromMillis: number, toMillis: number): numbe
   const utcTo = Date.UTC(to.year, to.month - 1, to.day);
   return Math.round((utcTo - utcFrom) / 86400000);
 };
+
+export type DateInput = number | Date | string;
+
+const toLocalDate = (input: DateInput): Date | null => {
+  if (input instanceof Date) return Number.isNaN(input.getTime()) ? null : input;
+  if (typeof input === "number") return Number.isFinite(input) ? new Date(input) : null;
+  const parts = parseDayKey(input);
+  if (parts) return new Date(parts.year, parts.month - 1, parts.day);
+  const parsed = new Date(input);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+/** The one short date every screen shows (day and month always two digits), e.g. 04.09.2026. */
+export const formatDisplayDate = (input: DateInput, locale: string): string => {
+  const date = toLocalDate(input);
+  if (!date) return String(input);
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
+
+/** The spelled-out form of the same date for titles that must be unambiguous. */
+export const formatLongDate = (input: DateInput, locale: string): string => {
+  const date = toLocalDate(input);
+  if (!date) return String(input);
+  const text = new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(date);
+  // Keep the day and the month name together when a title wraps.
+  return text.replace(/^(\d{1,2}\.?) /, "$1 ");
+};

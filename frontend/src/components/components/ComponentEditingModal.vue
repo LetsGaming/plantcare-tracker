@@ -19,6 +19,7 @@ import { defineComponent, PropType } from "vue";
 import BaseFormModal from "../modal/BaseFormModal.vue";
 import { mapActions, mapState } from "pinia";
 import { useComponentsStore } from "@/stores/components";
+import { finenessLabel } from "@/utils/enumLabels";
 
 export default defineComponent({
   name: "ComponentEditingModal",
@@ -69,7 +70,7 @@ export default defineComponent({
           placeholder: "component.field.fineness_placeholder",
           options: this.finenessLevels.map((f) => ({
             value: f.fineness_id,
-            label: f.fineness_name,
+            label: finenessLabel(f.fineness_name),
           })),
         },
       ];

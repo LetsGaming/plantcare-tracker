@@ -55,6 +55,7 @@ import { useSubstratesStore } from "@/stores/substrates";
 import { useComponentsStore } from "@/stores/components";
 import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
+import { finenessLabel } from "@/utils/enumLabels";
 import ToastService from "@/services/general/ToastService";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
@@ -109,7 +110,7 @@ export default defineComponent({
       return this.allComponents
         .map((comp: Component) => ({
           ...comp,
-          description: comp.fineness || "",
+          description: finenessLabel(comp.fineness),
           parts: 0,
         }))
         .sort((a: SubstrateComponent, b: SubstrateComponent) => a.name.localeCompare(b.name));

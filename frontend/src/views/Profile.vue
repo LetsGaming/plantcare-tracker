@@ -1,13 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-buttons slot="start">
-          <IconButton :icon="close" :label="t('a11y.close')" @press="goBack" />
-        </ion-buttons>
-        <ion-title>{{ t("profile.title") }}</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AdminHeader :title="t('profile.title')" back-href="/tabs/plants" />
 
     <ion-content>
       <div class="page-column profile-column">
@@ -54,20 +47,9 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonContent,
-  IonButtons,
-  IonButton,
-  IonCard,
-  IonCardContent,
-} from "@ionic/vue";
-import { close } from "ionicons/icons";
+import { IonPage, IonContent, IonButton, IonCard, IonCardContent } from "@ionic/vue";
 import ProfileEditingModal from "@/components/profile/ProfileEditingModal.vue";
-import IconButton from "@/components/ui/IconButton.vue";
+import AdminHeader from "@/components/admin/AdminHeader.vue";
 import { mapActions, mapState } from "pinia";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
@@ -86,19 +68,12 @@ export default defineComponent({
   name: "ProfilePage",
   components: {
     IonPage,
-    IonHeader,
-    IonToolbar,
-    IonTitle,
     IonContent,
-    IonButtons,
     IonButton,
     IonCard,
     IonCardContent,
     ProfileEditingModal,
-    IconButton,
-  },
-  setup() {
-    return { close };
+    AdminHeader,
   },
   data() {
     return {
@@ -165,9 +140,6 @@ export default defineComponent({
   },
   methods: {
     ...mapActions(useSessionStore, { saveProfile: "editProfile", removeProfile: "deleteProfile" }),
-    goBack() {
-      this.$router.back();
-    },
     openEditingModal() {
       this.showEditingModal = true;
     },
@@ -263,6 +235,10 @@ export default defineComponent({
 
 .profile-actions {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-3);
+}
+
+.profile-actions ion-button {
+  margin: 0;
 }
 </style>

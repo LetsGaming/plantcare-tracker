@@ -9,6 +9,12 @@
  *
  * Sales are received over SSE — each `message` event carries a single APISale.
  */
+const GENERATED_TILE_PREFIX = "data:image/svg";
+
+/** Letter tiles generated instead of a photo are not photos; the app shows its own placeholder. */
+const realPhoto = (url: string | null | undefined): string | undefined =>
+  url && !url.startsWith(GENERATED_TILE_PREFIX) ? url : undefined;
+
 export default class SaleMapper {
   /**
    * Maps a single V2 APISale to the frontend Sale model.
@@ -25,7 +31,7 @@ export default class SaleMapper {
       price: sale.sale_new_price,
       oldPrice: sale.sale_old_price,
       link: sale.sale_link,
-      imageUrl: sale.sale_image_url ?? undefined,
+      imageUrl: realPhoto(sale.sale_image_url),
       scrapedAt: sale.sale_scraped_at,
     };
   }

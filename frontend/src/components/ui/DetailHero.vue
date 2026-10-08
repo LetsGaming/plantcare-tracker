@@ -144,6 +144,10 @@ export default defineComponent({
 }
 
 @media (min-width: 900px) {
+  .media {
+    height: 260px;
+  }
+
   .title {
     font-size: var(--text-2xl);
   }

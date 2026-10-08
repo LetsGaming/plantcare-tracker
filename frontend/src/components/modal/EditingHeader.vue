@@ -1,32 +1,23 @@
 <template>
-  <IonHeader>
-    <IonToolbar>
-      <IonTitle>{{ headerTitle }}</IonTitle>
-      <IonButtons slot="start">
-        <IconButton :icon="close" :label="t('a11y.close', 'Close')" @press="$emit('close')" />
-      </IonButtons>
-      <IonButtons v-if="showEditButton && onEditClick" slot="end">
-        <IconButton :icon="create" :label="t('a11y.edit', 'Edit')" @press="onEditClick" />
-      </IonButtons>
-    </IonToolbar>
-  </IonHeader>
+  <ModalHeader :header-title="headerTitle" @close="$emit('close')">
+    <template v-if="showEditButton && onEditClick" #actions>
+      <IconButton :icon="icons.edit" :label="t('a11y.edit', 'Edit')" @press="onEditClick" />
+    </template>
+  </ModalHeader>
 </template>
 
 <script lang="ts">
-import { IonHeader, IonToolbar, IonButtons, IonTitle } from "@ionic/vue";
 import { defineComponent, PropType } from "vue";
-import { close, create } from "ionicons/icons";
 import IconButton from "@/components/ui/IconButton.vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
+import { icons } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "EditModalHeader",
   emits: ["close"],
   components: {
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonTitle,
+    ModalHeader,
     IconButton,
   },
   props: {
@@ -44,7 +35,7 @@ export default defineComponent({
     },
   },
   setup() {
-    return { close, create };
+    return { icons };
   },
   methods: {
     t(key: string, fallback: string) {

@@ -61,7 +61,8 @@ import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
-import { toDayKey } from "@/utils/localDate";
+import { formatDisplayDate, toDayKey } from "@/utils/localDate";
+import { fertilizerLabel } from "@/utils/enumLabels";
 
 const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
 const FERTILIZER_CATEGORY = "watering.category.organic";
@@ -131,7 +132,10 @@ export default defineComponent({
           label: this.t("watering.records.no_fertilizer"),
           value: -1,
         },
-        ...this.fertilizerTypes.map((type) => ({ label: type.name, value: type.id })),
+        ...this.fertilizerTypes.map((type) => ({
+          label: fertilizerLabel(type.name),
+          value: type.id,
+        })),
       ];
     },
     popoverInfo(): PopoverItem | undefined {
@@ -141,7 +145,7 @@ export default defineComponent({
       const fields: PopoverField[] = [
         {
           label: this.t("watering.records.date"),
-          value: new Date(record.date_millis).toLocaleDateString(localizationService.getLocale()),
+          value: formatDisplayDate(record.date_millis, localizationService.getLocale()),
         },
         {
           label: this.t("watering.records.fertilizer_used"),
@@ -152,7 +156,7 @@ export default defineComponent({
       if (record.usedFertilizer && record.fertilizerType) {
         fields.push({
           label: this.t("watering.records.fertilizer_type"),
-          value: this.t(record.fertilizerType),
+          value: fertilizerLabel(record.fertilizerType),
         });
       }
 

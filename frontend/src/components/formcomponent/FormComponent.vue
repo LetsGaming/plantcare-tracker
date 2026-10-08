@@ -6,7 +6,7 @@
           <h2 class="card-title">{{ translateProp(cardTitle) }}</h2>
           <IconButton
             v-if="onDeleteClick"
-            :icon="trashBin"
+            :icon="trashOutline"
             :label="t('a11y.delete', undefined, 'Delete')"
             color="danger"
             @press="showDeleteModal = true"
@@ -49,7 +49,7 @@
 
   <ConfirmDialog
     :is-open="showDeleteModal"
-    :title="t('modal.delete.title', undefined, 'Delete')"
+    :title="deleteTitle"
     :message="deleteSentence"
     :confirm-label="t('modal.delete', undefined, 'Delete')"
     :loading="deletePending"
@@ -62,9 +62,10 @@
 <script lang="ts">
 import { defineComponent, PropType, Component } from "vue";
 import { IonCard, IonCardHeader, IonCardContent, IonButton, IonSpinner } from "@ionic/vue";
-import { trashBin } from "ionicons/icons";
+import { trashOutline } from "ionicons/icons";
 
 import InputField from "@/components/formcomponent/fields/InputField.vue";
+import TextareaField from "@/components/formcomponent/fields/TextareaField.vue";
 import PasswordField from "@/components/formcomponent/fields/PasswordField.vue";
 import SelectField from "@/components/formcomponent/fields/SelectField.vue";
 import RadioField from "@/components/formcomponent/fields/RadioField.vue";
@@ -79,6 +80,7 @@ import { hasFormValue } from "@/utils/formState";
 
 const FIELD_COMPONENTS = {
   input: InputField,
+  textarea: TextareaField,
   password: PasswordField,
   select: SelectField,
   radio: RadioField,
@@ -140,6 +142,11 @@ export default defineComponent({
       type: String,
       default: "",
     },
+    /** Says what else goes with the deleted item, shown in the delete confirmation. */
+    deleteConsequence: {
+      type: String,
+      default: "",
+    },
     /** Server-side problems per field (modelKey to message), shown under the field. */
     fieldErrors: {
       type: Object as PropType<Record<string, string>>,
@@ -156,7 +163,7 @@ export default defineComponent({
     };
   },
   setup() {
-    return { trashBin };
+    return { trashOutline };
   },
   computed: {
     errors(): Record<string, string> {
@@ -174,11 +181,23 @@ export default defineComponent({
     hasErrors(): boolean {
       return Object.keys(this.errors).length > 0;
     },
+    deleteName(): string {
+      return this.deleteLabel || String(this.item?.name ?? "");
+    },
+    deleteTitle(): string {
+      return this.deleteName
+        ? this.t(
+            "modal2.delete_title_named",
+            { name: this.deleteName },
+            `Delete "${this.deleteName}"?`,
+          )
+        : this.t("modal2.delete_title_generic", undefined, "Delete this item?");
+    },
     deleteSentence(): string {
-      const name = this.deleteLabel || this.item?.name;
-      return name
-        ? this.t("form2.delete_named", { name }, `Delete "${name}"? This cannot be undone.`)
-        : this.t("form2.delete_generic", undefined, "Delete this item? This cannot be undone.");
+      return (
+        this.deleteConsequence ||
+        this.t("modal2.delete_irreversible", undefined, "This cannot be undone.")
+      );
     },
   },
   watch: {

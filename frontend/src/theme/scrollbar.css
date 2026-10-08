@@ -11,6 +11,21 @@
   --scrollbar-track: #0f1a14;
 }
 
+:root {
+  color-scheme: light;
+}
+
+:root.ion-palette-dark {
+  color-scheme: dark;
+}
+
+/* Both properties inherit, so scrollers inside Ionic shadow roots follow the document. */
+:root,
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
 ::-webkit-scrollbar {
   width: 12px;
   height: 12px;

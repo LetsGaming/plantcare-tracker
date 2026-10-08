@@ -1,37 +1,42 @@
 <template>
-  <div class="field-wrapper">
-    <IonItem :class="{ 'field-invalid': !!error }">
-      <IonInput
-        v-model="localValue"
-        :type="isDateOnly ? 'date' : 'datetime-local'"
-        label-placement="stacked"
-        :required="field.required"
-        :aria-invalid="error ? 'true' : undefined"
-        :aria-describedby="error ? messageId : undefined"
-        @ionBlur="$emit('blur')"
-      >
-        <div slot="label">
-          {{ translateFieldLabel() }}
-          <RequiredMark v-if="field.required" />
-        </div>
-      </IonInput>
-    </IonItem>
-    <FieldError :id="messageId" :message="error" />
-  </div>
+  <FieldShell
+    :label="translatedLabel"
+    :required="field.required"
+    :error="error"
+    :hint="translatedHint"
+    :message-id="messageId"
+    :label-id="labelId"
+    @label-click="focusControl"
+  >
+    <IonInput
+      ref="control"
+      v-model="localValue"
+      :type="isDateOnly ? 'date' : 'datetime-local'"
+      :required="field.required"
+      :max="field.max"
+      :aria-labelledby="labelId"
+      :aria-invalid="error ? 'true' : undefined"
+      :aria-describedby="error || translatedHint ? messageId : undefined"
+      @ionBlur="$emit('blur')"
+    />
+  </FieldShell>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonItem, IonInput } from "@ionic/vue";
-import FieldError from "@/components/formcomponent/FieldError.vue";
-import RequiredMark from "@/components/formcomponent/RequiredMark.vue";
-import { fieldErrorProp, nextFieldId } from "@/components/formcomponent/fieldShared";
+import { IonInput } from "@ionic/vue";
+import FieldShell from "@/components/formcomponent/FieldShell.vue";
+import {
+  fieldErrorProp,
+  focusControlRef,
+  nextFieldId,
+} from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "DateFieldComponent",
   emits: ["update:modelValue", "blur"],
-  components: { IonItem, IonInput, FieldError, RequiredMark },
+  components: { IonInput, FieldShell },
   props: {
     field: {
       type: Object as () => DateField,
@@ -44,7 +49,7 @@ export default defineComponent({
     ...fieldErrorProp,
   },
   data() {
-    return { messageId: nextFieldId("field-msg") };
+    return { messageId: nextFieldId("field-msg"), labelId: nextFieldId("field-label") };
   },
   mounted() {
     if (this.field.defaultValue !== undefined) {
@@ -56,6 +61,14 @@ export default defineComponent({
   computed: {
     isDateOnly(): boolean {
       return this.field.mode === "date";
+    },
+    translatedLabel(): string {
+      return localizationService.t(this.field.label, undefined, this.field.label);
+    },
+    translatedHint(): string {
+      return this.field.hint
+        ? localizationService.t(this.field.hint, undefined, this.field.hint)
+        : "";
     },
     localValue: {
       get() {
@@ -90,19 +103,9 @@ export default defineComponent({
       }
       return new Date(date).getTime();
     },
-    translateFieldLabel(): string {
-      return localizationService.t(this.field.label, undefined, this.field.label);
+    focusControl() {
+      focusControlRef(this.$refs.control);
     },
   },
 });
 </script>
-
-<style scoped>
-.field-wrapper {
-  margin-bottom: var(--space-3);
-}
-
-.field-invalid {
-  --border-color: var(--ion-color-danger);
-}
-</style>

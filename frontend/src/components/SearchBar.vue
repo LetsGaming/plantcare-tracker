@@ -14,6 +14,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonSearchbar } from "@ionic/vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SearchBar",
@@ -30,13 +31,39 @@ export default defineComponent({
   data() {
     return {
       searchQuery: "",
+      observer: null as MutationObserver | null,
     };
   },
   mounted() {
-    // Emit current value on mount so parent can initialize filters
     this.emitSearch();
+    this.localizeInner();
+    this.observer = new MutationObserver(() => this.localizeInner());
+    this.observer.observe(this.$el as Element, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["aria-label"],
+    });
+  },
+  beforeUnmount() {
+    this.observer?.disconnect();
+    this.observer = null;
   },
   methods: {
+    /** Ionic hard-codes English labels on the inner input and clear button. */
+    localizeInner() {
+      const host = this.$el as HTMLElement;
+      const hostLabel = host.getAttribute("aria-label") || this.placeholder;
+      const input = host.querySelector("input.searchbar-input");
+      if (input && input.getAttribute("aria-label") !== hostLabel) {
+        input.setAttribute("aria-label", hostLabel);
+      }
+      const clearLabel = localizationService.t("copy2.search.clear");
+      const clear = host.querySelector("button.searchbar-clear-button");
+      if (clear && clear.getAttribute("aria-label") !== clearLabel) {
+        clear.setAttribute("aria-label", clearLabel);
+      }
+    },
     onInput(event: CustomEvent) {
       this.searchQuery = (event.detail.value ?? "").toString();
       this.emitSearch();

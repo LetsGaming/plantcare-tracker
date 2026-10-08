@@ -9,6 +9,7 @@
     :form-fields="formFields"
     :delete-handler="deleteImage"
     :delete-label="deleteLabel"
+    :delete-consequence="deleteConsequence"
     @submit="submitForm"
     @close="$emit('close')"
   />
@@ -19,6 +20,7 @@ import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import ImageService from "@/services/ImageService";
 import localizationService from "@/services/general/LocalizationService";
+import { formatDisplayDate } from "@/utils/localDate";
 
 export default defineComponent({
   name: "ImageEditingModal",
@@ -46,7 +48,15 @@ export default defineComponent({
   },
   computed: {
     deleteLabel(): string {
-      return localizationService.t("image.label", undefined, "Image");
+      const date = formatDisplayDate(this.image.date_millis, localizationService.getLocale());
+      return localizationService.t("modal2.photo_delete_name", { date }, `Photo from ${date}`);
+    },
+    deleteConsequence(): string {
+      return localizationService.t(
+        "modal2.photo_delete_consequence",
+        undefined,
+        "The photo is deleted for good and cannot be restored.",
+      );
     },
     formFields(): FormField[] {
       return [

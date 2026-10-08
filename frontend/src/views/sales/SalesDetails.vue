@@ -47,10 +47,10 @@
             </ion-button>
           </section>
 
-          <section v-if="priceHistory.length" class="history" aria-labelledby="sale-history">
+          <section class="history" aria-labelledby="sale-history">
             <h2 id="sale-history" class="section-title">{{ t("sales.price_history") }}</h2>
-            <p v-if="priceHistory.length === 1" class="text-soft">
-              {{ t("sales.first_tracked_price") }}
+            <p v-if="priceHistory.length < 2" class="history-hint">
+              {{ t("sales3.history_hint") }}
             </p>
             <p v-else-if="priceHistory.length === 2" class="text-soft">
               {{ priceTrendLabel }}
@@ -106,6 +106,7 @@ import { mapActions, mapState } from "pinia";
 import { useSalesStore } from "@/stores/sales";
 import localizationService from "@/services/general/LocalizationService";
 import { LoadPhase, phaseFromError } from "@/utils/loadPhase";
+import { formatPrice } from "@/utils/formatPrice";
 
 export default defineComponent({
   name: "SalesDetails",
@@ -177,12 +178,7 @@ export default defineComponent({
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
-    formatPrice(value: number): string {
-      return new Intl.NumberFormat(localizationService.getLocale(), {
-        style: "currency",
-        currency: "EUR",
-      }).format(value);
-    },
+    formatPrice,
     async reload(force = false) {
       if (!this.sale) this.phase = "loading";
       try {
@@ -252,6 +248,14 @@ export default defineComponent({
 .shop-button {
   margin: var(--space-4) 0 0;
   min-height: var(--tap-min);
+}
+
+.history-hint {
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
 }
 
 .sr-only {

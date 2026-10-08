@@ -1,11 +1,28 @@
 <template>
   <IonModal
+    v-if="mounted"
     :is-open="isOpen"
     :can-dismiss="canDismissModal"
     @didPresent="captureBaseline"
     @didDismiss="onDidDismiss"
   >
     <ModalHeader :headerTitle="title" @close="requestClose" />
+
+    <div class="steps-bar">
+      <p class="steps-label">{{ t("modal2.step_of", { current: step, total: 2 }) }}</p>
+      <ol class="steps" :aria-label="t('modal2.steps_label')">
+        <li
+          v-for="(name, index) in stepNames"
+          :key="name"
+          class="step"
+          :class="{ done: step > index + 1, current: step === index + 1 }"
+          :aria-current="step === index + 1 ? 'step' : undefined"
+        >
+          <span class="step-bar" aria-hidden="true" />
+          <span class="step-name">{{ name }}</span>
+        </li>
+      </ol>
+    </div>
 
     <IonContent>
       <FormComponent
@@ -18,35 +35,43 @@
         :onSubmitClick="goToComponents"
         :onDeleteClick="deletable ? emitDelete : undefined"
         :delete-label="form.name"
+        :delete-consequence="deleteConsequence"
       />
 
-      <div v-else class="step-components">
-        <ComponentSelection
-          :title="selectionTitle"
-          :components="availableComponents"
-          :selectedComponentIds="selectedComponentIds"
-          :componentParts="componentParts"
-          :show-errors="showPartErrors"
-          @toggle-component="toggleComponent"
-          @update-part="setPart"
-        />
+      <ComponentSelection
+        v-else
+        :title="selectionTitle"
+        :components="availableComponents"
+        :selectedComponentIds="selectedComponentIds"
+        :componentParts="componentParts"
+        :show-errors="showPartErrors"
+        @toggle-component="toggleComponent"
+        @update-part="setPart"
+      />
+    </IonContent>
 
-        <p v-if="!selectionValid" class="selection-hint">
+    <IonFooter v-if="step === 2" class="ion-no-border">
+      <div class="step-footer">
+        <p v-if="!selectionValid" class="selection-hint" role="status">
           {{ selectionHint }}
         </p>
-
         <div class="action-buttons">
           <IonButton fill="outline" color="medium" :disabled="isLoading" @click="step = 1">
             {{ t("action.back") }}
           </IonButton>
 
-          <IonButton color="primary" :disabled="isLoading || !selectionValid" @click="submit">
+          <IonButton
+            class="save-button"
+            color="primary"
+            :disabled="isLoading || !selectionValid"
+            @click="submit"
+          >
             <IonSpinner v-if="isLoading" name="crescent" />
             <span v-else>{{ t("substrate.save") }}</span>
           </IonButton>
         </div>
       </div>
-    </IonContent>
+    </IonFooter>
   </IonModal>
 
   <ConfirmDialog
@@ -63,12 +88,13 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { IonModal, IonContent, IonButton, IonSpinner } from "@ionic/vue";
+import { IonModal, IonContent, IonFooter, IonButton, IonSpinner } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
 import ConfirmDialog from "@/components/modal/ConfirmDialog.vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import { formSnapshot } from "@/utils/formState";
 import { parsePart, selectionIsValid } from "@/utils/substrateParts";
 
@@ -87,6 +113,7 @@ export default defineComponent({
   components: {
     IonModal,
     IonContent,
+    IonFooter,
     IonButton,
     IonSpinner,
     ModalHeader,
@@ -105,6 +132,9 @@ export default defineComponent({
     /** Offer the picture field (new substrates only; existing ones change pictures on the detail page). */
     allowImage: { type: Boolean, default: false },
     deletable: { type: Boolean, default: false },
+  },
+  setup(props) {
+    return useMountWhileOpen(() => props.isOpen);
   },
   data() {
     return {
@@ -147,6 +177,12 @@ export default defineComponent({
       }
       return fields;
     },
+    stepNames(): string[] {
+      return [this.t("modal2.step_details"), this.t("modal2.step_components")];
+    },
+    deleteConsequence(): string {
+      return this.t("modal2.substrate_delete_consequence");
+    },
     selectionValid(): boolean {
       return selectionIsValid(this.selectedComponentIds, this.componentParts);
     },
@@ -170,8 +206,8 @@ export default defineComponent({
     },
   },
   methods: {
-    t(key: string) {
-      return localizationService.t(key, undefined, key);
+    t(key: string, vars?: Record<string, string | number>) {
+      return localizationService.t(key, vars, key);
     },
     currentSnapshot(): string {
       return `${formSnapshot(this.form)}|${JSON.stringify([
@@ -250,39 +286,82 @@ export default defineComponent({
     },
     onDidDismiss() {
       this.$emit("close");
+      this.release();
     },
   },
 });
 </script>
 
 <style scoped>
-.step-components {
+.steps-bar {
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  background: var(--ion-toolbar-background);
+}
+
+.steps-label {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.steps {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
-  padding-bottom: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.step-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.step.done .step-bar,
+.step.current .step-bar {
+  background: var(--ion-color-primary);
+}
+
+.step.current {
+  color: var(--ion-text-color);
+  font-weight: 700;
+}
+
+.step-footer {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+  border-top: 1px solid var(--line);
+  background: var(--ion-toolbar-background);
 }
 
 .selection-hint {
-  margin: 0 auto;
-  padding: 0 var(--space-4);
-  max-width: 720px;
-  width: 100%;
-  box-sizing: border-box;
-  color: var(--ink-soft);
+  margin: 0;
+  color: var(--ion-text-color);
   font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .action-buttons {
   display: flex;
   gap: var(--space-3);
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 0 var(--space-4);
-  box-sizing: border-box;
 }
 
 .action-buttons ion-button {
   flex: 1;
+  margin: 0;
 }
 </style>

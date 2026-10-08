@@ -7,10 +7,9 @@
     :submitLabel="t('plant.edit.submit')"
     :formData="editPlantData"
     :formFields="formFields"
-    :extraContentComponent="SubstrateContainer"
-    :extraContentData="{ substrate: selectedSubstrate }"
     :deleteHandler="onDelete"
     :deleteLabel="plant.name"
+    :deleteConsequence="t('modal2.plant_delete_consequence')"
     @submit="submit"
     @close="$emit('close')"
   />
@@ -19,7 +18,6 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
-import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
@@ -45,9 +43,6 @@ export default defineComponent({
       type: Array as PropType<Substrate[]>,
       required: true,
     },
-  },
-  setup() {
-    return { SubstrateContainer };
   },
   data() {
     return {
@@ -101,6 +96,7 @@ export default defineComponent({
             value: s.id,
             label: s.name,
           })),
+          required: true,
         },
         {
           type: "radio",
@@ -113,10 +109,6 @@ export default defineComponent({
           defaultValue: Boolean(this.plant.isPublic),
         },
       ];
-    },
-
-    selectedSubstrate() {
-      return this.substrates.find((s) => s.id === this.editPlantData.substrateId);
     },
   },
 

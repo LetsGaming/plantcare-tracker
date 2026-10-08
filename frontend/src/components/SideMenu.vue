@@ -71,7 +71,7 @@
         >
           <ion-icon slot="start" :icon="pulseIcon" aria-hidden="true" />
           <ion-label>{{ t("shell.admin_scrapers") }}</ion-label>
-          <ion-badge v-if="failingSources > 0" slot="end" color="warning">
+          <ion-badge v-if="failingSources > 0" slot="end" :color="failingColor">
             {{ t("shell.scrapers_failing", { count: failingSources }) }}
           </ion-badge>
         </ion-item>
@@ -165,6 +165,7 @@ import { useSessionStore } from "@/stores/session";
 import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 import { confirmLogout } from "@/utils/confirmLogout";
+import { statusIonColor } from "@/utils/sourceStatus";
 import type { RouteLocationRaw } from "vue-router";
 
 const LOCALE_LABELS: Record<string, string> = {
@@ -200,6 +201,7 @@ export default defineComponent({
     return {
       // UI
       darkMode: false,
+      failingColor: statusIonColor("failing"),
       closeIcon: icons.close,
       personIcon: icons.profile,
       logOutIcon: icons.logout,

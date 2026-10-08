@@ -44,8 +44,13 @@
       </div>
 
       <div v-if="items.length" class="count-row">
-        <p class="count" aria-live="polite">{{ filteredItems.length }} {{ t("overview.items") }}</p>
-        <slot name="count-actions" />
+        <p class="count" aria-live="polite">
+          {{ filteredItems.length }} {{ t("overview.items") }}
+          <strong v-if="newInView > 0" class="count-new">
+            {{ t("sales3.new_total", { count: newInView }) }}
+          </strong>
+        </p>
+        <slot name="count-actions" :new-in-view="newInView" :visible-count="filteredItems.length" />
       </div>
 
       <state-block
@@ -100,6 +105,14 @@
             <span class="tag-body">
               <span class="tag-hole" aria-hidden="true" />
               <span class="tag-name break-words">{{ item.name }}</span>
+              <span v-if="item.priceText" class="tag-price">
+                <span class="price-now">{{ item.priceText }}</span>
+                <span v-if="item.oldPriceText" class="price-old">
+                  <span class="sr-only">{{ t("sales3.was", { price: item.oldPriceText }) }}</span>
+                  <s aria-hidden="true">{{ item.oldPriceText }}</s>
+                </span>
+                <span v-if="item.discountText" class="discount-chip">{{ item.discountText }}</span>
+              </span>
               <span v-if="item.description" class="tag-sub break-words">{{
                 item.description
               }}</span>
@@ -158,6 +171,10 @@ export interface OverviewItem {
   statusTone?: "due" | "overdue" | "ok";
   statusLabel?: string;
   sortRank?: number;
+  /** Formatted prices of a sale card, shown between the name and the shop line. */
+  priceText?: string;
+  oldPriceText?: string;
+  discountText?: string;
 }
 
 export default defineComponent({
@@ -229,6 +246,11 @@ export default defineComponent({
       isRefreshing: false,
       showScrollTop: false,
     };
+  },
+  computed: {
+    newInView(): number {
+      return this.filteredItems.filter((item) => item.isNew).length;
+    },
   },
   methods: {
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
@@ -341,6 +363,11 @@ ion-content {
   margin: 0;
   color: var(--ink-soft);
   font-size: var(--text-sm);
+}
+
+.count-new {
+  margin-inline-start: var(--space-2);
+  color: var(--ion-color-secondary-shade);
 }
 
 .grid {
@@ -459,6 +486,46 @@ ion-content {
   line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.tag-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  margin-top: 2px;
+}
+
+.price-now {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  color: var(--ion-text-color);
+}
+
+.price-old {
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+
+.discount-chip {
+  align-self: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ion-color-secondary);
+  color: var(--ion-color-secondary-contrast);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .tag-status {

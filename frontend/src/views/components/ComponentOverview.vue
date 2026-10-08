@@ -44,6 +44,7 @@ import { useComponentsStore } from "@/stores/components";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { finenessLabel } from "@/utils/enumLabels";
 
 export default defineComponent({
   name: "ComponentOverview",
@@ -86,7 +87,7 @@ export default defineComponent({
       return this.components.map((component) => ({
         id: component.id,
         name: component.name,
-        description: component.fineness,
+        description: finenessLabel(component.fineness),
         imageUrl: component.imageUrl,
       }));
     },

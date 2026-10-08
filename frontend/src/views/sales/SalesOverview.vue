@@ -13,12 +13,12 @@
       @refresh-items="fetchSales"
       @retry="fetchSales"
     >
-      <template #count-actions>
+      <template #count-actions="{ newInView }">
         <span v-if="streaming" class="checking" role="status">
           <ion-spinner name="dots" aria-hidden="true" />
           {{ t("sales2.checking") }}
         </span>
-        <ion-button v-else-if="newCount > 0" fill="clear" size="small" @click="markAllSeen">
+        <ion-button v-else-if="newInView > 0" fill="clear" class="mark-all" @click="markAllSeen">
           {{ t("sales2.mark_all_seen") }}
         </ion-button>
       </template>
@@ -33,6 +33,7 @@ import { IonPage, IonButton, IonSpinner } from "@ionic/vue";
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { discountPercent, formatDiscount, formatPrice } from "@/utils/formatPrice";
 
 import { mapActions, mapState } from "pinia";
 import { useSalesStore } from "@/stores/sales";
@@ -50,13 +51,13 @@ export default defineComponent({
     return {
       failed: false,
       loadedOnce: false,
+      openedId: null as string | null,
     };
   },
   computed: {
     ...mapState(useSalesStore, {
       sales: "visibleSales",
       streaming: "streaming",
-      newCount: "newCount",
     }),
     isLoadingList(): boolean {
       return this.streaming || !this.loadedOnce;
@@ -66,13 +67,23 @@ export default defineComponent({
         id: sale.id,
         name: sale.name,
         imageUrl: sale.imageUrl,
-        description: `${sale.seller ?? ""}${sale.price ? " - " + sale.price + "€" : ""}`,
+        description: sale.seller,
         isNew: sale.isNew,
+        priceText: sale.price ? formatPrice(sale.price) : undefined,
+        oldPriceText: discountPercent(sale.price, sale.oldPrice)
+          ? formatPrice(sale.oldPrice)
+          : undefined,
+        discountText: formatDiscount(sale.price, sale.oldPrice) || undefined,
       }));
     },
   },
   mounted() {
     void this.fetchSales(false);
+  },
+  ionViewWillEnter() {
+    if (this.openedId === null) return;
+    this.markSeen(this.openedId);
+    this.openedId = null;
   },
   methods: {
     ...mapActions(useSalesStore, {
@@ -99,14 +110,19 @@ export default defineComponent({
     async onItemClick(id: string) {
       if (!this.sales.find((s: Sale) => s.id === id)) return;
 
+      this.openedId = id;
       await this.$router.push({ name: "sales-details", params: { id } });
-      this.markSeen(id);
     },
   },
 });
 </script>
 
 <style scoped>
+.mark-all {
+  margin: 0;
+  min-height: var(--tap-min);
+}
+
 .checking {
   display: inline-flex;
   align-items: center;

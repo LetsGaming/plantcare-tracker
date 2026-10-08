@@ -21,7 +21,7 @@ if (fs.existsSync(sessionFile)) {
 }
 
 // The killed processes may still hold file handles for a moment on Windows.
-const remove = (dir) => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+const remove = (dir) => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 30, retryDelay: 500 });
 remove(dataDir);
 remove(logDir);
 log("clean");

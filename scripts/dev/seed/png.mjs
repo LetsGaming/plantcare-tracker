@@ -21,14 +21,79 @@ const chunk = (type, data) => {
   return out;
 };
 
-/** A vertical gradient between two [r, g, b] colors, as PNG bytes. */
-export const gradientPng = (width, height, top, bottom) => {
+const clamp01 = (value) => Math.min(1, Math.max(0, value));
+const mix = (a, b, t) => a.map((value, i) => value + (b[i] - value) * t);
+
+const seededRandom = (seed) => {
+  let state = (seed * 2654435761 + 12345) >>> 0;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+};
+
+/** A fan of leaves growing from the bottom centre; fully determined by width, height and variant. */
+const leafFan = (width, height, variant) => {
+  const random = seededRandom(variant + 1);
+  const count = 5 + (variant % 3);
+  const baseX = width * (0.46 + random() * 0.08);
+  const baseY = height * 0.96;
+  const leaves = [];
+  for (let i = 0; i < count; i++) {
+    const spread = count === 1 ? 0 : i / (count - 1) - 0.5;
+    const tilt = spread * 2.2 + (random() - 0.5) * 0.25;
+    const length = height * (0.28 + random() * 0.14);
+    const girth = length * (0.3 + random() * 0.08);
+    leaves.push({
+      cx: baseX + Math.sin(tilt) * length,
+      cy: baseY - Math.cos(tilt) * length,
+      cos: Math.cos(tilt),
+      sin: Math.sin(tilt),
+      length,
+      girth,
+      shade: 0.3 + random() * 0.25,
+    });
+  }
+  return { baseX, baseY, leaves };
+};
+
+/** Soft coverage of the leaf at a pixel (0 outside, 1 inside) plus which side of the midrib it is on. */
+const leafAt = (leaf, x, y) => {
+  const dx = x - leaf.cx;
+  const dy = y - leaf.cy;
+  const along = (dx * leaf.sin - dy * leaf.cos) / leaf.length;
+  const across = dx * leaf.cos + dy * leaf.sin;
+  if (Math.abs(along) >= 1) return null;
+  const half = leaf.girth * Math.pow(1 - along * along, 0.85);
+  const edge = clamp01((half - Math.abs(across)) / 1.5);
+  if (edge === 0) return null;
+  return { edge, across, rib: Math.abs(across) < 1.1 };
+};
+
+/**
+ * A vertical gradient between two [r, g, b] colors, as PNG bytes. A leaf fan in a darker tone of
+ * the top color is drawn over it so the picture reads as a plant.
+ */
+export const gradientPng = (width, height, top, bottom, variant = 0) => {
+  const fan = leafFan(width, height, variant);
+  const stem = mix(top, [10, 40, 15], 0.5);
   const rows = [];
   for (let y = 0; y < height; y++) {
     const t = y / (height - 1);
-    const pixel = top.map((value, i) => Math.round(value + (bottom[i] - value) * t));
+    const background = top.map((value, i) => value + (bottom[i] - value) * t);
     const row = Buffer.alloc(1 + width * 3);
-    for (let x = 0; x < width; x++) Buffer.from(pixel).copy(row, 1 + x * 3);
+    for (let x = 0; x < width; x++) {
+      let color = background;
+      if (y > fan.baseY - height * 0.1 && Math.abs(x - fan.baseX) < 3) color = stem;
+      for (const leaf of fan.leaves) {
+        const hit = leafAt(leaf, x, y);
+        if (!hit) continue;
+        const body = mix(top, [14, 60, 22], leaf.shade + (hit.across > 0 ? 0.12 : 0));
+        const painted = hit.rib ? mix(body, [225, 240, 215], 0.35) : body;
+        color = mix(color, painted, hit.edge);
+      }
+      for (let c = 0; c < 3; c++) row[1 + x * 3 + c] = Math.round(color[c]);
+    }
     rows.push(row);
   }
   const header = Buffer.alloc(13);

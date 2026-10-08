@@ -204,8 +204,17 @@ export default defineComponent({
   margin: 0 auto;
 }
 
+.header-toolbar ion-menu-button {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
 .segment {
   flex: 1;
+}
+
+.segment ion-segment-button {
+  min-height: var(--tap-min);
 }
 
 .add-button {

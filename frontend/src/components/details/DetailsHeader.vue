@@ -92,6 +92,11 @@ export default defineComponent({
   --border-width: 0;
 }
 
+.header-toolbar ion-back-button {
+  --min-height: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
 .header-toolbar ion-back-button,
 .header-toolbar :deep(.icon-button) {
   --color: var(--ion-color-primary-contrast);

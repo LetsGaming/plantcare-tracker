@@ -1,19 +1,13 @@
-import { alertController } from "@ionic/vue";
 import localizationService from "@/services/general/LocalizationService";
+import { presentConfirm } from "@/utils/presentConfirm";
 
 /** Asks before signing out; `logout` runs only when the user confirms. */
 export const confirmLogout = async (logout: () => Promise<void> | void): Promise<void> => {
-  const alert = await alertController.create({
-    header: localizationService.t("logout.confirm_title"),
+  const confirmed = await presentConfirm({
+    title: localizationService.t("logout.confirm_title"),
     message: localizationService.t("logout.confirm_message"),
-    buttons: [
-      { text: localizationService.t("common.cancel", undefined, "Cancel"), role: "cancel" },
-      {
-        text: localizationService.t("logout.confirm_action"),
-        role: "confirm",
-        handler: () => void logout(),
-      },
-    ],
+    confirmLabel: localizationService.t("logout.confirm_action"),
+    cancelLabel: localizationService.t("common.cancel", undefined, "Cancel"),
   });
-  await alert.present();
+  if (confirmed) await logout();
 };

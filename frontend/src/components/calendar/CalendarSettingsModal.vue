@@ -1,11 +1,11 @@
 <template>
-  <ion-modal :is-open="isOpen" @didDismiss="$emit('close')">
+  <ion-modal v-if="mounted" :is-open="isOpen" @didDismiss="onDidDismiss">
     <modal-header :header-title="t('calendar.settings.title')" @close="$emit('close')" />
 
     <ion-content>
       <div class="settings-column">
         <section class="settings-card">
-          <h3 class="settings-heading">{{ t("calendar.settings.general_settings") }}</h3>
+          <h2 class="settings-heading">{{ t("calendar.settings.general_settings") }}</h2>
 
           <ion-item>
             <ion-select
@@ -37,13 +37,11 @@
 
         <section class="settings-card">
           <div class="settings-heading-row">
-            <h3 class="settings-heading">{{ t("calendar.settings.watering_categories") }}</h3>
-            <icon-button
-              :icon="refreshCircle"
-              :label="t('calendar2.reset_watering')"
-              color="warning"
-              @press="showResetConfirm = true"
-            />
+            <h2 class="settings-heading">{{ t("modal2.watering_categories") }}</h2>
+            <ion-button size="small" fill="outline" color="medium" @click="showResetConfirm = true">
+              <ion-icon slot="start" :icon="refreshOutline" aria-hidden="true" />
+              {{ t("modal2.reset_colors") }}
+            </ion-button>
           </div>
 
           <ion-list>
@@ -63,9 +61,13 @@
         </section>
 
         <section class="settings-card">
-          <h3 class="settings-heading">{{ t("calendar.settings.categories") }}</h3>
+          <h2 class="settings-heading">{{ t("modal2.reminder_categories") }}</h2>
 
-          <ion-list>
+          <p v-if="localCategories.length === 0" class="settings-note">
+            {{ t("modal2.no_reminder_categories") }}
+          </p>
+
+          <ion-list v-if="localCategories.length > 0">
             <div v-for="(category, index) in localCategories" :key="index" class="category-row">
               <ion-item lines="full">
                 <ion-input
@@ -85,7 +87,7 @@
                   @input="debouncedUpdateCategories(index)"
                 />
                 <icon-button
-                  :icon="trash"
+                  :icon="trashOutline"
                   :label="t('calendar2.delete_category', { name: category.name })"
                   color="danger"
                   @press="askDelete(index)"
@@ -98,10 +100,14 @@
           </ion-list>
 
           <form class="new-category" novalidate @submit.prevent="addCategory">
+            <label class="new-category-label" for="new-category-name">
+              {{ t("final2.category_name_label") }}
+            </label>
             <ion-item>
               <ion-input
+                id="new-category-name"
                 v-model="newCategory.name"
-                :aria-label="t('calendar2.new_category_name')"
+                :aria-label="t('final2.category_name_label')"
                 :placeholder="t('calendar.category.new_placeholder')"
                 autocapitalize="words"
                 autocorrect="off"
@@ -113,7 +119,8 @@
                 v-model="newCategory.backgroundColor"
                 type="color"
                 class="color-input"
-                :aria-label="t('calendar2.color_for', { name: newCategory.name })"
+                :aria-label="t('final2.pick_color')"
+                :title="t('final2.pick_color')"
                 @input="newCategory.textColor = contrastTextColor(newCategory.backgroundColor)"
               />
             </ion-item>
@@ -160,11 +167,13 @@ import {
   IonInput,
   IonButton,
   IonLabel,
+  IonIcon,
 } from "@ionic/vue";
-import { trash, refreshCircle } from "ionicons/icons";
+import { trashOutline, refreshOutline } from "ionicons/icons";
 import ModalHeader from "../modal/ModalHeader.vue";
 import ConfirmDialog from "../modal/ConfirmDialog.vue";
 import IconButton from "../ui/IconButton.vue";
+import { useMountWhileOpen } from "../modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
 import { categoryNameProblem, contrastTextColor } from "@/utils/categoryColors";
 
@@ -192,6 +201,7 @@ export default defineComponent({
     IonInput,
     IonButton,
     IonLabel,
+    IonIcon,
     ModalHeader,
     ConfirmDialog,
     IconButton,
@@ -219,8 +229,13 @@ export default defineComponent({
     "delete-category",
     "add-category",
   ],
-  setup() {
-    return { trash, refreshCircle, contrastTextColor };
+  setup(props) {
+    return {
+      ...useMountWhileOpen(() => props.isOpen),
+      trashOutline,
+      refreshOutline,
+      contrastTextColor,
+    };
   },
   data() {
     return {
@@ -283,6 +298,10 @@ export default defineComponent({
   methods: {
     t(key: string, vars?: Record<string, string>) {
       return localizationService.t(key, vars, key);
+    },
+    onDidDismiss() {
+      this.$emit("close");
+      this.release();
     },
     syncFromProps() {
       this.localCategories = copyCategories(this.categories);
@@ -366,6 +385,7 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .settings-note {
@@ -389,6 +409,12 @@ export default defineComponent({
   color: var(--ion-color-danger);
   font-size: var(--text-xs);
   font-weight: 600;
+}
+
+.new-category-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ion-text-color);
 }
 
 .new-category {

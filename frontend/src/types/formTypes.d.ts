@@ -25,6 +25,11 @@ interface InputField extends FormFieldBase {
   inputType?: "text" | "email" | "number";
 }
 
+interface TextareaField extends FormFieldBase {
+  type: "textarea";
+  rows?: number;
+}
+
 interface PasswordField extends FormFieldBase {
   type: "password";
 }
@@ -50,6 +55,8 @@ interface DateField extends FormFieldBase {
   defaultValue?: string;
   /** "date" picks a calendar day (value is local midnight); the default also picks a time. */
   mode?: "date" | "datetime";
+  /** Latest selectable value in the input's own format (yyyy-MM-dd for date mode). */
+  max?: string;
 }
 
 interface UploadField extends FormFieldBase {
@@ -57,4 +64,11 @@ interface UploadField extends FormFieldBase {
 }
 
 type FormField =
-  InputField | PasswordField | SelectField | RadioField | SwitchField | DateField | UploadField;
+  | InputField
+  | TextareaField
+  | PasswordField
+  | SelectField
+  | RadioField
+  | SwitchField
+  | DateField
+  | UploadField;

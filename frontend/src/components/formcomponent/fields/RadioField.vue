@@ -1,35 +1,47 @@
 <template>
-  <div class="field-wrapper">
-    <fieldset class="radio-fieldset">
-      <legend class="radio-legend">
-        {{ t(field.label) }}
-        <RequiredMark v-if="field.required" />
-      </legend>
-
-      <IonRadioGroup :value="modelValue" @ionChange="onRadioChange">
-        <IonItem v-for="(option, index) in field.options" :key="index" lines="none">
-          <IonRadio :value="option.value" justify="start" label-placement="end">
-            {{ t(option.label) }}
-          </IonRadio>
-        </IonItem>
-      </IonRadioGroup>
-    </fieldset>
-    <FieldError :id="messageId" :message="error" />
-  </div>
+  <FieldShell
+    :label="t(field.label)"
+    :required="field.required"
+    :error="error"
+    :hint="translatedHint"
+    :message-id="messageId"
+    :label-id="labelId"
+    :boxed="false"
+  >
+    <IonRadioGroup
+      class="radio-group"
+      :class="{ 'radio-group-invalid': !!error }"
+      :value="modelValue"
+      :aria-labelledby="labelId"
+      :aria-invalid="error ? 'true' : undefined"
+      :aria-describedby="error || translatedHint ? messageId : undefined"
+      @ionChange="onRadioChange"
+    >
+      <IonRadio
+        v-for="(option, index) in field.options"
+        :key="index"
+        class="radio-option"
+        :value="option.value"
+        justify="start"
+        label-placement="end"
+      >
+        {{ t(option.label) }}
+      </IonRadio>
+    </IonRadioGroup>
+  </FieldShell>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonItem, IonRadioGroup, IonRadio } from "@ionic/vue";
-import FieldError from "@/components/formcomponent/FieldError.vue";
-import RequiredMark from "@/components/formcomponent/RequiredMark.vue";
+import { IonRadioGroup, IonRadio } from "@ionic/vue";
+import FieldShell from "@/components/formcomponent/FieldShell.vue";
 import { fieldErrorProp, nextFieldId } from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "RadioFieldComponent",
   emits: ["update:modelValue", "blur"],
-  components: { IonItem, IonRadioGroup, IonRadio, FieldError, RequiredMark },
+  components: { IonRadioGroup, IonRadio, FieldShell },
   props: {
     field: {
       type: Object as () => RadioField,
@@ -42,7 +54,12 @@ export default defineComponent({
     ...fieldErrorProp,
   },
   data() {
-    return { messageId: nextFieldId("field-msg") };
+    return { messageId: nextFieldId("field-msg"), labelId: nextFieldId("field-label") };
+  },
+  computed: {
+    translatedHint(): string {
+      return this.field.hint ? this.t(this.field.hint) : "";
+    },
   },
   mounted() {
     if (this.field.defaultValue !== undefined && this.modelValue === "") {
@@ -62,19 +79,26 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.field-wrapper {
-  margin-bottom: var(--space-3);
+.radio-group {
+  display: grid;
+  overflow: hidden;
+  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
 }
 
-.radio-fieldset {
-  margin: 0;
-  padding: 0;
-  border: 0;
+.radio-group-invalid {
+  border-color: var(--ion-color-danger);
 }
 
-.radio-legend {
+.radio-option {
+  color: var(--ion-text-color);
+  box-sizing: border-box;
+  min-height: var(--tap-min);
   padding: 0 var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--ink-soft);
+}
+
+.radio-option + .radio-option {
+  border-top: 1px solid var(--line);
 }
 </style>

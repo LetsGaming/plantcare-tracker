@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addCircleOutline,
+  chevronDownOutline,
   bug,
   bugOutline,
   closeOutline,
@@ -26,6 +27,7 @@ describe("icon family", () => {
   it("uses outline glyphs for every semantic action", () => {
     expect(icons).toEqual({
       add: addCircleOutline,
+      chevronDown: chevronDownOutline,
       close: closeOutline,
       edit: createOutline,
       upload: cloudUploadOutline,

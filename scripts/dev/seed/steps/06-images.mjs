@@ -18,7 +18,7 @@ const COMPONENT_PHOTOS = { Perlite: 1, "Pine bark": 1 };
 
 const upload = async (ctx, token, type, id, variant, daysAgo) => {
   const [top, bottom] = PALETTE[variant % PALETTE.length];
-  const png = gradientPng(640, 480, top, bottom);
+  const png = gradientPng(640, 480, top, bottom, variant);
   const form = new FormData();
   form.append("image", new Blob([png], { type: "image/png" }), `photo-${variant}.png`);
   await ctx.call("POST", `/images/${type}/${id}`, { token, form });

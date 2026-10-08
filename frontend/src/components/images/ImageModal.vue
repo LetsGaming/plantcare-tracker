@@ -1,5 +1,5 @@
 <template>
-  <ion-modal :is-open="isOpen" @did-dismiss="closeModal">
+  <ion-modal v-if="mounted" :is-open="isOpen" @did-dismiss="closeModal">
     <editing-header
       :header-title="label"
       :show-edit-button="showEditButton"
@@ -21,6 +21,7 @@
         >
           <ion-img
             :src="imageUrl"
+            :alt="label"
             class="enlarged-image"
             ref="zoomableImage"
             :style="{
@@ -28,16 +29,16 @@
             }"
           />
         </div>
-        <IonLabel class="enlarged-image-label">{{ label }}</IonLabel>
       </div>
     </ion-content>
   </ion-modal>
 </template>
 
 <script lang="ts">
-import { IonModal, IonContent, IonImg, IonLabel } from "@ionic/vue";
+import { IonModal, IonContent, IonImg } from "@ionic/vue";
 import { defineComponent, PropType, ref } from "vue";
 import EditingHeader from "../modal/EditingHeader.vue";
+import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 
 export default defineComponent({
   name: "ImageModal",
@@ -46,7 +47,6 @@ export default defineComponent({
     IonModal,
     IonContent,
     IonImg,
-    IonLabel,
     EditingHeader,
   },
   props: {
@@ -71,7 +71,8 @@ export default defineComponent({
       required: false,
     },
   },
-  setup() {
+  setup(props) {
+    const { mounted, release } = useMountWhileOpen(() => props.isOpen);
     const zoomScale = ref(1);
     const offsetX = ref(0);
     const offsetY = ref(0);
@@ -181,6 +182,8 @@ export default defineComponent({
     };
 
     return {
+      mounted,
+      release,
       zoomScale,
       offsetX,
       offsetY,
@@ -198,6 +201,7 @@ export default defineComponent({
       this.offsetX = 0;
       this.offsetY = 0;
       this.$emit("close");
+      this.release();
     },
   },
 });
@@ -231,19 +235,5 @@ export default defineComponent({
 .enlarged-image {
   width: 90%;
   transition: transform 0.2s ease-in-out;
-}
-
-.enlarged-image-label {
-  position: absolute;
-  top: 35dvh;
-  left: 2dvw;
-  font-size: 24px;
-}
-
-@media (max-width: 768px) {
-  .enlarged-image-label {
-    top: 75dvh;
-    font-size: 24px;
-  }
 }
 </style>

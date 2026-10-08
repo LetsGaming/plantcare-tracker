@@ -62,7 +62,7 @@
           : [
               {
                 label: 'Date',
-                value: selectedDate,
+                value: selectedDateText,
               },
             ]
       "
@@ -81,7 +81,7 @@ import IconButton from "@/components/ui/IconButton.vue";
 import { useCalendarStore } from "@/stores/calendar";
 import CalendarLegend from "./CalendarLegend.vue";
 import localizationService from "@/services/general/LocalizationService";
-import { parseDayKey, toDayKey } from "@/utils/localDate";
+import { formatDisplayDate, parseDayKey, toDayKey } from "@/utils/localDate";
 
 const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
 
@@ -157,6 +157,9 @@ export default defineComponent({
     ...mapState(useCalendarStore, ["firstDayOfWeek"]),
     locale(): string {
       return localizationService.getLocale();
+    },
+    selectedDateText(): string {
+      return this.selectedDate ? formatDisplayDate(this.selectedDate, this.locale) : "";
     },
     todayKey(): string {
       return toDayKey(Date.now());
@@ -372,7 +375,7 @@ export default defineComponent({
 }
 
 .calendar-grid td {
-  padding: 2px;
+  padding: 0;
   text-align: center;
 }
 

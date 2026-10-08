@@ -17,6 +17,7 @@ import { defineComponent } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import { mapActions, mapState } from "pinia";
 import { useComponentsStore } from "@/stores/components";
+import { finenessLabel } from "@/utils/enumLabels";
 
 const blankComponent = (): AddComponent => ({
   name: "",
@@ -63,7 +64,7 @@ export default defineComponent({
           placeholder: "component.field.fineness_placeholder",
           options: this.finenessLevels.map((f) => ({
             value: f.fineness_id,
-            label: f.fineness_name,
+            label: finenessLabel(f.fineness_name),
           })),
         },
         { type: "file", modelKey: "image", label: "component.image.upload" },

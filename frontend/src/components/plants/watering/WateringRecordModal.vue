@@ -1,46 +1,14 @@
 <template>
-  <ion-modal :is-open="isOpen" @did-dismiss="$emit('close')">
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>{{ title }}</ion-title>
-        <ion-buttons slot="end">
-          <icon-button :icon="closeOutline" :label="t('a11y.close')" @press="$emit('close')" />
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
+  <ion-modal v-if="mounted" :is-open="isOpen" @did-dismiss="onDismiss">
+    <modal-header :header-title="title" @close="$emit('close')" />
 
     <ion-content>
-      <form class="record-form" @submit.prevent="submit">
-        <div class="field">
-          <label class="field-label" :for="dateInputId">{{ t("plantdetail.modal_date") }}</label>
-          <input
-            :id="dateInputId"
-            v-model="dayKey"
-            class="date-input"
-            type="date"
-            required
-            :max="todayKey"
-            :disabled="pending"
-          />
-        </div>
+      <form class="record-form" novalidate @submit.prevent="submit">
+        <date-field v-model="dateMillis" :field="dateField" />
 
-        <fieldset class="field" :disabled="pending">
-          <legend class="field-label">{{ t("plantdetail.modal_fertilizer") }}</legend>
-          <ion-radio-group v-model="fertilizerId">
-            <ion-radio
-              v-for="option in fertilizerOptions"
-              :key="option.value"
-              class="fertilizer-option"
-              label-placement="end"
-              justify="start"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </ion-radio>
-          </ion-radio-group>
-        </fieldset>
+        <radio-field v-model="fertilizerId" :field="fertilizerField" />
 
-        <ion-button type="submit" expand="block" :disabled="pending || !dayKey">
+        <ion-button type="submit" expand="block" :disabled="pending || !dateMillis">
           <ion-spinner v-if="pending" name="crescent" slot="start" />
           {{ pending ? t("plantdetail.modal_saving") : t("plantdetail.modal_save") }}
         </ion-button>
@@ -52,55 +20,53 @@
           fill="outline"
           color="danger"
           :disabled="pending"
-          @click="$emit('delete')"
+          @click="showDelete = true"
         >
           {{ t("plantdetail.modal_delete") }}
         </ion-button>
       </form>
     </ion-content>
   </ion-modal>
+
+  <confirm-dialog
+    :is-open="showDelete"
+    :title="t('modal2.watering_delete_title', { date: recordDateText })"
+    :message="t('modal2.watering_delete_message')"
+    :confirm-label="t('plantdetail.modal_delete')"
+    :loading="pending"
+    danger
+    @confirm="confirmDelete"
+    @cancel="showDelete = false"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import {
-  IonModal,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonContent,
-  IonButton,
-  IonSpinner,
-  IonRadioGroup,
-  IonRadio,
-} from "@ionic/vue";
-import { closeOutline } from "ionicons/icons";
-import IconButton from "@/components/ui/IconButton.vue";
+import { IonModal, IonContent, IonButton, IonSpinner } from "@ionic/vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
+import ConfirmDialog from "@/components/modal/ConfirmDialog.vue";
+import DateField from "@/components/formcomponent/fields/DateField.vue";
+import RadioField from "@/components/formcomponent/fields/RadioField.vue";
+import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
-import { dayKeyToMillis, toDayKey } from "@/utils/localDate";
+import { dayKeyToMillis, formatLongDate, toDayKey } from "@/utils/localDate";
 
 export interface WateringDraft {
   date: number;
   fertilizerTypeId: number | undefined;
 }
 
-let modalCount = 0;
-
 export default defineComponent({
   name: "WateringRecordModal",
   components: {
     IonModal,
-    IonHeader,
-    IonToolbar,
-    IonTitle,
-    IonButtons,
     IonContent,
     IonButton,
     IonSpinner,
-    IonRadioGroup,
-    IonRadio,
-    IconButton,
+    ModalHeader,
+    ConfirmDialog,
+    DateField,
+    RadioField,
   },
   props: {
     isOpen: { type: Boolean, required: true },
@@ -116,14 +82,14 @@ export default defineComponent({
     pending: { type: Boolean, default: false },
   },
   emits: ["close", "submit", "delete"],
-  setup() {
-    return { closeOutline };
+  setup(props) {
+    return useMountWhileOpen(() => props.isOpen);
   },
   data() {
     return {
-      dayKey: "",
+      dateMillis: undefined as number | undefined,
       fertilizerId: -1,
-      dateInputId: `watering-date-${++modalCount}`,
+      showDelete: false,
     };
   },
   computed: {
@@ -135,37 +101,70 @@ export default defineComponent({
         this.mode === "edit" ? "plantdetail.modal_edit_title" : "plantdetail.modal_add_title",
       );
     },
+    dateField(): DateField {
+      return {
+        type: "date",
+        modelKey: "date",
+        label: "plantdetail.modal_date",
+        mode: "date",
+        required: true,
+        max: this.todayKey,
+      };
+    },
+    fertilizerField(): RadioField {
+      return {
+        type: "radio",
+        modelKey: "fertilizer",
+        label: "plantdetail.modal_fertilizer",
+        options: this.fertilizerOptions,
+      };
+    },
+    recordDateText(): string {
+      const millis = this.record?.date_millis ?? this.dateMillis ?? Date.now();
+      return formatLongDate(millis, localizationService.getLocale());
+    },
   },
   watch: {
     isOpen: {
       immediate: true,
       handler(open: boolean) {
         if (open) this.resetDraft();
+        else this.showDelete = false;
       },
     },
   },
   methods: {
-    t(key: string) {
-      return localizationService.t(key, undefined, key);
+    t(key: string, vars?: Record<string, string>) {
+      return localizationService.t(key, vars, key);
     },
     resetDraft() {
+      this.showDelete = false;
       if (this.mode === "edit" && this.record) {
-        this.dayKey = toDayKey(this.record.date_millis);
+        this.dateMillis = this.record.date_millis;
         this.fertilizerId = this.record.fertilizerTypeId ?? -1;
       } else {
-        this.dayKey = this.initialDay || this.todayKey;
+        this.dateMillis = dayKeyToMillis(this.initialDay || this.todayKey);
         this.fertilizerId = -1;
       }
     },
+    onDismiss() {
+      this.$emit("close");
+      this.release();
+    },
     submit() {
-      if (!this.dayKey || this.pending) return;
+      if (this.dateMillis === undefined || this.pending) return;
+      const dayKey = toDayKey(this.dateMillis);
       const unchangedDay =
-        this.mode === "edit" && this.record && toDayKey(this.record.date_millis) === this.dayKey;
+        this.mode === "edit" && this.record && toDayKey(this.record.date_millis) === dayKey;
       const draft: WateringDraft = {
-        date: unchangedDay ? this.record!.date_millis : dayKeyToMillis(this.dayKey),
+        date: unchangedDay ? this.record!.date_millis : dayKeyToMillis(dayKey),
         fertilizerTypeId: this.fertilizerId === -1 ? undefined : this.fertilizerId,
       };
       this.$emit("submit", draft);
+    },
+    confirmDelete() {
+      this.showDelete = false;
+      this.$emit("delete");
     },
   },
 });
@@ -174,39 +173,10 @@ export default defineComponent({
 <style scoped>
 .record-form {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
   max-width: 520px;
   margin: 0 auto;
   padding: var(--space-4);
   box-sizing: border-box;
-}
-
-.field {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.field-label {
-  padding: 0;
-  font-weight: 600;
-  font-size: var(--text-sm);
-}
-
-.date-input {
-  min-height: var(--tap-min);
-  padding: 0 var(--space-3);
-  box-sizing: border-box;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  color: var(--ion-text-color);
-  font: inherit;
-}
-
-.fertilizer-option {
-  min-height: var(--tap-min);
 }
 </style>

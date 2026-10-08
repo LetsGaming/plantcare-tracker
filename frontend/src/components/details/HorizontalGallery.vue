@@ -31,7 +31,7 @@
       v-if="enlargedImage"
       :isOpen="isModalVisible"
       :imageUrl="enlargedImage.url"
-      :label="enlargedImage.date"
+      :label="captionFor(enlargedImage)"
       :showEditButton="showEditButton"
       @close="closeModal"
       @editClick="editClick"
@@ -47,6 +47,7 @@ import ProgressiveImage from "@/components/ProgressiveImage.vue";
 import StateBlock from "@/components/ui/StateBlock.vue";
 import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
+import { formatDisplayDate } from "@/utils/localDate";
 
 let galleryCount = 0;
 
@@ -96,9 +97,7 @@ export default defineComponent({
     },
     captionFor(image: Image): string {
       if (!image.date_millis) return image.date;
-      return new Intl.DateTimeFormat(localizationService.getLocale(), {
-        dateStyle: "medium",
-      }).format(new Date(image.date_millis));
+      return formatDisplayDate(image.date_millis, localizationService.getLocale());
     },
     altFor(image: Image): string {
       return this.t("plantdetail.gallery_alt", {

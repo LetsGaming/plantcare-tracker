@@ -9,7 +9,7 @@
 
 import { initDatabase, closeDb } from '../core/database/db';
 import { buildApp } from '../app';
-import { getConfig } from '../core/config';
+import { AUTH_RATE_LIMIT, getConfig } from '../core/config';
 import { logger } from '../core/logging';
 import { createMockMoreInfo, createMockSalesSources } from './devMocks';
 
@@ -22,7 +22,12 @@ const shutdown = (): void => {
   else finish();
 };
 
+// Many sessions and agents sign in from one IP during development, so the sign-in limits are lifted.
+const authLimits = AUTH_RATE_LIMIT as { -readonly [K in keyof typeof AUTH_RATE_LIMIT]: number };
+
 const start = async (): Promise<void> => {
+  authLimits.MAX_PER_ACCOUNT = 10_000;
+  authLimits.MAX_PER_IP = 10_000;
   await initDatabase();
   app = await buildApp({
     sales: { createSources: createMockSalesSources },

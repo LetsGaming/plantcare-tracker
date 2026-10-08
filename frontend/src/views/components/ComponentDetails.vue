@@ -24,7 +24,7 @@
             <dl class="fact-list">
               <div class="fact">
                 <dt>{{ t("compdetail.fineness") }}</dt>
-                <dd>{{ component.fineness }}</dd>
+                <dd>{{ finenessLabel(component.fineness) }}</dd>
               </div>
             </dl>
           </section>
@@ -103,6 +103,7 @@ import { useSubstratesStore } from "@/stores/substrates";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { finenessLabel } from "@/utils/enumLabels";
 
 export default defineComponent({
   name: "ComponentDetails",
@@ -147,6 +148,7 @@ export default defineComponent({
     },
   },
   methods: {
+    finenessLabel,
     ...mapActions(useComponentsStore, {
       loadComponent: "getComponent",
       saveComponent: "editComponent",

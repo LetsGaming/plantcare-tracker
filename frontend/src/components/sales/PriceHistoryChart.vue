@@ -29,6 +29,7 @@
 import { defineComponent } from "vue";
 import LineChart from "@/components/charts/LineChart.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { formatDisplayDate } from "@/utils/localDate";
 
 interface PricePoint {
   price: number;
@@ -114,7 +115,7 @@ export default defineComponent({
       return localizationService.t(key, vars);
     },
     formatDate(timestamp: number): string {
-      return new Date(timestamp).toLocaleDateString(localizationService.getLocale());
+      return formatDisplayDate(timestamp, localizationService.getLocale());
     },
     formatPrice(value: number): string {
       return new Intl.NumberFormat(localizationService.getLocale(), {

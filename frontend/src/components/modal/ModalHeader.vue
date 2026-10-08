@@ -1,9 +1,10 @@
 <template>
   <IonHeader>
     <IonToolbar>
-      <IonTitle>{{ translateHeader(headerTitle) }}</IonTitle>
+      <h1 class="modal-title">{{ translateHeader(headerTitle) }}</h1>
       <IonButtons slot="end">
-        <IconButton :icon="close" :label="closeLabel" @press="$emit('close')" />
+        <slot name="actions" />
+        <IconButton :icon="icons.close" :label="closeLabel" @press="$emit('close')" />
       </IonButtons>
     </IonToolbar>
   </IonHeader>
@@ -11,11 +12,12 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonHeader, IonButtons, IonToolbar, IonTitle } from "@ionic/vue";
-import { close } from "ionicons/icons";
+import { IonHeader, IonButtons, IonToolbar } from "@ionic/vue";
 import IconButton from "@/components/ui/IconButton.vue";
+import { icons } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 
+/** The one modal header: title on the left (wrapping to two lines), close always at the end. */
 export default defineComponent({
   name: "ModalHeader",
   emits: ["close"],
@@ -23,7 +25,6 @@ export default defineComponent({
     IonHeader,
     IonButtons,
     IonToolbar,
-    IonTitle,
     IconButton,
   },
   props: {
@@ -33,7 +34,7 @@ export default defineComponent({
     },
   },
   setup() {
-    return { close };
+    return { icons };
   },
   computed: {
     closeLabel(): string {
@@ -47,3 +48,17 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+.modal-title {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+</style>

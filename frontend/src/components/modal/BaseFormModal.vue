@@ -1,5 +1,6 @@
 <template>
   <IonModal
+    v-if="mounted"
     :is-open="isOpen"
     :can-dismiss="canDismissModal"
     @didPresent="captureBaseline"
@@ -16,6 +17,7 @@
         :extra-content-data="extraContentData"
         :is-loading="isLoading"
         :delete-label="deleteLabel"
+        :delete-consequence="deleteConsequence"
         :field-errors="fieldErrors"
         :onSubmitClick="submitHandler"
         :onDeleteClick="deleteHandler"
@@ -43,6 +45,7 @@ import ModalHeader from "@/components/modal/ModalHeader.vue";
 import ConfirmDialog from "@/components/modal/ConfirmDialog.vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import { formSnapshot } from "@/utils/formState";
 
 export default defineComponent({
@@ -66,11 +69,15 @@ export default defineComponent({
     extraContentData: { type: Object as PropType<Record<string, any>> },
     deleteHandler: { type: Function as PropType<() => void | Promise<void>> },
     deleteLabel: { type: String, default: "" },
+    deleteConsequence: { type: String, default: "" },
     fieldErrors: { type: Object as PropType<Record<string, string>>, default: () => ({}) },
     /** Ask before closing while the form holds unsaved input. */
     guardUnsaved: { type: Boolean, default: true },
   },
   emits: ["close", "submit"],
+  setup(props) {
+    return useMountWhileOpen(() => props.isOpen);
+  },
   data() {
     return {
       baseline: null as string | null,
@@ -121,6 +128,7 @@ export default defineComponent({
     },
     onDidDismiss() {
       this.$emit("close");
+      this.release();
     },
   },
 });

@@ -9,52 +9,49 @@
       </IonCheckbox>
     </IonItem>
 
-    <ul class="parts-list">
+    <ul v-if="filteredComponents.length > 0" class="parts-list">
       <li
         v-for="component in filteredComponents"
         :key="component.id"
         class="part-row"
         :class="{ selected: isSelected(component.id) }"
       >
-        <div class="part-pick">
+        <div class="part-line">
           <IonCheckbox
+            class="part-pick"
             :checked="isSelected(component.id)"
             label-placement="end"
             justify="start"
             @ionChange="toggleSelectedComponent(component.id)"
           >
             <span class="part-name">{{ component.name }}</span>
-            <span class="part-meta">
-              {{ t("component.fineness_prefix") }} {{ component.fineness }}
-            </span>
           </IonCheckbox>
-        </div>
 
-        <div class="part-input">
-          <IonInput
-            :value="componentParts[component.id]"
-            :disabled="!isSelected(component.id)"
-            :aria-label="`${t('component.selection.placeholder')}: ${component.name}`"
-            :placeholder="
-              isSelected(component.id)
-                ? t('component.selection.placeholder')
-                : t('component.selection.disabled_hint')
-            "
-            :class="{ 'part-invalid': partError(component.id) }"
-            type="text"
-            inputmode="decimal"
-            enterkeyhint="done"
-            autocomplete="off"
-            :aria-invalid="partError(component.id) ? 'true' : undefined"
-            @ionInput="updatePart(component.id, $event)"
-            @ionBlur="touched[component.id] = true"
-          />
-          <p v-if="partError(component.id)" class="part-error" role="alert">
-            {{ t("component.selection.error_positive") }}
-          </p>
+          <div v-if="isSelected(component.id)" class="part-input">
+            <IonInput
+              :value="displayPart(componentParts[component.id])"
+              :aria-label="`${t('component.selection.placeholder')}: ${component.name}`"
+              :placeholder="t('component.selection.placeholder')"
+              :class="{ 'part-invalid': partError(component.id) }"
+              type="text"
+              inputmode="decimal"
+              enterkeyhint="done"
+              autocomplete="off"
+              :aria-invalid="partError(component.id) ? 'true' : undefined"
+              @ionInput="updatePart(component.id, $event)"
+              @ionBlur="touched[component.id] = true"
+            />
+          </div>
         </div>
+        <p class="part-meta">
+          {{ t("component.fineness_prefix") }} {{ finenessLabel(component.fineness) }}
+        </p>
+        <p v-if="partError(component.id)" class="part-error" role="alert">
+          {{ t("component.selection.error_positive") }}
+        </p>
       </li>
     </ul>
+    <p v-else class="no-matches">{{ t("subdetail.no_matches") }}</p>
   </section>
 </template>
 
@@ -63,6 +60,7 @@ import { defineComponent, PropType } from "vue";
 import { IonCheckbox, IonInput, IonItem } from "@ionic/vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
+import { finenessLabel, formatNumber } from "@/utils/enumLabels";
 import { parsePart } from "@/utils/substrateParts";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -127,6 +125,10 @@ export default defineComponent({
     },
   },
   methods: {
+    displayPart(value: string | number | undefined): string | number | undefined {
+      return typeof value === "number" ? formatNumber(value) : value;
+    },
+    finenessLabel,
     isSelected(id: number): boolean {
       return this.selectedComponentIds.includes(id);
     },
@@ -171,45 +173,70 @@ export default defineComponent({
 }
 
 .parts-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-3);
   margin: 0;
   padding: 0;
+  overflow: hidden;
   list-style: none;
-}
-
-.part-row {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
+  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
   border-radius: var(--radius-md);
   background: var(--surface-raised);
 }
 
+.part-row {
+  padding: var(--space-1) var(--space-3);
+}
+
+.part-row + .part-row {
+  border-top: 1px solid var(--line);
+}
+
 .part-row.selected {
-  border-color: var(--ion-color-primary);
   background: var(--leaf-wash);
 }
 
+.part-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+}
+
+.part-pick {
+  flex: 1;
+  min-width: 0;
+}
+
 .part-name {
-  display: block;
   font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.part-pick::part(label) {
+  white-space: normal;
 }
 
 .part-meta {
-  display: block;
+  margin: calc(var(--space-2) * -1) 0 var(--space-2);
+  padding-inline-start: calc(var(--space-6) + var(--space-1));
   font-size: var(--text-xs);
   color: var(--ink-soft);
 }
 
+.part-input {
+  flex: none;
+  width: 7rem;
+}
+
 .part-input ion-input {
-  min-height: var(--tap-min);
-  border: 1px solid var(--line);
+  min-height: calc(var(--tap-min) - 4px);
+  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
   border-radius: var(--radius-sm);
-  --padding-start: var(--space-3);
   background: var(--surface-raised);
+  --padding-start: var(--space-3);
+  --padding-end: var(--space-3);
+  --placeholder-color: var(--ink-soft);
+  --placeholder-opacity: 1;
 }
 
 .part-input ion-input.part-invalid {
@@ -217,9 +244,14 @@ export default defineComponent({
 }
 
 .part-error {
-  margin: var(--space-1) 0 0;
+  margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--ion-color-danger);
+}
+
+.no-matches {
+  margin: 0;
+  color: var(--ink-soft);
 }
 </style>

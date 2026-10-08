@@ -85,6 +85,7 @@ import { useComponentsStore } from "@/stores/components";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { finenessLabel } from "@/utils/enumLabels";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailHero from "@/components/ui/DetailHero.vue";
@@ -133,7 +134,7 @@ export default defineComponent({
       return this.allComponents
         .map((comp: Component) => ({
           ...comp,
-          description: comp.fineness || "",
+          description: finenessLabel(comp.fineness),
           parts: 0,
         }))
         .sort((a: SubstrateComponent, b: SubstrateComponent) =>

@@ -85,6 +85,15 @@ ion-button {
   text-transform: none;
 }
 
+/* Ionic paints colored solid buttons from --ion-color-base, so a disabled one is re-based here. */
+ion-button.button-solid.button-disabled.ion-color.ion-color {
+  opacity: 1;
+  --ion-color-base: var(--surface-sunken) !important;
+  --ion-color-contrast: var(--ink-soft) !important;
+  --background: var(--surface-sunken);
+  --color: var(--ink-soft);
+}
+
 ion-fab-button {
   --box-shadow: var(--shadow-lift);
 }

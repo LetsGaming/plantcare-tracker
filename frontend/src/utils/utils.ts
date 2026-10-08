@@ -95,7 +95,7 @@ const Utils = {
       return dt.toUTC().toISO() ?? String(input);
     }
 
-    return dt.toLocaleString(DateTime.DATE_HUGE);
+    return dt.toLocaleString({ day: "2-digit", month: "2-digit", year: "numeric" });
   },
 
   /**

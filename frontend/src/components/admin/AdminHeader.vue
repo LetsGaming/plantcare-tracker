@@ -40,6 +40,11 @@ export default defineComponent({
   --border-width: 0;
 }
 
+.admin-toolbar ion-back-button {
+  --min-height: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
 .admin-toolbar ion-title,
 .admin-toolbar ion-back-button,
 .admin-toolbar :deep(.icon-button) {

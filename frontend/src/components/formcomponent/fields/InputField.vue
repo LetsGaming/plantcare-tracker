@@ -1,11 +1,16 @@
 <template>
-  <div class="field-wrapper">
+  <FieldShell
+    :label="translatedLabel"
+    :required="field.required"
+    :error="error"
+    :hint="translatedHint"
+    :message-id="messageId"
+    :label-id="labelId"
+    @label-click="focusControl"
+  >
     <IonInput
-      class="field-input"
-      :class="{ 'field-invalid': !!error }"
-      fill="outline"
+      ref="control"
       v-model="localValue"
-      label-placement="stacked"
       :type="field.inputType || 'text'"
       :required="field.required"
       :inputmode="field.inputmode"
@@ -14,31 +19,29 @@
       :autocapitalize="field.autocapitalize"
       :autocorrect="field.autocorrect ?? 'off'"
       :maxlength="field.maxlength"
+      :aria-labelledby="labelId"
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="describedBy"
       @ionBlur="$emit('blur')"
-    >
-      <div slot="label">
-        {{ translatedLabel }}
-        <RequiredMark v-if="field.required" />
-      </div>
-    </IonInput>
-    <FieldError :id="messageId" :message="error" :hint="translatedHint" />
-  </div>
+    />
+  </FieldShell>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonInput } from "@ionic/vue";
-import FieldError from "@/components/formcomponent/FieldError.vue";
-import RequiredMark from "@/components/formcomponent/RequiredMark.vue";
-import { fieldErrorProp, nextFieldId } from "@/components/formcomponent/fieldShared";
+import FieldShell from "@/components/formcomponent/FieldShell.vue";
+import {
+  fieldErrorProp,
+  focusControlRef,
+  nextFieldId,
+} from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "InputFieldComponent",
   emits: ["update:modelValue", "blur"],
-  components: { IonInput, FieldError, RequiredMark },
+  components: { IonInput, FieldShell },
   props: {
     field: {
       type: Object as () => InputField,
@@ -51,7 +54,7 @@ export default defineComponent({
     ...fieldErrorProp,
   },
   data() {
-    return { messageId: nextFieldId("field-msg") };
+    return { messageId: nextFieldId("field-msg"), labelId: nextFieldId("field-label") };
   },
   computed: {
     localValue: {
@@ -74,11 +77,10 @@ export default defineComponent({
       return this.error || this.translatedHint ? this.messageId : undefined;
     },
   },
+  methods: {
+    focusControl() {
+      focusControlRef(this.$refs.control);
+    },
+  },
 });
 </script>
-
-<style scoped>
-.field-wrapper {
-  margin-bottom: var(--space-3);
-}
-</style>

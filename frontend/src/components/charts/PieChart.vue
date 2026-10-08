@@ -7,7 +7,7 @@
       <li v-for="(slice, index) in slices" :key="index" class="legend-item">
         <span class="swatch" :class="`swatch-${(index % 6) + 1}`" />
         <span class="legend-name">{{ slice.name }}</span>
-        <span class="legend-value">{{ slice.parts }} · {{ slice.percent }}</span>
+        <span class="legend-value">{{ slice.partsText }} · {{ slice.percent }}</span>
       </li>
     </ul>
   </figure>
@@ -19,6 +19,7 @@ import { Pie } from "vue-chartjs";
 import { Chart as ChartJS, Title, Tooltip, ArcElement, TooltipItem } from "chart.js";
 import type { ChartData, ChartOptions } from "chart.js";
 import localizationService from "@/services/general/LocalizationService";
+import { partsLabel } from "@/utils/enumLabels";
 
 interface PieSlice {
   name: string;
@@ -59,7 +60,7 @@ export default defineComponent({
     total(): number {
       return this.data.reduce((sum, slice) => sum + slice.parts, 0);
     },
-    slices(): { name: string; parts: number; percent: string }[] {
+    slices(): { name: string; parts: number; partsText: string; percent: string }[] {
       const formatter = new Intl.NumberFormat(localizationService.getLocale(), {
         style: "percent",
         maximumFractionDigits: 0,
@@ -67,6 +68,7 @@ export default defineComponent({
       return this.data.map((slice) => ({
         name: slice.name,
         parts: slice.parts,
+        partsText: partsLabel(slice.parts),
         percent: formatter.format(this.total > 0 ? slice.parts / this.total : 0),
       }));
     },
@@ -75,7 +77,7 @@ export default defineComponent({
         .map((slice) =>
           localizationService.t("chart.pie_item", {
             name: slice.name,
-            parts: slice.parts,
+            parts: slice.partsText,
             percent: slice.percent,
           }),
         )
@@ -131,7 +133,8 @@ export default defineComponent({
             titleColor: textColor,
             bodyColor: textColor,
             callbacks: {
-              label: (item: TooltipItem<"pie">) => `${item.label}: ${item.raw ?? 0}`,
+              label: (item: TooltipItem<"pie">) =>
+                `${item.label}: ${partsLabel(Number(item.raw ?? 0))}`,
             },
           },
         },

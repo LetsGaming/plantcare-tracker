@@ -1,11 +1,14 @@
 <template>
-  <div class="field-wrapper">
+  <FieldShell
+    :label="translateLabel()"
+    :required="field.required"
+    :error="shownError"
+    :hint="translatedHint"
+    :message-id="messageId"
+    :label-id="labelId"
+    :boxed="false"
+  >
     <div class="upload" :class="{ 'upload-invalid': !!shownError }">
-      <label :for="inputId" class="upload-label">
-        {{ translateLabel() }}
-        <RequiredMark v-if="field.required" />
-      </label>
-
       <div v-if="previewUrl" class="upload-preview">
         <img :src="previewUrl" alt="" class="upload-thumb" />
         <div class="upload-meta">
@@ -19,27 +22,47 @@
         />
       </div>
 
+      <IonButton
+        ref="pickButton"
+        class="upload-button"
+        fill="outline"
+        color="medium"
+        type="button"
+        :aria-labelledby="`${labelId} ${buttonTextId}`"
+        :aria-invalid="shownError ? 'true' : undefined"
+        :aria-describedby="shownError || translatedHint ? messageId : undefined"
+        @click="openPicker"
+      >
+        <IonIcon slot="start" :icon="imageOutline" aria-hidden="true" />
+        <span :id="buttonTextId">
+          {{
+            file
+              ? t("modal2.file_change", "Choose another image")
+              : t("modal2.file_choose", "Choose an image")
+          }}
+        </span>
+      </IonButton>
+
       <input
         :id="inputId"
         ref="input"
         class="upload-input"
         type="file"
+        tabindex="-1"
+        aria-hidden="true"
         :accept="accept"
-        :aria-invalid="shownError ? 'true' : undefined"
-        :aria-describedby="shownError || translatedHint ? messageId : undefined"
         @change="onFileChange"
         @blur="$emit('blur')"
       />
     </div>
-    <FieldError :id="messageId" :message="shownError" :hint="translatedHint" />
-  </div>
+  </FieldShell>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { closeCircleOutline } from "ionicons/icons";
-import FieldError from "@/components/formcomponent/FieldError.vue";
-import RequiredMark from "@/components/formcomponent/RequiredMark.vue";
+import { IonButton, IonIcon } from "@ionic/vue";
+import { closeCircleOutline, imageOutline } from "ionicons/icons";
+import FieldShell from "@/components/formcomponent/FieldShell.vue";
 import IconButton from "@/components/ui/IconButton.vue";
 import { fieldErrorProp, nextFieldId } from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
@@ -53,7 +76,7 @@ import {
 export default defineComponent({
   name: "UploadFieldComponent",
   emits: ["update:modelValue", "blur"],
-  components: { FieldError, RequiredMark, IconButton },
+  components: { FieldShell, IconButton, IonButton, IonIcon },
   props: {
     field: {
       type: Object as () => UploadField,
@@ -66,12 +89,14 @@ export default defineComponent({
     ...fieldErrorProp,
   },
   setup() {
-    return { closeCircleOutline, accept: IMAGE_ACCEPT };
+    return { closeCircleOutline, imageOutline, accept: IMAGE_ACCEPT };
   },
   data() {
     return {
       inputId: nextFieldId("field-file"),
       messageId: nextFieldId("field-msg"),
+      labelId: nextFieldId("field-label"),
+      buttonTextId: nextFieldId("field-button"),
       localError: "",
       previewUrl: "",
     };
@@ -113,6 +138,9 @@ export default defineComponent({
     t(key: string, fallback: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, fallback);
     },
+    openPicker() {
+      (this.$refs.input as HTMLInputElement | undefined)?.click();
+    },
     releasePreview() {
       if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
       this.previewUrl = "";
@@ -150,35 +178,31 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.field-wrapper {
-  margin-bottom: var(--space-3);
-}
-
 .upload {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-}
-
-.upload-invalid {
-  border-color: var(--ion-color-danger);
-}
-
-.upload-label {
-  font-size: var(--text-sm);
-  color: var(--ink-soft);
+  gap: var(--space-3);
 }
 
 .upload-preview {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.upload-invalid .upload-preview {
+  border-color: var(--ion-color-danger);
+}
+
+.upload-invalid .upload-button {
+  --border-color: var(--ion-color-danger);
 }
 
 .upload-thumb {
+  flex: none;
   width: 56px;
   height: 56px;
   border-radius: var(--radius-sm);
@@ -193,9 +217,7 @@ export default defineComponent({
 }
 
 .upload-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-weight: 600;
 }
 
@@ -204,27 +226,15 @@ export default defineComponent({
   color: var(--ink-soft);
 }
 
-.upload-input {
-  width: 100%;
-  font-family: inherit;
-  font-size: var(--text-sm);
-  color: var(--ink-soft);
-}
-
-.upload-input::file-selector-button {
+.upload-button {
+  --border-radius: var(--radius-md);
+  --border-width: 1.5px;
   min-height: var(--tap-min);
-  margin-right: var(--space-3);
-  padding: 0 var(--space-4);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--ion-color-secondary);
-  color: var(--ion-color-secondary-contrast);
-  font: inherit;
-  font-weight: 650;
-  cursor: pointer;
+  margin: 0;
+  justify-self: start;
 }
 
-.upload-input::file-selector-button:hover {
-  background: var(--ion-color-secondary-shade);
+.upload-input {
+  display: none;
 }
 </style>

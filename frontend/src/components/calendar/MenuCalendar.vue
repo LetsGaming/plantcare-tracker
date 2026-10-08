@@ -12,7 +12,24 @@
       @update-date="onDateSelected"
       @dismissed-popover="isPopoverOpen = false"
     />
+
+    <div class="reminder-actions">
+      <IonButton fill="outline" color="medium" @click="onAddClick">
+        <IonIcon slot="start" :icon="icons.add" aria-hidden="true" />
+        {{ t("modal2.reminder_add") }}
+      </IonButton>
+      <p class="reminder-hint">{{ addHint }}</p>
+    </div>
   </div>
+
+  <ConfirmDialog
+    :is-open="showNoCategories"
+    :title="t('modal2.no_category_title')"
+    :message="t('modal2.no_category_message')"
+    :confirm-label="t('modal2.no_category_action')"
+    @confirm="openCategorySettings"
+    @cancel="showNoCategories = false"
+  />
 
   <BaseFormModal
     :is-open="isModalOpen"
@@ -32,11 +49,15 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import Calendar from "@/components/calendar/Calendar.vue";
+import { IonButton, IonIcon } from "@ionic/vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
+import ConfirmDialog from "@/components/modal/ConfirmDialog.vue";
+import { icons } from "@/theme/icons";
 import { mapActions, mapState } from "pinia";
 import { useCalendarStore } from "@/stores/calendar";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { formatDisplayDate } from "@/utils/localDate";
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -58,6 +79,9 @@ export default defineComponent({
   components: {
     Calendar,
     BaseFormModal,
+    ConfirmDialog,
+    IonButton,
+    IonIcon,
   },
   props: {
     showSettingsButton: {
@@ -66,9 +90,14 @@ export default defineComponent({
     },
   },
 
+  setup() {
+    return { icons };
+  },
+
   data() {
     return {
       selectedDate: "",
+      showNoCategories: false,
 
       isPopoverOpen: false,
       isModalOpen: false,
@@ -93,6 +122,7 @@ export default defineComponent({
           label: "calendar.reminder.form.category",
           type: "select",
           required: true,
+          placeholder: "final3.pick_category",
           hint: "",
           options: [] as { label: string; value: string }[],
         },
@@ -119,7 +149,7 @@ export default defineComponent({
       if (!item) return;
 
       return {
-        title: this.t("calendar2.reminder_on", { date: item.date }),
+        title: this.t("calendar2.reminder_on", { date: this.shortDate(item.date) }),
         fields: [
           { label: this.t("calendar2.category"), value: item.category.name },
           { label: this.t("calendar2.text_color"), value: item.category.textColor },
@@ -127,12 +157,24 @@ export default defineComponent({
         ],
       };
     },
+    addHint(): string {
+      return this.selectedDate
+        ? this.t("modal2.reminder_hint_selected", {
+            date: this.shortDate(this.selectedDate),
+          })
+        : this.t("modal2.reminder_hint");
+    },
     deleteLabel(): string {
-      return this.formData.date ? dayKey(this.formData.date) : "";
+      return this.formData.date ? this.shortDate(dayKey(this.formData.date)) : "";
     },
   },
 
   methods: {
+    shortDate(day: string): string {
+      const millis = keyToMillis(day);
+      if (!millis) return day;
+      return formatDisplayDate(millis, localizationService.getLocale());
+    },
     ...mapActions(useCalendarStore, {
       ensureCalendarLoaded: "ensureLoaded",
       saveDates: "saveDates",
@@ -152,17 +194,37 @@ export default defineComponent({
         return;
       }
 
-      if (this.selectedDate === normalized) {
-        this.formData = {
-          date: keyToMillis(normalized),
-          category: null,
-        };
-        this.isEditing = false;
-        this.isModalOpen = true;
-      }
-
       this.isPopoverOpen = false;
+      if (this.selectedDate === normalized) {
+        this.openAdd(normalized);
+        return;
+      }
       this.selectedDate = normalized;
+    },
+
+    onAddClick() {
+      const day = this.selectedDate || dayKey(Date.now());
+      this.selectedDate = day;
+      if (this.reminderDates.some((d) => d.date === day)) {
+        this.onEditClick();
+        return;
+      }
+      this.openAdd(day);
+    },
+
+    openAdd(day: string) {
+      if (this.categories.length === 0) {
+        this.showNoCategories = true;
+        return;
+      }
+      this.formData = { date: keyToMillis(day), category: null };
+      this.isEditing = false;
+      this.isModalOpen = true;
+    },
+
+    openCategorySettings() {
+      this.showNoCategories = false;
+      this.$emit("settings-click");
     },
 
     onEditClick() {
@@ -249,3 +311,18 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+.reminder-actions {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.reminder-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+</style>

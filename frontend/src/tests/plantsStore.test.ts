@@ -372,6 +372,9 @@ describe("persistence", () => {
   });
 
   it("writes nothing back after a reset, so the next account cannot read an empty fresh entry", async () => {
+    // A debounced write left by the previous test must land before this one starts.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    memoryStore.clear();
     vi.useFakeTimers();
     vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant()]);
     const store = await newStore();
