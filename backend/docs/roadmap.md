@@ -68,6 +68,30 @@ The contract suite already drives the whole app over HTTP against a real SQLite 
 
 ---
 
+### Watering Summary Endpoint
+
+The plant list shows when each plant was last watered, so the frontend loads the watering records of every
+visible personal plant (three requests at a time, cached per account). A single read, for example
+`GET /watering/summary` returning the last date and the average interval per plant, would replace that fan-out.
+
+---
+
+### Server-Side Sales Price History
+
+Price history is built in the browser from the prices it sees on each load, so a new device starts empty.
+Persisting a price point per sale on the server (written by the scrape that already runs) would give every
+client the full history and make the price chart useful from the first visit.
+
+---
+
+### Reviewing Uncaptured Frontend States
+
+The last design reviews did not capture the Sales stream loading state, the admin refresh failure banner,
+component edit and delete as admin, and dark passes of the desktop modals. Add them to a browser test
+suite (see the E2E item above) so they are checked on every change.
+
+---
+
 ### OpenAPI / Swagger Spec
 
 An OpenAPI 3 spec would enable automatic client SDK generation and interactive API documentation. Given the consistent request/response shapes in V2, generating it from Zod schemas using `zod-to-openapi` or `@anatine/zod-openapi` is feasible without duplication.

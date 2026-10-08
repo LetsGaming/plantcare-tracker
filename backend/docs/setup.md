@@ -101,6 +101,7 @@ pnpm run typecheck
 | Script | Command | Description |
 |--------|---------|-------------|
 | `dev` | `tsx watch server.ts` | Development server with hot reload |
+| `src/tools/devServer.ts` | `tsx src/tools/devServer.ts` | The real app with mocked shop scrapers, AI guide and link searchers; started by `scripts/dev-up.mjs` with its own database, never reads `.env`, lifts the sign-in rate limits |
 | `db:import` | `tsx src/tools/importMysqlDumpCli.ts` | Import a MySQL dump into a fresh SQLite file |
 | `build` | `tsc -p tsconfig.build.json` | Compile to `./dist/` |
 | `start` | `node scripts/start.js` | Build if needed, then run compiled server |

@@ -31,15 +31,34 @@ user what to do next. Visual system: `DESIGN.md`; implementation notes: `fronten
 
 ## Verification
 
-Backend 572 tests, lint, typecheck, build. Frontend 357 tests, lint (0 errors), vue-tsc, build. Detector
-clean on views, components and `index.html`. An independent finish review (screenshots at 390 and 1440,
-light and dark) scored the eight material findings of its first pass resolved and shipped the build.
+Backend 572 tests, lint, typecheck, build. Frontend 357 tests (391 after round 2), lint (0 errors), vue-tsc,
+build. Detector clean on views, components and `index.html`. An independent finish review (screenshots at
+390 and 1440, light and dark) scored the eight material findings of its first pass resolved and shipped the
+build.
+
+## Round 2: modals, admin screens and the Sales list
+
+A second critique of these three areas scored 24/40 (authored shell, Ionic-default interior). Fixes, shipped
+by an independent finish review:
+
+- One dialog system (typed confirmation for account deletion, consequences named, Undo for watering record
+  deletes) and one field shell for every form field; one modal header; edit and add forms match; substrate
+  wizard with steps; reminders explain a missing category and link to its settings.
+- Admin: named recheck buttons, the recheck result shown inline (a failing source is a result, not an error),
+  status strip with failing first, "Alle prüfen", technical details disclosure, dashboard merged with the
+  health overview, refresh failure banner.
+- Sales list: price and discount on cards, header count of new items, mark-all hidden when nothing is new,
+  muted placeholder tiles, capped desktop hero, price history hint. The NEU pill rule stays: every unseen item
+  keeps its pill (owner decision).
+- German copy: enum labels, plurals and number formats, one `du` voice, one date formatter, localized Ionic
+  defaults; dark-mode scrollbars; 44px targets.
+- Seed data now covers every watering state, a second public owner and link-search source health, so each
+  feature can be tested (see `CLAUDE.md`).
 
 ## Not covered or open
 
-- Modals, admin screens and the Sales list were judged from source or earlier captures only, not in the
-  final review round.
-- The plant list sort and the Überfällig state are covered by unit tests; the seed data has every plant
-  due, so the ordering is not visible in screenshots.
+- Not captured in the final reviews: the Sales stream loading state, the admin refresh-failure banner,
+  component edit and delete as admin, desktop dark passes beyond one modal.
+- The delete dialog and the Undo toast overlap in one capture, probably the dismiss animation; not confirmed.
 - The tag has no paper or paint texture (flat vector). Water motion has no dark-mode capture.
-- Sales price history chart was never seen with more than one tracked price.
+- The "gerade eben" wording for times under ten seconds is covered by a unit test only.

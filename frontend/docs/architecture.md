@@ -24,6 +24,9 @@ server data.
 └─────────────────────────────────────────────────────────────┘
 ```
 
+Visual language, tokens, shared components and screen states are described in the
+[design system](./design-system.md); this page covers data flow.
+
 ## Layer Responsibilities
 
 | Layer | Files | Responsibility |

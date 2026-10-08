@@ -1,52 +1,64 @@
-# PlantCare Tracker - Frontend
+# PlantCare Tracker: Frontend
 
-## Overview
-This is the frontend for the PlantCare Tracker app, a web application for tracking and managing plant care activities. The frontend is built using Vue.js.
+Ionic and Vue 3 app (Options API, Pinia, Vite) for the PlantCare backend. It runs in the browser as an
+installable PWA on phones and desktops, in German and English, in light and dark.
 
 ## Features
-- User-friendly interface for tracking plant care.
-- Dynamic forms for adding new plants and care logs.
-- Responsive design for mobile and desktop use.
-- Calendar with watering reminders and configurable categories.
 
-## Tech Stack
-- **Ionic**: Framework for building cross-platform mobile apps.
-- **Vue 3 (Options API)**: JavaScript framework for building user interfaces.
-- **Pinia**: State management, one store per data domain.
-- **Typescript**: Superset of JavaScript that adds static typing.
-- **CSS**: Stylesheet language for layout and design.
+- A list of your plants with a watering line on every card, thirstiest first, and a Public tab for shared plants.
+- Plant detail with a watering status band: last watered, rhythm, and a "Jetzt gießen" button with Undo.
+- Watering calendar with fertilizer markers, photo gallery, substrate, and a streamed AI care guide.
+- Substrates mixed from components (with a composition chart), and a component catalogue managed by admins.
+- Sales from several shops with prices, discounts and a price history; admin screens for scraper health.
+- Reminders and categories in a side-menu calendar, profile editing, guest mode (read-only).
+- Every list and detail has loading, empty, error and not-found states with a next step.
 
-## Project Setup
+## Tech stack
 
-### Prerequisites
-- Node.js installed
+- **Ionic 8 and Vue 3 (Options API)**, no `<script setup>` (a test enforces it).
+- **Pinia**: one store per data domain, with an optimistic-update helper and an L2 persistence plugin.
+- **TypeScript**, **Vite**, **vite-plugin-pwa** (service worker in production builds only).
+- **Design system**: tokens in `src/theme`, Bricolage Grotesque and Figtree self-hosted, one outline icon
+  family. See [docs/design-system.md](./docs/design-system.md) and the repository `DESIGN.md`.
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/LetsGaming/plantcare-tracker.git
-   ```
-2. Navigate to the frontend directory:
-   ```bash
-   cd plantcare-tracker/frontend
-   ```
-3. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-4. Start the development server:
-   ```bash
-   pnpm run dev
-   ```
+## Setup
 
-5. Open the app in your browser at `http://localhost:5173`.
+Prerequisites: Node >= 22 and pnpm >= 10.
+
+```bash
+cd frontend
+pnpm install
+pnpm run dev            # http://localhost:5173, expects the backend on :5000
+```
+
+The API location comes from `src/config.json`; a development build also honors `VITE_API_URL`.
+
+For a complete local stack with mock data (backend with mocked shops and AI guide, seeded accounts), run from
+the repository root:
+
+```bash
+node scripts/dev-up.mjs --id my-session
+node scripts/dev-down.mjs --id my-session
+```
+
+The printed url signs you in automatically (development builds accept `?devToken=`).
+
+## Checks
+
+```bash
+pnpm run lint
+pnpm run format:check
+pnpm exec vue-tsc --noEmit
+pnpm run check-keys              # German and English locale files stay in sync
+pnpm exec vitest run --coverage
+pnpm run build
+```
 
 ## Documentation
-See [docs/index.md](./docs/index.md) for the architecture, the stores and the test setup.
 
-## Customization
-You can modify the components and styles by editing the files under the `src` folder.
+See [docs/index.md](./docs/index.md): architecture, design system, stores, API reference and the test setup.
 
 ## Contributing
-Pull requests are welcome to improve the user interface or add new features!
 
+Keep the Options API and the token-only styling rules (no hex colors or inline styles in components), add
+both locale strings for every new text, and keep icons in `src/theme/icons.ts`. Pull requests are welcome.
