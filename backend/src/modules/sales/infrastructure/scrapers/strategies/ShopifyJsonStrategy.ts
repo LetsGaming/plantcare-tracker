@@ -1,7 +1,7 @@
-import type { RawSaleItem } from "../../../domain/Sale";
-import { fetchJson } from "../../HttpFetcher";
-import { commercialRound, parsePrice } from "../../scrapeHelpers";
-import type { ExtractionStrategy, StrategyContext } from "../types";
+import type { RawSaleItem } from '../../../domain/Sale';
+import { fetchJson } from '../../HttpFetcher';
+import { commercialRound, parsePrice } from '../../scrapeHelpers';
+import type { ExtractionStrategy, StrategyContext } from '../types';
 
 interface ShopifyVariant {
   price: string;
@@ -22,10 +22,7 @@ interface ProductsFeed {
 
 const PAGE_SIZE = 250;
 
-const toRawItem = (
-  product: ShopifyProduct,
-  productBase: string,
-): RawSaleItem | null => {
+const toRawItem = (product: ShopifyProduct, productBase: string): RawSaleItem | null => {
   const discounted = (product.variants ?? [])
     .filter((v) => v.available)
     .map((v) => ({
@@ -49,7 +46,7 @@ const toRawItem = (
 };
 
 export class ShopifyJsonStrategy implements ExtractionStrategy {
-  readonly name = "shopifyJson" as const;
+  readonly name = 'shopifyJson' as const;
   readonly authoritative = true;
 
   isApplicable(config: { shopifyCollectionUrl?: string }): boolean {
@@ -57,20 +54,19 @@ export class ShopifyJsonStrategy implements ExtractionStrategy {
   }
 
   async extract(ctx: StrategyContext): Promise<RawSaleItem[]> {
-    const collectionUrl =
-      ctx.shopifyCollectionUrl ?? ctx.config.shopifyCollectionUrl;
-    if (!collectionUrl) throw new Error("No Shopify collection URL configured");
+    const collectionUrl = ctx.shopifyCollectionUrl ?? ctx.config.shopifyCollectionUrl;
+    if (!collectionUrl) throw new Error('No Shopify collection URL configured');
 
     const { origin, pathname } = new URL(collectionUrl);
-    const collectionPath = pathname.replace(/\/$/, "");
+    const collectionPath = pathname.replace(/\/$/, '');
     // Localized storefronts (e.g. /de) prefix product paths as well
-    const localePrefix = collectionPath.split("/collections/")[0];
+    const localePrefix = collectionPath.split('/collections/')[0];
 
     const feed = await fetchJson<ProductsFeed>(
       `${origin}${collectionPath}/products.json?limit=${PAGE_SIZE}&page=${ctx.page}`,
     );
     if (!feed || !Array.isArray(feed.products)) {
-      throw new Error("products.json unavailable");
+      throw new Error('products.json unavailable');
     }
 
     return feed.products

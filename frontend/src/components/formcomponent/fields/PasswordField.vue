@@ -1,70 +1,74 @@
 <template>
-  <div class="field-wrapper">
-    <IonItem class="custom-input-item">
-      <div class="input-wrapper">
-        <input
-          v-model="localValue"
-          :type="showPassword ? 'text' : 'password'"
-          :required="field.required"
-          :aria-label="translatedLabel"
-        />
-        <label>
-          {{ translatedLabel }}
-          <span v-if="field.required">*</span>
-        </label>
-      </div>
-
-      <IonButton
-        fill="clear"
-        size="small"
+  <FieldShell
+    :label="translatedLabel"
+    :required="field.required"
+    :error="error"
+    :hint="translatedHint"
+    :message-id="messageId"
+    :label-id="labelId"
+    @label-click="focusControl"
+  >
+    <IonInput
+      ref="control"
+      v-model="localValue"
+      :type="showPassword ? 'text' : 'password'"
+      :required="field.required"
+      :autocomplete="field.autocomplete || 'new-password'"
+      :enterkeyhint="field.enterkeyhint"
+      autocapitalize="off"
+      autocorrect="off"
+      :aria-labelledby="labelId"
+      :aria-invalid="error ? 'true' : undefined"
+      :aria-describedby="error || translatedHint ? messageId : undefined"
+      @ionBlur="$emit('blur')"
+    >
+      <IconButton
         slot="end"
-        @click="togglePasswordVisibility"
-      >
-        <IonIcon :icon="showPassword ? eyeOffOutline : eyeOutline" />
-      </IonButton>
-    </IonItem>
-
-    <RequiredNote v-if="field.required" />
-  </div>
+        :icon="showPassword ? eyeOffOutline : eyeOutline"
+        :label="toggleLabel"
+        :aria-pressed="showPassword ? 'true' : 'false'"
+        @press="showPassword = !showPassword"
+      />
+    </IonInput>
+  </FieldShell>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from "vue";
-import { IonItem, IonButton, IonIcon } from "@ionic/vue";
+import { defineComponent } from "vue";
+import { IonInput } from "@ionic/vue";
 import { eyeOutline, eyeOffOutline } from "ionicons/icons";
-import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import FieldShell from "@/components/formcomponent/FieldShell.vue";
+import IconButton from "@/components/ui/IconButton.vue";
+import {
+  fieldErrorProp,
+  focusControlRef,
+  nextFieldId,
+} from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "PasswordField",
-  components: {
-    IonItem,
-    IonButton,
-    IonIcon,
-    RequiredNote,
-  },
+  emits: ["update:modelValue", "blur"],
+  components: { IonInput, FieldShell, IconButton },
   props: {
     field: {
-      type: Object,
+      type: Object as () => PasswordField,
       required: true,
     },
     modelValue: {
       type: [String, Number],
       default: "",
     },
+    ...fieldErrorProp,
   },
   setup() {
-    const showPassword = ref(false);
-
-    const togglePasswordVisibility = () => {
-      showPassword.value = !showPassword.value;
-    };
-
+    return { eyeOutline, eyeOffOutline };
+  },
+  data() {
     return {
-      showPassword,
-      togglePasswordVisibility,
-      eyeOutline,
-      eyeOffOutline,
+      showPassword: false,
+      messageId: nextFieldId("field-msg"),
+      labelId: nextFieldId("field-label"),
     };
   },
   computed: {
@@ -77,60 +81,23 @@ export default defineComponent({
       },
     },
     translatedLabel(): string {
-      return localizationService.t(
-        this.field.label,
-        undefined,
-        this.field.label,
-      );
+      return localizationService.t(this.field.label, undefined, this.field.label);
+    },
+    translatedHint(): string {
+      return this.field.hint
+        ? localizationService.t(this.field.hint, undefined, this.field.hint)
+        : "";
+    },
+    toggleLabel(): string {
+      return this.showPassword
+        ? localizationService.t("a11y.hide_password", undefined, "Hide password")
+        : localizationService.t("a11y.show_password", undefined, "Show password");
+    },
+  },
+  methods: {
+    focusControl() {
+      focusControlRef(this.$refs.control);
     },
   },
 });
 </script>
-
-<style scoped>
-.field-wrapper {
-  margin-bottom: 16px;
-}
-
-.custom-input-item {
-  --padding-start: 16px;
-  --inner-padding-end: 8px;
-}
-
-.input-wrapper {
-  position: relative;
-  flex: 1;
-}
-
-.input-wrapper input {
-  width: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  padding: 20px 0 6px;
-  font-size: 16px;
-  color: var(--ion-text-color, #000);
-}
-
-.input-wrapper label {
-  position: absolute;
-  left: 0;
-  top: 18px;
-  font-size: 16px;
-  color: var(--ion-color-medium);
-  pointer-events: none;
-  transition: 0.2s ease;
-}
-
-.input-wrapper input:focus + label,
-.input-wrapper input:not(:placeholder-shown) + label {
-  top: 2px;
-  font-size: 12px;
-  color: var(--ion-color-primary);
-}
-
-.input-wrapper label span {
-  color: var(--ion-color-danger);
-  margin-left: 2px;
-}
-</style>

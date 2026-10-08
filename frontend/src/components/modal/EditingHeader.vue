@@ -1,43 +1,24 @@
 <template>
-  <ion-header>
-    <ion-toolbar>
-      <IonTitle>{{ headerTitle }}</IonTitle>
-      <ion-buttons slot="start">
-        <ion-button @click="closeModal()">Zurück</ion-button>
-      </ion-buttons>
-      <ion-icon
-        v-if="showEditButton && onEditClick"
-        :icon="create"
-        style="width: 32px; height: 32px"
-        slot="end"
-        @click="onEditClick"
-      />
-    </ion-toolbar>
-  </ion-header>
+  <ModalHeader :header-title="headerTitle" @close="$emit('close')">
+    <template v-if="showEditButton && onEditClick" #actions>
+      <IconButton :icon="icons.edit" :label="t('a11y.edit', 'Edit')" @press="onEditClick" />
+    </template>
+  </ModalHeader>
 </template>
 
 <script lang="ts">
-import {
-  IonHeader,
-  IonToolbar,
-  IonButtons,
-  IonButton,
-  IonIcon,
-  IonTitle,
-} from "@ionic/vue";
 import { defineComponent, PropType } from "vue";
-import { create } from "ionicons/icons";
+import IconButton from "@/components/ui/IconButton.vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
+import { icons } from "@/theme/icons";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "EditModalHeader",
   emits: ["close"],
   components: {
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonButton,
-    IonIcon,
-    IonTitle,
+    ModalHeader,
+    IconButton,
   },
   props: {
     headerTitle: {
@@ -54,13 +35,11 @@ export default defineComponent({
     },
   },
   setup() {
-    return {
-      create,
-    };
+    return { icons };
   },
   methods: {
-    closeModal() {
-      this.$emit("close");
+    t(key: string, fallback: string) {
+      return localizationService.t(key, undefined, fallback);
     },
   },
 });

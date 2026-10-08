@@ -3,27 +3,24 @@
  *
  * Composition root for the substrate module.
  *
- * Mutations carry checkGuestPermission in line with the shared API
- * contract (guests are GET-only).
+ * Guest read-only access is enforced once for the whole API (guestReadOnly).
  */
 
-import { Router } from 'express';
+import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteSubstrateRepository } from '../infrastructure/SQLiteSubstrateRepository';
 import { createSubstrateController } from './substrateController';
-import { authenticateToken, checkGuestPermission } from '../../../core/middleware';
+import { createImageCleanup } from '../../images';
+import { authenticateToken } from '../../../core/middleware';
 
-export const createSubstrateRouter = (): Router => {
-  const router = Router();
+export const substrateRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLiteSubstrateRepository();
-  const ctrl = createSubstrateController(repo);
+  const ctrl = createSubstrateController(repo, createImageCleanup());
 
-  router.get('/',                  authenticateToken,                        ctrl.getAllSubstrates);
-  router.get('/:id',               authenticateToken,                        ctrl.getSubstrate);
-  router.post('/',                 authenticateToken, checkGuestPermission,  ctrl.addSubstrate);
-  router.patch('/:id',             authenticateToken, checkGuestPermission,  ctrl.editSubstrate);
-  router.post('/:id/components',   authenticateToken, checkGuestPermission,  ctrl.addComponents);
-  router.patch('/:id/components',  authenticateToken, checkGuestPermission,  ctrl.upsertComponents);
-  router.delete('/:id',            authenticateToken, checkGuestPermission,  ctrl.deleteSubstrate);
-
-  return router;
+  app.get('/', { onRequest: authenticateToken }, ctrl.getAllSubstrates);
+  app.get('/:id', { onRequest: authenticateToken }, ctrl.getSubstrate);
+  app.post('/', { onRequest: authenticateToken }, ctrl.addSubstrate);
+  app.patch('/:id', { onRequest: authenticateToken }, ctrl.editSubstrate);
+  app.post('/:id/components', { onRequest: authenticateToken }, ctrl.addComponents);
+  app.patch('/:id/components', { onRequest: authenticateToken }, ctrl.upsertComponents);
+  app.delete('/:id', { onRequest: authenticateToken }, ctrl.deleteSubstrate);
 };

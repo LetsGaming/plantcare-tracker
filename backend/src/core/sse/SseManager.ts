@@ -10,7 +10,7 @@
  * the shared endpoint lifecycle in sseEndpoint.ts.
  */
 
-import type { Response } from 'express';
+import type { OutgoingHttpHeaders, ServerResponse } from 'node:http';
 import { SSE } from '../config';
 
 export class SseManager {
@@ -20,11 +20,14 @@ export class SseManager {
   private readonly maxChunkSize: number;
 
   constructor(
-    private readonly res: Response,
+    private readonly res: ServerResponse,
+    /** Headers already decided by the framework (CORS, request id). */
+    inheritedHeaders: OutgoingHttpHeaders = {},
     maxChunkSize: number = SSE.MAX_CHUNK_BYTES,
   ) {
     this.maxChunkSize = maxChunkSize;
     res.writeHead(200, {
+      ...inheritedHeaders,
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
@@ -72,7 +75,8 @@ export class SseManager {
     clearInterval(this.heartbeat);
     this.res.write(`event: ${SSE.EVENT.DONE}\ndata: ${JSON.stringify(stats)}\n\n`);
     return new Promise((resolve) => {
-      this.res.end(() => resolve());
+      this.res.once('finish', resolve);
+      this.res.end();
     });
   }
 
@@ -83,9 +87,7 @@ export class SseManager {
   fail(message: string): void {
     clearInterval(this.heartbeat);
     if (this.res.writableEnded) return;
-    this.res.write(
-      `event: ${SSE.EVENT.ERROR}\ndata: ${JSON.stringify({ message })}\n\n`,
-    );
+    this.res.write(`event: ${SSE.EVENT.ERROR}\ndata: ${JSON.stringify({ message })}\n\n`);
     this.res.end();
   }
 
@@ -122,7 +124,7 @@ export class SseManager {
   private emit<T>(data: T): Promise<void> {
     return new Promise((resolve) => {
       const canWrite = this.res.write(`data: ${JSON.stringify(data)}\n\n`);
-      (this.res as Response & { flush?: () => void }).flush?.();
+      (this.res as ServerResponse & { flush?: () => void }).flush?.();
 
       if (!canWrite) {
         this.res.once('drain', resolve);

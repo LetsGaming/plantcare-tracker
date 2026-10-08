@@ -8,6 +8,8 @@
 
 ## Response Format
 
+All timestamps on plants, substrates, watering records and image lists are Unix epoch **seconds** (integers). The upload response's `date` is a formatted UTC string, and the sales and source-health timestamps are ISO strings.
+
 All endpoints return a consistent JSON envelope:
 
 ```json
@@ -30,6 +32,19 @@ All endpoints return a consistent JSON envelope:
 
 The `fields` property is only present on `ValidationError` (400) responses and maps each invalid input field to its specific problem.
 
+Failures that are the client's doing never answer `500`:
+
+| Cause | Status | Type |
+|-------|:------:|------|
+| Malformed JSON body | `400` | `ValidationError` |
+| JSON body over 100 kb | `413` | `PayloadTooLargeError` |
+| Unique constraint (duplicate component in a substrate, username taken) | `409` | `ConflictError` |
+| Foreign key constraint (unknown `substrateId`, `componentId`) | `400` | `ValidationError` |
+| Upload that is not a decodable image | `400` | `ValidationError` |
+
+A request from a disallowed `Origin` is answered normally without CORS headers.
+Preflights allow `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` and `OPTIONS` with credentials, so a frontend on another origin can edit and delete.
+
 Mutating endpoints (POST / PATCH / PUT) respond with the **full resource** in the same shape a subsequent GET would return — clients never need a follow-up fetch after a write. POST additionally sets a `Location` header pointing at the created resource.
 
 ## Authentication Header
@@ -42,7 +57,9 @@ See [Authentication](./authentication.md) for the full token flow.
 
 ## Roles
 
-Three roles exist: `admin`, `user`, `guest`. **Guests are read-only**: every mutating route (POST / PATCH / PUT / DELETE) across all modules answers `403` for guest tokens. Admin-only routes are marked in the tables below.
+Three roles exist: `admin`, `user`, `guest`. **Guests are read-only**: every mutating route (POST / PATCH / PUT / DELETE) across all modules answers `403` for guest tokens, enforced once before routing. Guests may still call the session endpoints (`/auth/login/guest`, `/auth/refresh-token`, `/auth/ticket`, `/auth/logout`). Admin-only routes are marked in the tables below.
+
+**Status codes.** `401` always means the credential is missing, invalid, expired or its session has ended (clients refresh or sign in again). `403` always means the caller is authenticated but not allowed. `404` is used instead of `403` where a `403` would reveal that a private resource exists. `429` answers an exceeded rate limit.
 
 ---
 
@@ -72,7 +89,9 @@ Login endpoints are rate-limited (per IP and per account, 15-minute window).
 { "data": { "id": 5, "username": "alice" } }
 ```
 
-Errors: `400` (missing fields), `409` (username taken)
+`username` is 3 to 64 characters. `password` is at least 8 characters and at most 72 bytes (UTF-8), because bcrypt ignores anything longer. The same rules apply to `PATCH /me` and `PATCH /:id`. Login only requires non-empty values (password up to 1024 characters) so accounts created under earlier rules keep working.
+
+Errors: `400` (missing fields or limits, with `fields`), `409` (username taken)
 
 ### POST `/login`
 
@@ -98,7 +117,7 @@ No request body required.
 
 ### POST `/refresh-token`
 
-Requires the `refreshToken` cookie (sent automatically by the browser).
+Requires the `refreshToken` cookie (sent automatically by the browser). Answers `401` when the cookie is missing, invalid, expired or its session has ended. The new access token belongs to the same session.
 
 ```json
 // Response 200
@@ -107,7 +126,7 @@ Requires the `refreshToken` cookie (sent automatically by the browser).
 
 ### POST `/ticket`
 
-Issues a one-time ticket (60 s validity) for authenticating SSE streams; see [Authentication](./authentication.md).
+Issues a one-time ticket (60 s validity) for authenticating SSE streams; see [Authentication](./authentication.md). Available to every role including guests. Rate limited per user (`429`).
 
 ```json
 // Response 200
@@ -139,7 +158,7 @@ Updates the authenticated user's own profile. At least one of `username`, `passw
 { "data": null }
 ```
 
-Any profile change invalidates **all** existing sessions — the client must log in again, which is why the response carries no resource. Errors: `400`, `404`
+A rename onto an existing username answers `409`. Any profile change invalidates **all** existing sessions — the client must log in again, which is why the response carries no resource. Errors: `400`, `404`
 
 ---
 
@@ -164,11 +183,11 @@ Any profile change invalidates **all** existing sessions — the client must log
   "plant_name": "Monstera deliciosa",
   "plant_species": "Monstera deliciosa",
   "is_public": true,
-  "plant_created_at": "2024-01-01T00:00:00.000Z",
+  "plant_created_at": 1704067200,
   "image_url": "http://localhost:5000/uploads/plant/img-a1b2.webp",
   "substrate": { "substrate_id": 1, "substrate_name": "Aroid Mix" },
   "images": [
-    { "id": 3, "url": "http://...", "date": "2024-06-01 10:00:00" }
+    { "id": 3, "url": "http://...", "date": 1717236000 }
   ]
 }
 ```
@@ -232,7 +251,7 @@ All reads and writes are scoped to plants the caller owns. Mutations answer `403
 ```json
 {
   "record_id": 1,
-  "watering_date": "2024-06-01 10:00:00",
+  "watering_date": 1717236000,
   "used_fertilizer": true,
   "fertilizer_type_id": 1,
   "fertilizer_type": "organic",
@@ -287,14 +306,14 @@ Errors: `400` (invalid body or date, with `fields`), `401`, `403` (guest), `404`
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
 | GET | `/` | JWT | Public + own substrates merged, deduplicated |
-| GET | `/:id` | JWT | Single substrate |
+| GET | `/:id` | JWT | Single substrate (own or public) |
 | POST | `/` | JWT | Create substrate |
 | PATCH | `/:id` | JWT | Update name/visibility + remove components |
 | POST | `/:id/components` | JWT | Add components (insert only) |
 | PATCH | `/:id/components` | JWT | Upsert components (insert or replace) |
 | DELETE | `/:id` | JWT | Delete substrate (owner only) |
 
-Mutations require ownership (`403` for foreign substrates, `403` for guests). Every mutation responds with the full, freshly-read substrate including its components.
+`GET /:id` answers `404` for a private substrate the caller does not own. Mutations require ownership (`403` for foreign substrates, `403` for guests). Every mutation responds with the full, freshly-read substrate including its components.
 
 ### Substrate Object
 
@@ -304,7 +323,7 @@ Mutations require ownership (`403` for foreign substrates, `403` for guests). Ev
   "substrate_user_id": 2,
   "substrate_name": "Aroid Mix",
   "is_public": true,
-  "substrate_created_at": "2024-01-01T00:00:00.000Z",
+  "substrate_created_at": 1704067200,
   "image_url": null,
   "images": [],
   "components": [
@@ -393,7 +412,16 @@ The component catalogue is global, so all mutations are admin-only (`403` otherw
 | DELETE | `/:id` | JWT | Delete single image by image id |
 | DELETE | `/:entityType/:entityId` | JWT | Delete all images for an entity |
 
-`entityType` must be one of: `plant`, `substrate`, `component`. Mutations answer `403` for guests. Uploads with an unsupported MIME type or larger than **10 MB** answer `400`.
+`entityType` must be one of: `plant`, `substrate`, `component`. Every route checks the caller against the entity the image belongs to:
+
+| Entity | Read (list, serve) | Write (upload, update, delete) |
+|--------|--------------------|--------------------------------|
+| plant, substrate | owner, or anyone when public | owner only |
+| component | any signed-in user | admin only |
+
+Image URLs in responses are absolute. The database stores only the path (`/uploads/plant/<file>.webp`); the origin comes from `PUBLIC_BASE_URL` when set, otherwise from the request's own origin. Deleting a plant, substrate or component also deletes its image rows and files.
+
+A private entity the caller does not own, and an unknown entity, answer `404`. A write to a public entity owned by someone else answers `403`. Mutations answer `403` for guests. Uploads with an unsupported MIME type or larger than **10 MB** answer `400`.
 
 ### POST `/:entityType/:entityId`
 
@@ -414,7 +442,7 @@ Request: `multipart/form-data` with field `image` (JPEG or PNG).
 2. Filename anonymized (strips PII keywords like `iphone`, `admin`, `desktop`)
 3. Resized to max 1024px width (no upscaling)
 4. Converted to WebP at quality 70, near-lossless
-5. Saved to `NAS_PATH/<entityType>/<filename>.webp`
+5. Saved to `NAS_PATH/<entityType>/<filename>-<random hex>.webp`
 
 ### GET `/:entityType/:entityId`
 
@@ -458,6 +486,8 @@ When a new file is uploaded, the previous file is deleted from disk only after t
 GET /api/v2/sales?ticket=<one-time-ticket>
 Accept: text/event-stream
 ```
+
+A missing, unknown, used or expired ticket answers `401`.
 
 ### Events
 
@@ -526,9 +556,9 @@ GET /api/v2/more-info?ticket=<ticket>&plantName=Monstera+deliciosa&htmlFormattin
 |-----------|:--------:|---------|-------------|
 | `plantName` | ✓ | — | Plant name to look up (max. 100 characters) |
 | `htmlFormatting` | — | `false` | Return HTML instead of Markdown chunks |
-| `lang` | — | `en` | Response language (falls back to `Accept-Language` header) |
+| `lang` | no | `en` | Response language as a language tag such as `en` or `de-DE` (max. 35 characters). Falls back to the first valid `Accept-Language` entry; an invalid `lang` answers `400` |
 
-A missing or over-long `plantName` is rejected **before** the stream opens with a regular JSON `400` error envelope.
+A missing or over-long `plantName` or a malformed `lang` is rejected **before** the stream opens with a regular JSON `400` error envelope. The ticket is consumed either way. Streams are rate limited per user (`429`).
 
 ### Events
 
@@ -545,6 +575,8 @@ data: {"message":"Information stream interrupted"}
 ```
 
 `ai_chunk` events arrive as text is generated. `link` events arrive as each of the 7 link scrapers completes (Wikipedia, GBIF, RHS, and 4 plant shop scrapers). Both streams run in parallel.
+
+When the AI provider fails or is not configured the stream ends with an `error` event and no `done` event. With `htmlFormatting=true`, model text is HTML-escaped before markup is added; live chunks are Markdown text and are escaped by the client when rendered.
 
 ---
 

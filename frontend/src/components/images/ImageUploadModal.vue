@@ -1,84 +1,27 @@
 <template>
-  <IonModal v-model:isOpen="isOpen" @did-dismiss="onClose">
-    <IonHeader>
-      <IonToolbar>
-        <IonTitle>{{ cardTitle }}</IonTitle>
-        <IonButtons slot="end">
-          <IonButton @click="onClose">
-            <IonIcon :icon="closeOutline" />
-          </IonButton>
-        </IonButtons>
-      </IonToolbar>
-    </IonHeader>
-    <IonContent>
-      <div class="modal-card-container">
-        <form-component
-          :item="fileItem"
-          :formFields="[
-            {
-              type: 'file',
-              label: 'image.label',
-              modelKey: 'file',
-              required: true,
-            },
-            {
-              type: 'date',
-              label: 'image.date_label',
-              modelKey: 'date',
-            },
-          ]"
-          cardTitle="image.upload.title"
-          submitLabel="image.upload.submit"
-          :isLoading="isLoading"
-          :onSubmitClick="submitForm"
-        />
-      </div>
-    </IonContent>
-  </IonModal>
+  <BaseFormModal
+    :is-open="isOpen"
+    :is-loading="isLoading"
+    :modal-title="cardTitle"
+    form-title="image.upload.title"
+    submit-label="image.upload.submit"
+    :form-data="fileItem"
+    :form-fields="formFields"
+    @submit="submitForm"
+    @close="onClose"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import {
-  IonModal,
-  IonButton,
-  IonIcon,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-  IonLabel,
-  IonItem,
-} from "@ionic/vue";
-import FormComponent from "@/components/formcomponent/FormComponent.vue";
-import { closeOutline } from "ionicons/icons";
-import ToastService from "@/services/general/ToastService";
+import BaseFormModal from "@/components/modal/BaseFormModal.vue";
+
+const blankItem = (): AddImage => ({ date: undefined, file: undefined }) as unknown as AddImage;
 
 export default defineComponent({
   name: "ImageUploadModal",
   emits: ["submit"],
-  components: {
-    IonModal,
-    IonButton,
-    IonIcon,
-    IonHeader,
-    IonToolbar,
-    IonTitle,
-    IonButtons,
-    IonContent,
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
-    IonLabel,
-    IonItem,
-    FormComponent,
-  },
+  components: { BaseFormModal },
   props: {
     isLoading: {
       type: Boolean,
@@ -97,26 +40,25 @@ export default defineComponent({
       required: true,
     },
   },
-  setup() {
-    return {
-      closeOutline,
-    };
-  },
   data() {
-    return {
-      fileItem: {
-        date: undefined,
-        file: undefined as File | undefined,
-      } as AddImage,
-    };
+    return { fileItem: blankItem() };
+  },
+  computed: {
+    formFields(): FormField[] {
+      return [
+        { type: "file", label: "image.label", modelKey: "file", required: true },
+        { type: "date", label: "image.date_label", modelKey: "date" },
+      ];
+    },
+  },
+  watch: {
+    isOpen() {
+      this.fileItem = blankItem();
+    },
   },
   methods: {
     submitForm() {
-      if (!this.fileItem.file) {
-        ToastService.showError({ key: 'image.select_error', fallback: 'Please select an image.' });
-      } else {
-        this.$emit("submit", this.fileItem);
-      }
+      if (this.fileItem.file) this.$emit("submit", this.fileItem);
     },
   },
 });

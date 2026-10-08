@@ -1,27 +1,20 @@
-import type {
-  FetchOptions,
-  SalesSource,
-} from "../../domain/SalesSource";
-import type { RawSaleItem } from "../../domain/Sale";
+import type { FetchOptions, SalesSource } from '../../domain/SalesSource';
+import type { RawSaleItem } from '../../domain/Sale';
 import type {
   SourceHealthReporter,
   StrategyName,
-} from "../../../../core/scrapeHealth/SourceHealth";
-import type { CacheService } from "../../../../core/cache/CacheService";
-import { fetchDocument, type FetchedDocument } from "../HttpFetcher";
-import { buildPageUrl } from "../scrapeHelpers";
-import { createModuleLogger } from "../../../../core/logging";
-import { HeuristicStrategy } from "./strategies/HeuristicStrategy";
-import { JsonLdStrategy } from "./strategies/JsonLdStrategy";
-import { SelectorStrategy } from "./strategies/SelectorStrategy";
-import { ShopifyJsonStrategy } from "./strategies/ShopifyJsonStrategy";
-import type {
-  ExtractionStrategy,
-  ScraperConfig,
-  StrategyContext,
-} from "./types";
+} from '../../../../core/scrapeHealth/SourceHealth';
+import type { CacheService } from '../../../../core/cache/CacheService';
+import { fetchDocument, type FetchedDocument } from '../HttpFetcher';
+import { buildPageUrl } from '../scrapeHelpers';
+import { createModuleLogger } from '../../../../core/logging';
+import { HeuristicStrategy } from './strategies/HeuristicStrategy';
+import { JsonLdStrategy } from './strategies/JsonLdStrategy';
+import { SelectorStrategy } from './strategies/SelectorStrategy';
+import { ShopifyJsonStrategy } from './strategies/ShopifyJsonStrategy';
+import type { ExtractionStrategy, ScraperConfig, StrategyContext } from './types';
 
-export type { ScraperConfig, ScraperSelectors } from "./types";
+export type { ScraperConfig, ScraperSelectors } from './types';
 
 const STRATEGY_REGISTRY: Record<StrategyName, ExtractionStrategy> = {
   shopifyJson: new ShopifyJsonStrategy(),
@@ -30,16 +23,8 @@ const STRATEGY_REGISTRY: Record<StrategyName, ExtractionStrategy> = {
   heuristic: new HeuristicStrategy(),
 };
 
-const DEFAULT_SHOPIFY_STRATEGIES: StrategyName[] = [
-  "shopifyJson",
-  "selector",
-  "heuristic",
-];
-const DEFAULT_HTML_STRATEGIES: StrategyName[] = [
-  "selector",
-  "jsonLd",
-  "heuristic",
-];
+const DEFAULT_SHOPIFY_STRATEGIES: StrategyName[] = ['shopifyJson', 'selector', 'heuristic'];
+const DEFAULT_HTML_STRATEGIES: StrategyName[] = ['selector', 'jsonLd', 'heuristic'];
 
 /** Share of items that must carry link, name and a real discount. */
 const MIN_COMPLETENESS = 0.8;
@@ -49,12 +34,11 @@ const SHOPIFY_COLLECTION_PATH = /^(.*\/collections\/[^/]+)/;
 
 const isComplete = (item: RawSaleItem): boolean =>
   Boolean(item.link && item.name) &&
-  typeof item.newPrice === "number" &&
-  typeof item.oldPrice === "number" &&
+  typeof item.newPrice === 'number' &&
+  typeof item.oldPrice === 'number' &&
   item.newPrice < item.oldPrice;
 
-const errorMessage = (err: unknown): string =>
-  err instanceof Error ? err.message : String(err);
+const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
 export abstract class BaseScraper implements SalesSource {
   public readonly key: string;
@@ -82,18 +66,13 @@ export abstract class BaseScraper implements SalesSource {
 
     const names =
       config.strategies ??
-      (config.shopifyCollectionUrl
-        ? DEFAULT_SHOPIFY_STRATEGIES
-        : DEFAULT_HTML_STRATEGIES);
+      (config.shopifyCollectionUrl ? DEFAULT_SHOPIFY_STRATEGIES : DEFAULT_HTML_STRATEGIES);
     this.strategies = names
       .map((name) => STRATEGY_REGISTRY[name])
       .filter((strategy) => strategy.isApplicable(config));
   }
 
-  async fetchPage(
-    page: number,
-    options: FetchOptions = {},
-  ): Promise<RawSaleItem[]> {
+  async fetchPage(page: number, options: FetchOptions = {}): Promise<RawSaleItem[]> {
     const cacheKey = `${this.key}_${page}`;
     if (!options.bypassCache) {
       const cached = this.cache.get<RawSaleItem[]>(cacheKey);
@@ -111,8 +90,7 @@ export abstract class BaseScraper implements SalesSource {
       config: this.config,
       page,
       pageUrl,
-      loadHtml: () =>
-        (document ??= fetchDocument(pageUrl, this.useChromium)),
+      loadHtml: () => (document ??= fetchDocument(pageUrl, this.useChromium)),
     };
 
     const failures: string[] = [];
@@ -146,7 +124,9 @@ export abstract class BaseScraper implements SalesSource {
     }
 
     if (page === 1) this.report(accepted, items.length, failures);
-    if (items.length > 0) this.cache.set(cacheKey, items);
+    // An accepted empty page is a real answer (the sale ended or the pages ran
+    // out); only a page every strategy failed on must be retried next time.
+    if (accepted) this.cache.set(cacheKey, items);
     return items;
   }
 
@@ -171,7 +151,7 @@ export abstract class BaseScraper implements SalesSource {
     if (items.length === 0) {
       // Later pages legitimately run out of items, and structured feeds
       // can be trusted when they report an empty sale.
-      return page > 1 || strategy.authoritative ? null : "no items found";
+      return page > 1 || strategy.authoritative ? null : 'no items found';
     }
     const complete = items.filter(isComplete).length / items.length;
     return complete < MIN_COMPLETENESS
@@ -209,19 +189,15 @@ export abstract class BaseScraper implements SalesSource {
     return { strategy: shopify, items: result.items };
   }
 
-  private report(
-    accepted: ExtractionStrategy | null,
-    itemCount: number,
-    failures: string[],
-  ): void {
+  private report(accepted: ExtractionStrategy | null, itemCount: number, failures: string[]): void {
     this.health?.record({
       key: this.key,
       seller: this.seller,
-      kind: "sales",
+      kind: 'sales',
       strategy: accepted?.name ?? null,
       usedFallback: accepted !== null && accepted !== this.strategies[0],
       itemCount,
-      error: failures.length > 0 ? failures.join("; ") : null,
+      error: failures.length > 0 ? failures.join('; ') : null,
     });
   }
 }

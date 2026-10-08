@@ -26,9 +26,7 @@ describe('parsePlantInfoQuery', () => {
   });
 
   it('rejects a plantName longer than 100 characters', () => {
-    expect(() =>
-      parsePlantInfoQuery({ plantName: 'a'.repeat(101) }),
-    ).toThrow(ValidationError);
+    expect(() => parsePlantInfoQuery({ plantName: 'a'.repeat(101) })).toThrow(ValidationError);
   });
 
   it('cleans the plant name (parentheses and special characters)', () => {
@@ -37,7 +35,9 @@ describe('parsePlantInfoQuery', () => {
   });
 
   it('parses htmlFormatting only for the literal string "true"', () => {
-    expect(parsePlantInfoQuery({ plantName: 'x', htmlFormatting: 'true' }).htmlFormatting).toBe(true);
+    expect(parsePlantInfoQuery({ plantName: 'x', htmlFormatting: 'true' }).htmlFormatting).toBe(
+      true,
+    );
     expect(parsePlantInfoQuery({ plantName: 'x', htmlFormatting: '1' }).htmlFormatting).toBe(false);
     expect(parsePlantInfoQuery({ plantName: 'x' }).htmlFormatting).toBe(false);
   });
@@ -54,11 +54,9 @@ describe('parsePlantInfoQuery', () => {
 const request = { plantName: 'Monstera', htmlFormatting: false, language: 'en' };
 
 const makeStreamer = (chunks: string[] = ['Water ', 'weekly.']): PlantGuideStreamer => ({
-  streamPlantCare: vi.fn(
-    async (_name, _html, onChunk: (c: string) => Promise<void>) => {
-      for (const chunk of chunks) await onChunk(chunk);
-    },
-  ),
+  streamPlantCare: vi.fn(async (_name, _html, onChunk: (c: string) => Promise<void>) => {
+    for (const chunk of chunks) await onChunk(chunk);
+  }),
 });
 
 const collectEvents = () => {

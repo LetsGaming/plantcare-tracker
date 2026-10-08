@@ -1,6 +1,6 @@
 # Error Handling
 
-All errors in V2 flow through a single centralized handler. Controllers never write error responses directly — they call `next(err)` and the global handler takes care of the rest.
+All errors in V2 flow through a single centralized handler. Controllers never write error responses directly; they throw and the global handler takes care of the rest.
 
 ## The AppError Hierarchy
 
@@ -13,20 +13,22 @@ AppError
 ├── ForbiddenError     403  — valid token, insufficient permissions
 ├── NotFoundError      404  — resource does not exist
 ├── ConflictError      409  — duplicate resource (e.g. username taken)
+├── PayloadTooLargeError 413 — request body over the limit
+├── TooManyRequestsError 429 — rate limit exceeded
 └── InternalError      500  — unexpected server error (non-operational)
 ```
 
 All classes live in `src/core/errors/AppError.ts` and are re-exported from `src/core/errors/index.ts`.
 
-## Reaching the Handler: asyncHandler
+## Reaching the Handler
 
-Every async controller is wrapped in `asyncHandler` (`core/middleware`, a re-export of `express-async-handler`), so a rejected promise lands in the global handler without try/catch boilerplate:
+Fastify forwards an error thrown or a promise rejected in a hook or route handler to the global handler, so async controllers need no try/catch or wrapper. A handler that is invoked manually from another handler must return or await the promise itself:
 
 ```typescript
-getPlant: asyncHandler(async (req, res) => {
-  const plant = await getOne.execute(Number(req.params.id)); // may throw NotFoundError
-  res.json({ data: plant.toJSON() });
-}),
+getPlant: async (req) => {
+  const plant = await getOne.execute(numericParam(req, 'id')); // may throw NotFoundError
+  return { data: plant.toJSON() };
+},
 ```
 
 ## Validation: parseOrThrow
@@ -60,13 +62,17 @@ throw new ValidationError('Invalid plant data', {
 throw new ConflictError('Username already exists');
 ```
 
+## Translated Errors
+
+Third-party failures that stem from client input are mapped to `AppError`s by `translateError` (`core/errors/translateError.ts`) before the handler responds: body-parser failures (`400` malformed, `413` too large) and SQLite constraint violations (`SQLITE_CONSTRAINT_UNIQUE` as `409`, `SQLITE_CONSTRAINT_FOREIGNKEY` as `400`). Use cases still pre-check the common cases to give a specific message; the translation is the safety net for races and unlisted paths.
+
 ## The Global Handler
 
-`src/core/middleware/errorHandler.ts` — registered last in `server.ts`:
+`src/core/middleware/errorHandler.ts`, registered in `app.ts`:
 
 ```typescript
-app.use(notFoundHandler);   // catches unmatched routes → 404
-app.use(globalErrorHandler); // catches everything thrown via next(err)
+app.setNotFoundHandler(notFoundHandler);   // unmatched routes → 404
+app.setErrorHandler(globalErrorHandler);   // everything thrown in hooks and handlers
 ```
 
 The handler distinguishes two categories:

@@ -15,34 +15,37 @@
  */
 
 import type {
+  ImageActor,
   ImageRepository,
   ImageStorage,
   ImageRecord,
+  StoredImage,
   EntityType,
   UploadedFile,
 } from '../domain/Image';
+import type { ImageAccessPolicy } from './ImageAccessPolicy';
 import { NotFoundError, ValidationError } from '../../../core/errors';
-import { STATIC_UPLOADS_ROUTE } from '../../../core/config';
+import { toPublicImageUrl, toStoredImagePath } from '../../../core/config';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const toEpochSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
+/** Drops the internal entity reference before a record leaves the module. */
+const toRecord = ({ id, url, date, entityType }: StoredImage): ImageRecord => ({
+  id,
+  url,
+  date,
+  entityType,
+});
 
-/** Builds the absolute public URL a stored file is served under. */
-const buildPublicUrl = (
-  publicBaseUrl: string,
-  entityType: EntityType,
-  filename: string,
-): string => `${publicBaseUrl}${STATIC_UPLOADS_ROUTE}/${entityType}/${filename}`;
+const toEpochSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
 export interface UploadImageInput {
+  actor: ImageActor;
   entityType: EntityType;
   entityId: number;
   file: UploadedFile;
-  /** protocol://host of this request — used to build the stored URL. */
-  publicBaseUrl: string;
 }
 
 export interface UploadImageResult {
@@ -54,36 +57,38 @@ export class UploadImageUseCase {
   constructor(
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
+    private readonly access: ImageAccessPolicy,
   ) {}
 
   async execute(input: UploadImageInput): Promise<UploadImageResult> {
-    const { filename, capturedAt } = await this.storage.processUpload(
-      input.file,
-      input.entityType,
-    );
+    await this.access.assertCanModify(input.entityType, input.entityId, input.actor);
 
-    const url = buildPublicUrl(input.publicBaseUrl, input.entityType, filename);
-    await this.repo.create(
-      input.entityType,
-      input.entityId,
-      url,
-      toEpochSeconds(capturedAt),
-    );
+    const { filename, capturedAt } = await this.storage.processUpload(input.file, input.entityType);
 
-    return { url, capturedAt };
+    const stored = toStoredImagePath(input.entityType, filename);
+    await this.repo.create(input.entityType, input.entityId, stored, toEpochSeconds(capturedAt));
+
+    return { url: toPublicImageUrl(stored), capturedAt };
   }
 }
 
 export class ListEntityImagesUseCase {
-  constructor(private readonly repo: ImageRepository) {}
+  constructor(
+    private readonly repo: ImageRepository,
+    private readonly access: ImageAccessPolicy,
+  ) {}
 
-  async execute(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
+  async execute(
+    entityType: EntityType,
+    entityId: number,
+    actor: ImageActor,
+  ): Promise<ImageRecord[]> {
     if (!Number.isInteger(entityId) || entityId <= 0) {
-      throw new ValidationError(
-        'entityId query parameter must be a positive integer',
-        { entityId: 'must be a positive integer' },
-      );
+      throw new ValidationError('entityId query parameter must be a positive integer', {
+        entityId: 'must be a positive integer',
+      });
     }
+    await this.access.assertCanView(entityType, entityId, actor);
     return this.repo.findByEntity(entityType, entityId);
   }
 }
@@ -92,6 +97,7 @@ export class ServeEntityImageUseCase {
   constructor(
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
+    private readonly access: ImageAccessPolicy,
   ) {}
 
   /**
@@ -102,8 +108,10 @@ export class ServeEntityImageUseCase {
   async execute(
     entityType: EntityType,
     entityId: number,
+    actor: ImageActor,
     resizeWidth?: number,
   ): Promise<Buffer> {
+    await this.access.assertCanView(entityType, entityId, actor);
     const images = await this.repo.findByEntity(entityType, entityId);
     if (!images.length) throw new NotFoundError('Image');
 
@@ -112,18 +120,19 @@ export class ServeEntityImageUseCase {
 }
 
 export interface UpdateImageInput {
+  actor: ImageActor;
   imageId: number;
   /** New file, when the client replaced the image. */
   file?: UploadedFile;
   /** New capture date — any Date-parsable value from the form. */
   date?: string | number;
-  publicBaseUrl: string;
 }
 
 export class UpdateImageUseCase {
   constructor(
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
+    private readonly access: ImageAccessPolicy,
   ) {}
 
   async execute(input: UpdateImageInput): Promise<ImageRecord> {
@@ -133,14 +142,12 @@ export class UpdateImageUseCase {
 
     const existing = await this.repo.findById(input.imageId);
     if (!existing) throw new NotFoundError('Image');
+    await this.access.assertCanModify(existing.entityType, existing.entityId, input.actor);
 
     let newUrl: string | undefined;
     if (input.file) {
-      const { filename } = await this.storage.processUpload(
-        input.file,
-        existing.entityType,
-      );
-      newUrl = buildPublicUrl(input.publicBaseUrl, existing.entityType, filename);
+      const { filename } = await this.storage.processUpload(input.file, existing.entityType);
+      newUrl = toStoredImagePath(existing.entityType, filename);
     }
 
     let uploadDate: number | undefined;
@@ -164,7 +171,7 @@ export class UpdateImageUseCase {
 
     const updated = await this.repo.findById(input.imageId);
     if (!updated) throw new NotFoundError('Image');
-    return updated;
+    return toRecord(updated);
   }
 }
 
@@ -172,11 +179,13 @@ export class DeleteImageUseCase {
   constructor(
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
+    private readonly access: ImageAccessPolicy,
   ) {}
 
-  async execute(imageId: number): Promise<void> {
+  async execute(imageId: number, actor: ImageActor): Promise<void> {
     const image = await this.repo.findById(imageId);
     if (!image) throw new NotFoundError('Image');
+    await this.access.assertCanModify(image.entityType, image.entityId, actor);
 
     await this.storage.remove(image.entityType, image.url);
     await this.repo.delete(imageId);
@@ -187,12 +196,12 @@ export class DeleteEntityImagesUseCase {
   constructor(
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
+    private readonly access: ImageAccessPolicy,
   ) {}
 
-  async execute(entityType: EntityType, entityId: number): Promise<void> {
+  async execute(entityType: EntityType, entityId: number, actor: ImageActor): Promise<void> {
+    await this.access.assertCanModify(entityType, entityId, actor);
     const images = await this.repo.deleteByEntity(entityType, entityId);
-    await Promise.all(
-      images.map((img) => this.storage.remove(entityType, img.url)),
-    );
+    await Promise.all(images.map((img) => this.storage.remove(entityType, img.url)));
   }
 }

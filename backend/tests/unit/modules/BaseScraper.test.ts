@@ -15,10 +15,7 @@ vi.mock('../../../src/modules/sales/infrastructure/HttpFetcher', () => ({
   fetchHtml: vi.fn(),
 }));
 
-import {
-  fetchDocument,
-  fetchJson,
-} from '../../../src/modules/sales/infrastructure/HttpFetcher';
+import { fetchDocument, fetchJson } from '../../../src/modules/sales/infrastructure/HttpFetcher';
 import { BaseScraper } from '../../../src/modules/sales/infrastructure/scrapers/BaseScraper';
 import type { ScraperConfig } from '../../../src/modules/sales/infrastructure/scrapers/types';
 import type { ScrapeOutcome } from '../../../src/core/scrapeHealth';
@@ -71,7 +68,12 @@ describe('BaseScraper strategy order', () => {
     expect(items).toHaveLength(2);
     expect(outcomes).toEqual([
       expect.objectContaining({
-        key: 'shop', kind: 'sales', strategy: 'selector', usedFallback: false, itemCount: 2, error: null,
+        key: 'shop',
+        kind: 'sales',
+        strategy: 'selector',
+        usedFallback: false,
+        itemCount: 2,
+        error: null,
       }),
     ]);
   });
@@ -168,7 +170,10 @@ describe('BaseScraper Shopify detection', () => {
   const unusableSelectors = { ...selectors, container: '.removed-by-redesign' };
 
   it('uses the products feed of the redirected collection when the storefront is Shopify', async () => {
-    serveHtml('<html><link href="https://cdn.shopify.com/x.css"><body></body></html>', 'https://shop.example/collections/sale?page=1');
+    serveHtml(
+      '<html><link href="https://cdn.shopify.com/x.css"><body></body></html>',
+      'https://shop.example/collections/sale?page=1',
+    );
     vi.mocked(fetchJson).mockResolvedValue(productsFeed);
     const { scraper, outcomes } = setup({
       selectors: unusableSelectors,
@@ -217,12 +222,22 @@ describe('BaseScraper caching', () => {
     expect(outcomes).toHaveLength(2);
   });
 
-  it('does not cache empty results', async () => {
+  it('caches an accepted empty page so exhausted pages are not refetched', async () => {
     serveHtml('<html><body></body></html>');
     const { scraper } = setup();
 
     await scraper.fetchPage(2);
     await scraper.fetchPage(2);
+
+    expect(fetchDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a page every strategy failed on', async () => {
+    serveHtml('<html><body></body></html>');
+    const { scraper } = setup();
+
+    await scraper.fetchPage(1);
+    await scraper.fetchPage(1);
 
     expect(fetchDocument).toHaveBeenCalledTimes(2);
   });

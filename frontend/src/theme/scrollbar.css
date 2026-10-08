@@ -1,50 +1,53 @@
-/* Default Scrollbar Styles */
+/* Scrollbars follow the palette and the app's own dark mode class. */
+:root {
+  --scrollbar-thumb: #9db0a1;
+  --scrollbar-thumb-hover: #6f8575;
+  --scrollbar-track: #e6ede2;
+}
+
+.ion-palette-dark {
+  --scrollbar-thumb: #3d5445;
+  --scrollbar-thumb-hover: #5b7a66;
+  --scrollbar-track: #0f1a14;
+}
+
+:root {
+  color-scheme: light;
+}
+
+:root.ion-palette-dark {
+  color-scheme: dark;
+}
+
+/* Both properties inherit, so scrollers inside Ionic shadow roots follow the document. */
+:root,
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
 ::-webkit-scrollbar {
-  width: 12px; /* Width of the scrollbar */
-  height: 12px; /* Height of the scrollbar */
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888; /* Default scrollbar thumb color */
-  border-radius: 10px; /* Roundness of the scrollbar thumb */
+  background: var(--scrollbar-thumb);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555; /* Scrollbar thumb color on hover */
+  background: var(--scrollbar-thumb-hover);
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1; /* Default track color */
-  border-radius: 10px; /* Roundness of the track */
+  background: var(--scrollbar-track);
+  border-radius: 10px;
 }
 
-/* Dark Mode Styles */
-@media (prefers-color-scheme: dark) {
-  ::-webkit-scrollbar-thumb {
-    background: #444; /* Dark mode scrollbar thumb color */
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #222; /* Dark mode scrollbar thumb color on hover */
-  }
-
-  ::-webkit-scrollbar-track {
-    background: #333; /* Dark mode track color */
-  }
-}
-
-/* Styles for Mobile */
 @media (max-width: 768px) {
   ::-webkit-scrollbar {
-    width: 8px; /* Thinner scrollbar on mobile */
-    height: 8px; /* Thinner scrollbar on mobile */
-  }
-
-  ::-webkit-scrollbar-thumb {
-    border-radius: 8px; /* Roundness of the scrollbar thumb */
-  }
-
-  ::-webkit-scrollbar-track {
-    border-radius: 8px; /* Roundness of the track */
+    width: 8px;
+    height: 8px;
   }
 }

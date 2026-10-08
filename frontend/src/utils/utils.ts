@@ -5,13 +5,13 @@ import config from "@/config.json";
 /** Environment identifiers */
 type Environment = "development" | "production";
 
-const ENV: Environment =
-  import.meta.env.MODE === "production" ? "production" : "development";
+const ENV: Environment = import.meta.env.MODE === "production" ? "production" : "development";
 
 const ACTIVE_CONFIG = config[ENV];
 
 /** Pre-computed API URL */
 const API_URL = (() => {
+  if (import.meta.env.DEV && import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
   const { server } = ACTIVE_CONFIG;
   const port = "port" in server ? `:${server.port}` : "";
   return `${server.base_url}${port}${server.base_path}${server.api_version}`;
@@ -47,10 +47,6 @@ const toDateTime = (input: string | number | Date): DateTime => {
   return DateTime.invalid("Unsupported input");
 };
 
-const getLocalDate = (dateString: string): DateTime => {
-  return DateTime.fromISO(dateString).toLocal();
-};
-
 const Utils = {
   getConfig() {
     return ACTIVE_CONFIG;
@@ -77,10 +73,7 @@ const Utils = {
     return toFilter.filter((item) => {
       for (const key in item) {
         const value = item[key];
-        if (
-          typeof value === "string" &&
-          value.toLowerCase().includes(lowerQuery)
-        ) {
+        if (typeof value === "string" && value.toLowerCase().includes(lowerQuery)) {
           return true;
         }
       }
@@ -91,10 +84,7 @@ const Utils = {
   /**
    * NEW: Flexible date converter
    */
-  convertDate(
-    input: string | number | Date,
-    options?: { format?: "readable" | "iso" }
-  ): string {
+  convertDate(input: string | number | Date, options?: { format?: "readable" | "iso" }): string {
     const dt = toDateTime(input);
 
     if (!dt.isValid) {
@@ -105,7 +95,7 @@ const Utils = {
       return dt.toUTC().toISO() ?? String(input);
     }
 
-    return dt.toLocaleString(DateTime.DATE_HUGE);
+    return dt.toLocaleString({ day: "2-digit", month: "2-digit", year: "numeric" });
   },
 
   /**

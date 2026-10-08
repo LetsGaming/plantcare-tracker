@@ -10,25 +10,23 @@
  */
 
 import { z } from 'zod';
+import { isSubstrateVisibleTo } from '../domain/Substrate';
 import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
-import {
-  NotFoundError,
-  ForbiddenError,
-  InternalError,
-} from '../../../core/errors';
+import { NotFoundError, ForbiddenError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { ensureArray, filterDuplicatesById } from '../../../core/utils';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
 export const CreateSubstrateSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(1, 'Name is required').max(100),
   isPublic: z.boolean().default(false),
 });
 
 export const UpdateSubstrateSchema = z
   .object({
-    name: z.string().min(1).optional(),
+    name: z.string().min(1).max(100).optional(),
     isPublic: z.boolean().optional(),
     removedComponents: z.array(z.number().int()).optional(),
   })
@@ -87,23 +85,22 @@ export class GetAllSubstratesUseCase {
   async execute(userId: number | null): Promise<SubstrateData[]> {
     const [publicSubstrates, ownSubstrates] = await Promise.all([
       this.repo.findAllPublic(),
-      userId ? this.repo.findAllByUser(userId) : Promise.resolve([]),
+      userId !== null ? this.repo.findAllByUser(userId) : Promise.resolve([]),
     ]);
 
     // Public substrates owned by the caller would appear twice — dedupe.
-    return filterDuplicatesById(
-      [...publicSubstrates, ...ownSubstrates],
-      'substrate_id',
-    );
+    return filterDuplicatesById([...publicSubstrates, ...ownSubstrates], 'substrate_id');
   }
 }
 
 export class GetSubstrateUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(id: number): Promise<SubstrateData> {
+  async execute(id: number, userId: number | null): Promise<SubstrateData> {
     const substrate = await this.repo.findById(id);
-    if (!substrate) throw new NotFoundError('Substrate');
+    if (!substrate || !isSubstrateVisibleTo(substrate, userId)) {
+      throw new NotFoundError('Substrate');
+    }
     return substrate;
   }
 }
@@ -125,11 +122,7 @@ export class CreateSubstrateUseCase {
 export class UpdateSubstrateUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(
-    id: number,
-    userId: number,
-    input: unknown,
-  ): Promise<SubstrateData> {
+  async execute(id: number, userId: number, input: unknown): Promise<SubstrateData> {
     const data = parseOrThrow(UpdateSubstrateSchema, input, 'Invalid substrate data');
 
     await loadOwnedSubstrate(this.repo, id, userId, 'update');
@@ -153,11 +146,7 @@ export class UpdateSubstrateUseCase {
 export class AddSubstrateComponentsUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(
-    substrateId: number,
-    userId: number,
-    input: unknown,
-  ): Promise<SubstrateData> {
+  async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
     await loadOwnedSubstrate(this.repo, substrateId, userId, 'update');
 
     const components = parseComponents(input);
@@ -172,11 +161,7 @@ export class AddSubstrateComponentsUseCase {
 export class UpsertSubstrateComponentsUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(
-    substrateId: number,
-    userId: number,
-    input: unknown,
-  ): Promise<SubstrateData> {
+  async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
     await loadOwnedSubstrate(this.repo, substrateId, userId, 'edit');
 
     const components = parseComponents(input);
@@ -189,7 +174,10 @@ export class UpsertSubstrateComponentsUseCase {
 }
 
 export class DeleteSubstrateUseCase {
-  constructor(private readonly repo: SubstrateRepository) {}
+  constructor(
+    private readonly repo: SubstrateRepository,
+    private readonly images: EntityImageCleanup,
+  ) {}
 
   async execute(id: number, userId: number): Promise<void> {
     // The repository scopes the DELETE by user_id, so "not found" and
@@ -197,5 +185,6 @@ export class DeleteSubstrateUseCase {
     // to avoid leaking whether a foreign substrate id exists.
     const deleted = await this.repo.delete(id, userId);
     if (!deleted) throw new NotFoundError('Substrate');
+    await this.images.removeAll('substrate', id);
   }
 }

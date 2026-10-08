@@ -5,13 +5,13 @@
 | Tool | Role |
 |------|------|
 | [Vitest](https://vitest.dev) | Test runner, assertions, mocks |
-| [Supertest](https://github.com/ladjs/supertest) | HTTP integration testing |
+| Fastify `inject` | In-process HTTP requests, no sockets |
 | `@vitest/coverage-v8` | Native V8 coverage reports |
 
 ## Setup
 
 ```bash
-pnpm add -D vitest @vitest/coverage-v8 supertest @types/supertest
+pnpm add -D vitest @vitest/coverage-v8
 ```
 
 ## Running Tests
@@ -27,18 +27,43 @@ pnpm run test tests/integration
 pnpm run test tests/unit/core
 ```
 
+## Contract tests (HTTP level)
+
+`tests/contract/` drives the whole application through its public HTTP interface against a **real SQLite file** built by the migrations. Only the network-facing collaborators are replaced: sales sources, the OpenAI guide streamer and the link searchers are injected through `buildApp({ sales, moreInfo })`. Nothing in the database layer is mocked, so these tests see real constraints, the real body parser, real Sharp processing and the real error pipeline.
+
+```
+tests/contract/
+├── harness.ts                 # TestClient interface, Fastify inject adapter, createContractApp()
+├── support.ts                 # fixtures (createPlant, ...) and the SSE frame parser
+├── platform.contract.test.ts  # health, 404, X-Request-Id, CORS, body parser edge cases
+├── auth.contract.test.ts      # register, login, guest, refresh, ticket, logout, profile
+├── plants / substrates / components / watering / images .contract.test.ts
+├── sales.contract.test.ts     # SSE stream, source health endpoints
+├── moreInfo.contract.test.ts  # SSE stream, ticket handling, validation
+└── routes.contract.test.ts    # 401 and guest 403 matrix over every authenticated route
+```
+
+Rules for contract tests:
+
+- Talk to `TestClient.request({ method, url, json | rawBody | multipart, headers, cookies })` only. Never import Fastify or any HTTP library in a test file: `harness.ts` is the single place that knows the transport, so the same test files can run unchanged against another server implementation.
+- Create users with `app.signIn(role)` (inserts a row and mints a session without HTTP). Use the real `/auth/register` and `/auth/login` endpoints only where those endpoints are under test; the auth routes are rate limited to 50 requests per IP and 10 per account in 15 minutes.
+- Each test file builds its own app and temp database (`createContractApp()`); use unique names instead of resetting state.
+- Behavior that is wrong today but pinned on purpose lives in a `known defects` block that names the finding. Fixing the behavior means flipping that test in the same change. A few remain: public `/uploads` files are served without authentication, and the access token cookie is ignored by design.
+
 ## Test Structure
 
 ```
 tests/
 ├── helpers/
-│   └── mockFactory.ts          # Shared mocks and DB/HTTP fixtures
+│   └── mockFactory.ts          # User row factory for use case tests
 │
 ├── unit/
 │   ├── core/
 │   │   ├── utils.test.ts       # formatToDBDate, ensureArray, filterDuplicatesById
 │   │   ├── errors.test.ts      # AppError hierarchy, isAppError guard
-│   │   └── auth.test.ts        # generateTokens, sessionStore, ticketStore, middleware
+│   │   ├── auth.test.ts        # tokens, sessionStore, ticketStore, auth hooks
+│   │   ├── rateLimit.test.ts   # Limiter hooks on a Fastify instance
+│   │   └── publicImageUrl.test.ts # Stored image paths and public urls
 │   └── modules/
 │       ├── plants.test.ts      # Plant entity + all 5 PlantUseCases
 │       ├── watering.test.ts    # toEpochSeconds + all 6 WateringUseCases
@@ -48,49 +73,47 @@ tests/
 │       ├── moreInfo.test.ts    # parsePlantInfoQuery + StreamPlantInfo orchestration
 │       ├── auth.test.ts        # All 8 AuthUseCases (register, login, logout, …)
 │       ├── sales.test.ts       # Sale entity, scrapeHelpers, FetchSalesOverview
-│       └── repositories.test.ts # SQLite repos with the db module mocked
+│       ├── BaseScraper.test.ts, scraperStrategies.test.ts, shopSearchers.test.ts
+│       ├── openAiClient.test.ts # Stream errors surface, cached output is escaped
+│       ├── imageCleanup.test.ts # Image removal when an entity is deleted
+│       └── speciesResolver.test.ts # Fuzzy species matching over an in-memory catalog
 │
 └── integration/
-    └── app.test.ts             # Full HTTP cycle: auth flow, CRUD, error shapes
+    ├── repositories.test.ts    # Every SQLite repository against an in-memory database
+    ├── migrations.test.ts      # Baseline, adopting a legacy database, image data migrations
+    └── importMysqlDump.test.ts # Legacy dump import on a fixture dump
 ```
 
 ### What Each File Covers
 
 **`helpers/mockFactory.ts`**  
-Central source of truth for test doubles. Exports `createMockRequest`, `createMockResponse`, `createMockNext`, typed user fixtures (`adminUser`, `regularUser`, `guestUser`), and DB row builders (`makePlantRow`, `makeWateringRow`, etc.).
+Exports `makeUserRow`, the user row used by the auth use case tests.
 
 **`unit/core/auth.test.ts`**  
 - `generateTokens` — payload, relative expiry
-- `sessionStore` — save/retrieve, FIFO eviction at max 3, invalidate, deleteAll
+- `sessionStore`: create/has, FIFO eviction at max 3, end, deleteAll
 - `ticketStore` — single-use, 60s expiry (using `vi.useFakeTimers`)
-- `authenticateToken` — header + cookie paths, missing token → 401, missing session → 403
-- `checkGuestPermission` — blocks non-GET for guests, passes for users
+- `authenticateToken` — header only, missing token or ended session → 401
+- `guestReadOnly` — blocks unsafe methods for live guest sessions, passes everyone else
 - `isAdmin` — blocks non-admins
 
-**`unit/modules/repositories.test.ts`**  
-Tests SQL correctness and row-mapping logic without a real database:
-- Plants: JOIN row collapsing, multi-image dedup, `affectedRows` → boolean
-- Watering: `used_fertilizer` cast to boolean, `fertilizerTypeId: null` handled correctly
-- Substrates: component + image collapsing, `INSERT OR REPLACE` SQL, empty array early return
-- UserRepository: column whitelist — injecting `malicious` or `role_id` keys has no effect
-- ImageRepository: `delete()` hits only `images` table (CASCADE handles join tables)
+**`integration/repositories.test.ts`**  
+Runs every repository against a real in-memory SQLite database built by the migrations (`DB_PATH=:memory:`), so queries, constraints and the baseline migration are exercised together:
+- Migrations: baseline recorded once, seed rows present, re-running changes nothing
+- Plants: JOIN collapsing, close species reuse, no stray species when the insert fails, ownership-scoped update and delete, images oldest first with absolute urls
+- Watering: ownership-checked insert, boolean mapping, clearing the fertilizer type
+- Substrates: component and image collapsing, rounding, transactional batch rollback, upsert, delete
+- Users: unique names ignoring case, column whitelist, guest account protected
+- Images: date ordering, update, per-entity delete; entity lookup; source health upsert
 
-**`integration/app.test.ts`**  
-Full HTTP cycle against a real Express app with the `core/database/db` module mocked:
-- Auth: register (201, 409), login (200, 401), wrong password
-- Plants: GET without auth (200), POST without auth (401), guest POST (403), valid POST (201), validation failure (400)
-- Watering: fertilizer types, create record
-- Substrates: public listing
-- Components: admin guard (403 for user, 201 for admin)
-- Auth session lifecycle: refresh cookie scoped to `/auth` (login and guest
-  login), logout invalidates the session server-side (the same refresh token
-  answers 403 afterwards), logout clears current + legacy cookie paths,
-  refresh without a cookie answers 401
-- Errors: 404 for unknown routes, JSON error shape, `X-Request-Id` header present
+**`integration/importMysqlDump.test.ts`**  
+Imports `tests/fixtures/mysql-dump.sql` (a dump whose roles and guest user collide with the seed rows) and checks the copied data, image mapping, case-folded species and the recorded baseline migration.
+
+The HTTP behavior formerly tested by a hand-wired Express app (auth flow, CRUD, error shapes, cookie scoping) is covered by the contract suite above.
 
 ## Coverage Thresholds
 
-Configured in `vitest.config.ts`:
+Configured in `vitest.config.ts` and enforced in CI through `pnpm run test:coverage`:
 
 | Metric | Target |
 |--------|--------|
@@ -140,51 +163,36 @@ describe('MyUseCase', () => {
 
 ### 2. Repository Test
 
+Repositories are tested against a real in-memory database; there is nothing to mock:
+
 ```typescript
-// Repositories call the query/execute/transaction helpers from core/database/db;
-// mock that module before importing the repository (see repositories.test.ts).
-const mockQuery   = vi.fn().mockReturnValue([]);
-const mockExecute = vi.fn().mockReturnValue({ affectedRows: 1, insertId: 1 });
+process.env.DB_PATH = ':memory:';
 
-vi.mock('../../../src/core/database/db', () => ({
-  query:   (...args: unknown[]) => mockQuery(...args),
-  execute: (...args: unknown[]) => mockExecute(...args),
-  transaction: vi.fn((fn: Function) => fn({ query: mockQuery, execute: mockExecute })),
-  getDb: vi.fn(),
-  closeDb: vi.fn(),
-}));
+import { initDatabase, closeDb } from '../../src/core/database/db';
 
-it('create returns insertId', async () => {
-  mockExecute.mockReturnValue({ affectedRows: 1, insertId: 42 });
+beforeAll(initDatabase);
+afterAll(closeDb);
+
+it('create returns the new id', async () => {
   const id = await new SQLiteMyRepository().create({ name: 'test' });
-  expect(id).toBe(42);
+  expect(await new SQLiteMyRepository().findById(id)).toMatchObject({ name: 'test' });
 });
 
 it('findById returns null when no rows', async () => {
-  mockQuery.mockReturnValue([]);
   expect(await new SQLiteMyRepository().findById(999)).toBeNull();
 });
 ```
 
-### 3. Integration Test for a New Route
+### 3. Contract Test for a New Route
 
-Add to `tests/integration/app.test.ts` (or create a new file and register the router in `buildTestApp`):
+Add a `*.contract.test.ts` file next to the others. It talks to the app only through `TestClient.request`:
 
 ```typescript
-describe('GET /api/v2/my-module', () => {
-  it('returns 200 with data', async () => {
-    mockQuery.mockReturnValue([{ id: 1, name: 'test' }]);
+const app = await createContractApp();
+const { auth } = await app.signIn('user');
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .get('/api/v2/my-module')
-      .set('Authorization', makeAuthHeader());
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
-    sessionStore.deleteAll(USER_ID);
-  });
-});
+const res = await app.client.request({ method: 'get', url: '/api/v2/my-module', headers: auth });
+expect(res.status).toBe(200);
 ```
 
 ## Vitest Configuration

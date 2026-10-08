@@ -4,12 +4,7 @@
  * Maps scrape source health rows from the API to the frontend model.
  */
 
-const STATUS_ORDER: Record<SourceStatus, number> = {
-  failing: 0,
-  degraded: 1,
-  unknown: 2,
-  ok: 3,
-};
+import { statusRank } from "@/utils/sourceStatus";
 
 export default class SourceHealthMapper {
   static mapSourceHealth(row: APISourceHealth): SourceHealth {
@@ -27,14 +22,14 @@ export default class SourceHealthMapper {
     };
   }
 
-  /** Maps rows and orders them so sources needing attention come first. */
+  /** Orders sources so those needing attention come first. */
+  static sortByAttention(sources: SourceHealth[]): SourceHealth[] {
+    return [...sources].sort(
+      (a, b) => statusRank(a.status) - statusRank(b.status) || a.seller.localeCompare(b.seller),
+    );
+  }
+
   static convertToSourceHealth(rows: APISourceHealth[]): SourceHealth[] {
-    return rows
-      .map((row) => this.mapSourceHealth(row))
-      .sort(
-        (a, b) =>
-          STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
-          a.seller.localeCompare(b.seller),
-      );
+    return this.sortByAttention(rows.map((row) => this.mapSourceHealth(row)));
   }
 }

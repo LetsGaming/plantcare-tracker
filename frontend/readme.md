@@ -7,11 +7,12 @@ This is the frontend for the PlantCare Tracker app, a web application for tracki
 - User-friendly interface for tracking plant care.
 - Dynamic forms for adding new plants and care logs.
 - Responsive design for mobile and desktop use.
-- Customizable reminders for watering, sunlight, and more.
+- Calendar with watering reminders and configurable categories.
 
 ## Tech Stack
 - **Ionic**: Framework for building cross-platform mobile apps.
-- **Vue**: JavaScript framework for building user interfaces.
+- **Vue 3 (Options API)**: JavaScript framework for building user interfaces.
+- **Pinia**: State management, one store per data domain.
 - **Typescript**: Superset of JavaScript that adds static typing.
 - **CSS**: Stylesheet language for layout and design.
 
@@ -38,7 +39,10 @@ This is the frontend for the PlantCare Tracker app, a web application for tracki
    pnpm run dev
    ```
 
-5. Open the app in your browser at `http://localhost:8100`.
+5. Open the app in your browser at `http://localhost:5173`.
+
+## Documentation
+See [docs/index.md](./docs/index.md) for the architecture, the stores and the test setup.
 
 ## Customization
 You can modify the components and styles by editing the files under the `src` folder.

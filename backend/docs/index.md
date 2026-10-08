@@ -1,7 +1,6 @@
-# Plantcare Tracker — Backend
+# Plantcare Tracker: Backend
 
-> REST API built with Node.js, Express, and TypeScript following Clean Architecture principles.
-> V2 is a full replacement for V1.
+> REST API built with Node.js, Fastify, and TypeScript following Clean Architecture principles.
 
 ---
 
@@ -12,10 +11,10 @@
 pnpm install
 
 # Configure
-cp .env.example .env        # fill in DB credentials and JWT secrets
+cp .env.example .env        # set the two JWT secrets
 
 # Database
-# SQLite schema is applied automatically on first start
+# Migrations are applied automatically on first start
 
 # Develop
 pnpm run dev             # hot reload via tsx
@@ -34,7 +33,7 @@ pnpm run build && pnpm run start
 ### Getting Started
 | | |
 |--|--|
-| [Overview](./overview.md) | What V2 is, improvements over V1, tech stack, project layout |
+| [Overview](./overview.md) | What the backend does, tech stack, project layout |
 | [Setup](./setup.md) | Installation, all environment variables, pnpm scripts |
 
 ### Core Concepts
@@ -48,14 +47,13 @@ pnpm run build && pnpm run start
 | | |
 |--|--|
 | [API Reference](./api-reference.md) | All endpoints, request/response shapes, SSE event formats |
-| [Database](./database.md) | Full schema, performance indexes, N+1 elimination |
+| [Database](./database.md) | Schema, migrations, indexes, transactions |
 
 ### Operations
 | | |
 |--|--|
 | [Testing](./testing.md) | Running tests, coverage, writing unit and integration tests |
 | [Deployment](./deployment.md) | Production build, PM2, nginx, health checks, logging |
-| [Migration from V1](./migration.md) | What changed, how to switch from V1 |
 | [Roadmap](./roadmap.md) | Known limitations, planned improvements |
 
 ---
@@ -68,7 +66,7 @@ pnpm run build && pnpm run start
 
 ```json
 // Success
-{ "success": true, "data": { ... } }
+{ "data": { ... } }
 
 // Error
 { "error": { "type": "NotFoundError", "message": "Plant not found", "statusCode": 404 } }
@@ -86,4 +84,4 @@ pnpm run build && pnpm run start
 | `/api/v2/images` | images | Upload, serve, delete via Sharp pipeline |
 | `/api/v2/sales` | sales | Live SSE stream of plant sale prices (9 scrapers) |
 | `/api/v2/more-info` | moreInfo | SSE stream: OpenAI care guide + 7 reference links |
-| `/health` | — | Liveness and readiness probes |
+| `/api/v2/health`, `/api/v2/health/ready` | — | Liveness and readiness probes |

@@ -5,29 +5,27 @@
  * Ported from V1 scrapeUtils.js with corrected behaviour.
  */
 
-import type { HTMLElement } from "node-html-parser";
+import type { HTMLElement } from 'node-html-parser';
 
 type NodeLike = HTMLElement | null | undefined;
 
 // ── Price parsing ─────────────────────────────────────────────────────────────
 
-export const parsePrice = (
-  input: NodeLike | string | null | undefined,
-): number | null => {
+export const parsePrice = (input: NodeLike | string | null | undefined): number | null => {
   if (!input) return null;
 
-  const str = typeof input === "object" ? (input.text ?? "") : String(input);
+  const str = typeof input === 'object' ? (input.text ?? '') : String(input);
 
-  let cleanStr = str.replace(/[^\d.,-]/g, "").trim();
+  let cleanStr = str.replace(/[^\d.,-]/g, '').trim();
 
-  if (cleanStr.includes(",") && cleanStr.includes(".")) {
-    if (cleanStr.lastIndexOf(",") > cleanStr.lastIndexOf(".")) {
-      cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
+  if (cleanStr.includes(',') && cleanStr.includes('.')) {
+    if (cleanStr.lastIndexOf(',') > cleanStr.lastIndexOf('.')) {
+      cleanStr = cleanStr.replace(/\./g, '').replace(',', '.');
     } else {
-      cleanStr = cleanStr.replace(/,/g, "");
+      cleanStr = cleanStr.replace(/,/g, '');
     }
   } else {
-    cleanStr = cleanStr.replace(",", ".");
+    cleanStr = cleanStr.replace(',', '.');
   }
 
   const number = parseFloat(cleanStr);
@@ -52,10 +50,7 @@ export const getText = (el: NodeLike, selector?: string): string | null => {
 
 // ── Robust link resolver (restored V1 logic) ──────────────────────────────────
 
-export const resolveLink = (
-  href: string | null | undefined,
-  baseUrl: string,
-): string | null => {
+export const resolveLink = (href: string | null | undefined, baseUrl: string): string | null => {
   if (!href) return null;
 
   try {
@@ -67,17 +62,14 @@ export const resolveLink = (
 
 // ── Image URL extraction ──────────────────────────────────────────────────────
 
-export const extractImageUrl = (
-  imgElem: NodeLike,
-  baseUrl: string,
-): string | null => {
-  const raw = ["src", "srcset", "data-src", "data-srcset"]
+export const extractImageUrl = (imgElem: NodeLike, baseUrl: string): string | null => {
+  const raw = ['src', 'srcset', 'data-src', 'data-srcset']
     .map((attr) => imgElem?.getAttribute(attr))
-    .find((value) => value && !value.startsWith("data:"));
+    .find((value) => value && !value.startsWith('data:'));
   if (!raw) return null;
 
   // src and srcset values may hold several space or comma separated entries
-  const firstEntry = raw.trim().split(",")[0].trim().split(" ")[0];
+  const firstEntry = raw.trim().split(',')[0].trim().split(' ')[0];
 
   // Unwrap image optimizer proxies like /cdn-cgi/image/.../https://...
   const direct = firstEntry.match(/https?:\/\/[^\s]+/);
@@ -105,19 +97,19 @@ export const buildPageUrl = (
   if (!pattern) return baseUrl;
 
   // Query parameter pattern
-  if (pattern.startsWith("?") || pattern.startsWith("&")) {
-    const hasQuery = baseUrl.includes("?");
-    const connector = hasQuery ? "&" : "?";
+  if (pattern.startsWith('?') || pattern.startsWith('&')) {
+    const hasQuery = baseUrl.includes('?');
+    const connector = hasQuery ? '&' : '?';
 
-    const cleanBase = baseUrl.replace(/[?&]$/, "");
-    const cleanPattern = pattern.replace(/^[?&]/, "");
+    const cleanBase = baseUrl.replace(/[?&]$/, '');
+    const cleanPattern = pattern.replace(/^[?&]/, '');
 
     return `${cleanBase}${connector}${cleanPattern}`;
   }
 
   // Path segment pattern
-  const base = baseUrl.replace(/\/$/, "");
-  const cleanPath = pattern.replace(/^\//, "");
+  const base = baseUrl.replace(/\/$/, '');
+  const cleanPath = pattern.replace(/^\//, '');
 
   return `${base}/${cleanPath}`;
 };

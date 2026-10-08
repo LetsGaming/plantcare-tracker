@@ -2,10 +2,32 @@ interface FormFieldBase {
   modelKey: string;
   label: string;
   required?: boolean;
+  /** Short helper text shown under the field. */
+  hint?: string;
+  inputmode?: "text" | "decimal" | "numeric" | "email" | "search" | "tel" | "url" | "none";
+  enterkeyhint?: "enter" | "done" | "go" | "next" | "previous" | "search" | "send";
+  autocomplete?:
+    | "on"
+    | "off"
+    | "name"
+    | "email"
+    | "username"
+    | "new-password"
+    | "current-password"
+    | "one-time-code";
+  autocapitalize?: "off" | "none" | "sentences" | "words" | "characters";
+  autocorrect?: "on" | "off";
+  maxlength?: number;
 }
 
 interface InputField extends FormFieldBase {
   type: "input";
+  inputType?: "text" | "email" | "number";
+}
+
+interface TextareaField extends FormFieldBase {
+  type: "textarea";
+  rows?: number;
 }
 
 interface PasswordField extends FormFieldBase {
@@ -31,6 +53,10 @@ interface SwitchField extends FormFieldBase {
 interface DateField extends FormFieldBase {
   type: "date";
   defaultValue?: string;
+  /** "date" picks a calendar day (value is local midnight); the default also picks a time. */
+  mode?: "date" | "datetime";
+  /** Latest selectable value in the input's own format (yyyy-MM-dd for date mode). */
+  max?: string;
 }
 
 interface UploadField extends FormFieldBase {
@@ -39,6 +65,7 @@ interface UploadField extends FormFieldBase {
 
 type FormField =
   | InputField
+  | TextareaField
   | PasswordField
   | SelectField
   | RadioField

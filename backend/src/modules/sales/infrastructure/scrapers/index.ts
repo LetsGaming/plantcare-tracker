@@ -44,8 +44,7 @@ export class FoliageDreamsScraper extends BaseScraper {
             const imgElem = item.querySelector('.grid-product__image-mask img');
             const linkElem = item.querySelector('.grid-product__link');
 
-            let img =
-              imgElem?.getAttribute('srcset') || imgElem?.getAttribute('src') || null;
+            let img = imgElem?.getAttribute('srcset') || imgElem?.getAttribute('src') || null;
             img = img?.split(' ')[0].split(',')[0] ?? null;
             if (img?.startsWith('//')) img = `https:${img}`;
 
@@ -284,18 +283,14 @@ export class HarmonyPlantsScraper extends BaseScraper {
 
             const extract = (sel: string): number | null => {
               const bdi = priceElem.querySelector(sel);
-              const text =
-                bdi?.childNodes.find((n) => n.nodeType === 3)?.text?.trim() ?? '';
+              const text = bdi?.childNodes.find((n) => n.nodeType === 3)?.text?.trim() ?? '';
               const sup = bdi?.querySelector('sup')?.text?.trim() ?? '';
               return parsePrice(`${text}${sup}`);
             };
 
             const linkElem = item.querySelector('a');
             return {
-              link: resolveLink(
-                linkElem?.getAttribute('href'),
-                'https://www.harmony-plants.com',
-              ),
+              link: resolveLink(linkElem?.getAttribute('href'), 'https://www.harmony-plants.com'),
               name: getText(linkElem ?? undefined, 'span') ?? 'Unnamed Plant',
               img: item.querySelector('img')?.getAttribute('src') ?? null,
               oldPrice: extract('.price__sale s.price-item--regular bdi'),

@@ -5,27 +5,36 @@
  * This is the composition root for the Sales module.
  */
 
-import { Router } from 'express';
+import type { FastifyPluginAsync } from 'fastify';
 import { NodeCacheAdapter } from '../../../core/cache';
-import { authenticateToken, isAdmin } from '../../../core/middleware';
+import type { CacheService } from '../../../core/cache/CacheService';
+import { authenticateToken, isAdmin, makeAuthenticateSSE } from '../../../core/middleware';
 import { SourceHealthTracker, SQLiteSourceHealthRepository } from '../../../core/scrapeHealth';
 import { createAllScrapers } from '../infrastructure/scrapers';
+import type { SalesSource } from '../domain/SalesSource';
 import { createSalesController } from './salesController';
 import { createSourceHealthController } from './sourceHealthController';
 
-export const createSalesRouter = (): Router => {
-  const router = Router();
+export interface SalesRouterDeps {
+  /** Builds the scrape sources; defaults to the nine shop scrapers. */
+  createSources?: (cache: CacheService, tracker: SourceHealthTracker) => SalesSource[];
+}
 
-  // Dependency injection: cache + health tracker → scrapers → controllers
-  const cache = new NodeCacheAdapter();
-  const tracker = new SourceHealthTracker(new SQLiteSourceHealthRepository());
-  const sources = createAllScrapers(cache, tracker);
-  const getSalesData = createSalesController(sources);
-  const health = createSourceHealthController(sources, tracker);
+export const salesRoutes =
+  (deps: SalesRouterDeps = {}): FastifyPluginAsync =>
+  async (app) => {
+    // Dependency injection: cache + health tracker → scrapers → controllers
+    const cache = new NodeCacheAdapter();
+    const tracker = new SourceHealthTracker(new SQLiteSourceHealthRepository());
+    const sources = (deps.createSources ?? createAllScrapers)(cache, tracker);
+    const getSalesData = createSalesController(sources);
+    const health = createSourceHealthController(sources, tracker);
 
-  router.get('/health',              authenticateToken, isAdmin, health.listHealth);
-  router.post('/health/:key/check',  authenticateToken, isAdmin, health.recheckSource);
-  router.get('/', getSalesData);
-
-  return router;
-};
+    app.get('/health', { onRequest: [authenticateToken, isAdmin] }, health.listHealth);
+    app.post(
+      '/health/:key/check',
+      { onRequest: [authenticateToken, isAdmin] },
+      health.recheckSource,
+    );
+    app.get('/', { onRequest: makeAuthenticateSSE() }, getSalesData);
+  };

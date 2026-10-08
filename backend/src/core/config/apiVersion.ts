@@ -15,6 +15,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { getConfig } from './env';
 
 const DEFAULT_VERSION = 'v2';
 
@@ -23,16 +24,14 @@ let cachedVersion: string | null = null;
 export function getApiVersionPath(): string {
   if (cachedVersion) return cachedVersion;
 
-  if (process.env.API_VERSION_PATH) {
-    cachedVersion = process.env.API_VERSION_PATH;
+  const configured = getConfig().apiVersionPath;
+  if (configured) {
+    cachedVersion = configured;
     return cachedVersion;
   }
 
   try {
-    const raw = fs.readFileSync(
-      path.resolve(process.cwd(), 'package.json'),
-      'utf-8',
-    );
+    const raw = fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8');
     const pkg = JSON.parse(raw) as { versionPath?: string };
     cachedVersion = pkg.versionPath ?? DEFAULT_VERSION;
   } catch {

@@ -61,6 +61,11 @@ export class Plant {
     this.images = data.images;
   }
 
+  /** Public plants are visible to everyone, private ones only to their owner. */
+  isVisibleTo(userId: number | null): boolean {
+    return this.isPublic || (userId !== null && this.userId === userId);
+  }
+
   toJSON(): PlantData {
     return {
       plant_id: this.id,

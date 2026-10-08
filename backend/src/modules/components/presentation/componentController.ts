@@ -10,7 +10,8 @@
  *  - DELETE → 204 No Content
  */
 
-import type { Request, RequestHandler, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { numericParam, type Handler } from '../../../core/middleware';
 import {
   GetAllComponentsUseCase,
   GetFinenessLevelsUseCase,
@@ -19,19 +20,21 @@ import {
   UpdateComponentUseCase,
   DeleteComponentUseCase,
 } from '../application/ComponentUseCases';
-import type {
-  ComponentRepository,
-  ComponentData,
-  FinenessLevel,
-} from '../domain/Component';
-import { asyncHandler } from '../../../core/middleware';
+import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
+import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface ComponentListResponse { data: ComponentData[] }
-export interface ComponentResponse { data: ComponentData }
-export interface FinenessLevelListResponse { data: FinenessLevel[] }
+export interface ComponentListResponse {
+  data: ComponentData[];
+}
+export interface ComponentResponse {
+  data: ComponentData;
+}
+export interface FinenessLevelListResponse {
+  data: FinenessLevel[];
+}
 
 /**
  * HTTP handlers exposed by the components module.
@@ -42,59 +45,62 @@ export interface FinenessLevelListResponse { data: FinenessLevel[] }
  * layout (TS2883).
  */
 export interface ComponentController {
-  getAllComponents: RequestHandler;
-  getFinenessLevels: RequestHandler;
-  getComponent: RequestHandler;
-  addComponent: RequestHandler;
-  editComponent: RequestHandler;
-  deleteComponent: RequestHandler;
+  getAllComponents: Handler;
+  getFinenessLevels: Handler;
+  getComponent: Handler;
+  addComponent: Handler;
+  editComponent: Handler;
+  deleteComponent: Handler;
 }
 
-export const createComponentController = (repo: ComponentRepository): ComponentController => {
+export const createComponentController = (
+  repo: ComponentRepository,
+  imageCleanup: EntityImageCleanup,
+): ComponentController => {
   const getAll = new GetAllComponentsUseCase(repo);
   const getLevels = new GetFinenessLevelsUseCase(repo);
   const getOne = new GetComponentUseCase(repo);
   const create = new CreateComponentUseCase(repo);
   const update = new UpdateComponentUseCase(repo);
-  const remove = new DeleteComponentUseCase(repo);
+  const remove = new DeleteComponentUseCase(repo, imageCleanup);
 
   return {
-    getAllComponents: asyncHandler(async (_req: Request, res: Response) => {
+    getAllComponents: async () => {
       const components = await getAll.execute();
       const body: ComponentListResponse = { data: components };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    getFinenessLevels: asyncHandler(async (_req: Request, res: Response) => {
+    getFinenessLevels: async () => {
       const levels = await getLevels.execute();
       const body: FinenessLevelListResponse = { data: levels };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    getComponent: asyncHandler(async (req: Request, res: Response) => {
-      const component = await getOne.execute(Number(req.params.id));
+    getComponent: async (req: FastifyRequest) => {
+      const component = await getOne.execute(numericParam(req, 'id'));
       const body: ComponentResponse = { data: component };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    addComponent: asyncHandler(async (req: Request, res: Response) => {
+    addComponent: async (req: FastifyRequest, reply: FastifyReply) => {
       const component = await create.execute(req.body);
       const body: ComponentResponse = { data: component };
-      res
-        .status(HTTP_STATUS.CREATED)
-        .location(`/components/${component.component_id}`)
-        .json(body);
-    }),
+      return reply
+        .code(HTTP_STATUS.CREATED)
+        .header('Location', `/components/${component.component_id}`)
+        .send(body);
+    },
 
-    editComponent: asyncHandler(async (req: Request, res: Response) => {
-      const component = await update.execute(Number(req.params.id), req.body);
+    editComponent: async (req: FastifyRequest) => {
+      const component = await update.execute(numericParam(req, 'id'), req.body);
       const body: ComponentResponse = { data: component };
-      res.json(body);
-    }),
+      return body;
+    },
 
-    deleteComponent: asyncHandler(async (req: Request, res: Response) => {
-      await remove.execute(Number(req.params.id));
-      res.status(HTTP_STATUS.NO_CONTENT).end();
-    }),
+    deleteComponent: async (req: FastifyRequest, reply: FastifyReply) => {
+      await remove.execute(numericParam(req, 'id'));
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
+    },
   };
 };

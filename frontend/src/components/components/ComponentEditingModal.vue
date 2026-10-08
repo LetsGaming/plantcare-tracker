@@ -10,13 +10,16 @@
     @submit="submit"
     @close="$emit('close')"
     :delete-handler="emitDelete"
+    :delete-label="component.name"
   />
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import BaseFormModal from "../modal/BaseFormModal.vue";
-import ComponentService from "@/services/ComponentService";
+import { mapActions, mapState } from "pinia";
+import { useComponentsStore } from "@/stores/components";
+import { finenessLabel } from "@/utils/enumLabels";
 
 export default defineComponent({
   name: "ComponentEditingModal",
@@ -33,42 +36,48 @@ export default defineComponent({
         name: "",
         fineness: 0,
       } as EditComponent,
-      finenessLevels: [] as APIFinenessLevel[],
     };
   },
   async created() {
-    this.finenessLevels = await ComponentService.getFinenessLevels();
+    this.resetFromComponent();
+    await this.ensureFinenessLevels();
   },
   watch: {
-    component: {
-      immediate: true,
-      handler() {
-        this.resetFromComponent();
-      },
+    isOpen(open: boolean) {
+      if (open) this.resetFromComponent();
+    },
+    "component.id"() {
+      this.resetFromComponent();
     },
   },
   computed: {
+    ...mapState(useComponentsStore, ["finenessLevels"]),
     componentFormFields(): FormField[] {
       return [
         {
           type: "input",
           modelKey: "name",
           label: "component.field.name",
+          required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "select",
           modelKey: "fineness",
           label: "component.field.fineness",
+          required: true,
           placeholder: "component.field.fineness_placeholder",
           options: this.finenessLevels.map((f) => ({
             value: f.fineness_id,
-            label: f.fineness_name,
+            label: finenessLabel(f.fineness_name),
           })),
         },
       ];
     },
   },
   methods: {
+    ...mapActions(useComponentsStore, ["ensureFinenessLevels"]),
     submit() {
       this.$emit("save", { ...this.editComponentData });
     },

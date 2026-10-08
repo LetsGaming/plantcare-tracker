@@ -1,26 +1,42 @@
 <template>
-  <div class="field-wrapper">
-    <IonItem>
-      <IonLabel class="date-label">{{ translateFieldLabel() }}</IonLabel>
-      <IonInput
-        v-model="localValue"
-        type="datetime-local"
-        class="custom-datetime"
-      />
-      <RequiredNote v-if="field.required" />
-    </IonItem>
-  </div>
+  <FieldShell
+    :label="translatedLabel"
+    :required="field.required"
+    :error="error"
+    :hint="translatedHint"
+    :message-id="messageId"
+    :label-id="labelId"
+    @label-click="focusControl"
+  >
+    <IonInput
+      ref="control"
+      v-model="localValue"
+      :type="isDateOnly ? 'date' : 'datetime-local'"
+      :required="field.required"
+      :max="field.max"
+      :aria-labelledby="labelId"
+      :aria-invalid="error ? 'true' : undefined"
+      :aria-describedby="error || translatedHint ? messageId : undefined"
+      @ionBlur="$emit('blur')"
+    />
+  </FieldShell>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonItem, IonLabel, IonInput } from "@ionic/vue";
-import RequiredNote from "@/components/formcomponent/RequiredNote.vue";
+import { IonInput } from "@ionic/vue";
+import FieldShell from "@/components/formcomponent/FieldShell.vue";
+import {
+  fieldErrorProp,
+  focusControlRef,
+  nextFieldId,
+} from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "DateFieldComponent",
-  components: { IonItem, IonLabel, IonInput, RequiredNote },
+  emits: ["update:modelValue", "blur"],
+  components: { IonInput, FieldShell },
   props: {
     field: {
       type: Object as () => DateField,
@@ -30,79 +46,66 @@ export default defineComponent({
       type: Number,
       default: undefined,
     },
+    ...fieldErrorProp,
+  },
+  data() {
+    return { messageId: nextFieldId("field-msg"), labelId: nextFieldId("field-label") };
   },
   mounted() {
-    // Set default value if provided
     if (this.field.defaultValue !== undefined) {
       this.localValue = this.field.defaultValue;
+    } else if (this.modelValue === undefined) {
+      this.$emit("update:modelValue", Date.now());
     }
   },
   computed: {
+    isDateOnly(): boolean {
+      return this.field.mode === "date";
+    },
+    translatedLabel(): string {
+      return localizationService.t(this.field.label, undefined, this.field.label);
+    },
+    translatedHint(): string {
+      return this.field.hint
+        ? localizationService.t(this.field.hint, undefined, this.field.hint)
+        : "";
+    },
     localValue: {
       get() {
-        let value = this.modelValue;
-        return this.formatDateForInput(
-          value !== undefined ? value : Date.now()
-        );
+        const value = this.modelValue;
+        return this.formatDateForInput(value !== undefined ? value : Date.now());
       },
       set(val: string) {
-        // Convert the local input back to the user's local timezone
-        const localDate = this.convertToMillis(val);
-        this.$emit("update:modelValue", localDate);
+        if (!val) return;
+        this.$emit("update:modelValue", this.convertToMillis(val));
       },
     },
   },
   methods: {
-    // Format the date for the input element in the correct format (yyyy-MM-ddThh:mm)
+    /** Format for the input element: yyyy-MM-dd or yyyy-MM-ddThh:mm in local time. */
     formatDateForInput(date: number): string {
       const parsedDate = new Date(date);
 
       const year = parsedDate.getFullYear();
       const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
       const day = String(parsedDate.getDate()).padStart(2, "0");
+      if (this.isDateOnly) return `${year}-${month}-${day}`;
       const hours = String(parsedDate.getHours()).padStart(2, "0");
       const minutes = String(parsedDate.getMinutes()).padStart(2, "0");
 
       return `${year}-${month}-${day}T${hours}:${minutes}`;
     },
 
-    // Convert the local value back to the local timezone
     convertToMillis(date: string): number {
-      const parsedDate = new Date(date);
-      return parsedDate.getTime();
+      if (this.isDateOnly) {
+        const [year, month, day] = date.split("-").map(Number);
+        return new Date(year, month - 1, day).getTime();
+      }
+      return new Date(date).getTime();
     },
-    translateFieldLabel(): string {
-      // Placeholder for localization logic if needed
-      return localizationService.t(
-        this.field.label,
-        undefined,
-        this.field.label
-      );
+    focusControl() {
+      focusControlRef(this.$refs.control);
     },
   },
 });
 </script>
-
-<style scoped>
-.field-wrapper {
-  margin-bottom: 16px;
-}
-
-.custom-datetime {
-  margin-left: 16px;
-  width: 100%;
-  font-size: 16px;
-  padding-left: 8px !important;
-  padding-right: 8px !important;
-  border-radius: 8px;
-  border: 1px solid var(--ion-color-medium);
-  background: var(--ion-background-color);
-  color: var(--ion-text-color);
-}
-
-@media screen and (max-width: 768px) {
-  .date-label {
-    display: none;
-  }
-}
-</style>

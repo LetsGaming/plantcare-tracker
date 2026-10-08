@@ -53,7 +53,10 @@ beforeEach(() => {
 
 describe('ShopifyJsonStrategy', () => {
   const strategy = new ShopifyJsonStrategy();
-  const config = { ...baseConfig, shopifyCollectionUrl: 'https://shop.example/de/collections/sale' };
+  const config = {
+    ...baseConfig,
+    shopifyCollectionUrl: 'https://shop.example/de/collections/sale',
+  };
 
   it('is only applicable with a collection url', () => {
     expect(strategy.isApplicable(baseConfig)).toBe(false);
@@ -215,7 +218,9 @@ describe('SelectorStrategy', () => {
   });
 
   it('prefers a custom parseFn over selectors', async () => {
-    const parseFn = vi.fn().mockReturnValue([{ name: 'custom', link: 'x', oldPrice: 2, newPrice: 1 }, null]);
+    const parseFn = vi
+      .fn()
+      .mockReturnValue([{ name: 'custom', link: 'x', oldPrice: 2, newPrice: 1 }, null]);
     const items = await strategy.extract(
       ctxFor('<html></html>', { config: { ...baseConfig, selectors, parseFn } }),
     );

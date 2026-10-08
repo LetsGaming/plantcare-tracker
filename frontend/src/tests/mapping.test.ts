@@ -71,9 +71,7 @@ const makeAPIPlant = (overrides: Partial<APIPlant> = {}): APIPlant => ({
   ...overrides,
 });
 
-const makeAPIWateringRecord = (
-  overrides: Partial<APIWateringRecord> = {},
-): APIWateringRecord => ({
+const makeAPIWateringRecord = (overrides: Partial<APIWateringRecord> = {}): APIWateringRecord => ({
   record_id: 11,
   plant_id: 7,
   plant_name: "Monstera Deliciosa",
@@ -159,9 +157,7 @@ describe("SubstrateMapper.mapSubstrate", () => {
   });
 
   it("maps images array", () => {
-    const result = SubstrateMapper.mapSubstrate(
-      makeAPISubstrate({ images: [makeAPIImage()] }),
-    );
+    const result = SubstrateMapper.mapSubstrate(makeAPISubstrate({ images: [makeAPIImage()] }));
     expect(result.images).toHaveLength(1);
     expect(result.images[0].id).toBe(10);
   });
@@ -173,9 +169,7 @@ describe("SubstrateMapper.mapSubstrate", () => {
   });
 
   it("handles empty images and components arrays", () => {
-    const result = SubstrateMapper.mapSubstrate(
-      makeAPISubstrate({ images: [], components: [] }),
-    );
+    const result = SubstrateMapper.mapSubstrate(makeAPISubstrate({ images: [], components: [] }));
     expect(result.images).toHaveLength(0);
     expect(result.components).toHaveLength(0);
   });

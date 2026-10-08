@@ -14,9 +14,7 @@ export default class MoreInfoMapper {
    * Converts the response to an array of MoreInfo objects.
    * This is compatible with the cumulative object built in MoreInfoService.
    */
-  static convertToMoreInfo(
-    response: APIMoreInfo | APIMoreInfo[] | null | undefined,
-  ): MoreInfo[] {
+  static convertToMoreInfo(response: APIMoreInfo | APIMoreInfo[] | null | undefined): MoreInfo[] {
     if (!response) {
       return [];
     }

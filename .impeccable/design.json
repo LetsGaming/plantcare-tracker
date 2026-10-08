@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T00:00:00Z",
+  "title": "Design System: PlantCare Tracker",
+  "extensions": {
+    "colorMeta": {
+      "leaf-green": { "role": "primary", "displayName": "Leaf Green", "canonical": "#1f6b3b", "tonalRamp": ["#0f2e1a", "#15472a", "#1f6b3b", "#3a8a58", "#62aa7b", "#93c9a6", "#c3e2cd", "#e8f4ec"] },
+      "fired-clay": { "role": "secondary", "displayName": "Fired Clay", "canonical": "#a34a28", "tonalRamp": ["#3a1a0d", "#6a2f19", "#a34a28", "#c06a47", "#d68e70", "#e8b49d", "#f3d6c8", "#fbede6"] },
+      "watering-can-teal": { "role": "tertiary", "displayName": "Watering Can Teal", "canonical": "#0e6b75", "tonalRamp": ["#052e33", "#0a4a52", "#0e6b75", "#2b8d98", "#55adb7", "#8accd3", "#bfe3e7", "#e6f4f6"] },
+      "moss-ink": { "role": "neutral", "displayName": "Moss Ink", "canonical": "#1d2b22", "tonalRamp": ["#1d2b22", "#3a4a3f", "#58695d", "#8a9a8e", "#b6c4b8", "#d5dfd2", "#e6ede2", "#f3f6f0"] },
+      "sage-white": { "role": "neutral", "displayName": "Sage White", "canonical": "#f3f6f0", "tonalRamp": ["#1d2b22", "#3a4a3f", "#58695d", "#8a9a8e", "#b6c4b8", "#d5dfd2", "#e6ede2", "#f3f6f0"] },
+      "moss-black": { "role": "neutral", "displayName": "Moss Black (dark ground)", "canonical": "#0f1a14", "tonalRamp": ["#0b130f", "#0f1a14", "#14221a", "#17261d", "#2b3d31", "#58695d", "#a5b9aa", "#e3eee5"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "h1 and wide-viewport plant names, Bricolage Grotesque 650." },
+      "headline": { "displayName": "Headline", "purpose": "h2, mobile tag header names, watering band fact values." },
+      "title": { "displayName": "Title", "purpose": "h3 and state block titles." },
+      "body": { "displayName": "Body", "purpose": "Running text in Figtree, capped at 68ch." },
+      "body-sm": { "displayName": "Body small", "purpose": "Counts and meta lines." },
+      "label": { "displayName": "Label", "purpose": "Chips, pills, captions and status lines." }
+    },
+    "shadows": [
+      { "name": "shadow-card", "value": "0 1px 2px rgba(29,43,34,0.08), 0 6px 18px rgba(29,43,34,0.08)", "purpose": "Cards and tags at rest. Dark: 0 1px 2px rgba(0,0,0,0.4), 0 6px 18px rgba(0,0,0,0.35)." },
+      { "name": "shadow-lift", "value": "0 2px 4px rgba(29,43,34,0.1), 0 12px 28px rgba(29,43,34,0.14)", "purpose": "Card hover on pointer devices and floating action buttons. Dark: 0 2px 4px rgba(0,0,0,0.5), 0 12px 28px rgba(0,0,0,0.45)." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "The single easing for hover, press, entry and confirmation." },
+      { "name": "water-fill", "value": "650ms ease-out, scaleY 0 to 1 from bottom", "purpose": "Teal wash across the watering band after Water now succeeds." },
+      { "name": "value-settle", "value": "550ms ease-out, translateY 8px to 0", "purpose": "Fact values settle in after watering." },
+      { "name": "card-hover", "value": "250ms ease-out, translateY(-3px) with shadow-lift, hover: hover only", "purpose": "Plant tag card hover." },
+      { "name": "shimmer", "value": "1.4s ease-out infinite", "purpose": "Skeleton loading." }
+    ],
+    "breakpoints": [
+      { "name": "grid-wide", "value": "640px" },
+      { "name": "tag-wide", "value": "900px" },
+      { "name": "split-pane", "value": "992px" },
+      { "name": "content-max", "value": "960px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Water Now Button",
+      "kind": "button",
+      "refersTo": "button-water-now",
+      "description": "The one primary action of the watering status band.",
+      "html": "<button class=\"ds-water-now\">Water now</button>",
+      "css": ".ds-water-now { background: var(--ion-color-tertiary, #0e6b75); color: var(--ion-color-tertiary-contrast, #fff); min-height: 52px; padding: 0 24px; border: 0; border-radius: var(--radius-md, 14px); font: 650 1rem var(--font-body, system-ui); cursor: pointer; transition: filter 0.25s cubic-bezier(0.22,1,0.36,1); } .ds-water-now:hover { filter: brightness(1.08); } .ds-water-now:focus-visible { outline: 3px solid var(--focus-ring, #0e6b75); outline-offset: -3px; } .ds-water-now:active { filter: brightness(0.94); }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Leaf green action, 44px, sentence case.",
+      "html": "<button class=\"ds-btn-primary\">Add plant</button>",
+      "css": ".ds-btn-primary { background: var(--ion-color-primary, #1f6b3b); color: var(--ion-color-primary-contrast, #fff); min-height: 44px; padding: 0 20px; border: 0; border-radius: var(--radius-md, 14px); font: 650 1rem var(--font-body, system-ui); cursor: pointer; } .ds-btn-primary:hover { background: var(--ion-color-primary-shade, #1b5e34); } .ds-btn-primary:focus-visible { outline: 3px solid var(--focus-ring, #0e6b75); outline-offset: -3px; }"
+    },
+    {
+      "name": "Plant Tag Card",
+      "kind": "card",
+      "refersTo": "plant-tag-card",
+      "description": "List card: photo, dashed perforation with hole, name, species and watering status.",
+      "html": "<button class=\"ds-tag-card\"><span class=\"ds-tag-media\"></span><span class=\"ds-tag-body\"><span class=\"ds-tag-hole\"></span><span class=\"ds-tag-name\">Monstera</span><span class=\"ds-tag-sub\">Monstera deliciosa</span><span class=\"ds-chip-due\">Water today</span></span></button>",
+      "css": ".ds-tag-card { all: unset; box-sizing: border-box; display: flex; flex-direction: column; width: 240px; cursor: pointer; background: var(--surface-raised, #fff); border-radius: var(--radius-md, 14px); box-shadow: var(--shadow-card); overflow: hidden; transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s cubic-bezier(0.22,1,0.36,1); } .ds-tag-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); } .ds-tag-card:focus-visible { outline: 3px solid var(--focus-ring, #0e6b75); outline-offset: 2px; } .ds-tag-media { display: block; aspect-ratio: 4 / 3; background: var(--tint-1, #cfe5d3); } .ds-tag-body { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 16px 12px 12px; border-top: 2px dashed var(--line, #d5dfd2); } .ds-tag-hole { position: absolute; top: -7px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--surface-sunken, #e6ede2); box-shadow: inset 0 0 0 1.5px var(--line, #d5dfd2); } .ds-tag-name { font: 650 1rem/1.2 var(--font-display, system-ui); color: var(--ion-text-color, #1d2b22); } .ds-tag-sub { font-size: 0.8125rem; color: var(--ink-soft, #4d5d52); } .ds-chip-due { align-self: flex-start; margin-top: 4px; padding: 2px 10px; border-radius: 999px; background: var(--ion-color-tertiary, #0e6b75); color: var(--ion-color-tertiary-contrast, #fff); font-size: 0.8125rem; font-weight: 700; }"
+    },
+    {
+      "name": "Plant Tag Header",
+      "kind": "custom",
+      "refersTo": "plant-tag-header",
+      "description": "Detail screen name tag with side hole, species and visibility chip.",
+      "html": "<header class=\"ds-tag-header\"><span class=\"ds-hole\"></span><h1 class=\"ds-tag-title\">Monstera</h1><p class=\"ds-tag-species\">Monstera deliciosa</p><span class=\"ds-chip-public\">Public</span></header>",
+      "css": ".ds-tag-header { position: relative; display: grid; gap: 12px; padding: 16px 16px 16px 48px; border-radius: var(--radius-md, 14px) var(--radius-lg, 22px) var(--radius-lg, 22px) var(--radius-md, 14px); background: var(--leaf-wash, #dcebdf); color: var(--ion-text-color, #1d2b22); box-shadow: var(--shadow-card); } .ds-hole { position: absolute; top: 16px; left: 16px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface-sunken, #e6ede2); box-shadow: inset 0 0 0 1.5px var(--line, #d5dfd2); } .ds-tag-title { margin: 0; font: 650 1.625rem/1.15 var(--font-display, system-ui); letter-spacing: -0.01em; } .ds-tag-species { margin: 4px 0 0; font-style: italic; color: var(--ink-soft, #4d5d52); } .ds-chip-public { justify-self: start; padding: 4px 12px; border-radius: 999px; background: var(--water-wash, #dcf0f2); font-size: 0.8125rem; font-weight: 650; }"
+    },
+    {
+      "name": "Watering Status Band",
+      "kind": "custom",
+      "refersTo": "watering-status-band",
+      "description": "Last watered and interval facts with the Water now action.",
+      "html": "<section class=\"ds-status\"><dl class=\"ds-facts\"><div><dt>Last watered</dt><dd class=\"ds-fact\">3 days ago</dd></div><div><dt>Typical interval</dt><dd class=\"ds-fact\">7 days</dd></div></dl><button class=\"ds-water\">Water now</button></section>",
+      "css": ".ds-status { display: grid; gap: 16px; padding: 16px; border-radius: var(--radius-md, 14px); background: var(--water-wash, #dcf0f2); color: var(--ion-text-color, #1d2b22); } .ds-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; } .ds-facts dt { font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft, #4d5d52); } .ds-facts dd { margin: 0; } .ds-fact { font: 650 1.625rem/1.2 var(--font-display, system-ui); } .ds-water { min-height: 52px; border: 0; border-radius: var(--radius-md, 14px); background: var(--ion-color-tertiary, #0e6b75); color: var(--ion-color-tertiary-contrast, #fff); font: 650 1rem var(--font-body, system-ui); cursor: pointer; } .ds-water:focus-visible { outline: 3px solid var(--focus-ring, #0e6b75); outline-offset: -3px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field-input",
+      "description": "Outline input with 44px height, line border and teal focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Plant name\" />",
+      "css": ".ds-input { box-sizing: border-box; min-height: 44px; width: 260px; padding: 0 14px; border: 1.5px solid var(--line, #d5dfd2); border-radius: var(--radius-md, 14px); background: var(--surface-raised, #fff); color: var(--ion-text-color, #1d2b22); font: 400 1rem var(--font-body, system-ui); caret-color: var(--ion-color-primary, #1f6b3b); } .ds-input::placeholder { color: var(--ink-soft, #4d5d52); opacity: 1; } .ds-input:focus-visible { outline: 3px solid var(--focus-ring, #0e6b75); outline-offset: 2px; border-color: var(--focus-ring, #0e6b75); }"
+    },
+    {
+      "name": "State Block",
+      "kind": "custom",
+      "refersTo": "plant-tag-card",
+      "description": "Empty state: tinted illustration well, title, message and one next step.",
+      "html": "<section class=\"ds-state\"><div class=\"ds-art\"></div><h2 class=\"ds-state-title\">No plants yet</h2><p class=\"ds-state-msg\">Add your first plant to start tracking watering.</p><button class=\"ds-btn-primary\">Add plant</button></section>",
+      "css": ".ds-state { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 520px; text-align: center; } .ds-art { width: 148px; height: 148px; border-radius: var(--radius-lg, 22px); background: var(--tint-1, #cfe5d3); } .ds-state-title { margin: 0; font: 650 1.25rem/1.15 var(--font-display, system-ui); } .ds-state-msg { margin: 0; color: var(--ink-soft, #4d5d52); } .ds-btn-primary { margin-top: 8px; min-height: 44px; padding: 0 20px; border: 0; border-radius: var(--radius-md, 14px); background: var(--ion-color-primary, #1f6b3b); color: var(--ion-color-primary-contrast, #fff); font: 650 1rem var(--font-body, system-ui); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Potting Bench Logbook",
+    "overview": "An Ionic Vue app restyled so that watering is the hero and every plant wears a painted tag. Leaf green carries brand and primary actions on a sage-white ground (not cream); fired clay marks fertilizer, \"new\" and overdue; water teal marks watering. Dark mode is a moss-black counterpart, not an inversion. Headings are set in Bricolage Grotesque, body in Figtree. The look is warm and botanical, calm and legible one-handed next to a plant.",
+    "keyCharacteristics": [
+      "Role colors are semantic: green acts, teal waters, clay flags fertilizer, new and overdue.",
+      "Every plant has an identity: a tag, and when no photo exists an authored leaf silhouette on a tint keyed to the plant.",
+      "One primary action per screen region, 44px minimum targets, 52px for Water now.",
+      "Light and dark both first-class, switched only by the ion-palette-dark class."
+    ],
+    "rules": [
+      { "name": "The Role Color Rule", "body": "Green means act, teal means water, clay means fertilizer, new or overdue. Never swap them to decorate.", "section": "colors" },
+      { "name": "The Never-Only-Color Rule", "body": "Status is always color plus text or icon (chip label, status line); chart series differ in lightness and hue and are never the only code.", "section": "colors" },
+      { "name": "The Tokens-Only Rule", "body": "Components read variables; no hex colors or inline style attributes in components (the placeholder tint binds through var(--tint-n)).", "section": "colors" },
+      { "name": "The Two Voices Rule", "body": "Display face for names and headings only; Figtree for everything else, including buttons (650, no uppercase, no letter-spacing).", "section": "typography" },
+      { "name": "The Rests-On-The-Bench Rule", "body": "Surfaces carry the card shadow at rest; only hover (pointer devices) and floating buttons step up to lift. Dark mode keeps the same two steps with black shadows.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do put Water now above the fold on plant detail, in teal, 52px tall, as the single primary action of the band.",
+      "Do build icon-only actions with IconButton and an outline icon from theme/icons.ts.",
+      "Do route every state (loading, empty, error, not found) through StateBlock and offer the next step.",
+      "Do use var(--token) for color, space, radius and shadow, and add dark values in the same change.",
+      "Do show an authored placeholder with a per-item tint when an image is missing or fails."
+    ],
+    "donts": [
+      "Don't reintroduce the stock Ionic starter look: anonymous white cards, grey headings, broken-image glyphs.",
+      "Don't use clay or teal for decoration; they carry meaning.",
+      "Don't switch dark mode with a media query; the class is the only source.",
+      "Don't use the display face for body copy, buttons or form labels.",
+      "Don't use uppercase letter-spaced labels, colored offset shadows, or filled icons for anything other than selected tabs."
+    ]
+  }
+}

@@ -69,18 +69,16 @@ describe("resolveAccess", () => {
   });
 
   it("sends anonymous users to the login page", async () => {
-    await expect(
-      resolveAccess({ requiresAuth: true }, checks(false, false)),
-    ).resolves.toBe("login");
+    await expect(resolveAccess({ requiresAuth: true }, checks(false, false))).resolves.toBe(
+      "login",
+    );
     await expect(
       resolveAccess({ requiresAuth: true, requiresAdmin: true }, checks(false, false)),
     ).resolves.toBe("login");
   });
 
   it("allows signed-in users on authenticated routes", async () => {
-    await expect(
-      resolveAccess({ requiresAuth: true }, checks(true, false)),
-    ).resolves.toBe("allow");
+    await expect(resolveAccess({ requiresAuth: true }, checks(true, false))).resolves.toBe("allow");
   });
 
   it("sends signed-in non-admins away from admin routes", async () => {

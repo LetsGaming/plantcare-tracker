@@ -3,120 +3,84 @@
  *
  * Composition root for the images module.
  *
- * Multer stays at the HTTP edge (it is request middleware); Sharp/EXIF
- * processing lives in the LocalImageStorage adapter; rules live in the
- * use cases. Mutations carry checkGuestPermission in line with the
- * shared API contract (guests are GET-only).
+ * @fastify/multipart stays at the HTTP edge; Sharp/EXIF processing lives in
+ * the LocalImageStorage adapter; rules live in the use cases, including who
+ * may read or change which entity's images. Guest read-only access is
+ * enforced once for the whole API (guestReadOnly).
  */
 
-import { Router } from 'express';
-import type { Request, Response, NextFunction } from 'express';
-import multer from 'multer';
+import multipart from '@fastify/multipart';
+import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteImageRepository } from '../infrastructure/SQLiteImageRepository';
 import { LocalImageStorage } from '../infrastructure/LocalImageStorage';
 import { createImageController } from './imageController';
+import { SQLiteImageEntityLookup } from '../infrastructure/SQLiteImageEntityLookup';
+import { ImageAccessPolicy } from '../application/ImageAccessPolicy';
 import { IMAGE_ENTITY_TYPES, isEntityType } from '../domain/Image';
 import { ValidationError } from '../../../core/errors';
-import { authenticateToken, checkGuestPermission } from '../../../core/middleware';
-import { MAX_UPLOAD_BYTES, translateMulterError } from './uploadErrors';
+import { authenticateToken, globalErrorHandler, numericParam } from '../../../core/middleware';
+import type { Hook } from '../../../core/middleware';
+import { MAX_UPLOAD_BYTES, translateUploadError } from './uploadErrors';
 
-// ── Upload middleware ─────────────────────────────────────────────────────────
-
-const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
-
-// Memory storage: the buffer is needed for both EXIF extraction and
-// Sharp processing before anything touches the disk.
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_UPLOAD_BYTES },
-  fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) return cb(null, true);
-    cb(new ValidationError('Invalid file type. Only png, jpeg, and jpg are allowed.'));
-  },
-});
-
-/** upload.single('image') with Multer errors translated to the API contract. */
-const uploadSingleImage = (req: Request, res: Response, next: NextFunction): void => {
-  upload.single('image')(req, res, (err: unknown) => {
-    if (err) return next(translateMulterError(err));
-    next();
-  });
-};
-
-const validateEntityType = (req: Request, _res: Response, next: NextFunction): void => {
-  // Express 5 types params as string | string[] — normalise first.
-  const raw = req.params.entityType;
-  const value = Array.isArray(raw) ? raw[0] : raw;
+const validateEntityType: Hook = async (request) => {
+  const value = (request.params as { entityType?: string }).entityType;
   if (!value || !isEntityType(value)) {
-    return next(
-      new ValidationError(`entityType must be one of: ${IMAGE_ENTITY_TYPES.join(', ')}`),
-    );
+    throw new ValidationError(`entityType must be one of: ${IMAGE_ENTITY_TYPES.join(', ')}`);
   }
-  req.params.entityType = value;
-  next();
 };
 
-// ── Router ────────────────────────────────────────────────────────────────────
-
-export const createImageRouter = (): Router => {
-  const router = Router();
+export const imageRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLiteImageRepository();
   const storage = new LocalImageStorage();
-  const ctrl = createImageController(repo, storage);
+  const access = new ImageAccessPolicy(new SQLiteImageEntityLookup());
+  const ctrl = createImageController(repo, storage, access);
 
-  const requireUploadedFile = (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.file) return next(new ValidationError('No image file provided.'));
-    next();
-  };
+  // Parts are buffered and attached to the body so handlers read them like
+  // any other input; the size cap bounds memory per upload.
+  await app.register(multipart, {
+    attachFieldsToBody: true,
+    limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+  });
+  app.setErrorHandler((error, request, reply) =>
+    globalErrorHandler(translateUploadError(error), request, reply),
+  );
 
-  // POST /:entityType/:entityId — upload image
-  router.post(
+  // POST /:entityType/:entityId: upload image
+  app.post(
     '/:entityType/:entityId',
-    authenticateToken,
-    checkGuestPermission,
-    validateEntityType,
-    uploadSingleImage,
-    requireUploadedFile,
+    { onRequest: [authenticateToken, validateEntityType] },
     ctrl.uploadImage,
   );
 
-  // GET /:entityType — list images for entity (entityId in query)
-  router.get('/:entityType', authenticateToken, validateEntityType, ctrl.listEntityImages);
-
-  // GET /:entityType/:entityId — serve primary image file (optional ?size=)
-  router.get('/:entityType/:entityId', authenticateToken, validateEntityType, ctrl.serveEntityImage);
-
-  // PATCH /:id — replace file and/or update date
-  router.patch(
-    '/:id',
-    authenticateToken,
-    checkGuestPermission,
-    uploadSingleImage,
-    ctrl.updateImage,
+  // GET /:entityType: list images for entity (entityId in query)
+  app.get(
+    '/:entityType',
+    { onRequest: [authenticateToken, validateEntityType] },
+    ctrl.listEntityImages,
   );
 
-  // DELETE /:id — delete single image by image ID, 204 No Content
-  router.delete(
-    '/:id',
-    authenticateToken,
-    checkGuestPermission,
-    (req: Request, res: Response, next: NextFunction): void => {
-      // Non-numeric ids fall through to /:entityType/:entityId below —
-      // this route only owns numeric image ids.
-      const id = Number(req.params.id);
-      if (!Number.isInteger(id) || id <= 0) return next('route');
-      ctrl.deleteImage(req, res, next);
-    },
-  );
-
-  // DELETE /:entityType/:entityId — delete all images for an entity
-  router.delete(
+  // GET /:entityType/:entityId: serve primary image file (optional ?size=)
+  app.get(
     '/:entityType/:entityId',
-    authenticateToken,
-    checkGuestPermission,
-    validateEntityType,
+    { onRequest: [authenticateToken, validateEntityType] },
+    ctrl.serveEntityImage,
+  );
+
+  // PATCH /:id: replace file and/or update date
+  app.patch('/:id', { onRequest: authenticateToken }, ctrl.updateImage);
+
+  // DELETE /:id: delete single image by image ID, 204 No Content.
+  // Only numeric image ids belong to this route; anything else is unknown.
+  app.delete('/:id', { onRequest: authenticateToken }, async (request, reply) => {
+    const id = numericParam(request, 'id');
+    if (!Number.isInteger(id) || id <= 0) return reply.callNotFound();
+    return ctrl.deleteImage(request, reply);
+  });
+
+  // DELETE /:entityType/:entityId: delete all images for an entity
+  app.delete(
+    '/:entityType/:entityId',
+    { onRequest: [authenticateToken, validateEntityType] },
     ctrl.deleteEntityImages,
   );
-
-  return router;
 };

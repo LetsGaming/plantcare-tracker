@@ -1,163 +1,124 @@
 <template>
   <ion-page>
-    <details-header :show-edit-button="false" default-back-href="/sales" />
-
+    <details-header :show-edit-button="false" default-back-href="/tabs/sales" />
     <ion-content>
-      <div v-if="sale">
-        <details-banner
-          :banner-title="sale.name"
-          :banner-subtitle="saleSubtitle"
+      <pull-refresher :handler="refresh" />
+
+      <div v-if="sale" class="detail-column">
+        <detail-hero
+          :title="sale.nameFull || sale.name"
           :image-url="sale.imageUrl"
-        />
+          :image-alt="t('saledetail.image_alt', { name: sale.name })"
+          kind="sale"
+        >
+          <span>{{ t("saledetail.seller", { seller: sale.seller }) }}</span>
+        </detail-hero>
 
-        <section class="sale-info">
-          <!-- PRIMARY CARD: minimal info + CTA -->
-          <ion-card class="sale-card align-middle">
-            <ion-badge
-              v-if="discountPercentage"
-              color="danger"
-              class="sale-badge round-badge"
+        <div class="detail-body">
+          <section class="price-block" aria-labelledby="sale-price">
+            <h2 id="sale-price" class="section-title">{{ t("saledetail.current_price") }}</h2>
+            <p class="price-row">
+              <strong class="current-price">{{ formatPrice(sale.price) }}</strong>
+              <del v-if="hasDiscount" class="old-price">
+                <span class="sr-only">{{ t("saledetail.old_price") }}</span>
+                {{ formatPrice(sale.oldPrice) }}
+              </del>
+            </p>
+            <p v-if="hasDiscount" class="saving">
+              {{
+                t("saledetail.saving", {
+                  amount: formatPrice(savingAmount),
+                  percent: savingPercent,
+                })
+              }}
+            </p>
+            <ion-button
+              class="shop-button"
+              expand="block"
+              :href="sale.link"
+              target="_blank"
+              rel="noopener noreferrer"
+              :aria-label="
+                t('saledetail.open_shop_label', { name: sale.name, seller: sale.seller })
+              "
             >
-              {{ discountPercentage }}
-            </ion-badge>
+              {{ t("saledetail.open_shop") }}
+              <ion-icon slot="end" :icon="openOutline" aria-hidden="true" />
+            </ion-button>
+          </section>
 
-            <ion-card-header>
-              <ion-card-title class="sale-title">
-                {{ sale.nameFull }}
-              </ion-card-title>
-
-              <div class="seller-info">
-                <ion-icon
-                  :icon="storefrontOutline"
-                  color="medium"
-                  style="cursor: unset"
-                />
-                <ion-card-subtitle class="sale-seller">
-                  {{ t("sales.sold_by") }}
-                  <span class="seller-name">{{ sale.seller }}</span>
-                </ion-card-subtitle>
-              </div>
-            </ion-card-header>
-
-            <ion-card-content>
-              <!-- Minimal price info -->
-              <div class="price-section">
-                <div class="price-row">
-                  <span class="current-price">
-                    {{ sale.price.toFixed(2) }} €
-                  </span>
-
-                  <span v-if="sale.oldPrice" class="old-price">
-                    {{ sale.oldPrice.toFixed(2) }} €
-                  </span>
-                </div>
-
-                <div
-                  v-if="discountPercentage && savings"
-                  class="savings-container"
-                >
-                  <span class="savings-amount">
-                    {{ discountPercentage }} · {{ savings }} € {{ t("sales.savings") }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- PRIMARY CTA -->
-              <ion-button
-                expand="block"
-                color="primary"
-                class="view-button"
-                :href="sale.link"
-                target="_blank"
-                rel="noopener"
-              >
-                {{ t("sales.view_sale") }}
-              </ion-button>
-            </ion-card-content>
-          </ion-card>
-
-          <!-- SECONDARY CARD: optional deep info -->
-          <ion-card
-            v-if="priceHistory.length"
-            class="sale-card align-middle secondary-card"
-          >
-            <ion-card-header>
-              <ion-card-title class="chart-header">
-                {{ t("sales.price_history") }}
-              </ion-card-title>
-            </ion-card-header>
-
-            <ion-card-content>
-              <!-- 1 point -->
-              <div v-if="priceHistory.length === 1" class="history-fallback">
-                <p class="history-meta">
-                  {{ t("sales.first_tracked_price") }}
-                </p>
-              </div>
-
-              <!-- 2 points -->
-              <div
-                v-else-if="priceHistory.length === 2"
-                class="history-fallback"
-              >
-                <p class="history-meta">
-                  {{ priceTrendLabel }}
-                </p>
-              </div>
-
-              <!-- 3+ points -->
-              <div v-else class="chart-wrapper">
-                <PriceHistoryChart
-                  :history="priceHistory"
-                  :reference-price="sale.oldPrice"
-                />
-              </div>
-            </ion-card-content>
-          </ion-card>
-        </section>
+          <section class="history" aria-labelledby="sale-history">
+            <h2 id="sale-history" class="section-title">{{ t("sales.price_history") }}</h2>
+            <p v-if="priceHistory.length < 2" class="history-hint">
+              {{ t("sales3.history_hint") }}
+            </p>
+            <p v-else-if="priceHistory.length === 2" class="text-soft">
+              {{ priceTrendLabel }}
+            </p>
+            <PriceHistoryChart
+              v-else
+              :history="priceHistory"
+              :reference-price="sale.oldPrice"
+              :caption="t('saledetail.history_caption', { name: sale.name })"
+            />
+          </section>
+        </div>
       </div>
+
+      <state-block
+        v-else-if="phase === 'loading'"
+        kind="loading"
+        :title="t('saledetail.loading')"
+        :skeletons="2"
+      />
+      <state-block
+        v-else-if="phase === 'not-found'"
+        kind="not-found"
+        placeholder-kind="sale"
+        :title="t('state.not_found_title')"
+        :message="t('state.not_found_message')"
+        :action-label="t('state.back_to_list')"
+        @action="goToList"
+      />
+      <state-block
+        v-else
+        kind="error"
+        placeholder-kind="sale"
+        :title="t('state.error_title')"
+        :message="t('state.error_message')"
+        :action-label="t('state.retry')"
+        @action="reload"
+      />
     </ion-content>
   </ion-page>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  IonPage,
-  IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardContent,
-  IonCardTitle,
-  IonCardSubtitle,
-  IonButton,
-  IonBadge,
-  IonIcon,
-} from "@ionic/vue";
-import { storefrontOutline } from "ionicons/icons";
-
+import { IonPage, IonContent, IonButton, IonIcon } from "@ionic/vue";
+import { openOutline } from "ionicons/icons";
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
-import DetailsBanner from "@/components/details/DetailsBanner.vue";
+import DetailHero from "@/components/ui/DetailHero.vue";
+import PullRefresher from "@/components/ui/PullRefresher.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
 import PriceHistoryChart from "@/components/sales/PriceHistoryChart.vue";
-
-import SalesService from "@/services/SalesServices";
+import { mapActions, mapState } from "pinia";
+import { useSalesStore } from "@/stores/sales";
 import localizationService from "@/services/general/LocalizationService";
+import { LoadPhase, phaseFromError } from "@/utils/loadPhase";
+import { formatPrice } from "@/utils/formatPrice";
 
 export default defineComponent({
   name: "SalesDetails",
   components: {
     IonPage,
     IonContent,
-    IonCard,
-    IonCardHeader,
-    IonCardContent,
-    IonCardTitle,
-    IonCardSubtitle,
     IonButton,
-    IonBadge,
     IonIcon,
     DetailsHeader,
-    DetailsBanner,
+    DetailHero,
+    PullRefresher,
+    StateBlock,
     PriceHistoryChart,
   },
   props: {
@@ -166,155 +127,149 @@ export default defineComponent({
       required: true,
     },
   },
-  data() {
-    return {
-      sale: null as Sale | null,
-      priceHistory: [] as { price: number; timestamp: number }[],
-    };
-  },
   setup() {
-    return { storefrontOutline };
+    return { openOutline };
   },
-  mounted() {
-    this.fetchSaleDetails();
-    this.fetchPriceHistory();
+  data() {
+    return { phase: "loading" as LoadPhase };
+  },
+  async ionViewWillEnter() {
+    await this.reload();
   },
   computed: {
-    saleSubtitle(): string {
-      if (!this.sale) return "";
-      return `${this.sale.seller} · ${this.sale.price.toFixed(2)} €`;
+    ...mapState(useSalesStore, ["byId", "historyOf"]),
+    sale(): Sale | null {
+      return this.byId(this.id) ?? null;
     },
-    savings(): string | null {
-      if (!this.sale?.oldPrice) return null;
-      const diff = this.sale.oldPrice - this.sale.price;
-      return diff > 0 ? diff.toFixed(2) : null;
+    priceHistory(): { price: number; timestamp: number }[] {
+      return this.historyOf(this.id);
     },
-    discountPercentage(): string | null {
-      if (!this.sale?.oldPrice || this.sale.oldPrice <= this.sale.price) {
-        return null;
-      }
-      const pct =
-        ((this.sale.oldPrice - this.sale.price) / this.sale.oldPrice) * 100;
-      return `-${Math.round(pct)}%`;
+    hasDiscount(): boolean {
+      return !!this.sale?.oldPrice && this.sale.oldPrice > this.sale.price;
+    },
+    savingAmount(): number {
+      return this.sale ? this.sale.oldPrice - this.sale.price : 0;
+    },
+    savingPercent(): string {
+      if (!this.sale || !this.hasDiscount) return "";
+      return new Intl.NumberFormat(localizationService.getLocale(), {
+        style: "percent",
+        maximumFractionDigits: 0,
+      }).format(this.savingAmount / this.sale.oldPrice);
     },
     priceTrendLabel(): string {
       if (!this.priceHistory || this.priceHistory.length === 0) return "";
-
-      // Sort by timestamp ascending
-      const sorted = [...this.priceHistory].sort(
-        (a, b) => a.timestamp - b.timestamp,
-      );
+      const sorted = [...this.priceHistory].sort((a, b) => a.timestamp - b.timestamp);
       const [first, last] = sorted;
-
-      const diff = last.price - first.price; // positive if increased
-      const diffAbs = Math.abs(diff);
+      const diff = last.price - first.price;
+      const diffAbs = this.formatPrice(Math.abs(diff));
       const diffPct = ((diff / first.price) * 100).toFixed(2);
-
       if (diff < 0) {
-        return `${this.t("sales.price_dropped")} -€${diffAbs.toFixed(2)} (${diffPct}%)`;
+        return `${this.t("sales.price_dropped")} -${diffAbs} (${diffPct}%)`;
       }
       if (diff > 0) {
-        return `${this.t("sales.price_increased")} +€${diffAbs.toFixed(2)} (${diffPct}%)`;
+        return `${this.t("sales.price_increased")} +${diffAbs} (${diffPct}%)`;
       }
-      return `${this.t("sales.price_unchanged")} €0.00 (0.00%)`;
+      return `${this.t("sales.price_unchanged")} ${diffAbs} (0.00%)`;
     },
   },
   methods: {
-    t(key: string) {
-      return localizationService.t(key, undefined, key);
+    ...mapActions(useSalesStore, { loadSales: "load" }),
+    t(key: string, vars?: Record<string, string | number>) {
+      return localizationService.t(key, vars, key);
     },
-    async fetchSaleDetails() {
-      this.sale = await SalesService.getSaleById(this.id);
+    formatPrice,
+    async reload(force = false) {
+      if (!this.sale) this.phase = "loading";
+      try {
+        await this.loadSales({ force });
+      } catch (error) {
+        this.phase = phaseFromError(error);
+        return;
+      }
+      this.phase = this.sale ? "ready" : "not-found";
     },
-    async fetchPriceHistory() {
-      this.priceHistory = await SalesService.getPriceHistory(this.id);
+    refresh() {
+      return this.reload(true);
+    },
+    goToList() {
+      this.$router.replace({ name: "sales" });
     },
   },
 });
 </script>
 
 <style scoped>
-.sale-card {
-  display: block;
-  border-radius: 12px;
+.detail-column {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-bottom: var(--space-6);
 }
 
-.secondary-card {
-  opacity: 0.95;
+.detail-body {
+  padding: var(--space-5) var(--space-4) 0;
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
 }
 
-.sale-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  font-weight: 800;
-}
-
-.sale-title {
-  max-width: 90%;
-  font-size: 1.25rem;
-  font-weight: 700;
-}
-
-.seller-info {
-  display: flex;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.sale-seller {
-  font-size: 0.9rem;
-  color: var(--ion-color-step-600);
-}
-
-.seller-name {
-  font-weight: 600;
-  color: var(--ion-color-primary);
-}
-
-.price-section {
-  margin: 12px 0 16px;
+.section-title {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
 }
 
 .price-row {
+  margin: 0;
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
   align-items: baseline;
+  gap: var(--space-3);
 }
 
 .current-price {
-  font-size: 1.75rem;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: 1.1;
 }
 
 .old-price {
-  text-decoration: line-through;
-  color: var(--ion-color-step-400);
+  color: var(--ink-soft);
+  font-size: var(--text-md);
 }
 
-.savings-amount {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--ion-color-success);
+.saving {
+  margin: var(--space-2) 0 var(--space-4);
+  font-weight: 600;
+  color: var(--ion-color-secondary-shade);
 }
 
-.chart-header {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--ion-color-step-500);
+.shop-button {
+  margin: var(--space-4) 0 0;
+  min-height: var(--tap-min);
 }
 
-.history-fallback {
-  padding: 8px 0;
+.history-hint {
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
 }
 
-.history-meta {
-  font-size: 0.95rem;
-  color: var(--ion-color-step-700);
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-.view-button {
-  font-weight: 700;
+@media (min-width: 900px) {
+  .detail-body {
+    grid-template-columns: minmax(280px, 1fr) 1.4fr;
+  }
 }
 </style>

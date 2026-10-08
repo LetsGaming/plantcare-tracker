@@ -6,17 +6,17 @@
         {
           value: 'public',
           label: t('substrate.public_label'),
-          icon: peopleCircle,
+          icon: icons.segmentPublic,
         },
         {
           value: 'private',
           label: t('substrate.private_label'),
-          icon: personCircle,
+          icon: icons.segmentPrivate,
           hideFromGuests: true,
         },
       ]"
       :showAddButton="true"
-      :addIcon="addCircle"
+      :addIcon="icons.add"
       starting-segment="private"
       @segment-change="handleSegmentChange"
       @add-click="openAddModal"
@@ -24,8 +24,16 @@
 
     <items-overview
       :items="substrates"
+      kind="substrate"
+      :is-loading="isLoadingList"
+      :has-error="hasError"
+      :empty-title="emptyTitle"
+      :empty-message="emptyMessage"
+      :empty-action-label="emptyActionLabel"
       @item-click="navigateToSubstrate"
       @refresh-items="refreshSubstrates"
+      @retry="refreshSubstrates"
+      @empty-action="openAddModal"
     />
 
     <SubstrateAddingModal
@@ -41,10 +49,13 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { IonPage } from "@ionic/vue";
-import { peopleCircle, personCircle, addCircle } from "ionicons/icons";
-import SubstrateService, { SubstrateEvents } from "@/services/SubstrateService";
-import ComponentService from "@/services/ComponentService";
+import { icons } from "@/theme/icons";
+import { mapActions, mapState } from "pinia";
+import { useSubstratesStore } from "@/stores/substrates";
+import { useComponentsStore } from "@/stores/components";
+import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
+import { finenessLabel } from "@/utils/enumLabels";
 import ToastService from "@/services/general/ToastService";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
@@ -56,59 +67,70 @@ export default defineComponent({
   components: { IonPage, OverviewHeader, ItemsOverview, SubstrateAddingModal },
   data() {
     return {
-      substrates: [] as Substrate[],
-      availableComponents: [] as SubstrateComponent[],
       showPublic: "private",
       showAddingModal: false,
       isSubmitting: false,
     };
   },
   setup() {
-    return { peopleCircle, personCircle, addCircle };
+    return { icons };
   },
   computed: {
+    ...mapState(useSubstratesStore, ["publicSubstrates", "privateSubstrates", "status"]),
+    ...mapState(useSessionStore, ["isGuest"]),
+    ...mapState(useComponentsStore, { allComponents: "items" }),
     isPublic() {
       return this.showPublic === "public";
     },
+    isLoadingList(): boolean {
+      return this.status === "loading" || this.status === "idle";
+    },
+    hasError(): boolean {
+      return this.status === "error";
+    },
+    emptyTitle(): string {
+      return this.t(
+        this.isPublic ? "shell.empty_substrates_public_title" : "state.empty_substrates_title",
+      );
+    },
+    emptyMessage(): string {
+      if (this.isGuest) return this.t("state.guest_hint");
+      return this.t(
+        this.isPublic ? "shell.empty_substrates_public_message" : "state.empty_substrates_message",
+      );
+    },
+    emptyActionLabel(): string {
+      return !this.isGuest && !this.isPublic ? this.t("state.empty_substrates_action") : "";
+    },
+    /** The segment's substrates; the store repaints this after every mutation. */
+    substrates(): Substrate[] {
+      return this.isPublic ? this.publicSubstrates : this.privateSubstrates;
+    },
+    availableComponents(): SubstrateComponent[] {
+      return this.allComponents
+        .map((comp: Component) => ({
+          ...comp,
+          description: finenessLabel(comp.fineness),
+          parts: 0,
+        }))
+        .sort((a: SubstrateComponent, b: SubstrateComponent) => a.name.localeCompare(b.name));
+    },
   },
   async ionViewWillEnter() {
-    await Promise.all([
-      this.fetchSubstrates(),
-      this.fetchAvailableComponents(),
-    ]);
-  },
-
-  // Cache subscription lives in mounted/beforeUnmount (not the ionView
-  // hooks): Ionic keeps pages alive, and the list must keep reacting to
-  // mutations made elsewhere (e.g. a substrate edited on its details page).
-  mounted() {
-    document.addEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
-  },
-
-  beforeUnmount() {
-    document.removeEventListener(
-      SubstrateEvents.SUBSTRATES_UPDATED,
-      this.handleSubstratesUpdated,
-    );
+    await Promise.all([this.fetchSubstrates(), this.fetchAvailableComponents()]);
   },
   methods: {
+    ...mapActions(useSubstratesStore, {
+      ensureSubstratesLoaded: "ensureLoaded",
+      createSubstrate: "addSubstrateWithComponents",
+      uploadSubstrateImage: "uploadSubstrateImage",
+    }),
+    ...mapActions(useComponentsStore, { ensureComponentsLoaded: "ensureLoaded" }),
     t: (k: string, v?: any) => localizationService.t(k, v),
 
     async fetchAvailableComponents() {
       try {
-        const response = await ComponentService.getAllComponents();
-        this.availableComponents = response
-          .map((comp: Component) => ({
-            ...comp,
-            description: comp.fineness || "",
-            parts: 0,
-          }))
-          .sort((a: SubstrateComponent, b: SubstrateComponent) =>
-            a.name.localeCompare(b.name),
-          );
+        await this.ensureComponentsLoaded();
       } catch (e) {
         console.error("Error loading components", e);
       }
@@ -116,19 +138,9 @@ export default defineComponent({
 
     async loadSubstrates(isRefresh = false) {
       try {
-        const response = this.isPublic
-          ? await SubstrateService.getPublicSubstrates(isRefresh)
-          : await SubstrateService.getPrivateSubstrates(isRefresh);
+        await this.ensureSubstratesLoaded({ force: isRefresh });
 
-        this.substrates = response || [];
-
-        if (this.substrates.length === 0) {
-          ToastService.showWarning({
-            key: this.isPublic
-              ? "substrate.empty_public"
-              : "substrate.empty_private",
-          });
-        } else if (isRefresh) {
+        if (isRefresh) {
           ToastService.showSuccess({
             key: "substrate.refreshed",
             vars: {
@@ -139,8 +151,8 @@ export default defineComponent({
           });
         }
       } catch (error) {
-        this.substrates = [];
-        ToastService.showError({ key: "substrate.fetch_error" });
+        // handleRequest has already shown the error toast.
+        console.error("Error loading substrates:", error);
       }
     },
 
@@ -148,16 +160,6 @@ export default defineComponent({
       await this.loadSubstrates();
     },
 
-    /**
-     * Reacts to SUBSTRATES_UPDATED (the service writes server truth into
-     * the cache after every mutation). Re-derives the visible list from
-     * the cache via the service getters — never triggers a network call.
-     */
-    async handleSubstratesUpdated() {
-      this.substrates = this.isPublic
-        ? await SubstrateService.getPublicSubstrates()
-        : await SubstrateService.getPrivateSubstrates();
-    },
     async refreshSubstrates() {
       await this.loadSubstrates(true);
     },
@@ -203,29 +205,31 @@ export default defineComponent({
           parts: parseFloat(String(payload.parts[id])) || 1,
         }));
 
-        const newSubstrateId =
-          await SubstrateService.addSubstrateWithComponents(
-            {
-              name: payload.meta.name,
-              isPublic: payload.meta.isPublic,
-            },
-            {
-              components,
-            },
-          );
+        const newSubstrateId = await this.createSubstrate(
+          {
+            name: payload.meta.name,
+            isPublic: payload.meta.isPublic,
+          },
+          {
+            components,
+          },
+        );
 
         if (!newSubstrateId) return;
 
+        let photoSaved = true;
         if (payload.meta.image) {
-          // Default refreshCache=true: the upload upserts the substrate
-          // (now including the image) and SUBSTRATES_UPDATED repaints.
-          await SubstrateService.uploadSubstrateImage(
-            newSubstrateId,
-            payload.meta.image,
-          );
+          // The upload refreshes the substrate (now including the image) in the store.
+          try {
+            await this.uploadSubstrateImage(newSubstrateId, payload.meta.image);
+          } catch (error) {
+            console.error("Substrate image upload failed:", error);
+            photoSaved = false;
+          }
         }
 
-        ToastService.showSuccess({ key: "substrate.added" });
+        if (photoSaved) ToastService.showSuccess({ key: "substrate.added" });
+        else ToastService.showWarning({ key: "shell.photo_failed_substrate" });
         this.showAddingModal = false;
       } catch (error) {
         // handleRequest has already shown the error toast.

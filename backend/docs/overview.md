@@ -1,24 +1,11 @@
 # Overview
 
-The Plantcare Tracker Backend is a Node.js/Express REST API built with clean architecture principles. V2 is a **full replacement for V1** — V1 has been removed in favour of this rewrite.
+The Plantcare Tracker Backend is a Node.js/Fastify REST API built with clean architecture principles (domain, application, infrastructure, presentation).
 
-## What's New in V2
-
-| Area | V1 | V2 |
-|------|----|----|
-| Architecture | Flat MVC | Clean Architecture (Domain / Application / Infrastructure / Presentation) |
-| Language | Plain JavaScript | TypeScript, strict mode |
-| Validation | Manual `if` checks | Zod schemas at use-case boundaries |
-| Error handling | `errorResponse()` helper per controller | Centralized `globalErrorHandler` with typed `AppError` hierarchy |
-| N+1 queries | Present in plants, substrates, components | Eliminated — single JOIN queries throughout |
-| SQL injection | Direct key interpolation in `UPDATE` | Column whitelist in `SQLiteUserRepository` |
-| Logging | `console.log` | Winston with AsyncLocalStorage request-ID correlation |
-| Testing | None | Vitest unit + integration suite |
-
-## V2 at a Glance
+## At a Glance
 
 ```
-server.ts  →  /api/v2/auth
+app.ts     →  /api/v2/auth
            →  /api/v2/plants
            →  /api/v2/watering
            →  /api/v2/substrates
@@ -32,10 +19,10 @@ server.ts  →  /api/v2/auth
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Node.js ≥ 18 |
-| Framework | Express 5 |
-| Language | TypeScript 5 (strict) |
-| Database | SQLite via `better-sqlite3` (WAL mode) |
+| Runtime | Node.js ≥ 22 |
+| Framework | Fastify 5 |
+| Language | TypeScript 6 (strict) |
+| Database | SQLite via `better-sqlite3` (WAL mode), Kysely queries and migrations |
 | Validation | Zod |
 | Auth | JWT (`jsonwebtoken`), bcrypt |
 | Image processing | Sharp, exif-parser |
@@ -43,7 +30,7 @@ server.ts  →  /api/v2/auth
 | AI | OpenAI GPT-4o-mini |
 | Logging | Winston |
 | Caching | node-cache |
-| Testing | Vitest, Supertest |
+| Testing | Vitest, Fastify `inject` |
 
 ## Project Structure
 

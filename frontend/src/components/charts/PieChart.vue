@@ -1,132 +1,212 @@
 <template>
-  <div class="pie-chart-wrapper">
-    <PieChart :data="chartData" :options="chartOptions" :id="chartId" />
-  </div>
+  <figure class="pie-chart">
+    <div class="canvas-box" role="img" :aria-label="summary">
+      <PieCanvas :data="chartData" :options="chartOptions" aria-hidden="true" />
+    </div>
+    <ul v-if="showLegend" class="legend">
+      <li v-for="(slice, index) in slices" :key="index" class="legend-item">
+        <span class="swatch" :class="`swatch-${(index % 6) + 1}`" />
+        <span class="legend-name">{{ slice.name }}</span>
+        <span class="legend-value">{{ slice.partsText }} · {{ slice.percent }}</span>
+      </li>
+    </ul>
+  </figure>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import { Pie } from "vue-chartjs";
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  ArcElement,
-  TooltipItem,
-} from "chart.js";
-import {
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-} from "@ionic/vue";
+import { Chart as ChartJS, Title, Tooltip, ArcElement, TooltipItem } from "chart.js";
+import type { ChartData, ChartOptions } from "chart.js";
+import localizationService from "@/services/general/LocalizationService";
+import { partsLabel } from "@/utils/enumLabels";
 
-interface ChartData {
+interface PieSlice {
   name: string;
   parts: number;
 }
 
 ChartJS.register(Title, Tooltip, ArcElement);
 
+const PALETTE_SIZE = 6;
+
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 export default defineComponent({
+  name: "PieChart",
   components: {
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
-    PieChart: Pie,
+    PieCanvas: Pie,
   },
   props: {
     data: {
-      type: Array as PropType<ChartData[]>,
+      type: Array as PropType<PieSlice[]>,
       required: true,
     },
-    width: {
-      type: Number,
-      default: 300, // Default width
+    showLegend: {
+      type: Boolean,
+      default: true,
     },
-    height: {
-      type: Number,
-      default: 300, // Default height
+  },
+  data() {
+    return {
+      chartData: { labels: [], datasets: [] } as ChartData<"pie">,
+      chartOptions: {} as ChartOptions<"pie">,
+      observer: null as MutationObserver | null,
+    };
+  },
+  computed: {
+    total(): number {
+      return this.data.reduce((sum, slice) => sum + slice.parts, 0);
+    },
+    slices(): { name: string; parts: number; partsText: string; percent: string }[] {
+      const formatter = new Intl.NumberFormat(localizationService.getLocale(), {
+        style: "percent",
+        maximumFractionDigits: 0,
+      });
+      return this.data.map((slice) => ({
+        name: slice.name,
+        parts: slice.parts,
+        partsText: partsLabel(slice.parts),
+        percent: formatter.format(this.total > 0 ? slice.parts / this.total : 0),
+      }));
+    },
+    summary(): string {
+      const items = this.slices
+        .map((slice) =>
+          localizationService.t("chart.pie_item", {
+            name: slice.name,
+            parts: slice.partsText,
+            percent: slice.percent,
+          }),
+        )
+        .join("; ");
+      return localizationService.t("chart.pie_summary", { items });
     },
   },
   watch: {
     data: {
       handler() {
-        this.computeChartInformation();
+        this.applyTheme();
       },
       deep: true,
     },
   },
-  data() {
-    return {
-      chart: undefined as undefined | ChartJS,
-      chartData: this.computeChartData(),
-      chartOptions: this.computeChartOptions(),
-    };
-  },
-  setup() {
-    const chartId = `pie-chart-${Math.random()}`;
-    return { chartId };
-  },
   mounted() {
-    const canvas = document.getElementById(this.chartId) as HTMLCanvasElement;
-    this.chart = ChartJS.getChart(canvas);
-    if (this.chart) {
-      this.chart.resize(this.width, this.height);
-    }
+    this.applyTheme();
+    this.observer = new MutationObserver(() => this.applyTheme());
+    this.observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  },
+  beforeUnmount() {
+    this.observer?.disconnect();
+    this.observer = null;
   },
   methods: {
-    computeChartInformation() {
-      this.chartData = this.computeChartData();
-      this.chartOptions = this.computeChartOptions();
-    },
-    computeChartData() {
-      const labels = this.data.map((item) => item.name);
-      const parts = this.data.map((item) => item.parts);
-      return {
-        labels,
+    applyTheme() {
+      const colors = Array.from({ length: PALETTE_SIZE }, (_, i) => cssVar(`--chart-${i + 1}`));
+      const background = this.data.map((_, i) => colors[i % PALETTE_SIZE]);
+      const textColor = cssVar("--chart-text-color");
+      this.chartData = {
+        labels: this.data.map((slice) => slice.name),
         datasets: [
           {
-            label: "Parts",
-            data: parts,
-            backgroundColor: this.getBackgroundColors(parts.length),
+            label: localizationService.t("chart.parts"),
+            data: this.data.map((slice) => slice.parts),
+            backgroundColor: background,
+            borderColor: cssVar("--surface-raised"),
+            borderWidth: 2,
             hoverOffset: 4,
           },
         ],
       };
-    },
-    computeChartOptions() {
-      return {
+      this.chartOptions = {
         responsive: true,
+        maintainAspectRatio: true,
+        layout: { padding: 6 },
         plugins: {
+          legend: { display: false },
           tooltip: {
+            titleColor: textColor,
+            bodyColor: textColor,
             callbacks: {
-              label: (tooltipItem: TooltipItem<"pie">) => {
-                const label = tooltipItem.label || "";
-                const value = tooltipItem.raw || 0;
-                return `${label}: ${value}`;
-              },
+              label: (item: TooltipItem<"pie">) =>
+                `${item.label}: ${partsLabel(Number(item.raw ?? 0))}`,
             },
           },
         },
       };
-    },
-    getBackgroundColors(count: number) {
-      const colors: string[] = [];
-      for (let i = 0; i < count; i++) {
-        colors.push(`hsl(${(i * 360) / count}, 70%, 50%)`);
-      }
-      return colors;
     },
   },
 });
 </script>
 
 <style scoped>
-.pie-chart-wrapper {
+.pie-chart {
+  margin: 0;
+  width: 100%;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
+  gap: var(--space-4);
+}
+
+.canvas-box {
+  width: min(100%, 280px);
+  aspect-ratio: 1;
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.legend-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.swatch-1 {
+  background: var(--chart-1);
+}
+.swatch-2 {
+  background: var(--chart-2);
+}
+.swatch-3 {
+  background: var(--chart-3);
+}
+.swatch-4 {
+  background: var(--chart-4);
+}
+.swatch-5 {
+  background: var(--chart-5);
+}
+.swatch-6 {
+  background: var(--chart-6);
+}
+
+.legend-name {
+  overflow-wrap: anywhere;
+}
+
+.legend-value {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
 }
 </style>

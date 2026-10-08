@@ -19,7 +19,7 @@ interface LoginData {
 }
 
 /** Registration request payload — same fields as login */
-interface RegisterData extends LoginData {}
+type RegisterData = LoginData;
 
 /** Response body for POST /auth/login and POST /auth/login/guest */
 interface LoginResponse {

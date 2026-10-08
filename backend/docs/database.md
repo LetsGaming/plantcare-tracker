@@ -1,190 +1,157 @@
 # Database
 
-## Schema Overview
-
-All tables use `ENGINE=InnoDB` and `CHARSET=utf8mb4` (full Unicode including emoji).
+The backend uses SQLite through `better-sqlite3` (WAL mode, foreign keys on) and Kysely for typed
+queries. The file lives at `DB_PATH` (default `./data/plantcare.db`). Timestamps are integer Unix epoch
+seconds. The schema is owned by versioned migrations in `src/core/database/migrations/`; the table
+types Kysely checks queries against are in `src/core/database/schema.ts`.
 
 ```
-roles ─────────────────── users
-                            │  └── substrates ── substrate_components ── components
-                            │           │                                     │
-                            │      substrate_images                   component_images
-                            │           └── images ──────────────────────────┘
-                            │
-                            └── plants ── watering_records ── fertilizer_types
-                                   └── plant_images ── images
+roles ──── users ──┬── substrates ── substrate_components ── components ── fineness_levels
+                   │
+                   └── plants ──┬── watering_records ── fertilizer_types
+                                └── species
+
+images   (entity_type + entity_id points at a plant, substrate or component)
+scrape_source_health
 ```
+
+## Migrations
+
+Migrations are TypeScript files registered in `migrations/index.ts` and applied in order at startup by
+`initDatabase()`. Kysely records applied names in its `kysely_migration` table, so each runs once.
+
+| Migration | What it does |
+|-----------|--------------|
+| `0001_baseline` | Creates every table and index and seeds the lookup rows. Every statement is idempotent, so a database that predates migrations simply records it |
+| `0002_purge_orphan_images` | Deletes image rows (and their files) whose plant, substrate or component no longer exists |
+| `0003_relative_image_paths` | Stores image urls as origin-free paths (`/uploads/plant/a.webp`) and normalises Windows separators |
+
+Add a schema change as a new numbered file; never edit an applied migration. Keep `schema.ts` in step.
+There are no `down` migrations: restore from a backup instead. Take a copy of the database and the uploads
+folder before deploying a release that adds a data migration (0002 deletes rows and files).
 
 ## Tables
 
 ### `roles`
-
-Lookup table for user roles. Pre-seeded, not user-editable.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | INT PK | Auto-increment |
-| `name` | VARCHAR(50) UNIQUE | `admin`, `guest`, `user` |
+Lookup: `admin` (1), `user` (2), `guest` (3). Names are case-insensitive and unique.
 
 ### `users`
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INT PK | Auto-increment |
-| `username` | VARCHAR(100) UNIQUE | |
-| `password` | CHAR(60) | bcrypt hash (always 60 chars) |
-| `role_id` | INT FK → `roles.id` | Default: 3 (`user`) |
-| `created_at` | TIMESTAMP | Auto |
+| `id` | INTEGER PK | Autoincrement |
+| `username` | TEXT | Unique, case-insensitive |
+| `password` | TEXT | bcrypt hash |
+| `role_id` | INTEGER FK → `roles.id` | Default 3 |
+| `created_at` | INTEGER | Epoch seconds |
 
-**Seed data:** one guest user with username `guest` and password `guest`.
+The baseline seeds a `guest` user (id 0 on a fresh database). The guest row is never edited or deleted
+through the API. Databases imported from an older installation may hold the guest under another id; user id
+`0` is a valid identity everywhere in the code.
 
-### `fineness_levels`
+### `species`
+`id`, `name` (unique, case-insensitive). Plant species are normalised here; creating a plant reuses an existing
+species when the name matches ignoring case or is within a small edit distance (`SpeciesResolver`).
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | INT PK | |
-| `name` | VARCHAR(50) UNIQUE | `coarse`, `medium`, `fine` |
+### `fineness_levels`, `fertilizer_types`
+Seeded lookups: `coarse`, `medium`, `fine` and `organic`, `synthetic`.
 
 ### `components`
 
-Substrate components (e.g. perlite, coco coir). Mutations are admin-only.
-
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INT PK | |
-| `name` | VARCHAR(100) | |
-| `fineness_id` | INT FK → `fineness_levels.id` | |
+| `id` | INTEGER PK | |
+| `name` | TEXT | |
+| `fineness_id` | INTEGER FK → `fineness_levels.id` | |
 
 ### `substrates`
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INT PK | |
-| `name` | VARCHAR(100) | |
-| `user_id` | INT FK → `users.id` | Owner |
-| `is_public` | BOOLEAN | Default: false |
-| `created_at` | TIMESTAMP | Auto |
+| `id` | INTEGER PK | |
+| `name` | TEXT | |
+| `user_id` | INTEGER FK → `users.id` | Owner |
+| `is_public` | INTEGER | 0 or 1 |
+| `created_at` | INTEGER | Epoch seconds |
 
 ### `substrate_components`
-
-Junction table defining the composition of a substrate.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `substrate_id` | INT FK | Part of composite PK |
-| `component_id` | INT FK | Part of composite PK |
-| `parts` | DECIMAL(4,2) | Proportional amount (e.g. 2.50) |
-
-Both FKs have `ON DELETE CASCADE`.
+Composition of a substrate: `substrate_id`, `component_id` (composite PK, both `ON DELETE CASCADE`) and `parts`
+(REAL, rounded to two decimals). Declared `WITHOUT ROWID`.
 
 ### `plants`
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INT PK | |
-| `name` | VARCHAR(100) | |
-| `species` | VARCHAR(100) | |
-| `substrate_id` | INT FK → `substrates.id` | `ON DELETE SET NULL` |
-| `user_id` | INT FK → `users.id` | `ON DELETE CASCADE` |
-| `is_public` | BOOLEAN | Default: false |
-| `created_at` | TIMESTAMP | Auto |
+| `id` | INTEGER PK | |
+| `name` | TEXT | |
+| `species_id` | INTEGER FK → `species.id` | `ON DELETE SET NULL` |
+| `substrate_id` | INTEGER FK → `substrates.id` | `ON DELETE SET NULL` |
+| `user_id` | INTEGER FK → `users.id` | `ON DELETE CASCADE` |
+| `is_public` | INTEGER | 0 or 1 |
+| `created_at` | INTEGER | Epoch seconds |
 
 ### `images`
 
-Central image store. Individual entities link to it through join tables.
+One table for every entity type.
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INT PK | |
-| `image_url` | VARCHAR(255) | Full URL served by the static file middleware |
-| `upload_date` | TIMESTAMP | From EXIF metadata, or current time if unavailable |
+| `id` | INTEGER PK | |
+| `image_url` | TEXT | Origin-free path such as `/uploads/plant/a-1f3c.webp`; responses add the origin |
+| `entity_type` | TEXT | `plant`, `substrate` or `component` |
+| `entity_id` | INTEGER | Id of the owning entity; no foreign key |
+| `upload_date` | INTEGER | EXIF capture time, else upload time |
 
-### `plant_images` / `substrate_images` / `component_images`
-
-Polymorphic image association implemented as separate join tables (one per entity type).
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `<entity>_id` | INT FK | `ON DELETE CASCADE` |
-| `image_id` | INT FK | `ON DELETE CASCADE` |
-| PK | Composite | `(<entity>_id, image_id)` |
-
-Both FKs cascade — deleting a plant also deletes its join rows, and deleting an image also deletes its join rows. The application only needs to `DELETE FROM images WHERE id = ?`.
-
-### `fertilizer_types`
-
-Pre-seeded: `organic`, `synthetic`.
+Because there is no foreign key, deleting a plant, substrate or component calls the images module's
+`EntityImageCleanup`, which removes the rows and files. Reads order images by `upload_date`, then `id`.
 
 ### `watering_records`
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INT PK | |
-| `plant_id` | INT FK → `plants.id` | `ON DELETE CASCADE` |
-| `date` | DATETIME | Default: current timestamp |
-| `used_fertilizer` | BOOLEAN | |
-| `fertilizer_type_id` | INT FK → `fertilizer_types.id` | Nullable |
+| `id` | INTEGER PK | |
+| `plant_id` | INTEGER FK → `plants.id` | `ON DELETE CASCADE` |
+| `date` | INTEGER | Epoch seconds |
+| `used_fertilizer` | INTEGER | 0 or 1 |
+| `fertilizer_type_id` | INTEGER FK → `fertilizer_types.id` | Nullable |
 
-## Performance Indexes
+### `scrape_source_health`
+One row per scrape source (`source_key` PK) with `kind` (`sales` or `search`), `status`, the active strategy,
+item count, failure counters and timestamps (ISO strings). Written by `SourceHealthTracker`, read by the admin
+endpoints.
 
-12 indexes are added on top of the base schema. All are added by `database-v2.sql` (or `migration_v2_indexes.sql` for existing installations).
+## Indexes
 
-| Index | Table | Column(s) | Purpose |
-|-------|-------|-----------|---------|
-| `idx_plants_user_id` | `plants` | `user_id` | `WHERE user_id = ?` |
-| `idx_plants_is_public` | `plants` | `is_public` | `WHERE is_public = 1` |
-| `idx_plants_substrate` | `plants` | `substrate_id` | JOIN on substrate |
-| `idx_substrates_user_id` | `substrates` | `user_id` | `WHERE user_id = ?` |
-| `idx_substrates_is_public` | `substrates` | `is_public` | `WHERE is_public = 1` |
-| `idx_sc_component_id` | `substrate_components` | `component_id` | Reverse lookup by component |
-| `idx_pi_image_id` | `plant_images` | `image_id` | Fast CASCADE deletes |
-| `idx_si_image_id` | `substrate_images` | `image_id` | Fast CASCADE deletes |
-| `idx_ci_image_id` | `component_images` | `image_id` | Fast CASCADE deletes |
-| `idx_wr_plant_id` | `watering_records` | `plant_id` | `WHERE plant_id = ?` |
-| `idx_wr_date` | `watering_records` | `date` | Date range queries |
-| `idx_users_role_id` | `users` | `role_id` | Role-based queries |
+| Index | Table | Columns |
+|-------|-------|---------|
+| `idx_plants_list` | `plants` | `is_public, user_id` |
+| `idx_images_lookup` | `images` | `entity_type, entity_id` |
+| `idx_watering_history` | `watering_records` | `plant_id, date DESC` |
 
-### Rollback Indexes
+## Reading related rows
+
+Repositories fetch an entity with its related rows in one JOIN and collapse the rows in `groupRows()`
+(a `Map` keyed by entity id), so listing 50 plants is one query, not 101:
 
 ```sql
-ALTER TABLE plants               DROP INDEX idx_plants_user_id;
-ALTER TABLE plants               DROP INDEX idx_plants_is_public;
-ALTER TABLE plants               DROP INDEX idx_plants_substrate;
-ALTER TABLE substrates           DROP INDEX idx_substrates_user_id;
-ALTER TABLE substrates           DROP INDEX idx_substrates_is_public;
-ALTER TABLE substrate_components DROP INDEX idx_sc_component_id;
-ALTER TABLE plant_images         DROP INDEX idx_pi_image_id;
-ALTER TABLE substrate_images     DROP INDEX idx_si_image_id;
-ALTER TABLE component_images     DROP INDEX idx_ci_image_id;
-ALTER TABLE watering_records     DROP INDEX idx_wr_plant_id;
-ALTER TABLE watering_records     DROP INDEX idx_wr_date;
-ALTER TABLE users                DROP INDEX idx_users_role_id;
-```
-
-## N+1 Query Elimination
-
-V1 used N+1 query patterns. V2 fetches all data in a single JOIN per operation:
-
-### Example: Plants
-
-**V1 (N+1):** `selectPlants()` → for each plant: `selectSubstrate()` + `selectEntityImages()`. 50 plants = 101 queries.
-
-**V2 (1 query):**
-```sql
-SELECT
-  p.id AS plant_id, p.name AS plant_name, ...,
-  s.id AS substrate_id, s.name AS substrate_name,
-  img.id AS image_id, img.image_url, img.upload_date
+SELECT p.id, p.name, species.name, s.id, s.name, img.id, img.image_url, img.upload_date
 FROM plants p
-LEFT JOIN substrates s   ON p.substrate_id = s.id
-LEFT JOIN plant_images pi ON pi.plant_id = p.id
-LEFT JOIN images img      ON img.id = pi.image_id
-WHERE p.is_public = 1
+LEFT JOIN species ON p.species_id = species.id
+LEFT JOIN substrates s ON p.substrate_id = s.id
+LEFT JOIN images img ON img.entity_type = 'plant' AND img.entity_id = p.id
 ```
 
-Multiple images per plant result in multiple rows, which are collapsed in `groupRows()` using a `Map<plantId, { data, images[] }>`.
+## Transactions
 
-The same pattern is used for substrates (+ components) and components (+ images).
+Multi-statement writes use `db.transaction().execute(trx => ...)`: adding or replacing substrate components,
+deleting all images of an entity, and creating or updating a plant together with its species. Inside a
+transaction always use `trx`, never the root instance (the single connection would wait on itself).
+
+## Importing a MySQL dump
+
+`pnpm run db:import -- path/to/dump.sql` builds a fresh database through the migrations and copies the dump's
+rows into it (dump rows replace the seeded roles, guest user and lookups). It refuses a database that already
+holds users and needs the dev dependencies (`tsx`).
 
 ---
 

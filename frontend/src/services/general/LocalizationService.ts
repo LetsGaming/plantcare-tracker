@@ -159,9 +159,7 @@ class LocalizationService {
    * @returns {string[]}
    */
   availableLocales(): string[] {
-    return Array.from(
-      new Set([...this.translations.keys(), ...this.loaders.keys()]),
-    );
+    return Array.from(new Set([...this.translations.keys(), ...this.loaders.keys()]));
   }
 
   /**
@@ -215,10 +213,7 @@ class LocalizationService {
    * @returns {string}
    * @private
    */
-  private interpolate(
-    text: string,
-    vars?: Record<string, string | number>,
-  ): string {
+  private interpolate(text: string, vars?: Record<string, string | number>): string {
     if (!vars) return text;
     return text.replace(this.interpRegex, (match, key) => {
       const val = vars[key];
@@ -235,11 +230,7 @@ class LocalizationService {
    * @param {string} [fallback] Fallback string if key is missing.
    * @returns {string} The localized and interpolated string.
    */
-  t(
-    key: string,
-    vars?: Record<string, string | number>,
-    fallback?: string,
-  ): string {
+  t(key: string, vars?: Record<string, string | number>, fallback?: string): string {
     const activeLocale = this._locale.value;
 
     if (!key.includes(".")) {

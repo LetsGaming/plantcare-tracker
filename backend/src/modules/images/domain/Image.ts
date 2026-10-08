@@ -30,11 +30,44 @@ export const isEntityType = (value: string): value is EntityType =>
 
 export interface ImageRecord {
   id: number;
-  /** Absolute public URL the client loads the image from. */
+  /** Absolute public URL the client loads the image from (the database stores the path only). */
   url: string;
   /** Capture/upload date as Unix epoch seconds. */
   date: number;
   entityType: EntityType;
+}
+
+/** An image row together with the entity it belongs to; never sent to clients as is. */
+export interface StoredImage extends ImageRecord {
+  entityId: number;
+}
+
+// ── Access ────────────────────────────────────────────────────────────────────
+
+/** The authenticated caller an image operation runs on behalf of. */
+export interface ImageActor {
+  id: number;
+  role: string;
+}
+
+/** What the images module needs to know about an entity to authorize access. */
+export interface ImageEntityInfo {
+  /** Owning user; null for entities nobody owns (the component catalogue). */
+  ownerId: number | null;
+  isPublic: boolean;
+}
+
+export interface ImageEntityLookup {
+  /** Returns null when the entity does not exist. */
+  find(entityType: EntityType, entityId: number): Promise<ImageEntityInfo | null>;
+}
+
+/**
+ * Lets the modules that own images (plants, substrates, components) remove
+ * every image of an entity they delete, rows and files alike.
+ */
+export interface EntityImageCleanup {
+  removeAll(entityType: EntityType, entityId: number): Promise<void>;
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
@@ -55,7 +88,7 @@ export interface UploadedFile {
 
 export interface ImageRepository {
   findByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]>;
-  findById(imageId: number): Promise<ImageRecord | null>;
+  findById(imageId: number): Promise<StoredImage | null>;
   create(
     entityType: EntityType,
     entityId: number,
@@ -79,20 +112,13 @@ export interface ImageStorage {
    * Converts and persists an upload; returns the stored filename and
    * the capture date extracted from its metadata.
    */
-  processUpload(
-    file: UploadedFile,
-    entityType: EntityType,
-  ): Promise<ProcessedUpload>;
+  processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload>;
 
   /**
    * Reads a stored image as webp, optionally resized to resizeWidth.
    * Throws NotFoundError when the file is missing on disk.
    */
-  readAsWebp(
-    entityType: string,
-    imageUrl: string,
-    resizeWidth?: number,
-  ): Promise<Buffer>;
+  readAsWebp(entityType: string, imageUrl: string, resizeWidth?: number): Promise<Buffer>;
 
   /** Deletes the stored file; missing files are ignored. */
   remove(entityType: string, imageUrl: string): Promise<void>;

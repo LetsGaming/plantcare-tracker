@@ -6,8 +6,6 @@
     submitLabel="plant.add.submit"
     :formData="plant"
     :formFields="plantFormFields"
-    :extra-content-component="SubstrateContainer"
-    :extra-content-data="{ substrate: selectedSubstrate }"
     :is-loading="isLoading"
     @submit="submit"
     @close="$emit('close')"
@@ -17,11 +15,18 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
-import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
+
+const blankPlant = (): AddPlant => ({
+  name: "",
+  species: "",
+  substrateId: 0,
+  isPublic: false,
+  image: undefined,
+});
 
 export default defineComponent({
   name: "PlantAddingModal",
-  components: { BaseFormModal, SubstrateContainer },
+  components: { BaseFormModal },
   emits: ["close", "save"],
   props: {
     isOpen: { type: Boolean, required: true },
@@ -31,19 +36,13 @@ export default defineComponent({
       required: true,
     },
   },
-  setup() {
-    return { SubstrateContainer };
-  },
   data() {
-    return {
-      plant: {
-        name: "",
-        species: "",
-        substrateId: 0,
-        isPublic: false,
-        image: undefined as File | undefined,
-      } as AddPlant,
-    };
+    return { plant: blankPlant() };
+  },
+  watch: {
+    isOpen(open: boolean) {
+      if (open) this.plant = blankPlant();
+    },
   },
   computed: {
     plantFormFields() {
@@ -53,12 +52,16 @@ export default defineComponent({
           modelKey: "name",
           label: "plant.field.name",
           required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "input",
           modelKey: "species",
           label: "plant.field.species",
           required: true,
+          autocapitalize: "words",
+          enterkeyhint: "next",
         },
         {
           type: "select",
@@ -88,24 +91,10 @@ export default defineComponent({
         },
       ] as FormField[];
     },
-
-    selectedSubstrate() {
-      return this.substrates.find((s) => s.id === this.plant.substrateId);
-    },
   },
   methods: {
     submit() {
       this.$emit("save", { ...this.plant });
-      this.resetPlantData();
-    },
-    resetPlantData() {
-      this.plant = {
-        name: "",
-        species: "",
-        substrateId: 0,
-        isPublic: false,
-        image: undefined,
-      };
     },
   },
 });

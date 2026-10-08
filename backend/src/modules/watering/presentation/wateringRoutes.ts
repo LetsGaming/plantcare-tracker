@@ -3,27 +3,22 @@
  *
  * Composition root for the watering module.
  *
- * Mutations carry checkGuestPermission in line with the shared API
- * contract (guests are GET-only); previously only the plants module
- * enforced it.
+ * Guest read-only access is enforced once for the whole API (guestReadOnly).
  */
 
-import { Router } from 'express';
+import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteWateringRepository } from '../infrastructure/SQLiteWateringRepository';
 import { createWateringController } from './wateringController';
-import { authenticateToken, checkGuestPermission } from '../../../core/middleware';
+import { authenticateToken } from '../../../core/middleware';
 
-export const createWateringRouter = (): Router => {
-  const router = Router();
+export const wateringRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLiteWateringRepository();
   const ctrl = createWateringController(repo);
 
-  router.get('/fertilizer-types', authenticateToken,                        ctrl.getFertilizerTypes);
-  router.get('/plant/:plantId',   authenticateToken,                        ctrl.getRecordsForPlant);
-  router.get('/:id',              authenticateToken,                        ctrl.getRecord);
-  router.post('/:plantId',        authenticateToken, checkGuestPermission,  ctrl.addRecord);
-  router.patch('/:id',            authenticateToken, checkGuestPermission,  ctrl.editRecord);
-  router.delete('/:id',           authenticateToken, checkGuestPermission,  ctrl.deleteRecord);
-
-  return router;
+  app.get('/fertilizer-types', { onRequest: authenticateToken }, ctrl.getFertilizerTypes);
+  app.get('/plant/:plantId', { onRequest: authenticateToken }, ctrl.getRecordsForPlant);
+  app.get('/:id', { onRequest: authenticateToken }, ctrl.getRecord);
+  app.post('/:plantId', { onRequest: authenticateToken }, ctrl.addRecord);
+  app.patch('/:id', { onRequest: authenticateToken }, ctrl.editRecord);
+  app.delete('/:id', { onRequest: authenticateToken }, ctrl.deleteRecord);
 };

@@ -1,25 +1,26 @@
 <template>
-  <div class="search-bar" lines="none">
-    <ion-input
-      class="search-input"
-      v-model="searchQuery"
-      :placeholder="placeholder"
-      @ionInput="emitSearch"
-      clear-input
-    ></ion-input>
-  </div>
+  <ion-searchbar
+    class="search-bar"
+    :value="searchQuery"
+    :placeholder="placeholder"
+    :debounce="0"
+    show-clear-button="focus"
+    inputmode="search"
+    enterkeyhint="search"
+    @ionInput="onInput"
+  />
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonItem, IonInput, IonIcon } from "@ionic/vue";
+import { IonSearchbar } from "@ionic/vue";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "SearchBar",
+  emits: ["search"],
   components: {
-    IonItem,
-    IonInput,
-    IonIcon,
+    IonSearchbar,
   },
   props: {
     placeholder: {
@@ -30,15 +31,44 @@ export default defineComponent({
   data() {
     return {
       searchQuery: "",
+      observer: null as MutationObserver | null,
     };
   },
   mounted() {
-    // Emit current value on mount so parent can initialize filters
     this.emitSearch();
+    this.localizeInner();
+    this.observer = new MutationObserver(() => this.localizeInner());
+    this.observer.observe(this.$el as Element, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["aria-label"],
+    });
+  },
+  beforeUnmount() {
+    this.observer?.disconnect();
+    this.observer = null;
   },
   methods: {
+    /** Ionic hard-codes English labels on the inner input and clear button. */
+    localizeInner() {
+      const host = this.$el as HTMLElement;
+      const hostLabel = host.getAttribute("aria-label") || this.placeholder;
+      const input = host.querySelector("input.searchbar-input");
+      if (input && input.getAttribute("aria-label") !== hostLabel) {
+        input.setAttribute("aria-label", hostLabel);
+      }
+      const clearLabel = localizationService.t("copy2.search.clear");
+      const clear = host.querySelector("button.searchbar-clear-button");
+      if (clear && clear.getAttribute("aria-label") !== clearLabel) {
+        clear.setAttribute("aria-label", clearLabel);
+      }
+    },
+    onInput(event: CustomEvent) {
+      this.searchQuery = (event.detail.value ?? "").toString();
+      this.emitSearch();
+    },
     emitSearch() {
-      // Emit the current search query to the parent component
       this.$emit("search", this.searchQuery);
     },
     clearSearch() {
@@ -51,32 +81,15 @@ export default defineComponent({
 
 <style scoped>
 .search-bar {
-  width: 100%;
-  margin-top: 20px;
-  padding: 12px 16px;
-  border-radius: 20px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  border: 2px solid rgba(110, 110, 110, 0.1);
-}
-
-.search-input {
-  width: 100%;
-  font-size: 1rem;
-}
-
-.clear-icon {
-  cursor: pointer;
-  font-size: 1.5rem;
-  margin-left: 8px;
-}
-
-@media (max-width: 768px) {
-  .search-bar {
-    width: 80%;
-  }
-
-  .align-middle {
-    margin: 10px auto !important;
-  }
+  --background: var(--surface-raised);
+  --border-radius: var(--radius-md);
+  --box-shadow: inset 0 0 0 1px var(--line);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ink-soft);
+  --placeholder-opacity: 1;
+  --icon-color: var(--ink-soft);
+  --clear-button-color: var(--ink-soft);
+  padding: 0;
+  min-height: var(--tap-min);
 }
 </style>

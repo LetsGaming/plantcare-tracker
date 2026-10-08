@@ -1,5 +1,4 @@
-
-import fs from "fs"
+import fs from "fs";
 import path from "path";
 import vm from "vm";
 
@@ -8,10 +7,7 @@ const DEFAULT_LOCALES_DIR = path.resolve("src/locales");
 function loadLocale(filePath) {
   const code = fs.readFileSync(filePath, "utf8");
 
-  const wrapped = code.replace(
-    /export\s+default/,
-    "module.exports ="
-  );
+  const wrapped = code.replace(/export\s+default/, "module.exports =");
 
   const sandbox = { module: { exports: {} } };
   vm.createContext(sandbox);
@@ -35,9 +31,7 @@ function diff(a, b) {
   return a.filter((k) => !b.includes(k));
 }
 
-const localesDir = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : DEFAULT_LOCALES_DIR;
+const localesDir = process.argv[2] ? path.resolve(process.argv[2]) : DEFAULT_LOCALES_DIR;
 
 let localeFiles;
 try {
@@ -58,9 +52,7 @@ for (const file of localeFiles) {
   locales[name] = Object.keys(loadLocale(file)).sort();
 }
 
-const referenceName = localeFiles
-  .map((f) => path.basename(f))
-  .sort()[0];
+const referenceName = localeFiles.map((f) => path.basename(f)).sort()[0];
 
 const referenceKeys = locales[referenceName];
 

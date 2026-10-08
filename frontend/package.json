@@ -13,7 +13,11 @@
     "check-keys": "node scripts/locals_key_diff.js",
     "bump-version:patch": "node scripts/bump-version.js patch",
     "bump-version:minor": "node scripts/bump-version.js minor",
-    "bump-version:major": "node scripts/bump-version.js major"
+    "bump-version:major": "node scripts/bump-version.js major",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",
@@ -21,35 +25,42 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/keyboard": "^8.0.3",
     "@capacitor/status-bar": "^8.0.2",
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/figtree": "^5.3.0",
     "@ionic/storage": "^4.0.0",
-    "@ionic/vue": "^8.8.9",
-    "@ionic/vue-router": "^8.8.9",
+    "@ionic/vue": "^8.8.19",
+    "@ionic/vue-router": "^8.8.19",
     "chart.js": "^4.5.1",
     "ionicons": "^8.0.13",
     "luxon": "^3.7.2",
-    "vue": "^3.5.35",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.43",
     "vue-chartjs": "^5.3.3",
-    "vue-router": "^5.1.0"
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.4.0",
+    "@capacitor/cli": "^8.5.3",
+    "@pinia/testing": "^2.0.1",
     "@types/luxon": "^3.7.1",
-    "@vitejs/plugin-legacy": "^8.0.2",
-    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vitest/coverage-v8": "^4.1.11",
     "@vue/eslint-config-typescript": "^14.8.0",
-    "@vue/test-utils": "^2.4.11",
-    "cypress": "^15.17.0",
+    "@vue/test-utils": "^2.5.1",
+    "cypress": "^15.21.1",
     "eslint": "^10.4.1",
-    "eslint-plugin-vue": "^10.9.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-vue": "^10.11.1",
     "jsdom": "^29.1.1",
-    "terser": "^5.48.0",
+    "prettier": "^3.9.9",
+    "terser": "^5.51.2",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.8",
-    "vue-tsc": "^3.3.4"
-  },
-  "overrides": {
-    "tar": "^7.5.3"
+    "vite": "^8.3.3",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.3.12",
+    "workbox-window": "^7.4.1"
   },
   "pnpm": {
     "peerDependencyRules": {
@@ -66,7 +77,17 @@
       "minimatch@>=10.0.0 <10.2.3": ">=10.2.3",
       "tar@<=7.5.9": ">=7.5.10",
       "tar@<=7.5.10": ">=7.5.11",
-      "flatted@<3.4.0": ">=3.4.0"
+      "flatted@<3.4.0": ">=3.4.0",
+      "brace-expansion@>=4.0.0 <5.0.12": ">=5.0.12",
+      "undici@>=7.0.0 <7.29.1": "^7.29.1",
+      "tar@<=7.5.20": ">=7.5.21",
+      "qs@>=6.14.2 <=6.15.3": ">=6.16.0",
+      "@xmldom/xmldom@<=0.9.11": ">=0.9.12",
+      "source-map-js@<1.2.2": ">=1.2.2",
+      "postcss-selector-parser@<7.1.6": ">=7.1.6"
     }
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

@@ -53,7 +53,7 @@ interface AddSubstrateComponents {
 }
 
 /** Payload body for PATCH /substrates/components/:id */
-interface EditSubstrateComponent extends BaseSubstrateComponent {}
+type EditSubstrateComponent = BaseSubstrateComponent;
 
 // ── V2 API shapes ─────────────────────────────────────────────────────────────
 

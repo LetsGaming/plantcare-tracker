@@ -5,47 +5,80 @@
       @edit-click="openEditModal"
       :show-upload-button="!isPublic"
       @uploadClick="showUploadModal = true"
-      default-href="/tabs/plants"
+      default-back-href="/tabs/plants"
     />
 
     <ion-content>
-      <div v-if="plant">
-        <details-banner
-          :banner-title="plant.name"
-          :banner-subtitle="plant.species"
-          :image-url="plant.imageUrl"
+      <ion-refresher slot="fixed" @ionRefresh="onRefresh">
+        <ion-refresher-content />
+      </ion-refresher>
+
+      <state-block
+        v-if="!plant && isLoading"
+        kind="loading"
+        :title="t('plantdetail.loading')"
+        :skeletons="1"
+      />
+
+      <state-block
+        v-else-if="!plant && loadFailed"
+        kind="error"
+        :title="t('state.error_title')"
+        :message="t('state.error_message')"
+        :action-label="t('state.retry')"
+        @action="loadPlantData"
+      />
+
+      <state-block
+        v-else-if="!plant"
+        kind="not-found"
+        :title="t('state.not_found_title')"
+        :message="t('state.not_found_message')"
+        :action-label="t('state.back_to_list')"
+        @action="goToList"
+      />
+
+      <article v-else class="plant-page">
+        <plant-tag
+          class="area-tag"
+          :name="plant.name"
+          :species="plant.species"
+          :is-public="plant.isPublic"
         />
 
-        <horizontal-gallery
-          :images="plant.images"
-          :is-public="isPublic"
-          @edit-click="handleImageEditClick"
+        <watering-status
+          class="area-status"
+          :plant-id="plant.id"
+          :plant-name="plant.name"
+          :can-water="canEdit"
+          @add-details="openWateringForm"
         />
 
-        <section class="plant-info align-middle">
-          <substrate-container :substrate="fullSubstrate ?? undefined" />
-          <watering-records
-            :plantId="plant.id"
-            :showAddButton="!isPublic"
-            :showEditButton="!isPublic"
+        <div class="area-photo">
+          <details-banner :banner-title="plant.name" :image-url="plant.imageUrl" image-only />
+          <horizontal-gallery
+            :images="plant.images"
+            :is-public="isPublic"
+            :plant-name="plant.name"
+            @edit-click="handleImageEditClick"
+            @upload-click="showUploadModal = true"
           />
-          <more-info :plantName="plant.name" />
-        </section>
-      </div>
+        </div>
 
-      <div v-else-if="!isLoading" class="ion-padding ion-text-center">
-        <ion-text color="medium">
-          <p>
-            {{
-              t(
-                "error.plant_not_found",
-                {},
-                "Pflanze konnte nicht geladen werden."
-              )
-            }}
-          </p>
-        </ion-text>
-      </div>
+        <watering-records
+          ref="records"
+          class="area-calendar"
+          :plantId="plant.id"
+          :showAddButton="canEdit"
+          :showEditButton="canEdit"
+        />
+
+        <div class="area-substrate">
+          <substrate-container :substrate="fullSubstrate ?? undefined" />
+        </div>
+
+        <more-info class="area-guide" :plantName="plant.name" />
+      </article>
 
       <PlantEditingModal
         v-if="plant"
@@ -77,18 +110,24 @@
 </template>
 
 <script lang="ts">
-import { IonPage, IonContent, IonText } from "@ionic/vue";
+import { IonPage, IonContent, IonRefresher, IonRefresherContent } from "@ionic/vue";
 import { defineComponent } from "vue";
 
-import PlantService, { PlantEvents } from "@/services/PlantService";
-import SubstrateService from "@/services/SubstrateService";
+import { mapActions, mapState } from "pinia";
+import { usePlantsStore } from "@/stores/plants";
+import { useSubstratesStore } from "@/stores/substrates";
+import { useSessionStore } from "@/stores/session";
+import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
 import HorizontalGallery from "@/components/details/HorizontalGallery.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
+import PlantTag from "@/components/plants/PlantTag.vue";
 import SubstrateContainer from "@/components/substrates/SubstrateContainer.vue";
+import WateringStatus from "@/components/plants/watering/WateringStatus.vue";
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import MoreInfo from "@/components/plants/MoreInfo.vue";
 import PlantEditingModal from "@/components/plants/PlantEditingModal.vue";
@@ -100,11 +139,15 @@ export default defineComponent({
   components: {
     IonPage,
     IonContent,
-    IonText,
+    IonRefresher,
+    IonRefresherContent,
     DetailsHeader,
     DetailsBanner,
     HorizontalGallery,
+    StateBlock,
+    PlantTag,
     SubstrateContainer,
+    WateringStatus,
     WateringRecords,
     MoreInfo,
     PlantEditingModal,
@@ -119,8 +162,6 @@ export default defineComponent({
 
   data() {
     return {
-      plant: null as Plant | null,
-      substrates: [] as Substrate[],
       /** Full substrate object, fetched separately after plant loads (V2 only sends substrate ref) */
       fullSubstrate: null as Substrate | null,
 
@@ -130,51 +171,85 @@ export default defineComponent({
       enlargedImage: null as Image | null,
       showImageEditModal: false,
 
-      isLoading: false,
+      isLoading: true,
+      loadFailed: false,
+      hasEntered: false,
       isEditLoading: false,
       isImageLoading: false,
     };
   },
 
-  async mounted() {
-    document.addEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
-    await Promise.all([this.loadPlantData(), this.fetchSubstrates()]);
-  },
-
-  beforeUnmount() {
-    document.removeEventListener(PlantEvents.PLANTS_UPDATED, this.handlePlantsUpdated);
+  async ionViewWillEnter() {
+    // A re-entry refreshes in the background; the cached plant stays on screen meanwhile.
+    const refetch = this.hasEntered;
+    this.hasEntered = true;
+    await Promise.all([this.loadPlantData(refetch), this.fetchSubstrates()]);
   },
 
   computed: {
+    ...mapState(usePlantsStore, ["byId"]),
+    ...mapState(useSubstratesStore, { substrates: "items" }),
+    ...mapState(useSessionStore, ["isGuest", "userId"]),
+    /** This page's plant, straight from the store so every update repaints it. */
+    plant(): Plant | null {
+      return this.byId(this.plantId) ?? null;
+    },
+    substrateRefId(): number | undefined {
+      return this.plant?.substrate?.id;
+    },
     plantId() {
       return Number.parseInt(this.id);
     },
     isPublic() {
-      return this.public === "1";
+      return this.plant ? this.plant.userId !== this.userId : this.public === "1";
+    },
+    canEdit(): boolean {
+      return !this.isPublic && !this.isGuest;
+    },
+  },
+
+  watch: {
+    // Only the full substrate is refetched, and only when the referenced one changed.
+    async substrateRefId(refId: number | undefined) {
+      if (!refId) {
+        this.fullSubstrate = null;
+      } else if (this.fullSubstrate?.id !== refId) {
+        this.fullSubstrate = await this.loadSubstrate(refId).catch(() => null);
+      }
     },
   },
 
   methods: {
+    ...mapActions(useSubstratesStore, {
+      loadSubstrate: "getSubstrate",
+      ensureSubstratesLoaded: "ensureLoaded",
+    }),
+    ...mapActions(usePlantsStore, {
+      loadPlant: "getPlant",
+      savePlant: "editPlant",
+      removePlant: "deletePlant",
+      uploadPlantImage: "uploadPlantImage",
+    }),
+    ...mapActions(useWateringStore, { reloadRecords: "ensureRecords" }),
+
     t(key: string, vars?: Record<string, any>, fallback?: string) {
-      return localizationService.t(key, vars, fallback);
+      return localizationService.t(key, vars, fallback ?? key);
     },
 
     /* -------------------- DATA -------------------- */
 
-    async loadPlantData() {
+    async loadPlantData(force = false) {
       this.isLoading = true;
+      this.loadFailed = false;
       try {
-        const response = await PlantService.getPlantById(this.plantId);
-        this.plant = response || null;
+        await this.loadPlant(this.plantId, force);
 
         // V2 only sends a lightweight substrate reference { id, name } on the plant.
         // We need to fetch the full substrate separately to get its components.
         // This is best-effort: a substrate failure must not hide plant details.
         if (this.plant?.substrate?.id) {
           try {
-            this.fullSubstrate = await SubstrateService.getSubstrateById(
-              this.plant.substrate.id,
-            );
+            this.fullSubstrate = await this.loadSubstrate(this.plant.substrate.id);
           } catch (substrateError) {
             this.fullSubstrate = null;
             console.error("Error fetching substrate details:", substrateError);
@@ -183,40 +258,40 @@ export default defineComponent({
           this.fullSubstrate = null;
         }
       } catch (error) {
-        this.plant = null;
         this.fullSubstrate = null;
+        // A plant that is already on screen stays; only an empty page shows the failure.
+        this.loadFailed = (error as { status?: number })?.status !== 404;
         console.error("Error fetching plant details:", error);
       } finally {
         this.isLoading = false;
       }
     },
 
-    /**
-     * Reacts to PLANTS_UPDATED (optimistic paints, reconciles, rollbacks,
-     * and image-triggered refreshes). Re-derives this page's plant from the
-     * cache — never triggers a plant fetch. Only the full substrate is
-     * (re)fetched, and only when the referenced substrate actually changed.
-     */
-    async handlePlantsUpdated() {
-      const plants = await PlantService.getAllPlants();
-      this.plant = plants.find((p) => p.id === this.plantId) ?? null;
-
-      const refId = this.plant?.substrate?.id;
-      if (!refId) {
-        this.fullSubstrate = null;
-      } else if (this.fullSubstrate?.id !== refId) {
-        this.fullSubstrate = await SubstrateService.getSubstrateById(refId).catch(
-          () => null,
-        );
+    async onRefresh(event: CustomEvent) {
+      try {
+        await Promise.all([
+          this.loadPlantData(true),
+          this.reloadRecords(this.plantId, { force: true }).catch(() => undefined),
+        ]);
+      } finally {
+        (event.target as HTMLIonRefresherElement).complete();
       }
     },
 
     async fetchSubstrates() {
       try {
-        this.substrates = await SubstrateService.getAllSubstrates();
+        await this.ensureSubstratesLoaded();
       } catch (e) {
         console.error("Failed to fetch substrates", e);
       }
+    },
+
+    goToList() {
+      this.$router.replace({ name: "plant-overview" });
+    },
+
+    openWateringForm() {
+      (this.$refs.records as InstanceType<typeof WateringRecords> | undefined)?.openAdd();
     },
 
     /* -------------------- EDIT -------------------- */
@@ -230,13 +305,13 @@ export default defineComponent({
 
       this.isEditLoading = true;
       try {
-        // Optimistic: the page has already re-rendered via PLANTS_UPDATED.
-        await PlantService.editPlant(this.plant.id, payload);
+        // Optimistic: the page has already re-rendered from the store.
+        await this.savePlant(this.plant.id, payload);
         ToastService.showSuccess({ key: "plant.edit.success" });
         this.showEditModal = false;
       } catch (error) {
-        // handleRequest has shown the toast; the cache was rolled back and
-        // the page re-derived the previous state. Keep the modal open.
+        // handleRequest has shown the toast; the store was rolled back and
+        // the page shows the previous state. Keep the modal open.
         console.error("Edit plant failed:", error);
       } finally {
         this.isEditLoading = false;
@@ -248,12 +323,12 @@ export default defineComponent({
       const plantId = this.plant.id;
 
       // Optimistic: the plant is removed from the cache immediately, so
-      // navigate right away — the overview already renders without it.
+      // navigate right away; the overview already renders without it.
       this.showEditModal = false;
-      this.$router.push({ name: "plant-overview" });
+      this.$router.replace({ name: "plant-overview" });
 
       try {
-        await PlantService.deletePlant(plantId);
+        await this.removePlant(plantId);
         ToastService.showSuccess({ key: "plant.delete.success" });
       } catch (error) {
         // handleRequest has shown the toast; the rollback re-inserted the
@@ -269,13 +344,8 @@ export default defineComponent({
 
       try {
         this.isImageLoading = true;
-        // uploadPlantImage refreshes this plant's cache entry itself;
-        // the gallery re-renders via PLANTS_UPDATED.
-        await PlantService.uploadPlantImage(
-          this.plant.id,
-          fileItem.file,
-          fileItem.date
-        );
+        // The store refreshes this plant itself; the gallery re-renders from it.
+        await this.uploadPlantImage(this.plant.id, fileItem.file, fileItem.date);
         this.showUploadModal = false;
       } catch (error) {
         console.error("Error uploading image:", error);
@@ -291,9 +361,8 @@ export default defineComponent({
 
     async handleImageEdited() {
       // Images are edited via ImageService and are embedded in the plant
-      // object — force-refresh this plant's cache entry; PLANTS_UPDATED
-      // then re-derives the gallery.
-      await PlantService.getPlantById(this.plantId, true).catch(() => undefined);
+      // object: force-refresh this plant; the gallery re-renders from the store.
+      await this.loadPlant(this.plantId, true).catch(() => undefined);
       this.showImageEditModal = false;
     },
   },
@@ -301,84 +370,62 @@ export default defineComponent({
 </script>
 
 <style scoped>
-:root {
-  --background-color: var(--ion-color-light);
-  --card-background-color: var(--ion-color-white);
-  --header-background-color: var(--ion-color-light-tint);
-  --text-color: var(--ion-color-dark);
-  --detail-text-color: var(--ion-color-medium);
-  --accent-color: var(--ion-color-primary);
-}
-
-.plant-banner {
-  position: relative;
+.plant-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
   width: 100%;
-  height: 500px;
-  overflow: hidden;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
 }
 
-.plant-banner-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.plant-page > * {
+  min-width: 0;
 }
 
-.plant-banner-content {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.5); /* Dark overlay for readability */
-  color: white;
-  text-align: left;
+.area-photo {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
 }
 
-.plant-name {
-  font-size: 2rem;
-  font-weight: bold;
-  margin: 0;
-}
+@media (min-width: 900px) {
+  .plant-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "tag tag"
+      "photo status"
+      "photo calendar"
+      "substrate guide";
+    align-items: start;
+    gap: var(--space-5);
+    padding: var(--space-5);
+  }
 
-.plant-species {
-  font-size: 1.2rem;
-  margin-top: 5px;
-}
+  .area-tag {
+    grid-area: tag;
+  }
 
-.plant-info {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  background: var(--card-background-color);
-  border-radius: 16px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-  transition: background 0.3s ease;
-}
+  .area-status {
+    grid-area: status;
+  }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition:
-    opacity 0.3s ease,
-    transform 0.3s ease;
-}
+  .area-photo {
+    grid-area: photo;
+  }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
+  .area-calendar {
+    grid-area: calendar;
+  }
 
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-  transition:
-    opacity 0.3s ease,
-    transform 0.3s ease;
-}
+  .area-substrate {
+    grid-area: substrate;
+  }
 
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-20px);
+  .area-guide {
+    grid-area: guide;
+  }
 }
 </style>

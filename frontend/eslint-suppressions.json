@@ -1,0 +1,32 @@
+{
+  "src/components/Popover.vue": {
+    "vue/multi-word-component-names": {
+      "count": 1
+    }
+  },
+  "src/components/accordion/Accordion.vue": {
+    "vue/multi-word-component-names": {
+      "count": 1
+    }
+  },
+  "src/components/calendar/Calendar.vue": {
+    "vue/multi-word-component-names": {
+      "count": 1
+    }
+  },
+  "src/components/charts/LineChart.vue": {
+    "vue/no-reserved-component-names": {
+      "count": 1
+    }
+  },
+  "src/components/formcomponent/FormComponent.vue": {
+    "vue/no-mutating-props": {
+      "count": 1
+    }
+  },
+  "src/views/Login.vue": {
+    "vue/multi-word-component-names": {
+      "count": 1
+    }
+  }
+}

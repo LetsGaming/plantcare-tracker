@@ -6,48 +6,56 @@
  * from core/sse, and the StreamPlantInfo use case doing the work.
  */
 
-import { Router } from 'express';
+import type { FastifyPluginAsync } from 'fastify';
 import { NodeCacheAdapter } from '../../../core/cache';
-import { makeAuthenticateSSE } from '../../../core/middleware';
+import { createLimiter, makeAuthenticateSSE, perUserKey } from '../../../core/middleware';
+import { USER_RATE_LIMIT } from '../../../core/config';
 import { SourceHealthTracker, SQLiteSourceHealthRepository } from '../../../core/scrapeHealth';
 import { createSseEndpoint } from '../../../core/sse';
 import { OpenAIPlantClient } from '../infrastructure/OpenAIClient';
 import { createPlantLinkSearchers } from '../infrastructure/PlantLinkSearchers';
-import {
-  StreamPlantInfoUseCase,
-  parsePlantInfoQuery,
-} from '../application/StreamPlantInfo';
-import type { PlantInfoRequest } from '../domain/PlantInfo';
+import { StreamPlantInfoUseCase, parsePlantInfoQuery } from '../application/StreamPlantInfo';
+import type { PlantGuideStreamer, PlantInfoRequest, PlantLinkSearcher } from '../domain/PlantInfo';
 
 /** AI care guides are cached for 12 hours (matches V1). */
 const AI_GUIDE_CACHE_TTL_SECONDS = 43_200;
 
-export const createMoreInfoRouter = (): Router => {
-  const router = Router();
+export interface MoreInfoRouterDeps {
+  /** Replaces the OpenAI care-guide client. */
+  guideStreamer?: PlantGuideStreamer;
+  /** Replaces the plant link searchers. */
+  linkSearchers?: PlantLinkSearcher[];
+}
 
-  const cache = new NodeCacheAdapter(AI_GUIDE_CACHE_TTL_SECONDS);
-  const aiClient = new OpenAIPlantClient(cache);
-  const health = new SourceHealthTracker(new SQLiteSourceHealthRepository());
-  const searchers = createPlantLinkSearchers(cache, health);
-  const useCase = new StreamPlantInfoUseCase(aiClient, searchers);
+export const moreInfoRoutes =
+  (deps: MoreInfoRouterDeps = {}): FastifyPluginAsync =>
+  async (app) => {
+    const aiStreamLimiter = createLimiter(app, {
+      windowMs: USER_RATE_LIMIT.WINDOW_MS,
+      max: USER_RATE_LIMIT.MAX_AI_STREAMS,
+      key: perUserKey,
+    });
 
-  router.get(
-    '/',
-    makeAuthenticateSSE({ loadUserFromDb: true }),
-    createSseEndpoint<PlantInfoRequest>({
-      name: 'MoreInfo',
-      errorMessage: 'Information stream interrupted',
-      doneMessage: () => ({ status: 'completed' }),
-      prepare: (req) =>
-        parsePlantInfoQuery(req.query, req.headers['accept-language']),
-      run: ({ sse, isAborted }, request) =>
-        useCase.execute({
-          request,
-          isAborted,
-          onEvent: (event) => sse.send(event),
-        }),
-    }),
-  );
+    const cache = new NodeCacheAdapter(AI_GUIDE_CACHE_TTL_SECONDS);
+    const aiClient = deps.guideStreamer ?? new OpenAIPlantClient(cache);
+    const health = new SourceHealthTracker(new SQLiteSourceHealthRepository());
+    const searchers = deps.linkSearchers ?? createPlantLinkSearchers(cache, health);
+    const useCase = new StreamPlantInfoUseCase(aiClient, searchers);
 
-  return router;
-};
+    app.get(
+      '/',
+      { onRequest: makeAuthenticateSSE({ loadUserFromDb: true }), preHandler: [aiStreamLimiter] },
+      createSseEndpoint<PlantInfoRequest>({
+        name: 'MoreInfo',
+        errorMessage: 'Information stream interrupted',
+        doneMessage: () => ({ status: 'completed' }),
+        prepare: (req) => parsePlantInfoQuery(req.query, req.headers['accept-language']),
+        run: ({ sse, isAborted }, request) =>
+          useCase.execute({
+            request,
+            isAborted,
+            onEvent: (event) => sse.send(event),
+          }),
+      }),
+    );
+  };

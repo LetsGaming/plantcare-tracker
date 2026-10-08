@@ -3,57 +3,45 @@
     <ion-toolbar class="header-toolbar">
       <ion-buttons slot="start">
         <ion-back-button
-          v-if="defaultBackHref"
           :text="t('common.back')"
-          :defaultHref="defaultBackHref"
+          :default-href="defaultBackHref || undefined"
         ></ion-back-button>
-        <ion-back-button v-else :text="t('common.back')"></ion-back-button>
       </ion-buttons>
-      <template v-if="!isGuest">
-        <ion-icon
+      <ion-buttons v-if="!isGuest && (showUploadButton || showEditButton)" slot="end">
+        <icon-button
           v-if="showUploadButton"
-          :icon="cloudUpload"
-          style="width: 32px; height: 32px"
-          slot="end"
-          @click="onUploadClick"
+          :icon="icons.upload"
+          :label="t('a11y.upload_image')"
+          @press="handleUpload"
         />
-        <ion-icon
+        <icon-button
           v-if="showEditButton"
-          :icon="create"
-          style="width: 32px; height: 32px"
-          slot="end"
-          @click="onEditClick"
+          :icon="icons.edit"
+          :label="t('a11y.edit')"
+          @press="handleEdit"
         />
-      </template>
+      </ion-buttons>
     </ion-toolbar>
   </ion-header>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import {
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonBackButton,
-  IonLabel,
-  IonIcon,
-} from "@ionic/vue";
-import { create, cloudUpload } from "ionicons/icons";
-import UserService from "@/services/UserService";
+import { IonHeader, IonToolbar, IonButtons, IonBackButton } from "@ionic/vue";
+import { icons } from "@/theme/icons";
+import { mapState } from "pinia";
+import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
+import IconButton from "@/components/ui/IconButton.vue";
 
 export default defineComponent({
   name: "DetailsHeader",
   components: {
     IonHeader,
     IonToolbar,
-    IonTitle,
     IonButtons,
     IonBackButton,
-    IonLabel,
-    IonIcon,
+    IconButton,
   },
   props: {
     defaultBackHref: {
@@ -78,20 +66,20 @@ export default defineComponent({
     },
   },
   setup() {
-    return { create, cloudUpload };
+    return { icons };
   },
-  data() {
-    return {
-      segmentValue: this.startingSegment,
-      isGuest: false,
-    };
-  },
-  async mounted() {
-    this.isGuest = await UserService.isGuest();
+  computed: {
+    ...mapState(useSessionStore, ["isGuest"]),
   },
   methods: {
     t(value: string) {
       return localizationService.t(value, undefined, value);
+    },
+    handleEdit() {
+      this.onEditClick?.();
+    },
+    handleUpload() {
+      this.onUploadClick?.();
     },
   },
 });
@@ -99,13 +87,19 @@ export default defineComponent({
 
 <style scoped>
 .header-toolbar {
-  background-color: var(--ion-color-primary);
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
+  --border-width: 0;
 }
 
-.segment-toolbar {
-  background-color: var(--ion-color-light);
-  position: sticky;
-  top: 0;
-  z-index: 1000;
+.header-toolbar ion-back-button {
+  --min-height: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+.header-toolbar ion-back-button,
+.header-toolbar :deep(.icon-button) {
+  --color: var(--ion-color-primary-contrast);
+  color: var(--ion-color-primary-contrast);
 }
 </style>

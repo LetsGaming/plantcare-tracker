@@ -25,13 +25,6 @@ vi.mock("../utils/tokenUtils", () => ({
 vi.mock("../utils/utils", () => ({
   default: { getApiBaseUrl: vi.fn().mockReturnValue("http://test") },
 }));
-vi.mock("@/services/UserService", () => ({
-  default: {
-    refreshToken: vi.fn(),
-    logout: vi.fn(),
-    handleLocalLogout: vi.fn(),
-  },
-}));
 
 import ApiUtils, { ApiError } from "../utils/apiUtils";
 
@@ -66,7 +59,9 @@ describe("ApiError", () => {
     });
 
     it("sets status code", () => {
-      const err = new ApiError(404, { error: { type: "NotFoundError", message: "Not found", statusCode: 404 } });
+      const err = new ApiError(404, {
+        error: { type: "NotFoundError", message: "Not found", statusCode: 404 },
+      });
       expect(err.status).toBe(404);
     });
 
@@ -149,7 +144,9 @@ describe("handleResponse (via ApiUtils.get)", () => {
 
   it("throws ApiError for V2 error envelope", async () => {
     (globalThis.fetch as any).mockResolvedValue(
-      mockResponse(404, { error: { type: "NotFoundError", message: "Plant not found", statusCode: 404 } }),
+      mockResponse(404, {
+        error: { type: "NotFoundError", message: "Plant not found", statusCode: 404 },
+      }),
     );
     await expect(ApiUtils.get("/test")).rejects.toThrow("Plant not found");
   });
@@ -157,7 +154,12 @@ describe("handleResponse (via ApiUtils.get)", () => {
   it("throws ApiError with correct status and fields for 400 ValidationError", async () => {
     (globalThis.fetch as any).mockResolvedValue(
       mockResponse(400, {
-        error: { type: "ValidationError", message: "Species is required", statusCode: 400, fields: { species: "Required" } },
+        error: {
+          type: "ValidationError",
+          message: "Species is required",
+          statusCode: 400,
+          fields: { species: "Required" },
+        },
       }),
     );
     let caught: ApiError | undefined;
@@ -173,9 +175,7 @@ describe("handleResponse (via ApiUtils.get)", () => {
   });
 
   it("throws ApiError for V1 legacy string error envelope", async () => {
-    (globalThis.fetch as any).mockResolvedValue(
-      mockResponse(400, { error: "Bad request" }),
-    );
+    (globalThis.fetch as any).mockResolvedValue(mockResponse(400, { error: "Bad request" }));
     await expect(ApiUtils.get("/test")).rejects.toThrow("Bad request");
   });
 
@@ -204,7 +204,11 @@ describe("handleResponse (via ApiUtils.get)", () => {
   });
 
   it("returns null for 204 No Content", async () => {
-    (globalThis.fetch as any).mockResolvedValue({ ok: true, status: 204, text: () => Promise.resolve("") });
+    (globalThis.fetch as any).mockResolvedValue({
+      ok: true,
+      status: 204,
+      text: () => Promise.resolve(""),
+    });
     const result = await ApiUtils.get("/test");
     expect(result).toBeNull();
   });
@@ -239,13 +243,17 @@ describe("isApiError type guard", () => {
   });
 });
 
-
 // ── Auth retry gate (performRequest) ─────────────────────────────────────────
 
 import TokenUtils from "../utils/tokenUtils";
-import UserService from "@/services/UserService";
+const bridge = { refresh: vi.fn(), onAuthFailure: vi.fn() };
 
 describe("auth retry gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ApiUtils.configureAuth(bridge);
+  });
+
   const jsonResponse = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
       status,
@@ -266,15 +274,14 @@ describe("auth retry gate", () => {
 
     await expect(ApiUtils.get("/plants")).rejects.toBeInstanceOf(ApiError);
     expect(fetchMock).toHaveBeenCalledTimes(1); // no retry
-    expect(UserService.refreshToken).not.toHaveBeenCalled();
-    expect(UserService.handleLocalLogout).not.toHaveBeenCalled();
-    expect(UserService.logout).not.toHaveBeenCalled();
+    expect(bridge.refresh).not.toHaveBeenCalled();
+    expect(bridge.onAuthFailure).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 
   it("refreshes and retries a 401 when a token was stored", async () => {
     vi.mocked(TokenUtils.getToken).mockResolvedValue("stored-jwt");
-    vi.mocked(UserService.refreshToken).mockResolvedValue("new-jwt" as any);
+    vi.mocked(bridge.refresh).mockResolvedValue("new-jwt" as any);
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(401, { error: { message: "expired" } }))
@@ -283,7 +290,7 @@ describe("auth retry gate", () => {
 
     const result = await ApiUtils.get<{ ok: boolean }>("/plants");
     expect(result).toEqual({ ok: true });
-    expect(UserService.refreshToken).toHaveBeenCalledTimes(1);
+    expect(bridge.refresh).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
   });
