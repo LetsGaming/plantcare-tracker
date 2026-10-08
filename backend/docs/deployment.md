@@ -1,5 +1,43 @@
 # Deployment
 
+## Docker
+
+The repository root has a Compose stack: an nginx container that serves the PWA and proxies `/api` and
+`/uploads` to the backend container, and the backend with a named volume for its SQLite file and the uploaded
+images. The browser only talks to nginx, so no CORS configuration is needed.
+
+```bash
+cp .env.docker.example .env      # set JWT_SECRET and JWT_REFRESH_SECRET (openssl rand -hex 48)
+docker compose up -d --build
+# → http://localhost:8080 (HTTP_PORT in .env changes it)
+```
+
+| Piece | Details |
+|-------|---------|
+| `backend/Dockerfile` | Multi-stage: build with pnpm, prune to production dependencies, runtime on `node:22-bookworm-slim` with Playwright Chromium for the shop scrapers, runs as the `node` user, health check on `/api/v2/health/ready` |
+| `frontend/Dockerfile` | Builds the app with `VITE_API_URL=/api/v2` (relative), serves it from `nginx:1.27-alpine` |
+| `frontend/nginx.conf` | Static files with long caching for hashed assets and `no-cache` for `index.html` and `sw.js`, `/api/` proxy with buffering off (server-sent events), `/uploads/` proxy with a long cache, 12 MB upload limit, `X-Forwarded-Proto` passed through |
+| Volume `plantcare-data` | `/data/plantcare.db` and `/data/uploads`; migrations run on start |
+| Secrets | Only through `.env` (gitignored); compose refuses to start without the two JWT secrets |
+
+Operations:
+
+```bash
+docker compose logs -f backend                      # follow the API log
+docker compose pull && docker compose up -d --build # update after a git pull
+docker compose stop backend    # the SQLite file is in WAL mode: stop before copying it
+docker run --rm -v plantcare_plantcare-data:/data -v "$PWD":/backup alpine tar czf /backup/plantcare-data.tgz -C /data .
+docker compose start backend
+```
+
+For public use put a TLS-terminating reverse proxy (Caddy, Traefik, another nginx) in front of the frontend
+container and forward `X-Forwarded-Proto`; the backend then sets the `Secure` flag on the refresh cookie. Set
+`PUBLIC_BASE_URL` when that proxy rewrites the `Host` header. Back up the volume before an upgrade: migration
+`0002` deletes orphan image rows and files. CI builds both images and smoke tests the running stack (health,
+registration, login, an authenticated read) on every push.
+
+The sections below describe running the backend without Docker.
+
 ## Production Build
 
 TypeScript is compiled to JavaScript before deployment. The output goes to `./dist/`.
