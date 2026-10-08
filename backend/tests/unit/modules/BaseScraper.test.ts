@@ -13,9 +13,14 @@ vi.mock('../../../src/modules/sales/infrastructure/HttpFetcher', () => ({
   fetchJson: vi.fn(),
   fetchDocument: vi.fn(),
   fetchHtml: vi.fn(),
+  probeImage: vi.fn(),
 }));
 
-import { fetchDocument, fetchJson } from '../../../src/modules/sales/infrastructure/HttpFetcher';
+import {
+  fetchDocument,
+  fetchJson,
+  probeImage,
+} from '../../../src/modules/sales/infrastructure/HttpFetcher';
 import { BaseScraper } from '../../../src/modules/sales/infrastructure/scrapers/BaseScraper';
 import type { ScraperConfig } from '../../../src/modules/sales/infrastructure/scrapers/types';
 import type { ScrapeOutcome } from '../../../src/core/scrapeHealth';
@@ -56,6 +61,7 @@ const serveHtml = (html: string | null, finalUrl = COLLECTION_URL) =>
 beforeEach(() => {
   vi.mocked(fetchDocument).mockReset();
   vi.mocked(fetchJson).mockReset();
+  vi.mocked(probeImage).mockReset().mockResolvedValue(true);
 });
 
 describe('BaseScraper strategy order', () => {
@@ -74,6 +80,7 @@ describe('BaseScraper strategy order', () => {
         usedFallback: false,
         itemCount: 2,
         error: null,
+        issues: [],
       }),
     ]);
   });
@@ -240,5 +247,31 @@ describe('BaseScraper caching', () => {
     await scraper.fetchPage(1);
 
     expect(fetchDocument).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('BaseScraper field checks', () => {
+  it('reports an issue and a probed unreachable image on page 1 only', async () => {
+    serveHtml(themeHtml);
+    vi.mocked(probeImage).mockResolvedValue(false);
+    const { scraper, outcomes } = setup();
+
+    await scraper.fetchPage(1);
+
+    expect(probeImage).toHaveBeenCalled();
+    expect(outcomes[0].issues).toEqual([{ code: 'images_unreachable', affected: 2, total: 2 }]);
+
+    await scraper.fetchPage(2);
+    expect(outcomes).toHaveLength(1);
+  });
+
+  it('skips the checks when every strategy failed', async () => {
+    serveHtml('<html><body></body></html>');
+    const { scraper, outcomes } = setup();
+
+    await scraper.fetchPage(1);
+
+    expect(probeImage).not.toHaveBeenCalled();
+    expect(outcomes[0]).toMatchObject({ strategy: null, issues: [] });
   });
 });

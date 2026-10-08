@@ -58,6 +58,7 @@ describe('shop link searchers', () => {
         strategy: 'shopifyJson',
         usedFallback: false,
         itemCount: 2,
+        issues: [],
       }),
     ]);
   });

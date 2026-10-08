@@ -5,12 +5,15 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { parse } from 'node-html-parser';
 import { Sale } from '../../../src/modules/sales/domain/Sale';
 import {
   parsePrice,
   commercialRound,
   resolveLink,
   buildPageUrl,
+  normalizeImageUrl,
+  extractImageUrl,
 } from '../../../src/modules/sales/infrastructure/scrapeHelpers';
 import { FetchSalesOverview } from '../../../src/modules/sales/application/FetchSalesOverview';
 import type { SalesSource } from '../../../src/modules/sales/domain/SalesSource';
@@ -260,5 +263,60 @@ describe('FetchSalesOverview', () => {
 
     const sent = onItems.mock.calls.flatMap((c) => c[0]);
     expect(sent.some((i) => i.sale_seller === 'good')).toBe(true);
+  });
+});
+
+// ── Image URLs ────────────────────────────────────────────────────────────────
+
+describe('normalizeImageUrl', () => {
+  const base = 'https://shop.example/de/sale';
+
+  it('unwraps an optimizer proxy whose options contain commas', () => {
+    expect(
+      normalizeImageUrl(
+        '/cdn-cgi/image/width=3840,quality=80,format=auto/https://webshop.plnts.com/media/a.jpg',
+        base,
+      ),
+    ).toBe('https://webshop.plnts.com/media/a.jpg');
+  });
+
+  it('takes the first srcset candidate without splitting on option commas', () => {
+    expect(
+      normalizeImageUrl(
+        '/cdn-cgi/image/width=640,quality=80/https://cdn.example/a.jpg 640w, /cdn-cgi/image/width=1080,quality=80/https://cdn.example/a.jpg 1080w',
+        base,
+      ),
+    ).toBe('https://cdn.example/a.jpg');
+    expect(
+      normalizeImageUrl('https://cdn.example/s.jpg 1x, https://cdn.example/l.jpg 2x', base),
+    ).toBe('https://cdn.example/s.jpg');
+  });
+
+  it('resolves protocol-relative and relative urls', () => {
+    expect(normalizeImageUrl('//cdn.example/a.jpg', base)).toBe('https://cdn.example/a.jpg');
+    expect(normalizeImageUrl('/media/a.jpg', base)).toBe('https://shop.example/media/a.jpg');
+    expect(normalizeImageUrl('a.jpg', base)).toBe('https://shop.example/de/a.jpg');
+  });
+
+  it('rejects data urls, other schemes and empty values', () => {
+    expect(normalizeImageUrl('data:image/png;base64,AAAA', base)).toBeNull();
+    expect(normalizeImageUrl('ftp://cdn.example/a.jpg', base)).toBeNull();
+    expect(normalizeImageUrl('   ', base)).toBeNull();
+    expect(normalizeImageUrl(null, base)).toBeNull();
+    expect(normalizeImageUrl(undefined, base)).toBeNull();
+  });
+});
+
+describe('extractImageUrl', () => {
+  const imgOf = (html: string) => parse(html).querySelector('img');
+
+  it('falls through attributes that hold a data url', () => {
+    const img = imgOf('<img src="data:image/gif;base64,R0lG" data-src="//cdn.example/a.jpg">');
+    expect(extractImageUrl(img, 'https://shop.example')).toBe('https://cdn.example/a.jpg');
+  });
+
+  it('returns null without an element or usable attribute', () => {
+    expect(extractImageUrl(null, 'https://shop.example')).toBeNull();
+    expect(extractImageUrl(imgOf('<img alt="x">'), 'https://shop.example')).toBeNull();
   });
 });

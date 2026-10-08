@@ -1,6 +1,6 @@
 import { parse } from 'node-html-parser';
 import type { RawSaleItem } from '../../../domain/Sale';
-import { commercialRound, parsePrice, resolveLink } from '../../scrapeHelpers';
+import { commercialRound, normalizeImageUrl, parsePrice, resolveLink } from '../../scrapeHelpers';
 import type { ExtractionStrategy, StrategyContext } from '../types';
 
 type JsonNode = Record<string, unknown>;
@@ -26,10 +26,12 @@ const collectProducts = (node: unknown, out: JsonNode[]): void => {
   );
 };
 
-const imageOf = (product: JsonNode): string | null => {
+const imageOf = (product: JsonNode, baseUrl: string): string | null => {
   const first = asArray(product.image)[0];
-  if (typeof first === 'string') return first;
-  return isObject(first) && typeof first.url === 'string' ? first.url : null;
+  if (typeof first === 'string') return normalizeImageUrl(first, baseUrl);
+  return isObject(first) && typeof first.url === 'string'
+    ? normalizeImageUrl(first.url, baseUrl)
+    : null;
 };
 
 const toRawItem = (product: JsonNode, baseUrl: string): RawSaleItem | null => {
@@ -54,7 +56,7 @@ const toRawItem = (product: JsonNode, baseUrl: string): RawSaleItem | null => {
   return {
     name: typeof product.name === 'string' ? product.name : null,
     link: resolveLink(typeof url === 'string' ? url : null, baseUrl),
-    img: imageOf(product),
+    img: imageOf(product, baseUrl),
     oldPrice,
     newPrice,
   };

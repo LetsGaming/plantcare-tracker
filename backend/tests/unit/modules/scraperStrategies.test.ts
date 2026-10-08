@@ -12,11 +12,14 @@ vi.mock('../../../src/modules/sales/infrastructure/HttpFetcher', () => ({
   fetchJson: vi.fn(),
   fetchDocument: vi.fn(),
   fetchHtml: vi.fn(),
+  probeImage: vi.fn(),
 }));
 
 import { fetchJson } from '../../../src/modules/sales/infrastructure/HttpFetcher';
 import { ShopifyJsonStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/ShopifyJsonStrategy';
 import { JsonLdStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/JsonLdStrategy';
+import { PlntsScraper } from '../../../src/modules/sales/infrastructure/scrapers';
+import { NodeCacheAdapter } from '../../../src/core/cache';
 import { SelectorStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/SelectorStrategy';
 import { HeuristicStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/HeuristicStrategy';
 import type {
@@ -215,6 +218,40 @@ describe('SelectorStrategy', () => {
       }),
     );
     expect(items).toHaveLength(2);
+  });
+
+  it('extracts PLNTS cards with the production selectors and unwraps proxied images', async () => {
+    const config = (
+      new PlntsScraper(new NodeCacheAdapter()) as unknown as { config: ScraperConfig }
+    ).config;
+
+    const items = await strategy.extract(
+      ctxFor(fixture('plnts-cards.html'), {
+        config,
+        pageUrl: config.baseUrl,
+        loadHtml: async () => ({
+          html: fixture('plnts-cards.html'),
+          finalUrl: 'https://plnts.com/de/shop/sale',
+        }),
+      }),
+    );
+
+    expect(items).toEqual([
+      {
+        name: 'Monstera deliciosa Albo',
+        link: 'https://plnts.com/de/product/monstera-albo-1001',
+        img: 'https://webshop.plnts.com/media/catalog/product/m/o/monstera-albo.jpg',
+        oldPrice: 49,
+        newPrice: 34.3,
+      },
+      {
+        name: 'Philodendron Pink Princess',
+        link: 'https://plnts.com/de/product/philodendron-pink-princess-1002',
+        img: 'https://webshop.plnts.com/media/catalog/product/p/i/pink-princess.jpg',
+        oldPrice: 1249.5,
+        newPrice: 999,
+      },
+    ]);
   });
 
   it('prefers a custom parseFn over selectors', async () => {

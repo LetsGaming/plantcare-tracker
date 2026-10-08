@@ -34,6 +34,7 @@ const outcome = (overrides: Partial<ScrapeOutcome> = {}): ScrapeOutcome => ({
   strategy: 'shopifyJson',
   usedFallback: false,
   itemCount: 3,
+  issues: [],
   ...overrides,
 });
 
@@ -44,6 +45,12 @@ describe('statusFromOutcome', () => {
       'degraded',
     );
     expect(statusFromOutcome(outcome({ strategy: null }))).toBe('failing');
+  });
+
+  it('degrades a working primary strategy that reports field issues', () => {
+    expect(
+      statusFromOutcome(outcome({ issues: [{ code: 'images_missing', affected: 12, total: 19 }] })),
+    ).toBe('degraded');
   });
 });
 

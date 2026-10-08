@@ -16,7 +16,8 @@ Options: `--user admin|grower|newbie` (account of the printed url), `--no-seed`,
 Accounts all use the password `DevPass123!`; the guest is the "continue as guest" button.
 
 The backend runs `backend/src/tools/devServer.ts`: the real app with mocked shop scrapers
-(`Leafy Rarities` healthy, `Jungle Corner` degraded, `Broken Botanics` failing), a mocked AI care
+(`Leafy Rarities` healthy, `Jungle Corner` degraded, `Broken Botanics` failing, `Patchy Plants`
+degraded by missing images), a mocked AI care
 guide (a plant name containing "fail" ends its stream with an error) and mocked link searchers.
 Nothing leaves the machine.
 
@@ -32,8 +33,8 @@ Nothing leaves the machine.
 | Substrates | Four components, seven components (component search), none (`Moss pole filler`), public and private |
 | Components | Admin only; some with photos, three fineness levels |
 | Care guide | Success (any plant), error mid stream (`Failing Fern`), no external link (`Unknown Orchid`) |
-| Sales | Three mock shops (healthy, degraded, failing), NEW pills, tab badge; prices of every third item drop on each of the first four loads, so open Sales and pull to refresh twice to get price history charts |
-| Scraper health (admin) | Sales sources ok, degraded, failing, plus three link search sources (kind search) ok, degraded, failing |
+| Sales | Four mock shops (healthy, degraded, failing, partial with half of its items lacking an image), NEW pills, tab badge; prices of every third item drop on each of the first four loads, so open Sales and pull to refresh twice to get price history charts |
+| Scraper health (admin) | Sales sources ok, degraded, failing, partial (degraded with an `images_missing` issue), plus three link search sources (kind search) ok, degraded, failing |
 | Local only | Reminders, categories, first weekday, language and dark mode live in the browser; create them in the app |
 
 ## Adding mock data for a new feature

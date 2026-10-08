@@ -1,6 +1,6 @@
 import type { RawSaleItem } from '../../../domain/Sale';
 import { fetchJson } from '../../HttpFetcher';
-import { commercialRound, parsePrice } from '../../scrapeHelpers';
+import { commercialRound, normalizeImageUrl, parsePrice } from '../../scrapeHelpers';
 import type { ExtractionStrategy, StrategyContext } from '../types';
 
 interface ShopifyVariant {
@@ -40,7 +40,7 @@ const toRawItem = (product: ShopifyProduct, productBase: string): RawSaleItem | 
   return {
     name: product.title,
     link: `${productBase}/products/${product.handle}`,
-    img: product.images?.[0]?.src ?? null,
+    img: normalizeImageUrl(product.images?.[0]?.src, productBase),
     ...discounted[0],
   };
 };

@@ -14,8 +14,8 @@ export default {
       ctx.sql(
         `INSERT OR REPLACE INTO scrape_source_health
            (source_key, kind, seller, status, active_strategy, last_item_count, consecutive_failures,
-            last_success_at, last_failure_at, last_error, updated_at)
-         VALUES (?, 'search', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            last_success_at, last_failure_at, last_error, issues, updated_at)
+         VALUES (?, 'search', ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?)`,
         key,
         seller,
         status,
