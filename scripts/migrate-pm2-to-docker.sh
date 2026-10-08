@@ -35,6 +35,7 @@ ENV_FILE=""
 PM2_NAME="plantcare-backend"
 PM2_FRONTEND_NAME="plantcare-frontend"
 HTTP_PORT="8080"
+HTTP_PORT_GIVEN=0
 BACKUP_DIR=""
 REMOVE_PM2=0
 SKIP_DOCKER_INSTALL=0
@@ -54,7 +55,7 @@ while [ $# -gt 0 ]; do
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --pm2-name) PM2_NAME="$2"; shift 2 ;;
     --pm2-frontend-name) PM2_FRONTEND_NAME="$2"; shift 2 ;;
-    --http-port) HTTP_PORT="$2"; shift 2 ;;
+    --http-port) HTTP_PORT="$2"; HTTP_PORT_GIVEN=1; shift 2 ;;
     --backup-dir) BACKUP_DIR="$2"; shift 2 ;;
     --remove-pm2) REMOVE_PM2=1; shift ;;
     --skip-docker-install) SKIP_DOCKER_INSTALL=1; shift ;;
@@ -215,6 +216,17 @@ ensure_docker
 write_compose_env() {
   if [ -f "$COMPOSE_ENV" ] && [ "$FORCE" -eq 0 ]; then
     log "Keeping the existing $COMPOSE_ENV (use --force to replace it)."
+    if [ "$HTTP_PORT_GIVEN" -eq 1 ]; then
+      log "Setting HTTP_PORT=$HTTP_PORT in it."
+      if [ "$DRY_RUN" -eq 0 ]; then
+        sed -i '/^HTTP_PORT=/d' "$COMPOSE_ENV"
+        echo "HTTP_PORT=$HTTP_PORT" >> "$COMPOSE_ENV"
+      fi
+    else
+      HTTP_PORT="$(env_get HTTP_PORT "$COMPOSE_ENV")"
+      HTTP_PORT="${HTTP_PORT:-8080}"
+      log "Using HTTP_PORT=$HTTP_PORT from it."
+    fi
     return 0
   fi
   if [ -f "$COMPOSE_ENV" ]; then run cp "$COMPOSE_ENV" "$COMPOSE_ENV.bak-$(date +%s)"; fi
