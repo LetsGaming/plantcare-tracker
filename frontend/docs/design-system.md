@@ -57,8 +57,9 @@ not the `public` segment of the url. Guests never see write controls and get a s
 
 Plants, Substrates, Components and Sales are the bottom tabs (Sales shows the count of new sales as a
 badge; the debug tab exists in development only). The side menu holds account, admin tools (admins),
-reminders, settings and log out; from 992px it is a persistent split pane. Old `/sales` urls redirect to
-`/tabs/sales`. A logged-out visit redirects to login with `?redirect=` and login honors it for same-app
+reminders, settings and log out; from 992px it is a persistent split pane, `--menu-width` wide (264px), that
+collapses to an icon rail of `--menu-rail-width` (72px) with the toggle at its foot; the choice is remembered. Old
+`/sales` urls redirect to `/tabs/sales`. A logged-out visit redirects to login with `?redirect=` and login honors it for same-app
 paths only.
 
 ## PWA and offline

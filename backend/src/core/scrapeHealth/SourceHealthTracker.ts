@@ -47,6 +47,7 @@ export class SourceHealthTracker implements SourceHealthReporter {
         last_success_at: failed ? (previous?.last_success_at ?? null) : timestamp,
         last_failure_at: failed ? timestamp : (previous?.last_failure_at ?? null),
         last_error: outcome.error ?? previous?.last_error ?? null,
+        issues: outcome.issues,
         updated_at: timestamp,
       });
     } catch (err: unknown) {
@@ -73,6 +74,7 @@ export class SourceHealthTracker implements SourceHealthReporter {
         last_success_at: null,
         last_failure_at: null,
         last_error: null,
+        issues: [],
         updated_at: this.now().toISOString(),
       }));
     return [...rows.values(), ...placeholders];

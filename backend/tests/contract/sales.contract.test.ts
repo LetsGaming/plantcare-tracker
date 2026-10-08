@@ -68,6 +68,7 @@ beforeAll(async () => {
               usedFallback: true,
               itemCount: 0,
               error: 'shopifyJson: unexpected response',
+              issues: [{ code: 'images_missing', affected: 1, total: 2 }],
             });
             return [];
           },
@@ -147,6 +148,7 @@ describe('GET /sales/health', () => {
       last_success_at: null,
       last_failure_at: null,
       last_error: null,
+      issues: [],
       updated_at: expect.any(String),
     });
   });
@@ -179,6 +181,7 @@ describe('POST /sales/health/:key/check', () => {
       status: 'degraded',
       active_strategy: 'selector',
       last_error: 'shopifyJson: unexpected response',
+      issues: [{ code: 'images_missing', affected: 1, total: 2 }],
     });
   });
 

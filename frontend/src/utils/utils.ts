@@ -128,11 +128,14 @@ const Utils = {
     }
   },
 
+  /** Closes every open modal; gives up on one that stays open, so a busy modal cannot hang navigation. */
   async closeAllOpenModals(): Promise<void> {
     let topModal = await modalController.getTop();
     while (topModal) {
-      await modalController.dismiss();
-      topModal = await modalController.getTop();
+      const dismissed = await modalController.dismiss();
+      const next = await modalController.getTop();
+      if (dismissed === false || next === topModal) return;
+      topModal = next;
     }
   },
 };

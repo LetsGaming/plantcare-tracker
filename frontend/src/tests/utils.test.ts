@@ -22,6 +22,7 @@ vi.mock("@ionic/vue", () => ({
   },
 }));
 
+import { modalController } from "@ionic/vue";
 import Utils from "@/utils/utils";
 
 describe("convertDate", () => {
@@ -238,5 +239,44 @@ describe("debounce", () => {
     vi.advanceTimersByTime(100);
     expect(fn).toHaveBeenCalledTimes(1);
     expect(fn).toHaveBeenCalledWith("second");
+  });
+});
+
+describe("closeAllOpenModals", () => {
+  const top = vi.mocked(modalController.getTop);
+  const dismiss = vi.mocked(modalController.dismiss);
+
+  afterEach(() => {
+    top.mockReset().mockResolvedValue(undefined);
+    dismiss.mockReset().mockResolvedValue(true);
+  });
+
+  it("dismisses the open modals one after the other", async () => {
+    const first = {} as HTMLIonModalElement;
+    const second = {} as HTMLIonModalElement;
+    top
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second)
+      .mockResolvedValueOnce(second)
+      .mockResolvedValue(undefined);
+    dismiss.mockResolvedValue(true);
+    await Utils.closeAllOpenModals();
+    expect(dismiss).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops at a modal that refuses to close instead of looping", async () => {
+    top.mockResolvedValue({} as HTMLIonModalElement);
+    dismiss.mockResolvedValue(false);
+    await Utils.closeAllOpenModals();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops when a dismissed modal is still the top one", async () => {
+    top.mockResolvedValue({} as HTMLIonModalElement);
+    dismiss.mockResolvedValue(true);
+    const modal = {} as HTMLIonModalElement;
+    top.mockResolvedValue(modal);
+    await Utils.closeAllOpenModals();
+    expect(dismiss).toHaveBeenCalledTimes(1);
   });
 });

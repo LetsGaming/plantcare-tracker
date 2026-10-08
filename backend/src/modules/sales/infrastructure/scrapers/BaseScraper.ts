@@ -2,12 +2,14 @@ import type { FetchOptions, SalesSource } from '../../domain/SalesSource';
 import type { RawSaleItem } from '../../domain/Sale';
 import type {
   SourceHealthReporter,
+  SourceIssue,
   StrategyName,
 } from '../../../../core/scrapeHealth/SourceHealth';
 import type { CacheService } from '../../../../core/cache/CacheService';
-import { fetchDocument, type FetchedDocument } from '../HttpFetcher';
+import { fetchDocument, probeImage, type FetchedDocument } from '../HttpFetcher';
 import { buildPageUrl } from '../scrapeHelpers';
 import { createModuleLogger } from '../../../../core/logging';
+import { checkFields, type ImageProbe } from './fieldChecks';
 import { HeuristicStrategy } from './strategies/HeuristicStrategy';
 import { JsonLdStrategy } from './strategies/JsonLdStrategy';
 import { SelectorStrategy } from './strategies/SelectorStrategy';
@@ -55,6 +57,7 @@ export abstract class BaseScraper implements SalesSource {
     protected readonly config: ScraperConfig,
     protected readonly cache: CacheService,
     protected readonly health?: SourceHealthReporter,
+    private readonly imageProbe: ImageProbe = probeImage,
   ) {
     this.key = config.key;
     this.seller = config.seller;
@@ -123,7 +126,11 @@ export abstract class BaseScraper implements SalesSource {
       this.log.error(`Page ${page}: every strategy failed`, { failures });
     }
 
-    if (page === 1) this.report(accepted, items.length, failures);
+    if (page === 1) {
+      const issues = accepted ? await checkFields(items, this.imageProbe) : [];
+      if (issues.length > 0) this.log.warn('Scrape result has field issues', { issues });
+      this.report(accepted, items.length, failures, issues);
+    }
     // An accepted empty page is a real answer (the sale ended or the pages ran
     // out); only a page every strategy failed on must be retried next time.
     if (accepted) this.cache.set(cacheKey, items);
@@ -189,7 +196,12 @@ export abstract class BaseScraper implements SalesSource {
     return { strategy: shopify, items: result.items };
   }
 
-  private report(accepted: ExtractionStrategy | null, itemCount: number, failures: string[]): void {
+  private report(
+    accepted: ExtractionStrategy | null,
+    itemCount: number,
+    failures: string[],
+    issues: SourceIssue[],
+  ): void {
     this.health?.record({
       key: this.key,
       seller: this.seller,
@@ -198,6 +210,7 @@ export abstract class BaseScraper implements SalesSource {
       usedFallback: accepted !== null && accepted !== this.strategies[0],
       itemCount,
       error: failures.length > 0 ? failures.join('; ') : null,
+      issues,
     });
   }
 }

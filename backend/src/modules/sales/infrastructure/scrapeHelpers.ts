@@ -62,20 +62,36 @@ export const resolveLink = (href: string | null | undefined, baseUrl: string): s
 
 // ── Image URL extraction ──────────────────────────────────────────────────────
 
+/**
+ * Turns an src or srcset value into one absolute http(s) URL, or null.
+ * Image optimizer proxies (/cdn-cgi/image/width=3840,quality=80/https://host/a.jpg)
+ * are unwrapped to the original image first, because their option list holds
+ * commas that would otherwise be read as srcset separators.
+ */
+export const normalizeImageUrl = (
+  raw: string | null | undefined,
+  baseUrl: string,
+): string | null => {
+  const firstCandidate = raw?.trim().split(/,\s+/)[0].split(/\s+/)[0];
+  if (!firstCandidate) return null;
+
+  const embedded = firstCandidate.search(/https?:\/\//i);
+  const candidate = embedded > 0 ? firstCandidate.slice(embedded) : firstCandidate;
+
+  try {
+    const url = new URL(candidate, baseUrl);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+};
+
 export const extractImageUrl = (imgElem: NodeLike, baseUrl: string): string | null => {
-  const raw = ['src', 'srcset', 'data-src', 'data-srcset']
-    .map((attr) => imgElem?.getAttribute(attr))
-    .find((value) => value && !value.startsWith('data:'));
-  if (!raw) return null;
-
-  // src and srcset values may hold several space or comma separated entries
-  const firstEntry = raw.trim().split(',')[0].trim().split(' ')[0];
-
-  // Unwrap image optimizer proxies like /cdn-cgi/image/.../https://...
-  const direct = firstEntry.match(/https?:\/\/[^\s]+/);
-  if (direct) return direct[0];
-
-  return resolveLink(firstEntry, baseUrl) || null;
+  for (const attr of ['src', 'srcset', 'data-src', 'data-srcset']) {
+    const url = normalizeImageUrl(imgElem?.getAttribute(attr), baseUrl);
+    if (url) return url;
+  }
+  return null;
 };
 
 // ── Pagination URL builder ────────────────────────────────────────────────────

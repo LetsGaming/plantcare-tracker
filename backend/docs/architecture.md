@@ -214,6 +214,8 @@ Each page 1 scrape reports a `ScrapeOutcome` to `core/scrapeHealth`, which store
 
 Strategies are always tried in configuration order. A source stays `degraded` while a fallback carries it and returns to `ok` on its own once the primary strategy works again.
 
+After a strategy is accepted on page 1, `scrapers/fieldChecks.ts` inspects the items: too many without an image, old price or name (more than 20%), or sample image URLs that do not return an `image/*` response, become `issues` on the outcome. Any issue makes the source `degraded` even when the primary strategy works. Image URLs are normalized by `normalizeImageUrl`, which unwraps optimizer proxy URLs such as `/cdn-cgi/image/.../https://host/a.jpg` and resolves relative and protocol-relative values.
+
 ## Module: MoreInfo
 
 ```

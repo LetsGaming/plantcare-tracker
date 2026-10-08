@@ -1,5 +1,5 @@
 import type { CacheService } from '../core/cache/CacheService';
-import type { SourceHealthTracker } from '../core/scrapeHealth';
+import type { SourceHealthTracker, SourceIssue } from '../core/scrapeHealth';
 import type { RawSaleItem } from '../modules/sales/domain/Sale';
 import type { SalesSource } from '../modules/sales/domain/SalesSource';
 import type { PlantGuideStreamer, PlantLinkSearcher } from '../modules/moreInfo/domain/PlantInfo';
@@ -51,7 +51,7 @@ const source = (
   key: string,
   seller: string,
   tracker: SourceHealthTracker,
-  behaviour: 'ok' | 'degraded' | 'failing',
+  behaviour: 'ok' | 'degraded' | 'failing' | 'partial',
   offset: number,
 ): SalesSource => {
   let fetches = 0;
@@ -71,11 +71,25 @@ const source = (
           usedFallback: false,
           itemCount: 0,
           error: 'No strategy produced usable data (mock source)',
+          issues: [],
         });
         throw new Error('Mock source is configured to fail');
       }
       if (page === 1) fetches += 1;
       const items = catalogue(seller, offset, fetches);
+      if (behaviour === 'partial') {
+        items.forEach((item, index) => {
+          if (index % 2 === 1) item.img = null;
+        });
+      }
+      const issues: SourceIssue[] = [];
+      if (behaviour === 'partial') {
+        issues.push({
+          code: 'images_missing',
+          affected: items.filter((item) => !item.img).length,
+          total: items.length,
+        });
+      }
       const half = Math.ceil(items.length / 2);
       const slice = behaviour === 'ok' ? items.slice((page - 1) * half, page * half) : items;
       tracker.record({
@@ -85,6 +99,7 @@ const source = (
         strategy: behaviour === 'degraded' ? 'selector' : 'shopifyJson',
         usedFallback: behaviour === 'degraded',
         itemCount: slice.length,
+        issues,
       });
       return slice;
     },
@@ -98,6 +113,7 @@ export const createMockSalesSources = (
   source('mockLeafy', 'Leafy Rarities', tracker, 'ok', 1),
   source('mockJungle', 'Jungle Corner', tracker, 'degraded', 5),
   source('mockBroken', 'Broken Botanics', tracker, 'failing', 9),
+  source('mockPatchy', 'Patchy Plants', tracker, 'partial', 13),
 ];
 
 const GUIDES: Record<string, string[]> = {

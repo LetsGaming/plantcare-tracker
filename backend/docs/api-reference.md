@@ -525,16 +525,22 @@ Items arrive in batches as each scraper completes. The `done` event is sent when
       "last_success_at": "2026-10-06T10:00:00.000Z",
       "last_failure_at": null,
       "last_error": null,
+      "issues": [{ "code": "images_missing", "affected": 12, "total": 19 }],
       "updated_at": "2026-10-06T10:00:00.000Z"
     }
   ]
 }
 ```
 
-- `status`: `ok` (primary extraction strategy works), `degraded` (a fallback strategy carries the source), `failing` (no strategy produced usable data) or `unknown` (not scraped yet).
+- `status`: `ok` (primary extraction strategy works and the data is sound), `degraded` (a fallback strategy carries the source, or `issues` is not empty), `failing` (no strategy produced usable data) or `unknown` (not scraped yet).
 - `kind`: `sales` for the shops above, `search` for the plant link searchers used by `/more-info`. Search rows use the key `search:<shop>`.
 - `active_strategy`: `shopifyJson`, `jsonLd`, `selector` or `heuristic`.
 - `last_error` keeps the most recent failure reason after a recovery. Show it only while `status` is not `ok`.
+- `issues`: field-level problems found in the latest page 1 scrape, as `{ code, affected, total }` objects. The list always reflects the latest run and is empty again once the source recovers. Search rows always have an empty list. Codes:
+  - `images_missing`: more than 20% of the items have no image (`affected` of `total` items).
+  - `images_unreachable`: sample image URLs do not answer with an `image/*` response (`affected` of `total` probed URLs, both failing).
+  - `old_price_missing`: more than 20% of the items have no old price.
+  - `names_missing`: more than 20% of the items have no name.
 
 `POST /api/v2/sales/health/:key/check` bypasses the result cache, re-scrapes page 1 and answers with the updated row in the same shape (`{ "data": { ... } }`). Unknown or `search` keys answer 404.
 

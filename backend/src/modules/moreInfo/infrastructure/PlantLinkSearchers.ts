@@ -163,6 +163,7 @@ const shopSearcher =
           usedFallback: index > 0,
           itemCount: links.length,
           error: failures.join('; ') || null,
+          issues: [],
         });
         return result;
       } catch (err: unknown) {
@@ -180,6 +181,7 @@ const shopSearcher =
         usedFallback: false,
         itemCount: 0,
         error: failures.join('; '),
+        issues: [],
       });
     }
     return null;

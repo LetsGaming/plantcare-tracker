@@ -47,8 +47,10 @@ export const useAdminHealthStore = defineStore("adminHealth", {
   }),
 
   getters: {
-    /** Sources that currently return no usable data. */
-    needingAttention: (state): number => state.sources.filter((s) => s.status === "failing").length,
+    /** Sources that fail or return incomplete data. */
+    needingAttention: (state): number =>
+      state.sources.filter((s) => s.status === "failing" || s.status === "degraded").length,
+    hasFailing: (state): boolean => state.sources.some((s) => s.status === "failing"),
     /** Sources that can be re-checked on demand. */
     checkable: (state): SourceHealth[] => state.sources.filter((s) => s.kind === "sales"),
     busy: (state): boolean => state.checking !== null || state.batch !== null,

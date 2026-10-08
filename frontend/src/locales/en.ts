@@ -124,6 +124,8 @@ export default {
    * ===================================================== */
 
   "menu.title": "Menu",
+  "menu.collapse": "Collapse menu",
+  "menu.expand": "Expand menu",
 
   "menu.profile": "Profile",
 
@@ -809,7 +811,11 @@ export default {
 
   "shell.admin_scrapers": "Scraper status",
 
-  "shell.scrapers_failing": "{count} failing",
+  "shell.scrapers_attention": "{count} to check",
+  "admin.scrapers.issue.images_missing": "Images missing on {affected} of {total} items",
+  "admin.scrapers.issue.images_unreachable": "Images do not load ({affected} of {total} checked)",
+  "admin.scrapers.issue.old_price_missing": "Old price missing on {affected} of {total} items",
+  "admin.scrapers.issue.names_missing": "Name missing on {affected} of {total} items",
 
   "shell.profile": "Profile",
 
@@ -1245,6 +1251,29 @@ export default {
   "sales3.was": "Previously {price}",
 
   "sales3.history_hint": "Pull the list down twice to build the price history.",
+  "sales.sort.label": "Sort by",
+  "sales.sort.new": "New first",
+  "sales.sort.discount": "Biggest discount",
+  "sales.sort.price_asc": "Price, low to high",
+  "sales.sort.price_desc": "Price, high to low",
+  "sales.sort.name": "Name",
+  "sales.filter.button": "Filter",
+  "sales.filter.title": "Filter sales",
+  "sales.filter.shops": "Shops",
+  "sales.filter.only_new": "Only new",
+  "sales.filter.min_discount": "Minimum discount",
+  "sales.filter.any": "Any",
+  "sales.filter.price_range": "Price",
+  "sales.filter.min_price": "From (EUR)",
+  "sales.filter.max_price": "To (EUR)",
+  "sales.filter.price_invalid": "The lowest price must not be above the highest.",
+  "sales.filter.apply": "Show results",
+  "sales.filter.reset": "Reset",
+  "sales.filter.shown": "Showing {shown} of {total}",
+  "sales.filter.none_title": "No sales match your filters",
+  "sales.filter.none_message": "Loosen or reset the filters to see more.",
+  "sales.filter.reset_action": "Reset filters",
+  "sales.filter.active": "{count} filters active",
 
   "modal2.delete_title_named": 'Delete "{name}"?',
 

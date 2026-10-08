@@ -47,6 +47,7 @@ describe('migrations', () => {
       '0001_baseline',
       '0002_purge_orphan_images',
       '0003_relative_image_paths',
+      '0004_source_health_issues',
     ]);
 
     const roles = await getKysely().selectFrom('roles').select('name').orderBy('id').execute();
@@ -414,12 +415,25 @@ describe('SQLiteSourceHealthRepository', () => {
       last_success_at: '2026-10-08T10:00:00.000Z',
       last_failure_at: null,
       last_error: null,
+      issues: [{ code: 'images_missing' as const, affected: 3, total: 12 }],
       updated_at: '2026-10-08T10:00:00.000Z',
     };
     repo.upsert(row);
-    repo.upsert({ ...row, status: 'failing', consecutive_failures: 2, last_error: 'boom' });
+    expect(repo.findByKey('shopA')?.issues).toEqual(row.issues);
 
-    expect(repo.findByKey('shopA')).toMatchObject({ status: 'failing', consecutive_failures: 2 });
+    repo.upsert({
+      ...row,
+      status: 'failing',
+      consecutive_failures: 2,
+      last_error: 'boom',
+      issues: [],
+    });
+
+    expect(repo.findByKey('shopA')).toMatchObject({
+      status: 'failing',
+      consecutive_failures: 2,
+      issues: [],
+    });
     expect(repo.findAll().map((r) => r.source_key)).toContain('shopA');
     expect(repo.findByKey('missing')).toBeNull();
   });

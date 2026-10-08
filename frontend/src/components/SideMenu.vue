@@ -1,8 +1,14 @@
 <template>
-  <ion-menu side="start" content-id="main" menu-id="main-menu" :aria-label="t('shell.menu_label')">
+  <ion-menu
+    side="start"
+    content-id="main"
+    menu-id="main-menu"
+    :class="{ rail }"
+    :aria-label="t('shell.menu_label')"
+  >
     <ion-header>
       <ion-toolbar>
-        <ion-title>{{ t("menu.title") }}</ion-title>
+        <ion-title v-if="!rail">{{ t("menu.title") }}</ion-title>
         <ion-buttons slot="end">
           <ion-menu-toggle auto-hide>
             <icon-button :icon="closeIcon" :label="t('shell.close_menu')" />
@@ -17,13 +23,15 @@
         class="section nav-section"
         :aria-label="t('chrome.section_navigation')"
       >
-        <h2 class="section-title">{{ t("chrome.section_navigation") }}</h2>
+        <h2 v-if="!rail" class="section-title">{{ t("chrome.section_navigation") }}</h2>
         <ion-item
           v-for="dest in destinations"
           :key="dest.tab"
           button
           :class="{ active: isTabActive(dest.tab) }"
           :aria-current="isTabActive(dest.tab) ? 'page' : undefined"
+          :aria-label="rail ? t(dest.label) : undefined"
+          :title="rail ? t(dest.label) : undefined"
           @click="navigate(`/tabs/${dest.tab}`)"
         >
           <ion-icon slot="start" :icon="tabIcon(dest.tab)" aria-hidden="true" />
@@ -40,11 +48,13 @@
       </ion-list>
 
       <ion-list lines="none" class="section">
-        <h2 class="section-title">{{ t("shell.section_account") }}</h2>
+        <h2 v-if="!rail" class="section-title">{{ t("shell.section_account") }}</h2>
         <ion-item
           button
           :class="{ active: isActive('profile') }"
           :aria-current="isActive('profile') ? 'page' : undefined"
+          :aria-label="rail ? t('shell.profile') : undefined"
+          :title="rail ? t('shell.profile') : undefined"
           @click="navigate({ name: 'profile' })"
         >
           <ion-icon slot="start" :icon="personIcon" aria-hidden="true" />
@@ -53,11 +63,13 @@
       </ion-list>
 
       <ion-list v-if="isAdmin" lines="none" class="section">
-        <h2 class="section-title">{{ t("shell.section_admin") }}</h2>
+        <h2 v-if="!rail" class="section-title">{{ t("shell.section_admin") }}</h2>
         <ion-item
           button
           :class="{ active: isActive('admin-dashboard') }"
           :aria-current="isActive('admin-dashboard') ? 'page' : undefined"
+          :aria-label="rail ? t('shell.admin_dashboard') : undefined"
+          :title="rail ? t('shell.admin_dashboard') : undefined"
           @click="navigate({ name: 'admin-dashboard' })"
         >
           <ion-icon slot="start" :icon="settingsIcon" aria-hidden="true" />
@@ -67,21 +79,23 @@
           button
           :class="{ active: isActive('admin-scrapers') }"
           :aria-current="isActive('admin-scrapers') ? 'page' : undefined"
+          :aria-label="rail ? t('shell.admin_scrapers') : undefined"
+          :title="rail ? t('shell.admin_scrapers') : undefined"
           @click="navigate({ name: 'admin-scrapers' })"
         >
           <ion-icon slot="start" :icon="pulseIcon" aria-hidden="true" />
           <ion-label>{{ t("shell.admin_scrapers") }}</ion-label>
-          <ion-badge v-if="failingSources > 0" slot="end" :color="failingColor">
-            {{ t("shell.scrapers_failing", { count: failingSources }) }}
+          <ion-badge v-if="sourcesToCheck > 0" slot="end" :color="attentionColor">
+            {{ t("shell.scrapers_attention", { count: sourcesToCheck }) }}
           </ion-badge>
         </ion-item>
       </ion-list>
 
-      <div class="section calendar">
+      <div v-if="!rail" class="section calendar">
         <menu-calendar :show-settings-button="true" @settings-click="showDateSettings = true" />
       </div>
 
-      <ion-list lines="none" class="section">
+      <ion-list v-if="!rail" lines="none" class="section">
         <h2 class="section-title">{{ t("shell.section_preferences") }}</h2>
         <ion-item>
           <ion-select
@@ -105,7 +119,25 @@
 
     <ion-footer>
       <ion-toolbar>
-        <ion-item button lines="none" @click="logout">
+        <ion-item
+          v-if="pinned"
+          button
+          lines="none"
+          class="rail-toggle"
+          :aria-label="rail ? t('menu.expand') : t('menu.collapse')"
+          :title="rail ? t('menu.expand') : t('menu.collapse')"
+          @click="toggleMenu"
+        >
+          <ion-icon slot="start" :icon="rail ? expandIcon : collapseIcon" aria-hidden="true" />
+          <ion-label>{{ t("menu.collapse") }}</ion-label>
+        </ion-item>
+        <ion-item
+          button
+          lines="none"
+          :aria-label="rail ? t('shell.logout') : undefined"
+          :title="rail ? t('shell.logout') : undefined"
+          @click="logout"
+        >
           <ion-icon slot="start" :icon="logOutIcon" aria-hidden="true" />
           <ion-label>{{ t("shell.logout") }}</ion-label>
         </ion-item>
@@ -162,6 +194,7 @@ import localizationService from "@/services/general/LocalizationService";
 import { mapActions, mapState } from "pinia";
 import { useCalendarStore } from "@/stores/calendar";
 import { useSessionStore } from "@/stores/session";
+import { useLayoutStore } from "@/stores/layout";
 import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 import { confirmLogout } from "@/utils/confirmLogout";
@@ -175,6 +208,12 @@ const LOCALE_LABELS: Record<string, string> = {
 
 export default defineComponent({
   name: "SideMenu",
+  props: {
+    /** The menu sits beside the content (large screens) and can be collapsed. */
+    pinned: { type: Boolean, default: false },
+    /** Pinned and collapsed to icons only. */
+    rail: { type: Boolean, default: false },
+  },
   components: {
     IonMenu,
     IonHeader,
@@ -201,8 +240,9 @@ export default defineComponent({
     return {
       // UI
       darkMode: false,
-      failingColor: statusIonColor("failing"),
       closeIcon: icons.close,
+      collapseIcon: icons.chevronBack,
+      expandIcon: icons.chevronForward,
       personIcon: icons.profile,
       logOutIcon: icons.logout,
       settingsIcon: icons.settings,
@@ -235,7 +275,13 @@ export default defineComponent({
       if (import.meta.env.MODE === "development") list.push({ tab: "debug", label: "tabs.debug" });
       return list;
     },
-    ...mapState(useAdminHealthStore, { failingSources: "needingAttention" }),
+    ...mapState(useAdminHealthStore, {
+      sourcesToCheck: "needingAttention",
+      anyFailing: "hasFailing",
+    }),
+    attentionColor(): string {
+      return statusIonColor(this.anyFailing ? "failing" : "degraded");
+    },
     ...mapState(useCalendarStore, {
       firstDayOfWeek: "firstDayOfWeek",
       doDeleteAfterThirty: "deleteAfterThirty",
@@ -252,6 +298,7 @@ export default defineComponent({
 
   methods: {
     ...mapActions(useSessionStore, { logUserOut: "logout" }),
+    ...mapActions(useLayoutStore, ["toggleMenu"]),
     ...mapActions(useCalendarStore, {
       ensureCalendarLoaded: "ensureLoaded",
       deleteOldDates: "deleteOldDates",
@@ -334,7 +381,7 @@ export default defineComponent({
 
 <style scoped>
 ion-menu {
-  --width: 320px;
+  --width: var(--menu-width);
   --max-width: 88vw;
   --background: var(--ion-background-color);
 }
@@ -385,6 +432,32 @@ ion-item.active {
 
 .calendar {
   padding-inline: var(--space-3);
+}
+
+/* Collapsed to icons: labels go, badges shrink to a dot on the icon. */
+.rail ion-item {
+  --padding-start: calc((var(--menu-rail-width) - 24px) / 2);
+  --inner-padding-end: 0;
+}
+
+.rail ion-item ion-label {
+  display: none;
+}
+
+.rail ion-item ion-icon[slot="start"] {
+  margin-inline-end: 0;
+}
+
+.rail ion-item ion-badge {
+  position: absolute;
+  top: var(--space-2);
+  inset-inline-start: calc(18px - var(--menu-rail-width) / 2);
+  inset-inline-end: auto;
+  min-width: 0;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  font-size: 0;
 }
 
 .nav-section {

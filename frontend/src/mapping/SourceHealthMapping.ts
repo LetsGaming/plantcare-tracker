@@ -19,6 +19,7 @@ export default class SourceHealthMapper {
       lastSuccessAt: row.last_success_at ?? undefined,
       lastFailureAt: row.last_failure_at ?? undefined,
       lastError: row.last_error ?? undefined,
+      issues: row.issues ?? [],
     };
   }
 

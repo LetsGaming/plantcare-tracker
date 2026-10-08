@@ -25,6 +25,7 @@ Migrations are TypeScript files registered in `migrations/index.ts` and applied 
 | `0001_baseline` | Creates every table and index and seeds the lookup rows. Every statement is idempotent, so a database that predates migrations simply records it |
 | `0002_purge_orphan_images` | Deletes image rows (and their files) whose plant, substrate or component no longer exists |
 | `0003_relative_image_paths` | Stores image urls as origin-free paths (`/uploads/plant/a.webp`) and normalises Windows separators |
+| `0004_source_health_issues` | Adds `scrape_source_health.issues`, a JSON array of the field-level problems of the latest scrape |
 
 Add a schema change as a new numbered file; never edit an applied migration. Keep `schema.ts` in step.
 There are no `down` migrations: restore from a backup instead. Take a copy of the database and the uploads
@@ -117,7 +118,8 @@ Because there is no foreign key, deleting a plant, substrate or component calls 
 
 ### `scrape_source_health`
 One row per scrape source (`source_key` PK) with `kind` (`sales` or `search`), `status`, the active strategy,
-item count, failure counters and timestamps (ISO strings). Written by `SourceHealthTracker`, read by the admin
+item count, failure counters and timestamps (ISO strings). `issues` is a JSON array of `{ code, affected, total }`
+for the latest run only (default `'[]'`), unlike `last_error`, which survives a recovery. Written by `SourceHealthTracker`, read by the admin
 endpoints.
 
 ## Indexes

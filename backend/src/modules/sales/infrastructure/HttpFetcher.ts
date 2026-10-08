@@ -11,6 +11,7 @@ import { chromium, type Browser } from 'playwright';
 import dns from 'node:dns';
 import { createModuleLogger } from '../../../core/logging';
 import { getConfig } from '../../../core/config';
+import { isSafePublicUrl } from './publicUrl';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -145,6 +146,46 @@ export const fetchDocument = async (
 
 export const fetchHtml = async (url: string, useChromium: boolean): Promise<string | null> => {
   return (await fetchDocument(url, useChromium))?.html ?? null;
+};
+
+const PROBE_TIMEOUT_MS = 5_000;
+
+const isImageResponse = (headers: Record<string, unknown>): boolean =>
+  /^image\//i.test(String(headers['content-type'] ?? ''));
+
+/**
+ * True when the URL answers 2xx with an image content type; HEAD first, GET when HEAD is not accepted.
+ * Non-public targets and redirects are refused, since the URL comes from a scraped page.
+ */
+export const probeImage = async (url: string): Promise<boolean> => {
+  if (!(await isSafePublicUrl(url))) return false;
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+    Accept: 'image/*,*/*;q=0.8',
+  };
+  try {
+    const head = await axios.head(url, {
+      headers,
+      timeout: PROBE_TIMEOUT_MS,
+      maxRedirects: 0,
+    });
+    if (isImageResponse(head.headers)) return true;
+  } catch {
+    // Some servers reject HEAD; the GET below decides
+  }
+  try {
+    const get = await axios.get<NodeJS.ReadableStream & { destroy(): void }>(url, {
+      headers,
+      timeout: PROBE_TIMEOUT_MS,
+      maxRedirects: 0,
+      responseType: 'stream',
+    });
+    get.data.destroy();
+    return isImageResponse(get.headers);
+  } catch {
+    return false;
+  }
 };
 
 export const fetchJson = async <T>(url: string): Promise<T | null> => {

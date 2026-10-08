@@ -120,6 +120,7 @@ export default defineComponent({
 .composition {
   display: grid;
   gap: var(--space-4);
+  container-type: inline-size;
 }
 
 .section-title {
@@ -230,9 +231,9 @@ export default defineComponent({
   color: var(--ink-soft);
 }
 
-@media (min-width: 900px) {
+@container (min-width: 600px) {
   .composition-grid {
-    grid-template-columns: minmax(240px, 1fr) minmax(0, 1.4fr);
+    grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
   }
 }
 </style>
