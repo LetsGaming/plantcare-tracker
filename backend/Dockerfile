@@ -45,11 +45,11 @@ COPY --from=build /app/dist ./dist
 # Chromium and its system libraries, installed as root before dropping privileges.
 RUN node node_modules/playwright/cli.js install --with-deps chromium \
   && rm -rf /var/lib/apt/lists/* \
-  && mkdir -p /data \
-  && chown -R node:node /data
+  && mkdir -p /data /app/logs \
+  && chown -R node:node /data /app/logs
 
 USER node
-VOLUME ["/data"]
+VOLUME ["/data", "/app/logs"]
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

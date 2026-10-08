@@ -28,6 +28,7 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
     volumes:
       - plantcare-data:/data
+      - plantcare-logs:/app/logs
     expose:
       - "5000"
     shm_size: 512m
@@ -50,3 +51,4 @@ services:
 
 volumes:
   plantcare-data:
+  plantcare-logs:

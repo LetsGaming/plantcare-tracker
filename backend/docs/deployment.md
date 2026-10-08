@@ -17,7 +17,7 @@ docker compose up -d --build
 | `backend/Dockerfile` | Multi-stage: build with pnpm, prune to production dependencies, runtime on `node:22-bookworm-slim` with Playwright Chromium for the shop scrapers, runs as the `node` user, health check on `/api/v2/health/ready` |
 | `frontend/Dockerfile` | Builds the app with `VITE_API_URL=/api/v2` (relative), serves it from `nginx:1.27-alpine` |
 | `frontend/nginx.conf` | Static files with long caching for hashed assets and `no-cache` for `index.html` and `sw.js`, `/api/` proxy with buffering off (server-sent events), `/uploads/` proxy with a long cache, 12 MB upload limit, `X-Forwarded-Proto` passed through |
-| Volume `plantcare-data` | `/data/plantcare.db` and `/data/uploads`; migrations run on start |
+| Volumes | `plantcare-data`: `/data/plantcare.db` and `/data/uploads`, migrations run on start; `plantcare-logs`: the winston file logs (`error.log`, `combined.log`), the same entries go to stdout for `docker compose logs` |
 | Secrets | Only through `.env` (gitignored); compose refuses to start without the two JWT secrets |
 
 Operations:
