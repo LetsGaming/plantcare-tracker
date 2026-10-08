@@ -14,13 +14,15 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
-# Prebuilt binaries exist for better-sqlite3 and sharp on glibc, the toolchain is the fallback.
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Prebuilt binaries exist for better-sqlite3 and sharp on amd64 and arm64 (glibc), so the
+# compiler toolchain, which costs minutes on a small machine, is installed only when they are missing.
 RUN --mount=type=cache,id=pnpm-backend,target=/pnpm/store \
-  pnpm install --frozen-lockfile
+  pnpm install --frozen-lockfile \
+  || (apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && pnpm install --frozen-lockfile)
 
 FROM deps AS build
 COPY tsconfig.json tsconfig.build.json server.ts ./
@@ -40,13 +42,16 @@ WORKDIR /app
 
 COPY package.json ./
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
 
-# Chromium and its system libraries, installed as root before dropping privileges.
-RUN node node_modules/playwright/cli.js install --with-deps chromium \
+# The headless shell (all the scrapers need) and its system libraries, installed as root before dropping
+# privileges. This layer only depends on node_modules, so code updates reuse it instead of downloading
+# the browser again.
+RUN node node_modules/playwright/cli.js install --with-deps chromium-headless-shell \
   && rm -rf /var/lib/apt/lists/* \
   && mkdir -p /data /app/logs \
   && chown -R node:node /data /app/logs
+
+COPY --from=build /app/dist ./dist
 
 USER node
 VOLUME ["/data", "/app/logs"]

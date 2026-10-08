@@ -150,6 +150,9 @@ jobs:
           test -n "$token"
           curl -fsS -H "authorization: Bearer $token" "$base/api/v2/plants" > /dev/null
 
+      - name: Chromium starts inside the backend image
+        run: docker compose exec -T backend node -e "require('playwright').chromium.launch({ headless: true, args: ['--no-sandbox'] }).then((b) => b.close()).then(() => console.log('chromium ok'))"
+
       - name: Show logs on failure
         if: failure()
         run: docker compose logs --no-color --tail 200
@@ -207,6 +210,10 @@ jobs:
           mkdir -p "$old/uploads/plant"
           echo legacy > "$old/uploads/plant/legacy.webp"
           pm2 describe plantcare-backend > /dev/null
+          # The old frontend app occupies the port the new stack wants, as on a real server.
+          echo "require('http').createServer((req, res) => res.end('old frontend')).listen(8080)" > "$RUNNER_TEMP/old-frontend.js"
+          pm2 start "$RUNNER_TEMP/old-frontend.js" --name plantcare-frontend
+          for i in $(seq 1 15); do curl -fsS http://127.0.0.1:8080 | grep -q 'old frontend' && break; sleep 1; done
 
       - name: Run the migration script
         run: scripts/migrate-pm2-to-docker.sh --yes --remove-pm2 --backend-dir "$RUNNER_TEMP/old-backend" --http-port 8080 --backup-dir "$RUNNER_TEMP/migration-backup"
@@ -221,7 +228,9 @@ jobs:
           curl -fsS -H "authorization: Bearer $token" "$base/api/v2/plants" | grep -q 'Legacy Monstera'
           curl -fsS "$base/uploads/plant/legacy.webp" | grep -q legacy
           ls "$RUNNER_TEMP/migration-backup/plantcare.db"
-          if pm2 describe plantcare-backend > /dev/null 2>&1; then echo "PM2 app still registered"; exit 1; fi
+          if pm2 describe plantcare-backend > /dev/null 2>&1; then echo "PM2 backend app still registered"; exit 1; fi
+          if pm2 describe plantcare-frontend > /dev/null 2>&1; then echo "PM2 frontend app still registered"; exit 1; fi
+          curl -fsS "$base/" | grep -q 'id="app"'
 
       - name: Show logs on failure
         if: failure()

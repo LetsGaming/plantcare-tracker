@@ -14,7 +14,9 @@
 # Usage: scripts/migrate-pm2-to-docker.sh [options]
 #   --backend-dir DIR   old backend directory (default: <repo>/backend)
 #   --env-file FILE     old environment file (default: <backend-dir>/.env)
-#   --pm2-name NAME     PM2 app name (default: plantcare-backend)
+#   --pm2-name NAME     PM2 backend app name (default: plantcare-backend)
+#   --pm2-frontend-name NAME  PM2 frontend app, stopped before the new stack starts so it frees
+#                       the port (default: plantcare-frontend)
 #   --http-port PORT    port the Docker stack publishes (default: 8080)
 #   --backup-dir DIR    where the database backup goes (default: ~/plantcare-migration-<timestamp>)
 #   --remove-pm2        delete the PM2 app and run `pm2 save` after a verified migration
@@ -31,6 +33,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="$ROOT/backend"
 ENV_FILE=""
 PM2_NAME="plantcare-backend"
+PM2_FRONTEND_NAME="plantcare-frontend"
 HTTP_PORT="8080"
 BACKUP_DIR=""
 REMOVE_PM2=0
@@ -50,6 +53,7 @@ while [ $# -gt 0 ]; do
     --backend-dir) BACKEND_DIR="$2"; shift 2 ;;
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --pm2-name) PM2_NAME="$2"; shift 2 ;;
+    --pm2-frontend-name) PM2_FRONTEND_NAME="$2"; shift 2 ;;
     --http-port) HTTP_PORT="$2"; shift 2 ;;
     --backup-dir) BACKUP_DIR="$2"; shift 2 ;;
     --remove-pm2) REMOVE_PM2=1; shift ;;
@@ -200,7 +204,7 @@ log "Old deployment:"
 log "  backend dir : $BACKEND_DIR"
 log "  database    : $DB_PATH_ABS ($(du -h "$DB_PATH_ABS" | cut -f1))"
 if [ "$HAVE_UPLOADS" -eq 1 ]; then log "  uploads     : $UPLOADS_ABS ($(du -sh "$UPLOADS_ABS" | cut -f1))"; fi
-log "  PM2 app     : $PM2_NAME"
+log "  PM2 apps    : $PM2_NAME (backend), $PM2_FRONTEND_NAME (frontend, if present)"
 log "New stack: $ROOT/docker-compose.yml on port $HTTP_PORT"
 confirm "Continue?" || die "Aborted."
 
@@ -236,17 +240,48 @@ write_compose_env
 # ── 4. Stop PM2, back up, build, copy ────────────────────────────────────────
 
 PM2_WAS_STOPPED=0
+PM2_FRONTEND_STOPPED=0
+DOCKER_TOUCHED=0
+VOLUME_POPULATED=0
+
+port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+pm2_has() { command -v pm2 >/dev/null 2>&1 && pm2 describe "$1" >/dev/null 2>&1; }
+
 rollback() {
   local code=$?
-  if [ "$code" -ne 0 ] && [ "$PM2_WAS_STOPPED" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
-    warn "Migration failed. Restarting the PM2 app $PM2_NAME."
-    pm2 start "$PM2_NAME" >/dev/null 2>&1 || warn "Could not restart $PM2_NAME, run: pm2 start $PM2_NAME"
+  if [ "$code" -ne 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+    if [ "$DOCKER_TOUCHED" -eq 1 ]; then
+      warn "Migration failed. Stopping the new containers."
+      if [ "$VOLUME_POPULATED" -eq 1 ] && [ "$FORCE" -eq 0 ]; then
+        warn "Removing the data volume this run filled, so the next run starts clean. The old data is untouched."
+        compose down -v >/dev/null 2>&1 || true
+      else
+        compose down >/dev/null 2>&1 || true
+      fi
+    fi
+    if [ "$PM2_FRONTEND_STOPPED" -eq 1 ]; then
+      warn "Restarting the PM2 app $PM2_FRONTEND_NAME."
+      pm2 start "$PM2_FRONTEND_NAME" >/dev/null 2>&1 || warn "Could not restart $PM2_FRONTEND_NAME, run: pm2 start $PM2_FRONTEND_NAME"
+    fi
+    if [ "$PM2_WAS_STOPPED" -eq 1 ]; then
+      warn "Restarting the PM2 app $PM2_NAME."
+      pm2 start "$PM2_NAME" >/dev/null 2>&1 || warn "Could not restart $PM2_NAME, run: pm2 start $PM2_NAME"
+    fi
   fi
   exit "$code"
 }
 trap rollback EXIT
 
-log "Building the images (this can take a few minutes)."
+# Fail early, before a long build, when the port is taken by something that is not the old frontend.
+if [ "$DRY_RUN" -eq 0 ] && port_in_use "$HTTP_PORT"; then
+  if pm2_has "$PM2_FRONTEND_NAME"; then
+    log "Port $HTTP_PORT is in use, probably by the PM2 app $PM2_FRONTEND_NAME. It is stopped right before the new stack starts."
+  else
+    die "Port $HTTP_PORT is already in use. Pick another one with --http-port (for example 8081). See who uses it: ss -ltnp | grep :$HTTP_PORT"
+  fi
+fi
+
+log "Building the images (this can take a long while on a small machine, mostly the first time)."
 run compose build
 
 if command -v pm2 >/dev/null 2>&1; then
@@ -311,11 +346,13 @@ copy_into_volume() {
 }
 
 log "Copying the database and the uploaded images into the data volume."
+DOCKER_TOUCHED=1
 if [ "$DRY_RUN" -eq 1 ]; then
   log "Dry run: would copy $DB_PATH_ABS and $UPLOADS_ABS into the plantcare-data volume."
   COPY_OUT=""
 else
   COPY_OUT="$(copy_into_volume)" || die "Copying into the data volume failed (see above)."
+  VOLUME_POPULATED=1
   printf '%s\n' "$COPY_OUT"
   SRC_COUNT="$(printf '%s\n' "$COPY_OUT" | sed -n 's/^SOURCE //p')"
   DST_COUNT="$(printf '%s\n' "$COPY_OUT" | sed -n 's/^TARGET //p')"
@@ -328,6 +365,15 @@ else
 fi
 
 # ── 5. Start and verify ──────────────────────────────────────────────────────
+
+if pm2_has "$PM2_FRONTEND_NAME"; then
+  log "Stopping the PM2 app $PM2_FRONTEND_NAME to free the port."
+  run pm2 stop "$PM2_FRONTEND_NAME"
+  PM2_FRONTEND_STOPPED=1
+fi
+if [ "$DRY_RUN" -eq 0 ] && port_in_use "$HTTP_PORT"; then
+  die "Port $HTTP_PORT is still in use. Pick another one with --http-port (for example 8081). See who uses it: ss -ltnp | grep :$HTTP_PORT"
+fi
 
 log "Starting the Docker stack."
 run compose up -d --wait --wait-timeout 240
@@ -347,10 +393,15 @@ fi
 
 # The new stack is verified: from here on a failure must not restart the old app.
 PM2_WAS_STOPPED=0
+PM2_FRONTEND_STOPPED=0
 
 if [ "$REMOVE_PM2" -eq 1 ] && command -v pm2 >/dev/null 2>&1; then
-  log "Removing the PM2 app $PM2_NAME."
-  run pm2 delete "$PM2_NAME"
+  for app in "$PM2_NAME" "$PM2_FRONTEND_NAME"; do
+    if pm2_has "$app"; then
+      log "Removing the PM2 app $app."
+      run pm2 delete "$app"
+    fi
+  done
   run pm2 save
 fi
 
@@ -367,5 +418,5 @@ Next steps:
   - If a reverse proxy on this host pointed to the old backend (port 5000), point it to 127.0.0.1:$HTTP_PORT instead,
     and keep forwarding X-Forwarded-Proto so cookies get the Secure flag.
   - Image URLs are converted to relative paths by the backend migrations on its first start.
-$( [ "$REMOVE_PM2" -eq 1 ] && echo "  - PM2 app removed. If you used 'pm2 startup', remove it with: pm2 unstartup" || echo "  - The PM2 app is stopped, not removed. Remove it with: pm2 delete $PM2_NAME && pm2 save" )
+$( [ "$REMOVE_PM2" -eq 1 ] && echo "  - PM2 apps removed. If you used 'pm2 startup', remove it with: pm2 unstartup" || echo "  - The PM2 apps are stopped, not removed. Remove them with: pm2 delete $PM2_NAME $PM2_FRONTEND_NAME && pm2 save" )
 EOF
