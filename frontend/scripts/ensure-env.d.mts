@@ -12,3 +12,5 @@ export function healEnv(options: {
   generateSecret?: (key: string) => string;
   now?: () => Date;
 }): { created: boolean; added: string[] };
+
+export function findMissingDependencies(packageDir: string): string[];
