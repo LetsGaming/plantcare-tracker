@@ -14,7 +14,8 @@ patterns they share.
 | `resource.ts` | `resourceState()` (`status`, `fetchedAt`), `isStale()`, `coalesced(owner, key, work)` |
 
 `coalesced` makes concurrent callers of the same load share one request. `isStale` compares
-`fetchedAt` with the cache lifetime from `config.json`.
+`fetchedAt` with the cache lifetime (`VITE_CACHE_EXPIRE_HOURS`, 6 hours in development and 24 in a production
+build by default).
 
 ## session
 

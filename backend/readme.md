@@ -4,7 +4,6 @@ REST and SSE API on Node.js 22, Fastify 5 and TypeScript, backed by SQLite.
 
 ```bash
 pnpm install
-cp .env.example .env     # set JWT_SECRET and JWT_REFRESH_SECRET
 pnpm run dev             # http://localhost:5000/api/v2
 pnpm run test
 ```

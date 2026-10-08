@@ -7,6 +7,15 @@ const { execSync } = require('child_process');
 
 const ROOT = process.cwd();
 
+// Create or complete .env before the build hash reads it, so an update never needs manual edits.
+try {
+  execSync(`"${process.execPath}" "${path.join(__dirname, 'ensure-env.mjs')}"`, {
+    stdio: 'inherit',
+  });
+} catch {
+  console.warn('Could not update .env automatically.');
+}
+
 const SRC_DIR = path.join(ROOT, 'src');
 const SERVER_TS = path.join(ROOT, 'server.ts');
 
