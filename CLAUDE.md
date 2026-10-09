@@ -35,6 +35,8 @@ Nothing leaves the machine.
 | Care guide | Success (any plant), error mid stream (`Failing Fern`), no external link (`Unknown Orchid`) |
 | Sales | Four mock shops (healthy, degraded, failing, partial with half of its items lacking an image), NEW pills, tab badge; prices of every third item drop on each of the first four loads, so open Sales and pull to refresh twice to get price history charts |
 | Scraper health (admin) | Sales sources ok, degraded, failing, partial (degraded with an `images_missing` issue), plus three link search sources (kind search) ok, degraded, failing |
+| Watering round | /tabs/water: due and overdue plants pre-ticked (Failing Fern, Spike, Sunny Pothos, the long named plant) |
+| Snap to log | /tabs/water as grower: upload `scripts/dev/.snapshots/Monty.png` (Monty first); Unknown Orchid has no photo, use "Other plant..."; set `RECOGNITION_MODEL_PATH` before dev-up to use the real model |
 | Local only | Reminders, categories, first weekday, language and dark mode live in the browser; create them in the app |
 
 ## Adding mock data for a new feature

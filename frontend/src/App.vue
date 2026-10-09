@@ -20,6 +20,7 @@ import { IonApp, IonRouterOutlet, IonSplitPane } from "@ionic/vue";
 import { mapState } from "pinia";
 import SideMenu from "./components/SideMenu.vue";
 import { useLayoutStore } from "./stores/layout";
+import { useSnapSettingsStore } from "./stores/snapSettings";
 import OfflineBanner from "./components/ui/OfflineBanner.vue";
 
 export default defineComponent({
@@ -41,6 +42,7 @@ export default defineComponent({
   },
   created() {
     void useLayoutStore().ensureLoaded();
+    void useSnapSettingsStore().ensureLoaded();
   },
 });
 </script>

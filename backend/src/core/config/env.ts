@@ -28,6 +28,7 @@ export interface AppConfig {
   publicBaseUrl: string | null;
   jwt: JwtSettings;
   openAiApiKey: string | null;
+  recognitionModelPath: string | null;
   /** Run the scraping browser without a window. Always true in production. */
   headlessBrowser: boolean;
 }
@@ -74,6 +75,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
       refreshExpiration: env.JWT_REFRESH_EXPIRATION ?? '7d',
     },
     openAiApiKey: env.OPENAI_API_KEY || null,
+    recognitionModelPath: env.RECOGNITION_MODEL_PATH || null,
     headlessBrowser: env.headless_browser === 'true' || isProduction,
   };
 };

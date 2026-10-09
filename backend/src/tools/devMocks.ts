@@ -3,6 +3,8 @@ import type { SourceHealthTracker, SourceIssue } from '../core/scrapeHealth';
 import type { RawSaleItem } from '../modules/sales/domain/Sale';
 import type { SalesSource } from '../modules/sales/domain/SalesSource';
 import type { PlantGuideStreamer, PlantLinkSearcher } from '../modules/moreInfo/domain/PlantInfo';
+import type { RecognitionDeps } from '../modules/recognition';
+import { createPixelEmbedder } from '../modules/recognition/infrastructure/PixelEmbedder';
 import type { MoreInfoRouterDeps } from '../modules/moreInfo/presentation/moreInfoRoutes';
 
 const SHOP_PLANTS = [
@@ -164,3 +166,7 @@ const linkSearchers: PlantLinkSearcher[] = [
 ];
 
 export const createMockMoreInfo = (): MoreInfoRouterDeps => ({ guideStreamer, linkSearchers });
+
+/** A model-free embedder keeps recognition available offline; a configured model path uses the real one. */
+export const createMockRecognition = (): RecognitionDeps =>
+  process.env.RECOGNITION_MODEL_PATH ? {} : { embedder: createPixelEmbedder() };

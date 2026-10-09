@@ -5,6 +5,7 @@ import {
   chevronForwardOutline,
   bug,
   bugOutline,
+  cameraOutline,
   closeOutline,
   cloudUploadOutline,
   createOutline,
@@ -23,11 +24,15 @@ import {
   pulseOutline,
   settingsOutline,
   swapVerticalOutline,
+  water,
+  waterOutline,
 } from "ionicons/icons";
 
 /** One outline family for the whole app. Filled glyphs only mark a selected state. */
 export const icons = {
   add: addCircleOutline,
+  camera: cameraOutline,
+  plant: leafOutline,
   chevronBack: chevronBackOutline,
   chevronDown: chevronDownOutline,
   chevronForward: chevronForwardOutline,
@@ -35,6 +40,7 @@ export const icons = {
   edit: createOutline,
   filter: filterOutline,
   upload: cloudUploadOutline,
+  water: waterOutline,
   logout: logOutOutline,
   profile: personOutline,
   settings: settingsOutline,
@@ -44,10 +50,11 @@ export const icons = {
   segmentPrivate: personOutline,
 } as const;
 
-export type NavDestination = "plants" | "substrates" | "components" | "sales" | "debug";
+export type NavDestination = "plants" | "water" | "substrates" | "components" | "sales" | "debug";
 
 export const navIcons: Record<NavDestination, { idle: string; selected: string }> = {
   plants: { idle: leafOutline, selected: leaf },
+  water: { idle: waterOutline, selected: water },
   substrates: { idle: cubeOutline, selected: cube },
   components: { idle: gridOutline, selected: grid },
   sales: { idle: pricetagOutline, selected: pricetag },

@@ -62,6 +62,12 @@ export interface ImagesTable {
   upload_date: Generated<number>;
 }
 
+export interface ImageEmbeddingsTable {
+  image_id: number;
+  model: string;
+  vector: Buffer;
+}
+
 export interface FertilizerTypesTable {
   id: Generated<number>;
   name: string;
@@ -90,6 +96,7 @@ export interface Database {
   substrates: SubstratesTable;
   plants: PlantsTable;
   images: ImagesTable;
+  image_embeddings: ImageEmbeddingsTable;
   fertilizer_types: FertilizerTypesTable;
   watering_records: WateringRecordsTable;
   substrate_components: SubstrateComponentsTable;

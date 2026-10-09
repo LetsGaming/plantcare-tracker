@@ -1,11 +1,13 @@
 .env
 node_modules/
 uploads/
+backend/models/
 logs/
 dist*/
 package-lock.json
 # Isolated dev sessions (scripts/dev-up.mjs)
 data/
+scripts/dev/.snapshots/
 .playwright-mcp/
 scratch-*.png
 

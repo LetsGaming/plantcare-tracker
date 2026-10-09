@@ -16,6 +16,8 @@ const NotFound = () => import("@/views/NotFound.vue");
 const PlantOverview = () => import("@/views/plants/PlantOverview.vue");
 const PlantDetails = () => import("@/views/plants/PlantDetails.vue");
 
+const WaterRound = () => import("@/views/water/WaterRound.vue");
+
 const SubstrateOverview = () => import("@/views/substrates/SubstrateOverview.vue");
 const SubstrateDetails = () => import("@/views/substrates/SubstrateDetails.vue");
 
@@ -75,6 +77,12 @@ const routes: Array<RouteRecordRaw> = [
         path: "plants",
         meta: authMeta,
         component: PlantOverview,
+      },
+      {
+        name: "water-round",
+        path: "water",
+        meta: authMeta,
+        component: WaterRound,
       },
       {
         name: "plant-details",

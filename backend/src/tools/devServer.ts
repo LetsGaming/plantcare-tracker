@@ -11,7 +11,7 @@ import { initDatabase, closeDb } from '../core/database/db';
 import { buildApp } from '../app';
 import { AUTH_RATE_LIMIT, getConfig } from '../core/config';
 import { logger } from '../core/logging';
-import { createMockMoreInfo, createMockSalesSources } from './devMocks';
+import { createMockMoreInfo, createMockRecognition, createMockSalesSources } from './devMocks';
 
 const { port } = getConfig();
 let app: Awaited<ReturnType<typeof buildApp>> | undefined;
@@ -32,6 +32,7 @@ const start = async (): Promise<void> => {
   app = await buildApp({
     sales: { createSources: createMockSalesSources },
     moreInfo: createMockMoreInfo(),
+    recognition: createMockRecognition(),
   });
   await app.listen({ port, host: '::' });
   logger.info(`Dev server with mock sources running on port ${port}`);

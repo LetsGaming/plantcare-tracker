@@ -6,6 +6,7 @@ import {
   chevronForwardOutline,
   bug,
   bugOutline,
+  cameraOutline,
   closeOutline,
   cloudUploadOutline,
   createOutline,
@@ -24,6 +25,8 @@ import {
   pulseOutline,
   settingsOutline,
   swapVerticalOutline,
+  water,
+  waterOutline,
 } from "ionicons/icons";
 import { icons, navIcons } from "@/theme/icons";
 
@@ -31,6 +34,8 @@ describe("icon family", () => {
   it("uses outline glyphs for every semantic action", () => {
     expect(icons).toEqual({
       add: addCircleOutline,
+      camera: cameraOutline,
+      plant: leafOutline,
       chevronBack: chevronBackOutline,
       chevronDown: chevronDownOutline,
       chevronForward: chevronForwardOutline,
@@ -38,6 +43,7 @@ describe("icon family", () => {
       edit: createOutline,
       filter: filterOutline,
       upload: cloudUploadOutline,
+      water: waterOutline,
       logout: logOutOutline,
       profile: personOutline,
       settings: settingsOutline,
@@ -51,6 +57,7 @@ describe("icon family", () => {
   it("pairs each navigation destination with an outline idle and filled selected glyph", () => {
     expect(navIcons).toEqual({
       plants: { idle: leafOutline, selected: leaf },
+      water: { idle: waterOutline, selected: water },
       substrates: { idle: cubeOutline, selected: cube },
       components: { idle: gridOutline, selected: grid },
       sales: { idle: pricetagOutline, selected: pricetag },

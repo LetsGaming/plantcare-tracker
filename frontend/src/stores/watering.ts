@@ -12,6 +12,8 @@
  * | POST   | /watering/:plantId         | Add a record                      |
  * | PATCH  | /watering/:recordId        | Edit a record                     |
  * | DELETE | /watering/:recordId        | Delete a record                   |
+ * | POST   | /watering/batch            | Add records for many plants       |
+ * | POST   | /watering/batch/delete     | Delete many records               |
  *
  * Mutations are optimistic: the expected record is painted at once (a
  * temporary negative id for creates), reconciled with the server record, and
@@ -22,12 +24,18 @@ import { defineStore } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
 import WateringMapper from "@/mapping/WateringMapping";
 import Utils from "@/utils/utils";
-import { handleRequest } from "@/utils/requestFeedback";
+import { handleRequest, withoutErrorToasts } from "@/utils/requestFeedback";
 import { optimisticRemove, optimisticUpsert } from "./optimistic";
 import { coalesced, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/watering";
 const RESOURCE_KEY = "watering.title";
+const BATCH_LIMIT = 200;
+
+const chunked = <T>(items: T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / BATCH_LIMIT) }, (_, i) =>
+    items.slice(i * BATCH_LIMIT, (i + 1) * BATCH_LIMIT),
+  );
 
 export const useWateringStore = defineStore("watering", {
   state: () => ({
@@ -85,12 +93,16 @@ export const useWateringStore = defineStore("watering", {
     },
 
     /** Warms the records of many plants, `limit` requests at a time; failures are skipped. */
-    async ensureRecordsFor(plantIds: number[], limit = 3): Promise<void> {
+    async ensureRecordsFor(
+      plantIds: number[],
+      limit = 3,
+      { force = false }: { force?: boolean } = {},
+    ): Promise<void> {
       const queue = [...plantIds];
       const worker = async () => {
         for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
           try {
-            await this.ensureRecords(id);
+            await this.ensureRecords(id, { force });
           } catch {
             // The list simply shows no watering line for this plant.
           }
@@ -218,6 +230,55 @@ export const useWateringStore = defineStore("watering", {
             RESOURCE_KEY,
             "watering.delete",
           ),
+      );
+    },
+
+    /**
+     * Logs one watering per entry, in requests of at most `BATCH_LIMIT`; resolves with the new
+     * record ids. If a request fails, the records created so far are deleted again.
+     */
+    async addBatch(entries: WateringBatchEntry[]): Promise<number[]> {
+      const ids: number[] = [];
+      try {
+        for (const chunk of chunked(entries)) {
+          const created = await handleRequest(
+            ApiUtils.post<{ entries: WateringBatchEntry[] }, { ids: number[] }>(
+              `${BASE_ENDPOINT}/batch`,
+              { entries: chunk },
+            ),
+            RESOURCE_KEY,
+            "watering.add",
+          );
+          ids.push(...created.ids);
+        }
+      } catch (error) {
+        await withoutErrorToasts(() => this.deleteChunks(ids)).catch(() => undefined);
+        throw error;
+      }
+      await this.refetchPlants(entries.map((entry) => entry.plantId));
+      return ids;
+    },
+
+    /** Deletes records created by `addBatch`. */
+    async removeBatch(recordIds: number[], plantIds: number[]): Promise<void> {
+      await this.deleteChunks(recordIds);
+      await this.refetchPlants(plantIds);
+    },
+
+    async deleteChunks(recordIds: number[]): Promise<void> {
+      for (const chunk of chunked(recordIds)) {
+        await handleRequest(
+          ApiUtils.post<{ ids: number[] }, void>(`${BASE_ENDPOINT}/batch/delete`, { ids: chunk }),
+          RESOURCE_KEY,
+          "watering.delete",
+        );
+      }
+    },
+
+    /** Refreshes the affected plants; the records already changed, so failures are ignored. */
+    async refetchPlants(plantIds: number[]): Promise<void> {
+      await withoutErrorToasts(() =>
+        this.ensureRecordsFor([...new Set(plantIds)], undefined, { force: true }),
       );
     },
 

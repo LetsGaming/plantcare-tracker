@@ -19,6 +19,8 @@ import {
   CreateWateringRecordUseCase,
   UpdateWateringRecordUseCase,
   DeleteWateringRecordUseCase,
+  CreateWateringBatchUseCase,
+  DeleteWateringBatchUseCase,
 } from '../application/WateringUseCases';
 import type {
   WateringRepository,
@@ -38,6 +40,9 @@ export interface WateringRecordListResponse {
 export interface WateringRecordResponse {
   data: WateringRecordData;
 }
+export interface WateringBatchResponse {
+  data: { ids: number[] };
+}
 
 /**
  * HTTP handlers exposed by the watering module.
@@ -54,6 +59,8 @@ export interface WateringController {
   addRecord: Handler;
   editRecord: Handler;
   deleteRecord: Handler;
+  addBatch: Handler;
+  deleteBatch: Handler;
 }
 
 export const createWateringController = (repo: WateringRepository): WateringController => {
@@ -63,6 +70,8 @@ export const createWateringController = (repo: WateringRepository): WateringCont
   const create = new CreateWateringRecordUseCase(repo);
   const update = new UpdateWateringRecordUseCase(repo);
   const remove = new DeleteWateringRecordUseCase(repo);
+  const createBatch = new CreateWateringBatchUseCase(repo);
+  const deleteBatch = new DeleteWateringBatchUseCase(repo);
 
   return {
     getFertilizerTypes: async () => {
@@ -100,6 +109,17 @@ export const createWateringController = (repo: WateringRepository): WateringCont
 
     deleteRecord: async (req: FastifyRequest, reply: FastifyReply) => {
       await remove.execute(numericParam(req, 'id'), req.user!.id);
+      return reply.code(HTTP_STATUS.NO_CONTENT).send();
+    },
+
+    addBatch: async (req: FastifyRequest, reply: FastifyReply) => {
+      const ids = await createBatch.execute(req.user!.id, req.body);
+      const body: WateringBatchResponse = { data: { ids } };
+      return reply.code(HTTP_STATUS.CREATED).send(body);
+    },
+
+    deleteBatch: async (req: FastifyRequest, reply: FastifyReply) => {
+      await deleteBatch.execute(req.user!.id, req.body);
       return reply.code(HTTP_STATUS.NO_CONTENT).send();
     },
   };

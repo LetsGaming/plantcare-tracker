@@ -106,6 +106,19 @@ One table for every entity type.
 Because there is no foreign key, deleting a plant, substrate or component calls the images module's
 `EntityImageCleanup`, which removes the rows and files. Reads order images by `upload_date`, then `id`.
 
+### `image_embeddings`
+
+One row per embedded plant photo.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `image_id` | INTEGER PK FK → `images.id` | `ON DELETE CASCADE` |
+| `model` | TEXT | Embedder id; rows of another model are ignored and re-embedded |
+| `vector` | BLOB | L2-normalised float32 vector |
+
+Written when a plant photo is stored (upload, replacement or a kept recognition snapshot) and by a
+backfill at startup that also removes rows whose image is gone.
+
 ### `watering_records`
 
 | Column | Type | Notes |

@@ -114,6 +114,7 @@ Go through this before every production deployment:
 - [ ] `NAS_PATH` — points to persistent storage, not ephemeral container filesystem
 - [ ] `PUBLIC_BASE_URL`: set to the public API origin when a proxy rewrites the Host header
 - [ ] `OPENAI_API_KEY` — set if the `/more-info` endpoint is needed
+- [ ] `RECOGNITION_MODEL_PATH`: path to the plant recognition ONNX model. The Docker image bakes the model in at `/app/models/dinov2-small-q8.onnx`; outside Docker run `pnpm run model:fetch` (saves to `backend/models/`) and point the variable at it. Set it to an empty value to disable recognition, also under Docker (the API still starts and logs a warning if the file cannot be loaded)
 - [ ] Migrations: they are applied automatically at startup; check the log for `Applied migration` lines after an upgrade
 - [ ] Playwright Chromium installed — run `pnpm exec playwright install chromium` if using the sales scraper
 

@@ -216,3 +216,21 @@ ion-input.field-input.field-invalid {
   --border-color: var(--ion-color-danger);
   --highlight-color-focused: var(--ion-color-danger);
 }
+
+/* Watering state pill used by the round list and the snap sheet */
+.tone-chip {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.tone-chip.tone-due {
+  background: var(--ion-color-tertiary);
+  color: var(--ion-color-tertiary-contrast);
+}
+
+.tone-chip.tone-overdue {
+  background: var(--ion-color-secondary);
+  color: var(--ion-color-secondary-contrast);
+}

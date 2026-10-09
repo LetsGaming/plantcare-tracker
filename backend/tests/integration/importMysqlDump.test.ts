@@ -87,6 +87,7 @@ describe('importMysqlDump', () => {
       { name: '0002_purge_orphan_images' },
       { name: '0003_relative_image_paths' },
       { name: '0004_source_health_issues' },
+      { name: '0005_image_embeddings' },
     ]);
   });
 

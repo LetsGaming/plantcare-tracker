@@ -86,6 +86,7 @@ const main = async () => {
       JWT_SECRET: randomBytes(24).toString("hex"),
       JWT_REFRESH_SECRET: randomBytes(24).toString("hex"),
       JWT_EXPIRATION: "12h",
+      RECOGNITION_MODEL_PATH: process.env.RECOGNITION_MODEL_PATH ?? "",
     },
   });
 

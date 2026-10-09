@@ -243,6 +243,8 @@ Errors: `401`, `403` (guest), `404`
 | POST | `/:plantId` | JWT | Create record |
 | PATCH | `/:id` | JWT | Update record |
 | DELETE | `/:id` | JWT | Delete record |
+| POST | `/batch` | JWT | Create one record per plant in a single transaction |
+| POST | `/batch/delete` | JWT | Delete several records in a single transaction |
 
 All reads and writes are scoped to plants the caller owns. Mutations answer `403` for guests.
 
@@ -298,6 +300,37 @@ Errors: `400` (invalid body or date, with `fields`), `401`, `403` (guest), `404`
 ```
 // Response 204 — no body
 ```
+
+### POST `/batch`
+
+```json
+// Request
+{
+  "date": 1719388800000,
+  "entries": [
+    { "plantId": 1, "usedFertilizer": true, "fertilizerTypeId": 1 },
+    { "plantId": 2, "usedFertilizer": false }
+  ]
+}
+
+// Response 201
+{ "data": { "ids": [15, 16] } }
+```
+
+`date` is optional and accepts the same formats as `POST /:plantId`. `entries` holds 1 to 200 items with distinct `plantId`s. The batch is all or nothing.  
+Errors: `400` (invalid body, empty, over 200 entries or duplicate plant), `401`, `403` (guest), `404` (any plant not found / not owned, nothing is created)
+
+### POST `/batch/delete`
+
+```json
+// Request
+{ "ids": [15, 16] }
+
+// Response 204, no body
+```
+
+`ids` holds 1 to 200 record ids. The delete is all or nothing.  
+Errors: `400` (invalid body), `401`, `403` (guest), `404` (any record not found / not owned, nothing is deleted)
 
 ---
 
@@ -469,6 +502,59 @@ When a new file is uploaded, the previous file is deleted from disk only after t
 ```
 // Response 204 — no body
 ```
+
+---
+
+## Recognition: `/api/v2/recognition`
+
+Identifies a plant from a photo of it by comparing the photo with the caller's own plant photos.
+
+| Method | Path | Auth | Description |
+|--------|------|:----:|-------------|
+| GET | `/status` | JWT | Whether a recognition model is loaded |
+| POST | `/match` | JWT | Match a photo against the caller's plants |
+| POST | `/snapshots/:id/confirm` | JWT | Water the chosen plant and optionally keep the photo |
+
+Only JPEG and PNG photos up to **10 MB** are accepted (`400` otherwise). Mutations answer `403` for guests.
+
+### GET `/status`
+
+```json
+// Response 200
+{ "data": { "available": true } }
+```
+
+### POST `/match`
+
+Request: `multipart/form-data` with field `image`. The photo is rotated by its EXIF orientation, resized and held
+as a snapshot for 10 minutes. `candidates` lists up to five of the caller's plants, best first; a `score` at or
+above `threshold` counts as a confident match.
+
+```json
+// Response 200
+{
+  "data": {
+    "snapshotId": "7b0c0f6e-...",
+    "threshold": 0.97,
+    "candidates": [{ "plantId": 12, "score": 0.98 }]
+  }
+}
+```
+
+Answers `503` when no model is loaded and `429` when the embedder is busy.
+
+### POST `/snapshots/:id/confirm`
+
+Consumes the snapshot (once, only by the user who created it; otherwise `404`).
+
+```json
+// Request
+{ "plantId": 12, "usedFertilizer": false, "fertilizerTypeId": null, "keepPhoto": true }
+// Response 201
+{ "data": { "recordId": 55, "imageId": 301 } }
+```
+
+`keepPhoto` defaults to `true`; `imageId` is `null` when the photo is not kept. A `plantId` the caller does not own answers `404`.
 
 ---
 

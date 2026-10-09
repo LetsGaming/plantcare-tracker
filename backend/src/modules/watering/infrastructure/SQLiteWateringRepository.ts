@@ -6,6 +6,7 @@ import type {
   FertilizerType,
   CreateWateringDTO,
   UpdateWateringDTO,
+  NewWateringEntry,
 } from '../domain/WateringRecord';
 
 interface WateringRow {
@@ -97,6 +98,58 @@ export class SQLiteWateringRepository implements WateringRepository {
       .where('plant_id', 'in', ownedPlantIds(userId))
       .executeTakeFirst();
     return Number(result.numDeletedRows) > 0;
+  }
+
+  /** All-or-nothing: returns null (nothing inserted) unless every plant belongs to the user. */
+  async createMany(
+    userId: number,
+    entries: NewWateringEntry[],
+    date: number,
+  ): Promise<number[] | null> {
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const plantIds = [...new Set(entries.map((e) => e.plantId))];
+        const owned = await trx
+          .selectFrom('plants')
+          .select('id')
+          .where('user_id', '=', userId)
+          .where('id', 'in', plantIds)
+          .execute();
+        if (owned.length !== plantIds.length) return null;
+        const ids: number[] = [];
+        for (const entry of entries) {
+          const result = await trx
+            .insertInto('watering_records')
+            .values({
+              plant_id: entry.plantId,
+              date,
+              used_fertilizer: entry.usedFertilizer ? 1 : 0,
+              fertilizer_type_id: entry.usedFertilizer ? (entry.fertilizerTypeId ?? null) : null,
+            })
+            .executeTakeFirstOrThrow();
+          ids.push(Number(result.insertId));
+        }
+        return ids;
+      });
+  }
+
+  /** All-or-nothing: deletes nothing unless every id is a record of the user's plants. */
+  async deleteMany(userId: number, ids: number[]): Promise<boolean> {
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const owned = await trx
+          .selectFrom('watering_records as w')
+          .innerJoin('plants as p', 'p.id', 'w.plant_id')
+          .select('w.id')
+          .where('p.user_id', '=', userId)
+          .where('w.id', 'in', ids)
+          .execute();
+        if (owned.length !== new Set(ids).size) return false;
+        await trx.deleteFrom('watering_records').where('id', 'in', ids).execute();
+        return true;
+      });
   }
 }
 

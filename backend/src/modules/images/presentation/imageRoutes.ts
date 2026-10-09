@@ -13,6 +13,7 @@ import multipart from '@fastify/multipart';
 import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteImageRepository } from '../infrastructure/SQLiteImageRepository';
 import { LocalImageStorage } from '../infrastructure/LocalImageStorage';
+import type { ImageStoredListener } from '../application/ImageUseCases';
 import { createImageController } from './imageController';
 import { SQLiteImageEntityLookup } from '../infrastructure/SQLiteImageEntityLookup';
 import { ImageAccessPolicy } from '../application/ImageAccessPolicy';
@@ -29,58 +30,65 @@ const validateEntityType: Hook = async (request) => {
   }
 };
 
-export const imageRoutes: FastifyPluginAsync = async (app) => {
-  const repo = new SQLiteImageRepository();
-  const storage = new LocalImageStorage();
-  const access = new ImageAccessPolicy(new SQLiteImageEntityLookup());
-  const ctrl = createImageController(repo, storage, access);
+export interface ImageRouterDeps {
+  /** Called after a new image file is stored (upload or replacement). */
+  onImageStored?: ImageStoredListener;
+}
 
-  // Parts are buffered and attached to the body so handlers read them like
-  // any other input; the size cap bounds memory per upload.
-  await app.register(multipart, {
-    attachFieldsToBody: true,
-    limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
-  });
-  app.setErrorHandler((error, request, reply) =>
-    globalErrorHandler(translateUploadError(error), request, reply),
-  );
+export const imageRoutes =
+  (deps: ImageRouterDeps = {}): FastifyPluginAsync =>
+  async (app) => {
+    const repo = new SQLiteImageRepository();
+    const storage = new LocalImageStorage();
+    const access = new ImageAccessPolicy(new SQLiteImageEntityLookup());
+    const ctrl = createImageController(repo, storage, access, deps.onImageStored);
 
-  // POST /:entityType/:entityId: upload image
-  app.post(
-    '/:entityType/:entityId',
-    { onRequest: [authenticateToken, validateEntityType] },
-    ctrl.uploadImage,
-  );
+    // Parts are buffered and attached to the body so handlers read them like
+    // any other input; the size cap bounds memory per upload.
+    await app.register(multipart, {
+      attachFieldsToBody: true,
+      limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+    });
+    app.setErrorHandler((error, request, reply) =>
+      globalErrorHandler(translateUploadError(error), request, reply),
+    );
 
-  // GET /:entityType: list images for entity (entityId in query)
-  app.get(
-    '/:entityType',
-    { onRequest: [authenticateToken, validateEntityType] },
-    ctrl.listEntityImages,
-  );
+    // POST /:entityType/:entityId: upload image
+    app.post(
+      '/:entityType/:entityId',
+      { onRequest: [authenticateToken, validateEntityType] },
+      ctrl.uploadImage,
+    );
 
-  // GET /:entityType/:entityId: serve primary image file (optional ?size=)
-  app.get(
-    '/:entityType/:entityId',
-    { onRequest: [authenticateToken, validateEntityType] },
-    ctrl.serveEntityImage,
-  );
+    // GET /:entityType: list images for entity (entityId in query)
+    app.get(
+      '/:entityType',
+      { onRequest: [authenticateToken, validateEntityType] },
+      ctrl.listEntityImages,
+    );
 
-  // PATCH /:id: replace file and/or update date
-  app.patch('/:id', { onRequest: authenticateToken }, ctrl.updateImage);
+    // GET /:entityType/:entityId: serve primary image file (optional ?size=)
+    app.get(
+      '/:entityType/:entityId',
+      { onRequest: [authenticateToken, validateEntityType] },
+      ctrl.serveEntityImage,
+    );
 
-  // DELETE /:id: delete single image by image ID, 204 No Content.
-  // Only numeric image ids belong to this route; anything else is unknown.
-  app.delete('/:id', { onRequest: authenticateToken }, async (request, reply) => {
-    const id = numericParam(request, 'id');
-    if (!Number.isInteger(id) || id <= 0) return reply.callNotFound();
-    return ctrl.deleteImage(request, reply);
-  });
+    // PATCH /:id: replace file and/or update date
+    app.patch('/:id', { onRequest: authenticateToken }, ctrl.updateImage);
 
-  // DELETE /:entityType/:entityId: delete all images for an entity
-  app.delete(
-    '/:entityType/:entityId',
-    { onRequest: [authenticateToken, validateEntityType] },
-    ctrl.deleteEntityImages,
-  );
-};
+    // DELETE /:id: delete single image by image ID, 204 No Content.
+    // Only numeric image ids belong to this route; anything else is unknown.
+    app.delete('/:id', { onRequest: authenticateToken }, async (request, reply) => {
+      const id = numericParam(request, 'id');
+      if (!Number.isInteger(id) || id <= 0) return reply.callNotFound();
+      return ctrl.deleteImage(request, reply);
+    });
+
+    // DELETE /:entityType/:entityId: delete all images for an entity
+    app.delete(
+      '/:entityType/:entityId',
+      { onRequest: [authenticateToken, validateEntityType] },
+      ctrl.deleteEntityImages,
+    );
+  };
