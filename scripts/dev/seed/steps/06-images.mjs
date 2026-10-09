@@ -4,7 +4,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Entity images: a gallery with several dated photos for some plants, one for others, none for
  *  the rest, so cards with and without images both appear. */
-const PLANT_PHOTOS = {
+export const PLANT_PHOTOS = {
   Monty: 4,
   "Pink Princess": 2,
   "Gummibaum Ünal": 1,
@@ -15,6 +15,16 @@ const PLANT_PHOTOS = {
 };
 const SUBSTRATE_PHOTOS = { "Aroid chunky mix": 1 };
 const COMPONENT_PHOTOS = { Perlite: 1, "Pine bark": 1 };
+
+/** The gradient variant `run` uploads as the index-th photo of a plant (plants come first in the numbering). */
+export const photoVariant = (plantName, index) => {
+  let variant = 0;
+  for (const [name, count] of Object.entries(PLANT_PHOTOS)) {
+    if (name === plantName) return variant + index;
+    variant += count;
+  }
+  throw new Error(`No seeded photos for ${plantName}`);
+};
 
 const upload = async (ctx, token, type, id, variant, daysAgo) => {
   const [top, bottom] = PALETTE[variant % PALETTE.length];
