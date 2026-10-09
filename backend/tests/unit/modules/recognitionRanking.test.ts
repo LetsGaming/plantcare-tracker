@@ -22,7 +22,7 @@ describe('rankPlants', () => {
       imageId: i,
       vector: v(1, i, 0),
     }));
-    vectors.push({ plantId: 99, imageId: 99, vector: v(1, 0) });
+    vectors.push({ plantId: 99, imageId: 99, vector: v(1, 0, 0, 0.1) });
     const ranked = rankPlants(v(1, 0, 0), vectors, 5);
     expect(ranked).toHaveLength(5);
     expect(ranked.some((m) => m.plantId === 99)).toBe(false);
