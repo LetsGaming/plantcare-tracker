@@ -23,6 +23,9 @@ const api = vi.hoisted(() => ({
   isApiError: () => false,
 }));
 vi.mock("@/utils/apiUtils", () => ({ default: api }));
+vi.mock("@/services/RecognitionService", () => ({
+  default: { status: vi.fn().mockResolvedValue(true) },
+}));
 
 import WaterRound from "@/views/water/WaterRound.vue";
 import RoundList from "@/components/water/RoundList.vue";

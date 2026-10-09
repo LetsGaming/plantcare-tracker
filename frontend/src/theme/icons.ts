@@ -5,6 +5,7 @@ import {
   chevronForwardOutline,
   bug,
   bugOutline,
+  cameraOutline,
   closeOutline,
   cloudUploadOutline,
   createOutline,
@@ -30,6 +31,8 @@ import {
 /** One outline family for the whole app. Filled glyphs only mark a selected state. */
 export const icons = {
   add: addCircleOutline,
+  camera: cameraOutline,
+  plant: leafOutline,
   chevronBack: chevronBackOutline,
   chevronDown: chevronDownOutline,
   chevronForward: chevronForwardOutline,

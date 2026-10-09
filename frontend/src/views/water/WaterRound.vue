@@ -6,7 +6,9 @@
       <div class="round">
         <div class="controls">
           <search-bar class="search-field" :placeholder="t('water.search')" @search="onSearch" />
-          <div v-if="!isGuest" class="snap-slot" />
+          <div v-if="showSnap" class="snap-slot">
+            <snap-button :disabled="sheet.open" @photo="onPhoto" @invalid="onInvalidPhoto" />
+          </div>
         </div>
 
         <div v-if="fertilizerTypes.length" class="round-fertilizer">
@@ -54,6 +56,22 @@
         </div>
       </ion-toolbar>
     </ion-footer>
+
+    <snap-match-sheet
+      :is-open="sheet.open"
+      :state="sheet.state"
+      :candidates="sheetCandidates"
+      :confident="confident"
+      :busy="snapBusy"
+      :logged-name="logged?.name ?? ''"
+      :fertilizer-types="fertilizerTypes"
+      @close="closeSheet"
+      @pick="onPick"
+      @other="pickerOpen = true"
+      @fertilize="onFertilize"
+      @undo="onUndo"
+    />
+    <plant-picker-modal :is-open="pickerOpen" @close="pickerOpen = false" @pick="onPickerPick" />
   </ion-page>
 </template>
 
@@ -76,12 +94,23 @@ import { water } from "ionicons/icons";
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import RoundList from "@/components/water/RoundList.vue";
+import SnapButton from "@/components/water/SnapButton.vue";
+import SnapMatchSheet, { type SnapCandidate } from "@/components/water/SnapMatchSheet.vue";
+import PlantPickerModal from "@/components/water/PlantPickerModal.vue";
 import { usePlantsStore } from "@/stores/plants";
 import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
+import { useSnapSettingsStore } from "@/stores/snapSettings";
+import RecognitionService from "@/services/RecognitionService";
+import ImageService from "@/services/ImageService";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
-import { buildBatchEntries, buildRoundRows, type RoundRow } from "@/utils/waterRound";
+import {
+  buildBatchEntries,
+  buildRoundRows,
+  rerankCandidates,
+  type RoundRow,
+} from "@/utils/waterRound";
 
 const UNDO_TOAST_MS = 6000;
 
@@ -101,6 +130,9 @@ export default defineComponent({
     OverviewHeader,
     SearchBar,
     RoundList,
+    SnapButton,
+    SnapMatchSheet,
+    PlantPickerModal,
   },
   setup() {
     return { water };
@@ -112,12 +144,38 @@ export default defineComponent({
       saving: false,
       roundFertilizer: null as number | null,
       overrides: {} as Record<number, Partial<RoundRow>>,
+      recognitionAvailable: false,
+      sheet: { open: false, state: "matching" as "matching" | "candidates" | "logged" },
+      pickerOpen: false,
+      snapBusy: false,
+      snapshotId: null as string | null,
+      candidates: [] as RecognitionCandidate[],
+      confident: false,
+      logged: null as {
+        plantId: number;
+        name: string;
+        recordId: number;
+        imageId: number | null;
+      } | null,
+      matchToken: 0,
     };
   },
   computed: {
     ...mapState(usePlantsStore, ["personalPlants"]),
     ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
     ...mapState(useSessionStore, ["isGuest"]),
+    ...mapState(useSnapSettingsStore, ["keepPhoto"]),
+    showSnap(): boolean {
+      return this.recognitionAvailable && !this.isGuest;
+    },
+    sheetCandidates(): SnapCandidate[] {
+      return this.candidates.flatMap((candidate) => {
+        const row = this.rows.find((r) => r.plantId === candidate.plantId);
+        return row
+          ? [{ plantId: row.plantId, name: row.name, imageUrl: row.imageUrl, tone: row.tone }]
+          : [];
+      });
+    },
     rows(): RoundRow[] {
       return buildRoundRows(this.personalPlants, this.recordsFor).map((row) => ({
         ...row,
@@ -141,6 +199,9 @@ export default defineComponent({
     },
   },
   async created() {
+    void RecognitionService.status().then((available) => {
+      this.recognitionAvailable = available;
+    });
     try {
       await Promise.all([this.ensureLoaded(), this.ensureFertilizerTypes()]);
       await this.ensureRecordsFor(this.personalPlants.map((plant) => plant.id));
@@ -151,12 +212,15 @@ export default defineComponent({
     }
   },
   methods: {
-    ...mapActions(usePlantsStore, ["ensureLoaded"]),
+    ...mapActions(usePlantsStore, ["ensureLoaded", "getPlant"]),
     ...mapActions(useWateringStore, [
       "addBatch",
       "removeBatch",
       "ensureRecordsFor",
+      "ensureRecords",
       "ensureFertilizerTypes",
+      "editRecord",
+      "deleteRecord",
     ]),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
@@ -193,6 +257,93 @@ export default defineComponent({
         console.error("Logging the watering round failed:", error);
       } finally {
         this.saving = false;
+      }
+    },
+    onInvalidPhoto(problem: "type" | "size") {
+      ToastService.showError(
+        this.t(problem === "type" ? "water.snap_bad_type" : "water.snap_too_large"),
+      );
+    },
+    closeSheet() {
+      this.matchToken += 1;
+      this.sheet.open = false;
+      this.snapshotId = null;
+    },
+    async onPhoto(file: File) {
+      const token = ++this.matchToken;
+      this.snapshotId = null;
+      this.sheet = { open: true, state: "matching" };
+      let match: MatchResult;
+      try {
+        match = await RecognitionService.match(file);
+      } catch {
+        if (token === this.matchToken) this.sheet.open = false;
+        return;
+      }
+      if (token !== this.matchToken) return;
+      const toneOf = (id: number) => this.rows.find((row) => row.plantId === id)?.tone;
+      this.snapshotId = match.snapshotId;
+      this.candidates = rerankCandidates(match.candidates, toneOf);
+      this.confident = (match.candidates[0]?.score ?? 0) >= match.threshold;
+      this.sheet.state = "candidates";
+    },
+    onPickerPick(plantId: number) {
+      this.pickerOpen = false;
+      return this.onPick(plantId);
+    },
+    async onPick(plantId: number) {
+      const snapshotId = this.snapshotId;
+      if (!snapshotId || this.snapBusy) return;
+      this.snapBusy = true;
+      this.snapshotId = null;
+      try {
+        const result = await RecognitionService.confirm(snapshotId, {
+          plantId,
+          keepPhoto: this.keepPhoto,
+        });
+        const name = this.rows.find((row) => row.plantId === plantId)?.name ?? "";
+        this.logged = { plantId, name, ...result };
+        try {
+          await Promise.all([
+            this.ensureRecords(plantId, { force: true }),
+            this.getPlant(plantId, true),
+          ]);
+        } catch (error) {
+          console.error("Refreshing the plant after a snap failed:", error);
+        }
+        this.sheet.state = "logged";
+      } catch {
+        this.sheet.open = false;
+      } finally {
+        this.snapBusy = false;
+      }
+    },
+    async onFertilize(typeId: number) {
+      const logged = this.logged;
+      if (!logged) return;
+      try {
+        await this.editRecord(logged.plantId, logged.recordId, {
+          usedFertilizer: true,
+          fertilizerTypeId: typeId,
+        });
+      } catch (error) {
+        console.error("Adding fertilizer to the snapped watering failed:", error);
+      }
+    },
+    async onUndo() {
+      const logged = this.logged;
+      if (!logged || this.snapBusy) return;
+      this.snapBusy = true;
+      try {
+        await this.deleteRecord(logged.plantId, logged.recordId);
+        if (logged.imageId) await ImageService.deleteImage(logged.imageId);
+        await this.getPlant(logged.plantId, true);
+        this.logged = null;
+        this.sheet.open = false;
+      } catch (error) {
+        console.error("Undoing the snapped watering failed:", error);
+      } finally {
+        this.snapBusy = false;
       }
     },
     async undoRound(ids: number[], plantIds: number[]) {

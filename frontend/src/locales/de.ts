@@ -1374,4 +1374,21 @@ export default {
   "water.log_count": "Gießen eintragen ({count})",
   "water.round_logged": "Gießvorgänge eingetragen: {count}",
   "water.empty": "Noch keine Pflanzen zum Gießen. Lege zuerst eine Pflanze an.",
+  "water.snap": "Pflanze fotografieren",
+  "water.snap_matching": "Deine Pflanze wird gesucht...",
+  "water.snap_is_this": "Ist das deine Pflanze?",
+  "water.snap_not_sure": "Nicht sicher. Welche ist es?",
+  "water.snap_no_match": "Keine Pflanze passt zu diesem Foto.",
+  "water.snap_other": "Andere Pflanze...",
+  "water.snap_logged": "{name} gegossen",
+  "water.snap_done": "Fertig",
+  "water.snap_bad_type":
+    "Dieses Fotoformat wird nicht unterstützt. Bitte nimm ein JPEG- oder PNG-Foto.",
+  "water.snap_too_large": "Dieses Foto ist zu groß. Das Limit liegt bei 10 MB.",
+  "water.picker_title": "Pflanze wählen",
+  "menu.snap_keep_photo": "Gieß-Schnappschüsse in den Fotos der Pflanze speichern",
+  "recognition.title": "Pflanzenerkennung",
+  "recognition.match": "Die Pflanze konnte nicht erkannt werden.",
+  "recognition.confirm":
+    "Das Gießen konnte nicht eingetragen werden. Mach ein neues Foto und versuche es erneut.",
 };
