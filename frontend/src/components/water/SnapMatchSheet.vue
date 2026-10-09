@@ -5,6 +5,7 @@
     :is-open="isOpen"
     :breakpoints="[0, 0.65, 1]"
     :initial-breakpoint="0.65"
+    :can-dismiss="!busy"
     @didDismiss="onDismiss"
   >
     <ion-content>
@@ -62,16 +63,25 @@
               :key="type.id"
               type="button"
               class="fertilizer-chip"
+              :class="{ selected: type.id === selectedFertilizerId }"
+              :aria-pressed="type.id === selectedFertilizerId"
+              :disabled="busy"
               @click="$emit('fertilize', type.id)"
             >
               {{ type.name }}
             </button>
           </div>
           <div class="actions">
-            <ion-button class="undo-button" fill="outline" size="large" @click="$emit('undo')">
+            <ion-button
+              class="undo-button"
+              fill="outline"
+              size="large"
+              :disabled="busy"
+              @click="$emit('undo')"
+            >
               {{ t("plantdetail.undo") }}
             </ion-button>
-            <ion-button class="done-button" size="large" @click="$emit('close')">
+            <ion-button class="done-button" size="large" :disabled="busy" @click="$emit('close')">
               {{ t("water.snap_done") }}
             </ion-button>
           </div>
@@ -111,6 +121,7 @@ export default defineComponent({
     confident: { type: Boolean, default: false },
     busy: { type: Boolean, default: false },
     loggedName: { type: String, default: "" },
+    selectedFertilizerId: { type: Number as PropType<number | null>, default: null },
     fertilizerTypes: { type: Array as PropType<FertilizerType[]>, default: () => [] },
   },
   emits: ["close", "pick", "other", "fertilize", "undo"],
@@ -266,6 +277,16 @@ export default defineComponent({
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+}
+
+.fertilizer-chip.selected {
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+}
+
+.fertilizer-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .actions {

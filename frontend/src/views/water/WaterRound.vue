@@ -64,6 +64,7 @@
       :confident="confident"
       :busy="snapBusy"
       :logged-name="logged?.name ?? ''"
+      :selected-fertilizer-id="logged?.fertilizerTypeId ?? null"
       :fertilizer-types="fertilizerTypes"
       @close="closeSheet"
       @pick="onPick"
@@ -150,12 +151,13 @@ export default defineComponent({
       snapBusy: false,
       snapshotId: null as string | null,
       candidates: [] as RecognitionCandidate[],
-      confident: false,
+      threshold: 1,
       logged: null as {
         plantId: number;
         name: string;
-        recordId: number;
+        recordId: number | null;
         imageId: number | null;
+        fertilizerTypeId: number | null;
       } | null,
       matchToken: 0,
     };
@@ -175,6 +177,11 @@ export default defineComponent({
           ? [{ plantId: row.plantId, name: row.name, imageUrl: row.imageUrl, tone: row.tone }]
           : [];
       });
+    },
+    confident(): boolean {
+      const first = this.sheetCandidates[0];
+      const raw = this.candidates.find((candidate) => candidate.plantId === first?.plantId);
+      return !!raw && raw.score >= this.threshold;
     },
     rows(): RoundRow[] {
       return buildRoundRows(this.personalPlants, this.recordsFor).map((row) => ({
@@ -265,6 +272,7 @@ export default defineComponent({
       );
     },
     closeSheet() {
+      if (this.snapBusy) return;
       this.matchToken += 1;
       this.sheet.open = false;
       this.snapshotId = null;
@@ -284,7 +292,7 @@ export default defineComponent({
       const toneOf = (id: number) => this.rows.find((row) => row.plantId === id)?.tone;
       this.snapshotId = match.snapshotId;
       this.candidates = rerankCandidates(match.candidates, toneOf);
-      this.confident = (match.candidates[0]?.score ?? 0) >= match.threshold;
+      this.threshold = match.threshold;
       this.sheet.state = "candidates";
     },
     onPickerPick(plantId: number) {
@@ -302,7 +310,7 @@ export default defineComponent({
           keepPhoto: this.keepPhoto,
         });
         const name = this.rows.find((row) => row.plantId === plantId)?.name ?? "";
-        this.logged = { plantId, name, ...result };
+        this.logged = { plantId, name, fertilizerTypeId: null, ...result };
         try {
           await Promise.all([
             this.ensureRecords(plantId, { force: true }),
@@ -311,7 +319,16 @@ export default defineComponent({
         } catch (error) {
           console.error("Refreshing the plant after a snap failed:", error);
         }
-        this.sheet.state = "logged";
+        if (this.sheet.open) {
+          this.sheet.state = "logged";
+        } else {
+          ToastService.showToastWithAction(
+            { key: "water.snap_logged", vars: { name } },
+            this.t("plantdetail.undo"),
+            () => void this.onUndo(),
+            UNDO_TOAST_MS,
+          );
+        }
       } catch {
         this.sheet.open = false;
       } finally {
@@ -320,14 +337,18 @@ export default defineComponent({
     },
     async onFertilize(typeId: number) {
       const logged = this.logged;
-      if (!logged) return;
+      if (!logged || logged.recordId === null || this.snapBusy) return;
+      this.snapBusy = true;
       try {
         await this.editRecord(logged.plantId, logged.recordId, {
           usedFertilizer: true,
           fertilizerTypeId: typeId,
         });
+        logged.fertilizerTypeId = typeId;
       } catch (error) {
         console.error("Adding fertilizer to the snapped watering failed:", error);
+      } finally {
+        this.snapBusy = false;
       }
     },
     async onUndo() {
@@ -335,9 +356,22 @@ export default defineComponent({
       if (!logged || this.snapBusy) return;
       this.snapBusy = true;
       try {
-        await this.deleteRecord(logged.plantId, logged.recordId);
-        if (logged.imageId) await ImageService.deleteImage(logged.imageId);
-        await this.getPlant(logged.plantId, true);
+        if (logged.recordId !== null) {
+          await this.deleteRecord(logged.plantId, logged.recordId);
+          logged.recordId = null;
+        }
+        if (logged.imageId) {
+          try {
+            await ImageService.deleteImage(logged.imageId);
+          } catch (error) {
+            console.error("Removing the snapped photo failed:", error);
+          }
+        }
+        try {
+          await this.getPlant(logged.plantId, true);
+        } catch (error) {
+          console.error("Refreshing the plant after undo failed:", error);
+        }
         this.logged = null;
         this.sheet.open = false;
       } catch (error) {

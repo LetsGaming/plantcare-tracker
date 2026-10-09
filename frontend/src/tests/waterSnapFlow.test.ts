@@ -42,6 +42,8 @@ type Vm = {
   onPick(plantId: number): Promise<void>;
   onFertilize(typeId: number): Promise<void>;
   onUndo(): Promise<void>;
+  closeSheet(): void;
+  sheet: { open: boolean; state: string };
 };
 
 const photo = () => new File(["x"], "p.jpg", { type: "image/jpeg" });
@@ -241,5 +243,121 @@ describe("WaterRound snap flow", () => {
     expect(ToastService.showError).toHaveBeenCalledWith("water.snap_bad_type");
     wrapper.findComponent(SnapButton).vm.$emit("invalid", "size");
     expect(ToastService.showError).toHaveBeenCalledWith("water.snap_too_large");
+  });
+
+  it("keeps the record deleted once and closes the sheet when the photo delete fails", async () => {
+    images.deleteImage.mockRejectedValue(new Error("gone"));
+    const { wrapper, plants, watering, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    vi.mocked(plants.getPlant).mockClear();
+    await vm.onUndo();
+    await vm.onUndo();
+    expect(watering.deleteRecord).toHaveBeenCalledTimes(1);
+    expect(plants.getPlant).toHaveBeenCalledWith(1, true);
+    expect(sheetProps(wrapper).isOpen).toBe(false);
+  });
+
+  it("keeps the sheet open and retries when deleting the record fails", async () => {
+    const { wrapper, watering, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    vi.mocked(watering.deleteRecord).mockRejectedValueOnce(new Error("offline"));
+    await vm.onUndo();
+    expect(sheetProps(wrapper).isOpen).toBe(true);
+    expect(images.deleteImage).not.toHaveBeenCalled();
+    await vm.onUndo();
+    expect(watering.deleteRecord).toHaveBeenCalledTimes(2);
+    expect(images.deleteImage).toHaveBeenCalledWith(66);
+    expect(sheetProps(wrapper).isOpen).toBe(false);
+  });
+
+  it("ignores a close request while a confirmation is in flight", async () => {
+    let resolve!: (value: unknown) => void;
+    recognition.confirm.mockReturnValue(new Promise((r) => (resolve = r)));
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    const pending = vm.onPick(1);
+    vm.closeSheet();
+    await nextTick();
+    expect(sheetProps(wrapper).isOpen).toBe(true);
+    resolve({ recordId: 55, imageId: null });
+    await pending;
+    expect(sheetProps(wrapper).state).toBe("logged");
+  });
+
+  it("offers a toast with undo when the confirmation resolves after the sheet closed", async () => {
+    let resolve!: (value: unknown) => void;
+    recognition.confirm.mockReturnValue(new Promise((r) => (resolve = r)));
+    const { watering, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    const pending = vm.onPick(1);
+    vm.sheet.open = false;
+    resolve({ recordId: 55, imageId: null });
+    await pending;
+    expect(ToastService.showToastWithAction).toHaveBeenCalledTimes(1);
+    const [message, , handler] = vi.mocked(ToastService.showToastWithAction).mock.calls[0];
+    expect(message).toEqual({ key: "water.snap_logged", vars: { name: "Fine" } });
+    await handler();
+    await flushPromises();
+    expect(watering.deleteRecord).toHaveBeenCalledWith(1, 55);
+  });
+
+  it("disables the sheet while a fertilizer edit is in flight and marks the type afterwards", async () => {
+    let resolve!: (value: unknown) => void;
+    const { wrapper, watering, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    vi.mocked(watering.editRecord).mockReturnValue(new Promise((r) => (resolve = r)) as never);
+    const pending = vm.onFertilize(4);
+    await nextTick();
+    expect(sheetProps(wrapper).busy).toBe(true);
+    await vm.onFertilize(4);
+    expect(watering.editRecord).toHaveBeenCalledTimes(1);
+    expect(sheetProps(wrapper).selectedFertilizerId).toBeNull();
+    resolve({});
+    await pending;
+    await nextTick();
+    expect(sheetProps(wrapper).busy).toBe(false);
+    expect(sheetProps(wrapper).selectedFertilizerId).toBe(4);
+  });
+
+  it("does not mark a fertilizer as selected when the edit fails", async () => {
+    const { wrapper, watering, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    vi.mocked(watering.editRecord).mockRejectedValue(new Error("offline"));
+    await vm.onFertilize(4);
+    expect(sheetProps(wrapper).selectedFertilizerId).toBeNull();
+  });
+
+  it("is not confident when the due bonus puts a low scoring plant first", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.82,
+      candidates: [
+        { plantId: 1, score: 0.84 },
+        { plantId: 3, score: 0.8 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("is not confident when the top scoring plant is not in the round", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.8,
+      candidates: [
+        { plantId: 99, score: 0.95 },
+        { plantId: 1, score: 0.5 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(1);
+    expect(sheetProps(wrapper).confident).toBe(false);
   });
 });

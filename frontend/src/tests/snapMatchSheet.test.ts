@@ -99,4 +99,26 @@ describe("SnapMatchSheet", () => {
     await wrapper.find(".done-button").trigger("click");
     expect(wrapper.emitted("close")).toHaveLength(1);
   });
+
+  it("disables logged actions while busy and marks the selected fertilizer", async () => {
+    const wrapper = mountSheet({
+      state: "logged",
+      loggedName: "Monty",
+      busy: true,
+      selectedFertilizerId: 8,
+    });
+    for (const chip of wrapper.findAll(".fertilizer-chip")) expect(isDisabled(chip)).toBe(true);
+    expect(isDisabled(wrapper.find(".undo-button"))).toBe(true);
+    expect(isDisabled(wrapper.find(".done-button"))).toBe(true);
+    const chips = wrapper.findAll(".fertilizer-chip");
+    expect(chips[1].classes()).toContain("selected");
+    expect(chips[0].classes()).not.toContain("selected");
+  });
+
+  it("blocks dismissal while busy", () => {
+    expect(mountSheet({ busy: true }).findComponent({ name: "IonModal" }).props("canDismiss")).toBe(
+      false,
+    );
+    expect(mountSheet().findComponent({ name: "IonModal" }).props("canDismiss")).toBe(true);
+  });
 });
