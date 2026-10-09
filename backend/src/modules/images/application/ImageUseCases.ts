@@ -48,6 +48,15 @@ export interface UploadImageInput {
   file: UploadedFile;
 }
 
+/** Emitted after a new image file is committed, so other modules can react. */
+export interface StoredImageEvent {
+  imageId: number;
+  entityType: EntityType;
+  imageUrl: string;
+}
+
+export type ImageStoredListener = (event: StoredImageEvent) => void;
+
 export interface UploadImageResult {
   url: string;
   capturedAt: Date;
@@ -58,6 +67,7 @@ export class UploadImageUseCase {
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
     private readonly access: ImageAccessPolicy,
+    private readonly onStored?: ImageStoredListener,
   ) {}
 
   async execute(input: UploadImageInput): Promise<UploadImageResult> {
@@ -66,7 +76,13 @@ export class UploadImageUseCase {
     const { filename, capturedAt } = await this.storage.processUpload(input.file, input.entityType);
 
     const stored = toStoredImagePath(input.entityType, filename);
-    await this.repo.create(input.entityType, input.entityId, stored, toEpochSeconds(capturedAt));
+    const imageId = await this.repo.create(
+      input.entityType,
+      input.entityId,
+      stored,
+      toEpochSeconds(capturedAt),
+    );
+    this.onStored?.({ imageId, entityType: input.entityType, imageUrl: stored });
 
     return { url: toPublicImageUrl(stored), capturedAt };
   }
@@ -133,6 +149,7 @@ export class UpdateImageUseCase {
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
     private readonly access: ImageAccessPolicy,
+    private readonly onStored?: ImageStoredListener,
   ) {}
 
   async execute(input: UpdateImageInput): Promise<ImageRecord> {
@@ -167,6 +184,11 @@ export class UpdateImageUseCase {
     // to drop the old one.
     if (newUrl) {
       await this.storage.remove(existing.entityType, existing.url);
+      this.onStored?.({
+        imageId: input.imageId,
+        entityType: existing.entityType,
+        imageUrl: newUrl,
+      });
     }
 
     const updated = await this.repo.findById(input.imageId);

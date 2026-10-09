@@ -8,5 +8,6 @@ export {
   PayloadTooLargeError,
   TooManyRequestsError,
   InternalError,
+  ServiceUnavailableError,
   isAppError,
 } from './AppError';

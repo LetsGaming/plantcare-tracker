@@ -86,6 +86,14 @@ export class InternalError extends AppError {
   }
 }
 
+// ── 503 ──────────────────────────────────────────────────────────────────────
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message = 'Service temporarily unavailable') {
+    super(message, 503);
+  }
+}
+
 // ── Type guard ────────────────────────────────────────────────────────────────
 
 export const isAppError = (error: unknown): error is AppError => error instanceof AppError;

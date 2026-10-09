@@ -27,3 +27,22 @@ export interface EmbeddingRepository {
   plantImagesMissing(model: string): Promise<MissingImage[]>;
   purgeOrphans(): Promise<void>;
 }
+
+export interface PendingSnapshot {
+  userId: number;
+  path: string;
+  vector: Float32Array;
+  expiresAt: number;
+}
+
+export interface SnapshotStore {
+  put(userId: number, webp: Buffer, vector: Float32Array): Promise<string>;
+  /** Removes and returns the snapshot, or null when unknown, expired or owned by someone else. */
+  take(id: string, userId: number): PendingSnapshot | null;
+}
+
+export interface RecognitionLogger {
+  warn(msg: string): void;
+  warn(obj: object, msg: string): void;
+  info(obj: object, msg: string): void;
+}

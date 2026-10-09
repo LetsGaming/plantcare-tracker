@@ -40,6 +40,8 @@ import { wateringRoutes } from './modules/watering/presentation/wateringRoutes';
 import { substrateRoutes } from './modules/substrate/presentation/substrateRoutes';
 import { componentRoutes } from './modules/components/presentation/componentRoutes';
 import { imageRoutes } from './modules/images/presentation/imageRoutes';
+import { createRecognition, recognitionRoutes } from './modules/recognition';
+import type { RecognitionDeps } from './modules/recognition';
 import { moreInfoRoutes } from './modules/moreInfo/presentation/moreInfoRoutes';
 import type { MoreInfoRouterDeps } from './modules/moreInfo/presentation/moreInfoRoutes';
 
@@ -48,6 +50,8 @@ export interface AppDeps {
   sales?: SalesRouterDeps;
   /** Replaces the AI client and link searchers of the more-info module. */
   moreInfo?: MoreInfoRouterDeps;
+  /** Replaces the plant image embedder; null turns recognition off. */
+  recognition?: RecognitionDeps;
 }
 
 const JSON_BODY_LIMIT_BYTES = 100 * 1024;
@@ -116,14 +120,19 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
   // Guests are read-only everywhere: one rule on the prefix, not one per route.
   app.addHook('onRequest', makeGuestReadOnly(V));
 
+  const recognition = await createRecognition(deps.recognition ?? {}, app.log);
+
   await app.register(authRoutes, { prefix: `${V}/auth` });
   await app.register(salesRoutes(deps.sales), { prefix: `${V}/sales` });
   await app.register(plantsRoutes, { prefix: `${V}/plants` });
   await app.register(wateringRoutes, { prefix: `${V}/watering` });
   await app.register(substrateRoutes, { prefix: `${V}/substrates` });
   await app.register(componentRoutes, { prefix: `${V}/components` });
-  await app.register(imageRoutes, { prefix: `${V}/images` });
+  await app.register(imageRoutes({ onImageStored: recognition.onImageStored }), {
+    prefix: `${V}/images`,
+  });
   await app.register(moreInfoRoutes(deps.moreInfo), { prefix: `${V}/more-info` });
+  await app.register(recognitionRoutes(recognition), { prefix: `${V}/recognition` });
 
   app.get(`${V}/health`, async (_request, reply) => {
     try {

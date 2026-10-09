@@ -15,6 +15,7 @@ import {
   UpdateImageUseCase,
   DeleteImageUseCase,
   DeleteEntityImagesUseCase,
+  type ImageStoredListener,
 } from '../application/ImageUseCases';
 import type { ImageAccessPolicy } from '../application/ImageAccessPolicy';
 import type {
@@ -68,11 +69,12 @@ export const createImageController = (
   repo: ImageRepository,
   storage: ImageStorage,
   access: ImageAccessPolicy,
+  onStored?: ImageStoredListener,
 ): ImageController => {
-  const upload = new UploadImageUseCase(repo, storage, access);
+  const upload = new UploadImageUseCase(repo, storage, access, onStored);
   const list = new ListEntityImagesUseCase(repo, access);
   const serve = new ServeEntityImageUseCase(repo, storage, access);
-  const update = new UpdateImageUseCase(repo, storage, access);
+  const update = new UpdateImageUseCase(repo, storage, access, onStored);
   const remove = new DeleteImageUseCase(repo, storage, access);
   const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access);
 
