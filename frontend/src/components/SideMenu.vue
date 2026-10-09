@@ -114,6 +114,11 @@
             {{ t("menu.dark_mode") }}
           </ion-toggle>
         </ion-item>
+        <ion-item>
+          <ion-toggle label-placement="start" :checked="keepPhoto" @ionChange="onKeepPhotoChange">
+            {{ t("menu.snap_keep_photo") }}
+          </ion-toggle>
+        </ion-item>
       </ion-list>
     </ion-content>
 
@@ -195,6 +200,7 @@ import { mapActions, mapState } from "pinia";
 import { useCalendarStore } from "@/stores/calendar";
 import { useSessionStore } from "@/stores/session";
 import { useLayoutStore } from "@/stores/layout";
+import { useSnapSettingsStore } from "@/stores/snapSettings";
 import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 import { confirmLogout } from "@/utils/confirmLogout";
@@ -264,6 +270,7 @@ export default defineComponent({
 
   computed: {
     ...mapState(useSessionStore, ["isAdmin"]),
+    ...mapState(useSnapSettingsStore, ["keepPhoto"]),
     ...mapState(useSalesStore, { salesCount: "newCount" }),
     destinations(): Array<{ tab: NavDestination; label: string }> {
       const list: Array<{ tab: NavDestination; label: string }> = [
@@ -300,6 +307,7 @@ export default defineComponent({
   methods: {
     ...mapActions(useSessionStore, { logUserOut: "logout" }),
     ...mapActions(useLayoutStore, ["toggleMenu"]),
+    ...mapActions(useSnapSettingsStore, ["setKeepPhoto"]),
     ...mapActions(useCalendarStore, {
       ensureCalendarLoaded: "ensureLoaded",
       deleteOldDates: "deleteOldDates",
@@ -350,6 +358,10 @@ export default defineComponent({
     async toggleDarkMode(value: boolean) {
       this.darkMode = value;
       await setDarkMode(value);
+    },
+
+    onKeepPhotoChange(e: CustomEvent) {
+      this.setKeepPhoto(e.detail.checked);
     },
 
     /* ---------- Calendar logic ---------- */
