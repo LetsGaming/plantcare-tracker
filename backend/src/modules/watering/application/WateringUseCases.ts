@@ -28,6 +28,27 @@ export const CreateWateringSchema = z.object({
   fertilizerTypeId: z.number().int().nullable().optional(),
 });
 
+export const CreateWateringBatchSchema = z.object({
+  date: z.union([z.string(), z.number()]).optional(),
+  entries: z
+    .array(
+      z.object({
+        plantId: z.number().int().positive(),
+        usedFertilizer: z.boolean().default(false),
+        fertilizerTypeId: z.number().int().nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(200)
+    .refine((list) => new Set(list.map((e) => e.plantId)).size === list.length, {
+      message: 'Each plant may appear only once',
+    }),
+});
+
+export const DeleteWateringBatchSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(200),
+});
+
 export const UpdateWateringSchema = z
   .object({
     date: z.union([z.string(), z.number()]).optional(),
@@ -155,5 +176,26 @@ export class DeleteWateringRecordUseCase {
   async execute(recordId: number, userId: number): Promise<void> {
     const deleted = await this.repo.delete(recordId, userId);
     if (!deleted) throw new NotFoundError('Watering record');
+  }
+}
+
+export class CreateWateringBatchUseCase {
+  constructor(private readonly repo: WateringRepository) {}
+
+  async execute(userId: number, input: unknown): Promise<number[]> {
+    const data = parseOrThrow(CreateWateringBatchSchema, input, 'Invalid watering batch');
+    const epochSeconds = requireEpochSeconds(data.date ?? Date.now());
+    const ids = await this.repo.createMany(userId, data.entries, epochSeconds);
+    if (!ids) throw new NotFoundError('Plant');
+    return ids;
+  }
+}
+
+export class DeleteWateringBatchUseCase {
+  constructor(private readonly repo: WateringRepository) {}
+
+  async execute(userId: number, input: unknown): Promise<void> {
+    const { ids } = parseOrThrow(DeleteWateringBatchSchema, input, 'Invalid watering batch');
+    if (!(await this.repo.deleteMany(userId, ids))) throw new NotFoundError('Watering record');
   }
 }

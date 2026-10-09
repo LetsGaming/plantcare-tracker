@@ -243,6 +243,8 @@ Errors: `401`, `403` (guest), `404`
 | POST | `/:plantId` | JWT | Create record |
 | PATCH | `/:id` | JWT | Update record |
 | DELETE | `/:id` | JWT | Delete record |
+| POST | `/batch` | JWT | Create one record per plant in a single transaction |
+| POST | `/batch/delete` | JWT | Delete several records in a single transaction |
 
 All reads and writes are scoped to plants the caller owns. Mutations answer `403` for guests.
 
@@ -298,6 +300,37 @@ Errors: `400` (invalid body or date, with `fields`), `401`, `403` (guest), `404`
 ```
 // Response 204 — no body
 ```
+
+### POST `/batch`
+
+```json
+// Request
+{
+  "date": 1719388800000,
+  "entries": [
+    { "plantId": 1, "usedFertilizer": true, "fertilizerTypeId": 1 },
+    { "plantId": 2, "usedFertilizer": false }
+  ]
+}
+
+// Response 201
+{ "data": { "ids": [15, 16] } }
+```
+
+`date` is optional and accepts the same formats as `POST /:plantId`. `entries` holds 1 to 200 items with distinct `plantId`s. The batch is all or nothing.  
+Errors: `400` (invalid body, empty, over 200 entries or duplicate plant), `401`, `403` (guest), `404` (any plant not found / not owned, nothing is created)
+
+### POST `/batch/delete`
+
+```json
+// Request
+{ "ids": [15, 16] }
+
+// Response 204, no body
+```
+
+`ids` holds 1 to 200 record ids. The delete is all or nothing.  
+Errors: `400` (invalid body), `401`, `403` (guest), `404` (any record not found / not owned, nothing is deleted)
 
 ---
 

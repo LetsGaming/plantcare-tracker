@@ -39,6 +39,8 @@ const makeMockRepo = (): WateringRepository => ({
   create: vi.fn().mockResolvedValue(7),
   update: vi.fn().mockResolvedValue(true),
   delete: vi.fn().mockResolvedValue(true),
+  createMany: vi.fn().mockResolvedValue([7]),
+  deleteMany: vi.fn().mockResolvedValue(true),
 });
 
 const asMock = (fn: unknown): ReturnType<typeof vi.fn> => fn as ReturnType<typeof vi.fn>;

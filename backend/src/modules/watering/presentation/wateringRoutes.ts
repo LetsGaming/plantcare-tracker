@@ -17,6 +17,8 @@ export const wateringRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/fertilizer-types', { onRequest: authenticateToken }, ctrl.getFertilizerTypes);
   app.get('/plant/:plantId', { onRequest: authenticateToken }, ctrl.getRecordsForPlant);
+  app.post('/batch', { onRequest: authenticateToken }, ctrl.addBatch);
+  app.post('/batch/delete', { onRequest: authenticateToken }, ctrl.deleteBatch);
   app.get('/:id', { onRequest: authenticateToken }, ctrl.getRecord);
   app.post('/:plantId', { onRequest: authenticateToken }, ctrl.addRecord);
   app.patch('/:id', { onRequest: authenticateToken }, ctrl.editRecord);
