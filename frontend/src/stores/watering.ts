@@ -24,12 +24,18 @@ import { defineStore } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
 import WateringMapper from "@/mapping/WateringMapping";
 import Utils from "@/utils/utils";
-import { handleRequest } from "@/utils/requestFeedback";
+import { handleRequest, withoutErrorToasts } from "@/utils/requestFeedback";
 import { optimisticRemove, optimisticUpsert } from "./optimistic";
 import { coalesced, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/watering";
 const RESOURCE_KEY = "watering.title";
+const BATCH_LIMIT = 200;
+
+const chunked = <T>(items: T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / BATCH_LIMIT) }, (_, i) =>
+    items.slice(i * BATCH_LIMIT, (i + 1) * BATCH_LIMIT),
+  );
 
 export const useWateringStore = defineStore("watering", {
   state: () => ({
@@ -223,35 +229,54 @@ export const useWateringStore = defineStore("watering", {
       );
     },
 
-    /** Logs one watering per entry; resolves with the new record ids. */
+    /**
+     * Logs one watering per entry, in requests of at most `BATCH_LIMIT`; resolves with the new
+     * record ids. If a request fails, the records created so far are deleted again.
+     */
     async addBatch(entries: WateringBatchEntry[]): Promise<number[]> {
-      const { ids } = await handleRequest(
-        ApiUtils.post<{ entries: WateringBatchEntry[] }, { ids: number[] }>(
-          `${BASE_ENDPOINT}/batch`,
-          { entries },
-        ),
-        RESOURCE_KEY,
-        "watering.add",
-      );
+      const ids: number[] = [];
+      try {
+        for (const chunk of chunked(entries)) {
+          const created = await handleRequest(
+            ApiUtils.post<{ entries: WateringBatchEntry[] }, { ids: number[] }>(
+              `${BASE_ENDPOINT}/batch`,
+              { entries: chunk },
+            ),
+            RESOURCE_KEY,
+            "watering.add",
+          );
+          ids.push(...created.ids);
+        }
+      } catch (error) {
+        await withoutErrorToasts(() => this.deleteChunks(ids)).catch(() => undefined);
+        throw error;
+      }
       await this.refetchPlants(entries.map((entry) => entry.plantId));
       return ids;
     },
 
     /** Deletes records created by `addBatch`. */
     async removeBatch(recordIds: number[], plantIds: number[]): Promise<void> {
-      await handleRequest(
-        ApiUtils.post<{ ids: number[] }, void>(`${BASE_ENDPOINT}/batch/delete`, {
-          ids: recordIds,
-        }),
-        RESOURCE_KEY,
-        "watering.delete",
-      );
+      await this.deleteChunks(recordIds);
       await this.refetchPlants(plantIds);
     },
 
-    refetchPlants(plantIds: number[]): Promise<unknown> {
-      return Promise.all(
-        [...new Set(plantIds)].map((id) => this.ensureRecords(id, { force: true })),
+    async deleteChunks(recordIds: number[]): Promise<void> {
+      for (const chunk of chunked(recordIds)) {
+        await handleRequest(
+          ApiUtils.post<{ ids: number[] }, void>(`${BASE_ENDPOINT}/batch/delete`, { ids: chunk }),
+          RESOURCE_KEY,
+          "watering.delete",
+        );
+      }
+    },
+
+    /** Refreshes the affected plants; the records already changed, so failures are ignored. */
+    async refetchPlants(plantIds: number[]): Promise<void> {
+      await withoutErrorToasts(() =>
+        Promise.allSettled(
+          [...new Set(plantIds)].map((id) => this.ensureRecords(id, { force: true })),
+        ),
       );
     },
 

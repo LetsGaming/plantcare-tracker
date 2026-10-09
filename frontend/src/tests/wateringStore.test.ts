@@ -351,4 +351,72 @@ describe("batch watering", () => {
     expect(api.get).toHaveBeenCalledWith("/watering/plant/7");
     expect(api.get).toHaveBeenCalledWith("/watering/plant/8");
   });
+  const many = (count: number): WateringBatchEntry[] =>
+    Array.from({ length: count }, (_, i) => ({ plantId: i + 1, usedFertilizer: false }));
+  const sizes = (path: string, key: "entries" | "ids") =>
+    api.post.mock.calls.filter((c) => c[0] === path).map((c) => c[1][key].length);
+
+  it("splits more than 200 entries into sequential requests and joins the ids", async () => {
+    let next = 1;
+    api.post.mockImplementation(async (_path: string, body: { entries: unknown[] }) => ({
+      ids: body.entries.map(() => next++),
+    }));
+    api.get.mockResolvedValue([]);
+    const store = await newStore();
+
+    const result = await store.addBatch(many(450));
+
+    expect(sizes("/watering/batch", "entries")).toEqual([200, 200, 50]);
+    expect(result).toEqual(Array.from({ length: 450 }, (_, i) => i + 1));
+  });
+
+  it("deletes the ids of earlier chunks and rethrows when a later chunk fails", async () => {
+    let calls = 0;
+    api.post.mockImplementation(async (path: string, body: { entries?: unknown[] }) => {
+      if (path === "/watering/batch/delete") return undefined;
+      calls += 1;
+      if (calls === 2) throw new Error("boom");
+      return { ids: body.entries!.map((_, i) => 1000 * calls + i) };
+    });
+    api.get.mockResolvedValue([]);
+    const store = await newStore();
+
+    await expect(store.addBatch(many(450))).rejects.toThrow("boom");
+
+    const deleted = api.post.mock.calls
+      .filter((c) => c[0] === "/watering/batch/delete")
+      .flatMap((c) => c[1].ids);
+    expect(deleted).toEqual(Array.from({ length: 200 }, (_, i) => 1000 + i));
+  });
+
+  it("splits a large delete into requests of 200", async () => {
+    api.post.mockResolvedValue(undefined);
+    api.get.mockResolvedValue([]);
+    const store = await newStore();
+
+    await store.removeBatch(
+      Array.from({ length: 450 }, (_, i) => i + 1),
+      [7],
+    );
+
+    expect(sizes("/watering/batch/delete", "ids")).toEqual([200, 200, 50]);
+  });
+
+  it("still resolves with the ids when the refetch fails, without an error toast", async () => {
+    api.post.mockResolvedValue({ ids: [10] });
+    api.get.mockRejectedValue(new Error("offline"));
+    const store = await newStore();
+
+    await expect(store.addBatch([many(1)[0]])).resolves.toEqual([10]);
+    expect(toast.showError).not.toHaveBeenCalled();
+  });
+
+  it("still resolves a delete when the refetch fails", async () => {
+    api.post.mockResolvedValue(undefined);
+    api.get.mockRejectedValue(new Error("offline"));
+    const store = await newStore();
+
+    await expect(store.removeBatch([10], [7])).resolves.toBeUndefined();
+    expect(toast.showError).not.toHaveBeenCalled();
+  });
 });

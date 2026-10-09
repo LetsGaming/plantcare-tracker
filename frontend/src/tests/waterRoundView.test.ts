@@ -17,6 +17,13 @@ vi.mock("@/services/general/LocalizationService", () => ({
   },
 }));
 
+const api = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  isApiError: () => false,
+}));
+vi.mock("@/utils/apiUtils", () => ({ default: api }));
+
 import WaterRound from "@/views/water/WaterRound.vue";
 import RoundList from "@/components/water/RoundList.vue";
 import { usePlantsStore } from "@/stores/plants";
@@ -138,5 +145,31 @@ describe("WaterRound", () => {
     const { wrapper } = mountRound();
     await flushPromises();
     expect(wrapper.find(".snap-slot").exists()).toBe(true);
+  });
+  it("still shows the success toast with undo when refreshing the records fails", async () => {
+    const pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false });
+    const plants = usePlantsStore(pinia);
+    const watering = useWateringStore(pinia);
+    const overridable = (store: object) => store as unknown as Record<string, unknown>;
+    vi.spyOn(plants, "ensureLoaded").mockResolvedValue();
+    vi.spyOn(watering, "ensureRecordsFor").mockResolvedValue();
+    vi.spyOn(watering, "ensureFertilizerTypes").mockResolvedValue();
+    overridable(plants).personalPlants = [plant(2, "Thirsty")];
+    watering.byPlantId = { 2: [rec(20), rec(27)] };
+    api.post.mockResolvedValue({ ids: [31] });
+    api.get.mockRejectedValue(new Error("offline"));
+    const wrapper = shallowMount(WaterRound, {
+      global: { plugins: [pinia], renderStubDefaultSlot: true },
+    });
+    await flushPromises();
+
+    await wrapper.find(".log-button").trigger("click");
+    await flushPromises();
+
+    expect(toast.showToastWithAction).toHaveBeenCalledTimes(1);
+    expect(toast.showToastWithAction.mock.calls[0][0]).toEqual({
+      key: "water.round_logged",
+      vars: { count: 1 },
+    });
   });
 });
