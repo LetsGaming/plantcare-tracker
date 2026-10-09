@@ -2,13 +2,14 @@
   <div class="snap-button">
     <ion-button
       class="snap-trigger"
+      expand="block"
       size="large"
       color="tertiary"
       :disabled="disabled"
-      :aria-label="t('water.snap')"
       @click="openCamera"
     >
-      <ion-icon :icon="icons.camera" slot="icon-only" aria-hidden="true" />
+      <ion-icon :icon="icons.camera" slot="start" aria-hidden="true" />
+      {{ t("water.snap") }}
     </ion-button>
     <input
       ref="input"
@@ -61,14 +62,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.snap-button {
-  flex: none;
-}
-
 .snap-trigger {
-  --padding-start: 0;
-  --padding-end: 0;
-  min-width: var(--tap-min);
   min-height: var(--tap-min);
   margin: 0;
 }

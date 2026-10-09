@@ -1,8 +1,18 @@
 import ApiUtils from "@/utils/apiUtils";
 import { handleRequest, withoutErrorToasts } from "@/utils/requestFeedback";
+import { asApiError } from "@/utils/apiErrorMessage";
+import ToastService from "@/services/general/ToastService";
+import localizationService from "@/services/general/LocalizationService";
 
 const BASE_ENDPOINT = "/recognition";
 const RESOURCE_KEY = "recognition.title";
+
+const MATCH_FAILURE_KEYS: Record<number, string> = {
+  400: "water.snap_unreadable",
+  429: "water.snap_busy",
+  503: "water.snap_unavailable",
+};
+const MATCH_FAILURE_FALLBACK = "recognition.match";
 
 const RecognitionService = {
   async status(): Promise<boolean> {
@@ -19,11 +29,15 @@ const RecognitionService = {
   async match(photo: File): Promise<MatchResult> {
     const form = new FormData();
     form.append("image", photo);
-    return handleRequest(
-      ApiUtils.upload<MatchResult>(`${BASE_ENDPOINT}/match`, form),
-      RESOURCE_KEY,
-      "recognition.match",
-    );
+    try {
+      return await withoutErrorToasts(() =>
+        ApiUtils.upload<MatchResult>(`${BASE_ENDPOINT}/match`, form),
+      );
+    } catch (error) {
+      const key = MATCH_FAILURE_KEYS[asApiError(error)?.status ?? 0] ?? MATCH_FAILURE_FALLBACK;
+      ToastService.showError(localizationService.t(key, undefined, key));
+      throw error;
+    }
   },
 
   async confirm(snapshotId: string, body: ConfirmSnapshot): Promise<ConfirmResult> {

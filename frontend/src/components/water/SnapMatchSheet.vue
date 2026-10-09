@@ -34,7 +34,7 @@
                   <span class="name break-words">{{ candidate.name }}</span>
                   <span
                     v-if="candidate.tone !== 'ok'"
-                    class="chip"
+                    class="tone-chip"
                     :class="`tone-${candidate.tone}`"
                   >
                     {{ t(`plantlist.${candidate.tone}`) }}
@@ -68,7 +68,7 @@
               :disabled="busy"
               @click="$emit('fertilize', type.id)"
             >
-              {{ type.name }}
+              {{ fertilizerLabel(type.name) }}
             </button>
           </div>
           <div class="actions">
@@ -97,6 +97,7 @@ import { IonButton, IonContent, IonIcon, IonModal, IonSpinner } from "@ionic/vue
 import localizationService from "@/services/general/LocalizationService";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import { icons } from "@/theme/icons";
+import { fertilizerLabel } from "@/utils/enumLabels";
 import type { WateringTone } from "@/utils/wateringStats";
 
 export interface SnapCandidate {
@@ -138,6 +139,7 @@ export default defineComponent({
     },
   },
   methods: {
+    fertilizerLabel,
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
@@ -240,23 +242,6 @@ export default defineComponent({
   font-weight: 600;
 }
 
-.chip {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
-.chip.tone-due {
-  background: var(--ion-color-tertiary);
-  color: var(--ion-color-tertiary-contrast);
-}
-
-.chip.tone-overdue {
-  background: var(--ion-color-secondary);
-  color: var(--ion-color-secondary-contrast);
-}
-
 .other-button {
   margin: 0;
 }
@@ -271,7 +256,7 @@ export default defineComponent({
   min-height: var(--tap-min);
   padding: 0 var(--space-4);
   border: 1px solid var(--ion-color-primary);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--ion-color-primary);
   font: inherit;

@@ -115,7 +115,12 @@
           </ion-toggle>
         </ion-item>
         <ion-item>
-          <ion-toggle label-placement="start" :checked="keepPhoto" @ionChange="onKeepPhotoChange">
+          <ion-toggle
+            class="ion-text-wrap"
+            label-placement="start"
+            :checked="keepPhoto"
+            @ionChange="onKeepPhotoChange"
+          >
             {{ t("menu.snap_keep_photo") }}
           </ion-toggle>
         </ion-item>

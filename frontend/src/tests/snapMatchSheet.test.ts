@@ -121,4 +121,12 @@ describe("SnapMatchSheet", () => {
     );
     expect(mountSheet().findComponent({ name: "IonModal" }).props("canDismiss")).toBe(true);
   });
+
+  it("names the fertilizer chips in the app language", () => {
+    const wrapper = mountSheet({
+      state: "logged",
+      fertilizerTypes: [{ id: 7, name: "organic" }],
+    });
+    expect(wrapper.find(".fertilizer-chip").text()).toBe("copy2.fertilizer.organic");
+  });
 });

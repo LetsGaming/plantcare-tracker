@@ -4,11 +4,11 @@
 
     <ion-content>
       <div class="round">
+        <div v-if="showSnap" class="snap-slot">
+          <snap-button :disabled="sheet.open" @photo="onPhoto" @invalid="onInvalidPhoto" />
+        </div>
         <div class="controls">
           <search-bar class="search-field" :placeholder="t('water.search')" @search="onSearch" />
-          <div v-if="showSnap" class="snap-slot">
-            <snap-button :disabled="sheet.open" @photo="onPhoto" @invalid="onInvalidPhoto" />
-          </div>
         </div>
 
         <div v-if="fertilizerTypes.length" class="round-fertilizer">
@@ -22,12 +22,15 @@
               :key="type.id"
               :value="String(type.id)"
             >
-              <ion-label>{{ type.name }}</ion-label>
+              <ion-label>{{ fertilizerLabel(type.name) }}</ion-label>
             </ion-segment-button>
           </ion-segment>
         </div>
 
         <p v-if="!rows.length && !loading" class="empty">{{ t("water.empty") }}</p>
+        <p v-else-if="rows.length && !visibleRows.length" class="empty empty-search">
+          {{ t("water.no_match") }}
+        </p>
         <round-list
           v-else
           :rows="visibleRows"
@@ -41,6 +44,9 @@
     <ion-footer v-if="!isGuest">
       <ion-toolbar>
         <div class="footer-actions">
+          <p v-if="hiddenCheckedCount" class="hidden-ticked" role="status">
+            {{ t("water.hidden_ticked", { hidden: hiddenCheckedCount }) }}
+          </p>
           <ion-button
             class="log-button"
             expand="block"
@@ -50,7 +56,7 @@
             @click="save"
           >
             <ion-spinner v-if="saving" name="crescent" slot="start" />
-            <ion-icon v-else :icon="water" slot="start" aria-hidden="true" />
+            <ion-icon v-else :icon="icons.water" slot="start" aria-hidden="true" />
             {{ saveLabel }}
           </ion-button>
         </div>
@@ -91,13 +97,14 @@ import {
   IonSpinner,
   IonToolbar,
 } from "@ionic/vue";
-import { water } from "ionicons/icons";
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import RoundList from "@/components/water/RoundList.vue";
 import SnapButton from "@/components/water/SnapButton.vue";
 import SnapMatchSheet, { type SnapCandidate } from "@/components/water/SnapMatchSheet.vue";
 import PlantPickerModal from "@/components/water/PlantPickerModal.vue";
+import { icons } from "@/theme/icons";
+import { fertilizerLabel } from "@/utils/enumLabels";
 import { usePlantsStore } from "@/stores/plants";
 import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
@@ -136,7 +143,7 @@ export default defineComponent({
     PlantPickerModal,
   },
   setup() {
-    return { water };
+    return { icons };
   },
   data() {
     return {
@@ -195,6 +202,10 @@ export default defineComponent({
         ? this.rows.filter((row) => row.name.toLowerCase().includes(needle))
         : this.rows;
     },
+    hiddenCheckedCount(): number {
+      const visible = new Set(this.visibleRows.map((row) => row.plantId));
+      return this.rows.filter((row) => row.checked && !visible.has(row.plantId)).length;
+    },
     checkedCount(): number {
       return this.rows.filter((row) => row.checked).length;
     },
@@ -219,6 +230,7 @@ export default defineComponent({
     }
   },
   methods: {
+    fertilizerLabel,
     ...mapActions(usePlantsStore, ["ensureLoaded", "getPlant"]),
     ...mapActions(useWateringStore, [
       "addBatch",
@@ -396,9 +408,13 @@ export default defineComponent({
 .round {
   display: flex;
   flex-direction: column;
-  max-width: 720px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding-bottom: var(--space-4);
+}
+
+.snap-slot {
+  padding: var(--space-3) var(--space-4) 0;
 }
 
 .controls {
@@ -433,7 +449,17 @@ export default defineComponent({
 }
 
 .footer-actions {
+  max-width: var(--content-max);
+  margin: 0 auto;
   padding: var(--space-2) var(--space-4);
+}
+
+.hidden-ticked {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: center;
 }
 
 .footer-actions ion-button {

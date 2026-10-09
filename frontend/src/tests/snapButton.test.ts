@@ -23,6 +23,11 @@ describe("SnapButton", () => {
     expect(input.attributes("accept")).toBe("image/*");
   });
 
+  it("shows a visible label", () => {
+    const wrapper = shallowMount(SnapButton, { global: { renderStubDefaultSlot: true } });
+    expect(wrapper.find(".snap-trigger").text()).toContain("water.snap");
+  });
+
   it("emits a valid photo", async () => {
     const file = new File(["x"], "p.jpg", { type: "image/jpeg" });
     const { wrapper } = await pick(file);

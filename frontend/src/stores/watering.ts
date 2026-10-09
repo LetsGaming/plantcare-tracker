@@ -93,12 +93,16 @@ export const useWateringStore = defineStore("watering", {
     },
 
     /** Warms the records of many plants, `limit` requests at a time; failures are skipped. */
-    async ensureRecordsFor(plantIds: number[], limit = 3): Promise<void> {
+    async ensureRecordsFor(
+      plantIds: number[],
+      limit = 3,
+      { force = false }: { force?: boolean } = {},
+    ): Promise<void> {
       const queue = [...plantIds];
       const worker = async () => {
         for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
           try {
-            await this.ensureRecords(id);
+            await this.ensureRecords(id, { force });
           } catch {
             // The list simply shows no watering line for this plant.
           }
@@ -274,9 +278,7 @@ export const useWateringStore = defineStore("watering", {
     /** Refreshes the affected plants; the records already changed, so failures are ignored. */
     async refetchPlants(plantIds: number[]): Promise<void> {
       await withoutErrorToasts(() =>
-        Promise.allSettled(
-          [...new Set(plantIds)].map((id) => this.ensureRecords(id, { force: true })),
-        ),
+        this.ensureRecordsFor([...new Set(plantIds)], undefined, { force: true }),
       );
     },
 

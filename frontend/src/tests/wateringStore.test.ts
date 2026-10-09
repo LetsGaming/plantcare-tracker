@@ -333,6 +333,29 @@ describe("batch watering", () => {
     ]);
   });
 
+  it("refetches at most three plants at a time", async () => {
+    api.post.mockResolvedValue({ ids: [1] });
+    let running = 0;
+    let peak = 0;
+    api.get.mockImplementation(async () => {
+      running += 1;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running -= 1;
+      return [];
+    });
+    const store = await newStore();
+    await store.addBatch(
+      Array.from({ length: 8 }, (_, i) => ({
+        plantId: i + 1,
+        usedFertilizer: false,
+        fertilizerTypeId: null,
+      })),
+    );
+    expect(api.get).toHaveBeenCalledTimes(8);
+    expect(peak).toBe(3);
+  });
+
   it("does not refetch when the batch is rejected", async () => {
     api.post.mockRejectedValue(new Error("400"));
     const store = await newStore();

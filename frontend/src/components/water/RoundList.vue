@@ -10,11 +10,11 @@
         />
         <span class="thumb" aria-hidden="true">
           <img v-if="row.imageUrl" :src="row.imageUrl" alt="" loading="lazy" />
-          <ion-icon v-else :icon="leaf" />
+          <ion-icon v-else :icon="icons.plant" />
         </span>
         <span class="text">
           <span class="name break-words">{{ row.name }}</span>
-          <span v-if="row.tone !== 'ok'" class="chip" :class="`tone-${row.tone}`">
+          <span v-if="row.tone !== 'ok'" class="tone-chip" :class="`tone-${row.tone}`">
             {{ t(`plantlist.${row.tone}`) }}
           </span>
         </span>
@@ -23,6 +23,7 @@
         v-if="fertilizerTypes.length"
         class="fertilizer"
         interface="popover"
+        :key="`${row.plantId}-${locale}`"
         :value="selectValue(row)"
         :aria-label="t('water.row_fertilizer', { name: row.name })"
         @ionChange="onSelect(row.plantId, $event)"
@@ -32,7 +33,7 @@
         }}</ion-select-option>
         <ion-select-option value="none">{{ t("water.fertilizer_none") }}</ion-select-option>
         <ion-select-option v-for="type in fertilizerTypes" :key="type.id" :value="type.id">
-          {{ type.name }}
+          {{ fertilizerLabel(type.name) }}
         </ion-select-option>
       </ion-select>
     </li>
@@ -42,7 +43,8 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
 import { IonIcon, IonSelect, IonSelectOption } from "@ionic/vue";
-import { leaf } from "ionicons/icons";
+import { icons } from "@/theme/icons";
+import { fertilizerLabel } from "@/utils/enumLabels";
 import localizationService from "@/services/general/LocalizationService";
 import type { RoundRow } from "@/utils/waterRound";
 
@@ -55,9 +57,15 @@ export default defineComponent({
   },
   emits: ["toggle", "set-fertilizer"],
   setup() {
-    return { leaf };
+    return { icons };
+  },
+  computed: {
+    locale(): string {
+      return localizationService.getLocale();
+    },
   },
   methods: {
+    fertilizerLabel,
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
@@ -135,23 +143,6 @@ export default defineComponent({
 
 .name {
   font-weight: 600;
-}
-
-.chip {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
-.chip.tone-due {
-  background: var(--ion-color-tertiary);
-  color: var(--ion-color-tertiary-contrast);
-}
-
-.chip.tone-overdue {
-  background: var(--ion-color-secondary);
-  color: var(--ion-color-secondary-contrast);
 }
 
 .fertilizer {

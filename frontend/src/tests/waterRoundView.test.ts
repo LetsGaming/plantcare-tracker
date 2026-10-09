@@ -29,6 +29,7 @@ vi.mock("@/services/RecognitionService", () => ({
 
 import WaterRound from "@/views/water/WaterRound.vue";
 import RoundList from "@/components/water/RoundList.vue";
+import SearchBar from "@/components/SearchBar.vue";
 import { usePlantsStore } from "@/stores/plants";
 import { useWateringStore } from "@/stores/watering";
 import { useSessionStore } from "@/stores/session";
@@ -144,10 +145,72 @@ describe("WaterRound", () => {
     expect(wrapper.find(".snap-slot").exists()).toBe(false);
   });
 
+  describe("search", () => {
+    const search = async (wrapper: ReturnType<typeof mountRound>["wrapper"], value: string) => {
+      wrapper.findComponent(SearchBar).vm.$emit("search", value);
+      await flushPromises();
+    };
+    const visibleNames = (wrapper: ReturnType<typeof mountRound>["wrapper"]) =>
+      (wrapper.findComponent(RoundList).props("rows") as { name: string }[]).map((r) => r.name);
+
+    it("tells how many ticked plants a search hides, and still logs them", async () => {
+      const { wrapper, watering } = mountRound();
+      await flushPromises();
+      expect(wrapper.find(".hidden-ticked").exists()).toBe(false);
+
+      await search(wrapper, "fine");
+      expect(visibleNames(wrapper)).toEqual(["Fine"]);
+      expect(wrapper.find(".hidden-ticked").text()).toContain('"hidden":2');
+
+      await wrapper.find(".log-button").trigger("click");
+      await flushPromises();
+      expect(watering.addBatch).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ plantId: 2 }),
+          expect.objectContaining({ plantId: 3 }),
+        ]),
+      );
+    });
+
+    it("counts only the ticked plants a search hides and clears with the search", async () => {
+      const { wrapper } = mountRound();
+      await flushPromises();
+      await search(wrapper, "thirsty");
+      expect(wrapper.find(".hidden-ticked").exists()).toBe(true);
+      await search(wrapper, "");
+      expect(wrapper.find(".hidden-ticked").exists()).toBe(false);
+    });
+
+    it("shows an empty state when nothing matches", async () => {
+      const { wrapper } = mountRound();
+      await flushPromises();
+      await search(wrapper, "zzz");
+      expect(wrapper.find(".empty-search").text()).toBe("water.no_match");
+      expect(wrapper.findComponent(RoundList).exists()).toBe(false);
+      await search(wrapper, "");
+      expect(wrapper.find(".empty-search").exists()).toBe(false);
+    });
+  });
+
   it("shows the footer and snap slot for signed in users", async () => {
     const { wrapper } = mountRound();
     await flushPromises();
     expect(wrapper.find(".snap-slot").exists()).toBe(true);
+  });
+
+  it("places the snap button above the search field", async () => {
+    const { wrapper } = mountRound();
+    await flushPromises();
+    const html = wrapper.find(".round").html();
+    expect(html.indexOf("snap-slot")).toBeGreaterThan(-1);
+    expect(html.indexOf("snap-slot")).toBeLessThan(html.indexOf("search-field"));
+  });
+
+  it("names the round fertilizer segments in the app language", async () => {
+    const { wrapper, watering } = mountRound();
+    watering.fertilizerTypes = [{ id: 4, name: "organic" } as FertilizerType];
+    await flushPromises();
+    expect(wrapper.find(".round-fertilizer").text()).toContain("copy2.fertilizer.organic");
   });
   it("still shows the success toast with undo when refreshing the records fails", async () => {
     const pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false });

@@ -8,7 +8,16 @@ const feedback = vi.hoisted(() => ({
 }));
 vi.mock("@/utils/requestFeedback", () => feedback);
 
+const toast = vi.hoisted(() => ({ showError: vi.fn() }));
+vi.mock("@/services/general/ToastService", () => ({ default: toast }));
+vi.mock("@/services/general/LocalizationService", () => ({
+  default: { t: (key: string) => key },
+}));
+
 import RecognitionService from "@/services/RecognitionService";
+
+const apiError = (status: number, message = "Unreadable image") =>
+  Object.assign(new Error(message), { name: "ApiError", status });
 
 describe("RecognitionService", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -33,11 +42,27 @@ describe("RecognitionService", () => {
     const [endpoint, form] = api.upload.mock.calls[0];
     expect(endpoint).toBe("/recognition/match");
     expect((form as FormData).get("image")).toBeInstanceOf(File);
-    expect(feedback.handleRequest).toHaveBeenCalledWith(
-      expect.anything(),
-      "recognition.title",
-      "recognition.match",
-    );
+    expect(feedback.withoutErrorToasts).toHaveBeenCalled();
+    expect(toast.showError).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [400, "water.snap_unreadable"],
+    [429, "water.snap_busy"],
+    [503, "water.snap_unavailable"],
+    [500, "recognition.match"],
+  ])("shows a localized message for HTTP %i, never the server text", async (status, key) => {
+    api.upload.mockRejectedValue(apiError(status));
+    const photo = new File(["x"], "p.jpg", { type: "image/jpeg" });
+    await expect(RecognitionService.match(photo)).rejects.toMatchObject({ status });
+    expect(toast.showError).toHaveBeenCalledWith(key);
+  });
+
+  it("uses the generic message for a network failure", async () => {
+    api.upload.mockRejectedValue(new TypeError("Failed to fetch"));
+    const photo = new File(["x"], "p.jpg", { type: "image/jpeg" });
+    await expect(RecognitionService.match(photo)).rejects.toThrow("Failed to fetch");
+    expect(toast.showError).toHaveBeenCalledWith("recognition.match");
   });
 
   it("confirms a snapshot with the given body", async () => {
