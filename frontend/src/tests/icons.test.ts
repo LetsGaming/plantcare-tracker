@@ -43,6 +43,7 @@ describe("icon family", () => {
       edit: createOutline,
       filter: filterOutline,
       upload: cloudUploadOutline,
+      water: waterOutline,
       logout: logOutOutline,
       profile: personOutline,
       settings: settingsOutline,

@@ -15,7 +15,7 @@ screens read:
 | Placeholder tints | `--tint-1` to `--tint-5`, `--tint-ink` |
 | Charts | `--chart-1` to `--chart-6`, `--chart-text-color`, `--chart-grid-color`, `--chart-line-color`, `--chart-fill-color` |
 | Type | `--font-display` (Bricolage Grotesque), `--font-body` (Figtree), `--text-xs` to `--text-2xl`; fonts are self-hosted through `@fontsource-variable` (`theme/fonts.ts`) |
-| Space and shape | `--space-1` to `--space-7`, `--radius-sm|md|lg`, `--shadow-card`, `--shadow-lift`, `--tap-min` (44px), `--content-max`, `--ease-out` |
+| Space and shape | `--space-1` to `--space-7`, `--radius-sm|md|lg|pill`, `--shadow-card`, `--shadow-lift`, `--tap-min` (44px), `--content-max`, `--ease-out` |
 
 Text pairs meet WCAG AA in both themes (primary on white is 6.5:1). Use tokens only: no hex colors or
 inline style attributes in components. `custom.css` carries the global typography, focus ring, selection
