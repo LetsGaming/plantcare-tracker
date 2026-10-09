@@ -268,6 +268,7 @@ export default defineComponent({
     destinations(): Array<{ tab: NavDestination; label: string }> {
       const list: Array<{ tab: NavDestination; label: string }> = [
         { tab: "plants", label: "tabs.plants" },
+        { tab: "water", label: "tabs.water" },
         { tab: "substrates", label: "tabs.substrates" },
         { tab: "components", label: "tabs.components" },
         { tab: "sales", label: "tabs.sales" },

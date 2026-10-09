@@ -12,6 +12,8 @@
  * | POST   | /watering/:plantId         | Add a record                      |
  * | PATCH  | /watering/:recordId        | Edit a record                     |
  * | DELETE | /watering/:recordId        | Delete a record                   |
+ * | POST   | /watering/batch            | Add records for many plants       |
+ * | POST   | /watering/batch/delete     | Delete many records               |
  *
  * Mutations are optimistic: the expected record is painted at once (a
  * temporary negative id for creates), reconciled with the server record, and
@@ -218,6 +220,38 @@ export const useWateringStore = defineStore("watering", {
             RESOURCE_KEY,
             "watering.delete",
           ),
+      );
+    },
+
+    /** Logs one watering per entry; resolves with the new record ids. */
+    async addBatch(entries: WateringBatchEntry[]): Promise<number[]> {
+      const { ids } = await handleRequest(
+        ApiUtils.post<{ entries: WateringBatchEntry[] }, { ids: number[] }>(
+          `${BASE_ENDPOINT}/batch`,
+          { entries },
+        ),
+        RESOURCE_KEY,
+        "watering.add",
+      );
+      await this.refetchPlants(entries.map((entry) => entry.plantId));
+      return ids;
+    },
+
+    /** Deletes records created by `addBatch`. */
+    async removeBatch(recordIds: number[], plantIds: number[]): Promise<void> {
+      await handleRequest(
+        ApiUtils.post<{ ids: number[] }, void>(`${BASE_ENDPOINT}/batch/delete`, {
+          ids: recordIds,
+        }),
+        RESOURCE_KEY,
+        "watering.delete",
+      );
+      await this.refetchPlants(plantIds);
+    },
+
+    refetchPlants(plantIds: number[]): Promise<unknown> {
+      return Promise.all(
+        [...new Set(plantIds)].map((id) => this.ensureRecords(id, { force: true })),
       );
     },
 

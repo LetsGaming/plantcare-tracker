@@ -311,3 +311,44 @@ describe("persistence", () => {
     expect(store.recordsFor(7)).toEqual([]);
   });
 });
+
+describe("batch watering", () => {
+  const entries: WateringBatchEntry[] = [
+    { plantId: 7, usedFertilizer: true, fertilizerTypeId: 2 },
+    { plantId: 8, usedFertilizer: false, fertilizerTypeId: null },
+    { plantId: 7, usedFertilizer: false, fertilizerTypeId: null },
+  ];
+
+  it("posts the entries and refetches each distinct plant once", async () => {
+    api.post.mockResolvedValue({ ids: [10, 11, 12] });
+    api.get.mockResolvedValue([apiRecord()]);
+    const store = await newStore();
+
+    await expect(store.addBatch(entries)).resolves.toEqual([10, 11, 12]);
+
+    expect(api.post).toHaveBeenCalledWith("/watering/batch", { entries });
+    expect(api.get.mock.calls.map((call) => call[0]).sort()).toEqual([
+      "/watering/plant/7",
+      "/watering/plant/8",
+    ]);
+  });
+
+  it("does not refetch when the batch is rejected", async () => {
+    api.post.mockRejectedValue(new Error("400"));
+    const store = await newStore();
+    await expect(store.addBatch(entries)).rejects.toThrow("400");
+    expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it("posts the record ids to delete and refetches the affected plants", async () => {
+    api.post.mockResolvedValue(undefined);
+    api.get.mockResolvedValue([]);
+    const store = await newStore();
+
+    await store.removeBatch([10, 11], [7, 8]);
+
+    expect(api.post).toHaveBeenCalledWith("/watering/batch/delete", { ids: [10, 11] });
+    expect(api.get).toHaveBeenCalledWith("/watering/plant/7");
+    expect(api.get).toHaveBeenCalledWith("/watering/plant/8");
+  });
+});

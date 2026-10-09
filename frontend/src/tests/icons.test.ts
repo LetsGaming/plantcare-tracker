@@ -24,6 +24,8 @@ import {
   pulseOutline,
   settingsOutline,
   swapVerticalOutline,
+  water,
+  waterOutline,
 } from "ionicons/icons";
 import { icons, navIcons } from "@/theme/icons";
 
@@ -51,6 +53,7 @@ describe("icon family", () => {
   it("pairs each navigation destination with an outline idle and filled selected glyph", () => {
     expect(navIcons).toEqual({
       plants: { idle: leafOutline, selected: leaf },
+      water: { idle: waterOutline, selected: water },
       substrates: { idle: cubeOutline, selected: cube },
       components: { idle: gridOutline, selected: grid },
       sales: { idle: pricetagOutline, selected: pricetag },
