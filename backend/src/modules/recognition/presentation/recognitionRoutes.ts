@@ -20,7 +20,9 @@ export const recognitionRoutes =
     await snapshots.init();
     app.addHook('onClose', () => snapshots.stop());
     app.addHook('onReady', async () => {
-      void ctx.embedImages?.backfill();
+      ctx.embedImages
+        ?.backfill()
+        .catch((err) => app.log.warn({ err }, 'embedding backfill failed'));
     });
 
     const { embedder } = ctx;
@@ -34,6 +36,7 @@ export const recognitionRoutes =
             snapshots,
             embedder.modelId,
             getUploadsDirectory(),
+            app.log,
           )
         : null,
     );

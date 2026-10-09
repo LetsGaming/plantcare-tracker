@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -6,7 +8,12 @@ import type { CreateWateringRecordUseCase } from '../../watering/application/Wat
 import { toStoredImagePath } from '../../../core/config';
 import { NotFoundError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
-import type { EmbeddingRepository, SnapshotStore } from '../domain/Recognition';
+import type {
+  EmbeddingRepository,
+  PendingSnapshot,
+  RecognitionLogger,
+  SnapshotStore,
+} from '../domain/Recognition';
 
 const ConfirmSchema = z.object({
   plantId: z.number().int().positive(),
@@ -28,6 +35,7 @@ export class ConfirmSnapshotUseCase {
     private readonly snapshots: SnapshotStore,
     private readonly modelId: string,
     private readonly uploadsDir: string,
+    private readonly log: Pick<RecognitionLogger, 'warn'>,
   ) {}
 
   async execute(userId: number, snapshotId: string, input: unknown): Promise<ConfirmResult> {
@@ -41,25 +49,37 @@ export class ConfirmSnapshotUseCase {
       });
       if (!data.keepPhoto) return { recordId: record.record_id, imageId: null };
 
-      const filename = `${Date.now()}-snapshot.webp`;
-      const target = path.join(this.uploadsDir, 'plant', filename);
-      await mkdir(path.dirname(target), { recursive: true });
-      await copyFile(snap.path, target);
-      try {
-        const imageId = await this.images.create(
-          'plant',
-          data.plantId,
-          toStoredImagePath('plant', filename),
-          Math.floor(Date.now() / 1000),
-        );
-        await this.embeddings.save(imageId, this.modelId, snap.vector);
-        return { recordId: record.record_id, imageId };
-      } catch (err) {
-        await rm(target, { force: true });
-        throw err;
-      }
+      const imageId = await this.keepPhoto(snap, data.plantId);
+      return { recordId: record.record_id, imageId };
     } finally {
       await rm(snap.path, { force: true });
     }
+  }
+
+  /** Best effort: the watering record already exists, so a photo failure never fails the request. */
+  private async keepPhoto(snap: PendingSnapshot, plantId: number): Promise<number | null> {
+    const filename = `${Date.now()}-${randomUUID()}-snapshot.webp`;
+    const target = path.join(this.uploadsDir, 'plant', filename);
+    let imageId: number;
+    try {
+      await mkdir(path.dirname(target), { recursive: true });
+      await copyFile(snap.path, target, constants.COPYFILE_EXCL);
+      imageId = await this.images.create(
+        'plant',
+        plantId,
+        toStoredImagePath('plant', filename),
+        Math.floor(Date.now() / 1000),
+      );
+    } catch (err) {
+      this.log.warn({ err, plantId }, 'snapshot photo could not be stored');
+      await rm(target, { force: true });
+      return null;
+    }
+    try {
+      await this.embeddings.save(imageId, this.modelId, snap.vector);
+    } catch (err) {
+      this.log.warn({ err, imageId }, 'snapshot photo embedding failed');
+    }
+    return imageId;
   }
 }
