@@ -1,3 +1,6 @@
+/// <reference types="node" />
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 
@@ -128,5 +131,47 @@ describe("SnapMatchSheet", () => {
       fertilizerTypes: [{ id: 7, name: "organic" }],
     });
     expect(wrapper.find(".fertilizer-chip").text()).toBe("copy2.fertilizer.organic");
+  });
+
+  it("tags each fertilizer chip with its kind", () => {
+    const wrapper = mountSheet({
+      state: "logged",
+      fertilizerTypes: [
+        { id: 1, name: "organic" },
+        { id: 2, name: "synthetic" },
+      ],
+    });
+    expect(wrapper.findAll(".fertilizer-chip").map((c) => c.attributes("data-kind"))).toEqual([
+      "organic",
+      "mineral",
+    ]);
+  });
+});
+
+describe("SnapMatchSheet chip colors", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "..", "components/water/SnapMatchSheet.vue"),
+    "utf8",
+  );
+  const ruleBody = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "m").exec(source)?.[1] ?? "";
+  };
+
+  it.each([
+    ["organic", "--feed-organic"],
+    ["mineral", "--feed-mineral"],
+  ])("paints %s chips with their feed token", (kind, token) => {
+    const chip = ruleBody(`.fertilizer-chip[data-kind="${kind}"]`);
+    expect(chip).toContain(`border-color: var(${token})`);
+    expect(chip).toContain(`color: var(${token})`);
+    const selected = ruleBody(`.fertilizer-chip[data-kind="${kind}"].selected`);
+    expect(selected).toContain(`background: var(${token})`);
+    expect(selected).toContain(`color: var(${token}-contrast)`);
+  });
+
+  it("keeps the done button primary", () => {
+    expect(source).not.toMatch(/\.done-button[^{]*\{[^}]*--feed-/);
+    expect(source).toMatch(/class="done-button"(?![^>]*color=)/);
   });
 });

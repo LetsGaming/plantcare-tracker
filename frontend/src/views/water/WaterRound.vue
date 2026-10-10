@@ -21,6 +21,7 @@
               v-for="type in fertilizerTypes"
               :key="type.id"
               :value="String(type.id)"
+              :data-kind="fertilizerKind(type.name)"
             >
               <ion-label>{{ fertilizerLabel(type.name) }}</ion-label>
             </ion-segment-button>
@@ -104,7 +105,7 @@ import SnapButton from "@/components/water/SnapButton.vue";
 import SnapMatchSheet, { type SnapCandidate } from "@/components/water/SnapMatchSheet.vue";
 import PlantPickerModal from "@/components/water/PlantPickerModal.vue";
 import { icons } from "@/theme/icons";
-import { fertilizerLabel } from "@/utils/enumLabels";
+import { fertilizerKind, fertilizerLabel } from "@/utils/enumLabels";
 import { usePlantsStore } from "@/stores/plants";
 import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
@@ -230,6 +231,7 @@ export default defineComponent({
     }
   },
   methods: {
+    fertilizerKind,
     fertilizerLabel,
     ...mapActions(usePlantsStore, ["ensureLoaded", "getPlant"]),
     ...mapActions(useWateringStore, [

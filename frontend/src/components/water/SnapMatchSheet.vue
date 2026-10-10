@@ -63,6 +63,7 @@
               :key="type.id"
               type="button"
               class="fertilizer-chip"
+              :data-kind="fertilizerKind(type.name)"
               :class="{ selected: type.id === selectedFertilizerId }"
               :aria-pressed="type.id === selectedFertilizerId"
               :disabled="busy"
@@ -97,7 +98,7 @@ import { IonButton, IonContent, IonIcon, IonModal, IonSpinner } from "@ionic/vue
 import localizationService from "@/services/general/LocalizationService";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import { icons } from "@/theme/icons";
-import { fertilizerLabel } from "@/utils/enumLabels";
+import { fertilizerKind, fertilizerLabel } from "@/utils/enumLabels";
 import type { WateringTone } from "@/utils/wateringStats";
 
 export interface SnapCandidate {
@@ -139,6 +140,7 @@ export default defineComponent({
     },
   },
   methods: {
+    fertilizerKind,
     fertilizerLabel,
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
@@ -267,6 +269,26 @@ export default defineComponent({
 .fertilizer-chip.selected {
   background: var(--ion-color-primary);
   color: var(--ion-color-primary-contrast);
+}
+
+.fertilizer-chip[data-kind="organic"] {
+  border-color: var(--feed-organic);
+  color: var(--feed-organic);
+}
+
+.fertilizer-chip[data-kind="organic"].selected {
+  background: var(--feed-organic);
+  color: var(--feed-organic-contrast);
+}
+
+.fertilizer-chip[data-kind="mineral"] {
+  border-color: var(--feed-mineral);
+  color: var(--feed-mineral);
+}
+
+.fertilizer-chip[data-kind="mineral"].selected {
+  background: var(--feed-mineral);
+  color: var(--feed-mineral-contrast);
 }
 
 .fertilizer-chip:disabled {

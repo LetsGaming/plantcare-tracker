@@ -31,7 +31,6 @@ describe("clay means overdue only", () => {
     "theme/custom.css",
     "theme/variables.css",
     "components/overview/ItemsOverview.vue",
-    "components/calendar/Calendar.vue",
     "components/ui/PlantPlaceholder.vue",
   ];
   const clay = /--ion-color-secondary|color="secondary"|--clay-wash/;
@@ -174,5 +173,22 @@ describe("chart series tokens", () => {
 describe("sales saving", () => {
   it("is not clay", () => {
     expect(rule(vue("views/sales/SalesDetails.vue"), ".saving")).not.toContain("secondary");
+  });
+});
+
+describe("fertilizer kinds", () => {
+  it.each([
+    ["organic", "--feed-organic"],
+    ["mineral", "--feed-mineral"],
+  ])("checks the %s round segment in its feed token", (kind, token) => {
+    expect(rule(read("theme/custom.css"), `ion-segment-button[data-kind="${kind}"]`)).toContain(
+      `--color-checked: var(${token})`,
+    );
+  });
+
+  it("keeps the calendar free of clay", () => {
+    for (const file of ["calendar/Calendar.vue", "calendar/CalendarLegend.vue"]) {
+      expect(vue(file)).not.toMatch(/--ion-color-secondary|color="secondary"|--clay/);
+    }
   });
 });

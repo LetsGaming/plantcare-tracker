@@ -212,6 +212,21 @@ describe("WaterRound", () => {
     await flushPromises();
     expect(wrapper.find(".round-fertilizer").text()).toContain("copy2.fertilizer.organic");
   });
+
+  it("tags each round fertilizer segment with its kind and leaves none untagged", async () => {
+    const { wrapper, watering } = mountRound();
+    watering.fertilizerTypes = [
+      { id: 1, name: "organic" },
+      { id: 2, name: "synthetic" },
+    ] as FertilizerType[];
+    await flushPromises();
+    const buttons = wrapper.findAllComponents({ name: "IonSegmentButton" });
+    expect(buttons.map((b) => [b.attributes("value"), b.attributes("data-kind")])).toEqual([
+      ["none", undefined],
+      ["1", "organic"],
+      ["2", "mineral"],
+    ]);
+  });
   it("still shows the success toast with undo when refreshing the records fails", async () => {
     const pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false });
     const plants = usePlantsStore(pinia);
