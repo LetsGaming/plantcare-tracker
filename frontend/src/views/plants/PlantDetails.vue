@@ -38,7 +38,7 @@
         @action="goToList"
       />
 
-      <article v-else class="plant-page">
+      <article v-else class="plant-page" :class="{ 'is-public': isPublic }">
         <plant-tag
           class="area-tag"
           :name="plant.name"
@@ -47,12 +47,17 @@
         />
 
         <watering-status
+          v-if="!isPublic"
           class="area-status"
           :plant-id="plant.id"
           :plant-name="plant.name"
           :can-water="canEdit"
           @add-details="openWateringForm"
         />
+        <p v-else class="area-status history-private" role="note">
+          <ion-icon :icon="icons.lock" aria-hidden="true" />
+          {{ t("plantdetail.history_private") }}
+        </p>
 
         <div class="area-photo">
           <details-banner :banner-title="plant.name" :image-url="plant.imageUrl" image-only />
@@ -66,6 +71,7 @@
         </div>
 
         <watering-records
+          v-if="!isPublic"
           ref="records"
           class="area-calendar"
           :plantId="plant.id"
@@ -110,7 +116,7 @@
 </template>
 
 <script lang="ts">
-import { IonPage, IonContent, IonRefresher, IonRefresherContent } from "@ionic/vue";
+import { IonPage, IonContent, IonIcon, IonRefresher, IonRefresherContent } from "@ionic/vue";
 import { defineComponent } from "vue";
 
 import { mapActions, mapState } from "pinia";
@@ -120,6 +126,7 @@ import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { icons } from "@/theme/icons";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
@@ -139,6 +146,7 @@ export default defineComponent({
   components: {
     IonPage,
     IonContent,
+    IonIcon,
     IonRefresher,
     IonRefresherContent,
     DetailsHeader,
@@ -162,6 +170,7 @@ export default defineComponent({
 
   data() {
     return {
+      icons,
       /** Full substrate object, fetched separately after plant loads (V2 only sends substrate ref) */
       fullSubstrate: null as Substrate | null,
 
@@ -385,6 +394,15 @@ export default defineComponent({
   min-width: 0;
 }
 
+.history-private {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
 .area-photo {
   display: grid;
   gap: var(--space-4);
@@ -402,6 +420,14 @@ export default defineComponent({
     align-items: start;
     gap: var(--space-5);
     padding: var(--space-5);
+  }
+
+  .plant-page.is-public {
+    grid-template-areas:
+      "tag tag"
+      "photo status"
+      "photo guide"
+      "substrate substrate";
   }
 
   .area-tag {

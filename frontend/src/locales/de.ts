@@ -945,6 +945,8 @@ export default {
 
   "plantdetail.private": "Privat",
 
+  "plantdetail.history_private": "Der Gießverlauf ist privat.",
+
   "plantdetail.water_now": "Jetzt gießen",
 
   "plantdetail.watering_saving": "Wird gespeichert...",

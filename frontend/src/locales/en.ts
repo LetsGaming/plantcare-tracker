@@ -940,6 +940,8 @@ export default {
 
   "plantdetail.private": "Private",
 
+  "plantdetail.history_private": "Watering history is private.",
+
   "plantdetail.water_now": "Water now",
 
   "plantdetail.watering_saving": "Saving...",
