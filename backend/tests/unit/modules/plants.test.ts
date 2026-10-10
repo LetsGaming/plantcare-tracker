@@ -220,10 +220,31 @@ describe('UpdatePlantUseCase', () => {
 
   it('throws NotFoundError for a substrate the user may not use, without writing', async () => {
     const repo = makeMockRepo();
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
     (repo.isSubstrateUsableBy as ReturnType<typeof vi.fn>).mockResolvedValue(false);
     await expect(new UpdatePlantUseCase(repo).execute(1, 2, { substrateId: 7 })).rejects.toThrow(
-      NotFoundError,
+      'Substrate not found',
     );
+    expect(repo.isSubstrateUsableBy).toHaveBeenCalledWith(7, 2);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('skips the substrate check when the plant keeps its substrate', async () => {
+    const repo = makeMockRepo();
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
+    (repo.isSubstrateUsableBy as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    await new UpdatePlantUseCase(repo).execute(1, 2, { name: 'Renamed', substrateId: 1 });
+    expect(repo.isSubstrateUsableBy).not.toHaveBeenCalled();
+    expect(repo.update).toHaveBeenCalledWith(1, 2, { name: 'Renamed', substrateId: 1 });
+  });
+
+  it("throws Plant not found for someone else's plant without checking or writing", async () => {
+    const repo = makeMockRepo();
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
+    await expect(new UpdatePlantUseCase(repo).execute(1, 99, { substrateId: 7 })).rejects.toThrow(
+      'Plant not found',
+    );
+    expect(repo.isSubstrateUsableBy).not.toHaveBeenCalled();
     expect(repo.update).not.toHaveBeenCalled();
   });
 

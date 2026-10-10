@@ -432,6 +432,68 @@ describe('substrate access', () => {
     app.db.query<{ n: number }>('SELECT COUNT(*) AS n FROM plants WHERE user_id = ?', [userId])[0]
       .n;
 
+  const plantOnSubstrateTurnedPrivate = async () => {
+    const owner = await app.signIn('user');
+    const stranger = await app.signIn('user');
+    const shared = await createSubstrate(app, stranger.auth, { isPublic: true });
+    const plant = await createPlant(app, owner.auth, shared.substrate_id);
+    const hide = await app.client.request({
+      method: 'patch',
+      url: `${API}/substrates/${shared.substrate_id}`,
+      headers: stranger.auth,
+      json: { isPublic: false },
+    });
+    expect(hide.status).toBe(200);
+    return { owner, stranger, shared, plant };
+  };
+
+  it('keeps a substrate that turned private when the plant is saved with the same id', async () => {
+    const { owner, shared, plant } = await plantOnSubstrateTurnedPrivate();
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { name: 'renamed', substrateId: shared.substrate_id },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.plant_name).toBe('renamed');
+    expect(res.body.data.substrate.substrate_id).toBe(shared.substrate_id);
+  });
+
+  it('still refuses moving that plant to a different foreign private substrate', async () => {
+    const { owner, stranger, shared, plant } = await plantOnSubstrateTurnedPrivate();
+    const other = await createSubstrate(app, stranger.auth, { isPublic: false });
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { name: 'renamed', substrateId: other.substrate_id },
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Substrate not found');
+    const after = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(after.body.data.plant_name).toBe('Monstera');
+    expect(after.body.data.substrate.substrate_id).toBe(shared.substrate_id);
+  });
+
+  it("answers 404 Plant for someone else's plant before checking the substrate", async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const intruder = await app.signIn('user');
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: intruder.auth,
+      json: { substrateId: 987654 },
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Plant not found');
+  });
+
   it('answers a plant update with an unknown substrate with 404', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);

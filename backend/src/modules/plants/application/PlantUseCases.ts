@@ -123,7 +123,13 @@ export class UpdatePlantUseCase {
 
   async execute(id: number, userId: number, input: unknown): Promise<Plant> {
     const data = parseOrThrow(UpdatePlantSchema, input, 'Invalid update data');
-    await assertSubstrateUsable(this.repo, data.substrateId, userId);
+
+    const current = await this.repo.findById(id);
+    if (!current || current.userId !== userId) throw new NotFoundError('Plant');
+    // A plant may keep a substrate whose owner made it private since; only a move is checked.
+    if (data.substrateId !== current.substrate?.substrate_id) {
+      await assertSubstrateUsable(this.repo, data.substrateId, userId);
+    }
 
     const updated = await this.repo.update(id, userId, data);
     if (!updated) throw new NotFoundError('Plant');

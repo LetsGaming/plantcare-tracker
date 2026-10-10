@@ -150,7 +150,7 @@ describe("PlantEditingModal", () => {
 describe("species fallback", () => {
   it("PlantTag shows the localized unknown species label", () => {
     const wrapper = mount(PlantTag, {
-      props: { name: "Monty", species: null as unknown as string },
+      props: { name: "Monty", species: null },
       global: { stubs: { IonIcon: true } },
     });
     expect(wrapper.find(".tag-species").text()).toBe("Unbekannte Art");
