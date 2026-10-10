@@ -159,6 +159,7 @@ import { alertCircle, chevronDownCircleOutline, reload, arrowUp, water } from "i
 
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
+import type { WateringTone } from "@/utils/wateringStats";
 import { icons } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 import ProgressiveImage from "@/components/ProgressiveImage.vue";
@@ -174,7 +175,7 @@ export interface OverviewItem {
   isNew?: boolean;
   /** Watering state shown in the tag body; sortRank orders ascending ahead of unranked items. */
   statusLine?: string;
-  statusTone?: "due" | "overdue" | "ok";
+  statusTone?: WateringTone;
   statusLabel?: string;
   sortRank?: number;
   /** Formatted prices of a sale card, shown between the name and the shop line. */

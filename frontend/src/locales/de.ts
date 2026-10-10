@@ -1209,6 +1209,8 @@ export default {
 
   "plantlist.never": "Noch nie gegossen",
 
+  "plantlist.new": "Noch nie gegossen",
+
   "plantlist.due": "Zum Gießen",
 
   "plantlist.overdue": "Überfällig",

@@ -32,7 +32,10 @@ export const relativeDaysText = (daysAgo: number, locale: string): string => {
 
 export const DEFAULT_WATERING_INTERVAL_DAYS = 7;
 
-export type WateringTone = "due" | "overdue" | "ok";
+export type WateringTone = "due" | "overdue" | "ok" | "new";
+
+/** Sits between default-interval overdue plants (rank <= -9) and due plants (rank >= -8). */
+export const NEW_PLANT_RANK = -(DEFAULT_WATERING_INTERVAL_DAYS + 1.5);
 
 export interface WateringStatus {
   /** Whole days since the latest watering; null when the plant was never watered. */
@@ -55,7 +58,7 @@ export const wateringStatus = (
   const latest = latestWateringMillis(records);
   const average = averageIntervalDays(records);
   const intervalDays = average ?? DEFAULT_WATERING_INTERVAL_DAYS;
-  if (latest === null) return { daysSince: null, intervalDays, tone: "ok", rank: 0 };
+  if (latest === null) return { daysSince: null, intervalDays, tone: "new", rank: NEW_PLANT_RANK };
 
   const daysSince = Math.max(0, calendarDaysBetween(latest, nowMillis));
   const isDue = average === null ? daysSince > intervalDays : daysSince >= intervalDays;

@@ -11,7 +11,12 @@ export interface RoundRow {
   fertilizerTypeId: number | null | undefined;
 }
 
-const TONE_BONUS: Record<WateringTone, number> = { overdue: 0.05, due: 0.03, ok: 0 };
+const TONE_BONUS: Record<WateringTone, number> = {
+  overdue: 0.05,
+  due: 0.03,
+  new: 0.03,
+  ok: 0,
+};
 
 export const buildRoundRows = (
   plants: Plant[],

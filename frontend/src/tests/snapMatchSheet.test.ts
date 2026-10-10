@@ -13,7 +13,7 @@ vi.mock("@/services/general/LocalizationService", () => ({
 
 import SnapMatchSheet from "@/components/water/SnapMatchSheet.vue";
 
-const candidate = (plantId: number, tone: "ok" | "due" | "overdue" = "ok") => ({
+const candidate = (plantId: number, tone: "ok" | "due" | "overdue" | "new" = "ok") => ({
   plantId,
   name: `Plant ${plantId}`,
   tone,
@@ -51,6 +51,13 @@ describe("SnapMatchSheet", () => {
     const wrapper = mountSheet({ confident: false });
     expect(wrapper.find(".sheet-title").text()).toBe("water.snap_not_sure");
     expect(wrapper.find(".candidate.highlight").exists()).toBe(false);
+  });
+
+  it("badges a never watered candidate with the new tone", () => {
+    const wrapper = mountSheet({ candidates: [candidate(1, "new"), candidate(2)] });
+    const chip = wrapper.findAll(".candidate")[0].find(".tone-chip");
+    expect(chip.text()).toBe("plantlist.new");
+    expect(chip.classes()).toContain("tone-new");
   });
 
   it("shows at most three candidates with their tone badge", () => {

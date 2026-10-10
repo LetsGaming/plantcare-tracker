@@ -254,3 +254,8 @@ ion-toast {
   background: var(--ion-color-secondary);
   color: var(--ion-color-secondary-contrast);
 }
+
+.tone-chip.tone-new {
+  background: var(--water-wash);
+  color: var(--ion-color-tertiary-shade);
+}

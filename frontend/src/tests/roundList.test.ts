@@ -36,4 +36,26 @@ describe("RoundList", () => {
     expect(options).toContain("copy2.fertilizer.organic");
     expect(options).toContain("copy2.fertilizer.synthetic");
   });
+
+  it("labels a never watered row with its own chip", () => {
+    const wrapper = shallowMount(RoundList, {
+      props: {
+        rows: [
+          {
+            plantId: 1,
+            name: "Fresh",
+            checked: true,
+            tone: "new",
+            rank: -8.5,
+            fertilizerTypeId: undefined,
+          },
+        ],
+        fertilizerTypes: [],
+      },
+      global: { renderStubDefaultSlot: true },
+    });
+    const chip = wrapper.find(".tone-chip");
+    expect(chip.text()).toBe("plantlist.new");
+    expect(chip.classes()).toContain("tone-new");
+  });
 });

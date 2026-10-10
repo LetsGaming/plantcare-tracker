@@ -45,6 +45,7 @@ const pairs: Pair[] = [
   ["--ink-soft", "--surface-sunken", 5.8, 5.8],
   ["--control-border", "--surface-raised", 3, 3],
   ["--focus-ring", "--ion-background-color", 5.69, 5.7],
+  ["--ion-color-tertiary-shade", "--water-wash", 4.5, 4.5],
   ["--overdue-ink", "--surface-raised", 5.7, 5.7],
   ["--series-1", "--surface-raised", 4.3, 4.3],
   ["--series-2", "--surface-raised", 4.3, 4.3],

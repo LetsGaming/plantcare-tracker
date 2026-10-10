@@ -1200,6 +1200,8 @@ export default {
 
   "plantlist.never": "Not watered yet",
 
+  "plantlist.new": "Never watered",
+
   "plantlist.due": "Needs water",
 
   "plantlist.overdue": "Overdue",
