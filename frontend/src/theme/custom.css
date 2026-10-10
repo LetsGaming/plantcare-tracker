@@ -273,3 +273,7 @@ ion-toast {
   background: var(--water-wash);
   color: var(--ion-color-tertiary-shade);
 }
+
+ion-split-pane {
+  top: var(--offline-h, 0px);
+}
