@@ -158,6 +158,7 @@ export default defineComponent({
       pickerOpen: false,
       snapBusy: false,
       snapshotId: null as string | null,
+      rawTopId: null as number | null,
       candidates: [] as RecognitionCandidate[],
       threshold: 1,
       logged: null as {
@@ -187,8 +188,10 @@ export default defineComponent({
       });
     },
     confident(): boolean {
+      // The rerank only orders the list; confidence needs the server's own best match shown first.
       const first = this.sheetCandidates[0];
-      const raw = this.candidates.find((candidate) => candidate.plantId === first?.plantId);
+      if (!first || first.plantId !== this.rawTopId) return false;
+      const raw = this.candidates.find((candidate) => candidate.plantId === first.plantId);
       return !!raw && raw.score >= this.threshold;
     },
     rows(): RoundRow[] {
@@ -290,10 +293,12 @@ export default defineComponent({
       this.matchToken += 1;
       this.sheet.open = false;
       this.snapshotId = null;
+      this.rawTopId = null;
     },
     async onPhoto(file: File) {
       const token = ++this.matchToken;
       this.snapshotId = null;
+      this.rawTopId = null;
       this.sheet = { open: true, state: "matching" };
       let match: MatchResult;
       try {
@@ -305,6 +310,7 @@ export default defineComponent({
       if (token !== this.matchToken) return;
       const toneOf = (id: number) => this.rows.find((row) => row.plantId === id)?.tone;
       this.snapshotId = match.snapshotId;
+      this.rawTopId = match.candidates[0]?.plantId ?? null;
       this.candidates = rerankCandidates(match.candidates, toneOf);
       this.threshold = match.threshold;
       this.sheet.state = "candidates";

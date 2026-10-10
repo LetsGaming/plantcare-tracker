@@ -100,6 +100,14 @@ describe("WaterRound snap flow", () => {
   });
 
   it("matches a photo and offers reranked candidates with the confidence flag", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "snap1",
+      threshold: 0.8,
+      candidates: [
+        { plantId: 3, score: 0.9 },
+        { plantId: 1, score: 0.86 },
+      ],
+    });
     const { wrapper } = await mountRound();
     const file = photo();
     wrapper.findComponent(SnapButton).vm.$emit("photo", file);
@@ -358,6 +366,91 @@ describe("WaterRound snap flow", () => {
     const { wrapper, vm } = await mountRound();
     await vm.onPhoto(photo());
     expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(1);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("is not confident when the due bonus reorders past the raw best match", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.7,
+      candidates: [
+        { plantId: 1, score: 0.83 },
+        { plantId: 3, score: 0.8 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.map((c: { plantId: number }) => c.plantId)).toEqual([
+      3, 1,
+    ]);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("is confident when the raw best match is first and clears the threshold", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.8,
+      candidates: [
+        { plantId: 3, score: 0.9 },
+        { plantId: 1, score: 0.5 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
+    expect(sheetProps(wrapper).confident).toBe(true);
+  });
+
+  it("is not confident when the raw best match is first but below the threshold", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.8,
+      candidates: [
+        { plantId: 3, score: 0.7 },
+        { plantId: 1, score: 0.5 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("is not confident when the raw best match is outside the round even above the threshold", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.4,
+      candidates: [
+        { plantId: 99, score: 0.95 },
+        { plantId: 1, score: 0.5 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(1);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("forgets the previous raw best match when a second photo is matched", async () => {
+    recognition.match
+      .mockResolvedValueOnce({
+        snapshotId: "a",
+        threshold: 0.8,
+        candidates: [{ plantId: 3, score: 0.9 }],
+      })
+      .mockResolvedValueOnce({
+        snapshotId: "b",
+        threshold: 0.4,
+        candidates: [
+          { plantId: 99, score: 0.95 },
+          { plantId: 3, score: 0.5 },
+        ],
+      });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).confident).toBe(true);
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
     expect(sheetProps(wrapper).confident).toBe(false);
   });
 });
