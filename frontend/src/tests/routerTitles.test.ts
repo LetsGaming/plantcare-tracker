@@ -67,6 +67,17 @@ describe("route titles", () => {
   );
 });
 
+describe("intended title keys", () => {
+  it.each([
+    ["login", "login2.heading_login"],
+    ["plant-details", "page.plant_details"],
+    ["substrate-details", "page.substrate_details"],
+    ["water-round", "water.title"],
+  ])("%s uses %s", (name, key) => {
+    expect(router.getRoutes().find((r) => r.name === name)?.meta.titleKey).toBe(key);
+  });
+});
+
 describe("page title", () => {
   it("composes the page and the app title", () => {
     expect(pageTitleFor({ meta: { titleKey: "plants.title" } })).toBe(

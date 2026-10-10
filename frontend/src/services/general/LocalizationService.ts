@@ -46,19 +46,19 @@ class LocalizationService {
    * @private
    */
   private initLocale(): string {
-    const locale = this.readInitialLocale();
-    this.applyDocumentLanguage(locale);
-    return locale;
+    return this.readInitialLocale();
   }
 
   /**
-   * Mirrors the active locale onto the document so screen readers, hyphenation
-   * and spell checking use the right language.
+   * Mirrors the language the UI is actually shown in onto the document so screen
+   * readers, hyphenation and spell checking use the right language. A locale
+   * without a registered bundle is displayed in the fallback language.
    * @private
    */
   private applyDocumentLanguage(locale: string): void {
     if (typeof document === "undefined") return;
-    document.documentElement.lang = locale;
+    const supported = this.translations.has(locale) || this.loaders.has(locale);
+    document.documentElement.lang = supported ? locale : this.fallbackLocale;
   }
 
   /** @private */
@@ -222,6 +222,7 @@ class LocalizationService {
   public async resolveInitialLocale(): Promise<void> {
     const current = this._locale.value;
     await this.ensureLocaleLoaded(current);
+    this.applyDocumentLanguage(current);
   }
 
   /**
