@@ -1409,4 +1409,6 @@ export default {
   "recognition.match": "Die Pflanze konnte nicht erkannt werden.",
   "recognition.confirm":
     "Das Gießen konnte nicht eingetragen werden. Mach ein neues Foto und versuche es erneut.",
+  "page.plant_details": "Pflanze",
+  "page.substrate_details": "Substrat",
 };

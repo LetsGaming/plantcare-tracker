@@ -1395,4 +1395,6 @@ export default {
   "recognition.title": "Plant recognition",
   "recognition.match": "Recognizing the plant failed.",
   "recognition.confirm": "Logging the watering failed. Take a new photo to try again.",
+  "page.plant_details": "Plant",
+  "page.substrate_details": "Substrate",
 };

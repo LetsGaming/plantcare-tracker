@@ -4,7 +4,9 @@
       <ion-buttons slot="start">
         <ion-menu-button :aria-label="t('a11y.menu')" />
       </ion-buttons>
-      <ion-title>{{ translateTitle(title) }}</ion-title>
+      <ion-title
+        ><h1 class="toolbar-title">{{ translateTitle(title) }}</h1></ion-title
+      >
       <ion-buttons slot="end">
         <icon-button
           v-if="showToolbarAdd"
@@ -180,6 +182,12 @@ export default defineComponent({
 
 .header-toolbar ion-title {
   color: var(--ion-text-color);
+}
+
+.toolbar-title {
+  margin: 0;
+  font: inherit;
+  color: inherit;
 }
 
 .header-toolbar ion-menu-button,

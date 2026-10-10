@@ -46,6 +46,23 @@ class LocalizationService {
    * @private
    */
   private initLocale(): string {
+    const locale = this.readInitialLocale();
+    this.applyDocumentLanguage(locale);
+    return locale;
+  }
+
+  /**
+   * Mirrors the active locale onto the document so screen readers, hyphenation
+   * and spell checking use the right language.
+   * @private
+   */
+  private applyDocumentLanguage(locale: string): void {
+    if (typeof document === "undefined") return;
+    document.documentElement.lang = locale;
+  }
+
+  /** @private */
+  private readInitialLocale(): string {
     try {
       if (typeof window !== "undefined") {
         const stored = localStorage.getItem(this.storageKey);
@@ -125,6 +142,7 @@ class LocalizationService {
 
     // Trigger reactive UI update
     this._locale.value = normalized;
+    this.applyDocumentLanguage(normalized);
 
     try {
       localStorage.setItem(this.storageKey, normalized);

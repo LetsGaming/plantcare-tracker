@@ -4,7 +4,9 @@
       <ion-buttons slot="start">
         <ion-back-button :text="t('common.back')" :default-href="backHref" />
       </ion-buttons>
-      <ion-title>{{ title }}</ion-title>
+      <ion-title
+        ><h1 class="toolbar-title">{{ title }}</h1></ion-title
+      >
       <ion-buttons slot="end">
         <slot name="actions" />
       </ion-buttons>
@@ -48,6 +50,12 @@ export default defineComponent({
 
 .admin-toolbar ion-title {
   color: var(--ion-text-color);
+}
+
+.toolbar-title {
+  margin: 0;
+  font: inherit;
+  color: inherit;
 }
 
 .admin-toolbar ion-back-button,
