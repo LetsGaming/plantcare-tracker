@@ -25,6 +25,16 @@ const ruleBody = (css: string, selector: string): string => {
   return css.slice(open + 1, css.indexOf("}", open));
 };
 
+const rules = (css: string): { selectors: string[]; body: string }[] =>
+  [...css.matchAll(/([^{}]+){([^{}]*)}/g)].map((m) => ({
+    selectors: m[1].split(",").map((sel) => sel.trim()),
+    body: m[2],
+  }));
+
+const focusRules = rules(custom).filter((r) =>
+  r.selectors.some((sel) => sel.includes(".ion-focused") || sel.includes(":focus-visible")),
+);
+
 describe("theme css", () => {
   it.each([
     "ion-button",
@@ -34,12 +44,16 @@ describe("theme css", () => {
     "ion-menu-button",
     "ion-back-button",
     "ion-fab-button",
-  ])("marks keyboard focus on %s through .ion-focused", (tag) => {
-    expect(custom).toContain(`${tag}.ion-focused`);
+  ])("draws the focus outline on %s through .ion-focused", (tag) => {
+    const outlineRules = focusRules.filter((r) =>
+      r.body.includes("outline: 3px solid var(--focus-ring)"),
+    );
+    expect(outlineRules.some((r) => r.selectors.includes(`${tag}.ion-focused`))).toBe(true);
   });
 
-  it("does not use the clipped negative outline offset", () => {
-    expect(custom).not.toContain("outline-offset: -3px");
+  it("does not use the clipped negative outline offset on focus rules", () => {
+    expect(focusRules.length).toBeGreaterThan(0);
+    for (const r of focusRules) expect(r.body).not.toContain("outline-offset: -3px");
   });
 
   it("sets idle segment and tab colors to the nav token", () => {
