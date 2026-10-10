@@ -287,10 +287,6 @@ export default defineComponent({
   color: var(--ion-text-color);
 }
 
-.guide-text h1.info-header {
-  font-size: var(--text-lg);
-}
-
 .guide-text .info-text-paragraph {
   margin: 0 0 var(--space-2);
   line-height: 1.55;

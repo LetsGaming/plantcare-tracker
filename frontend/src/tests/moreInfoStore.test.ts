@@ -96,7 +96,7 @@ describe("ensureInfo streaming", () => {
 
     expect(store.byKey["en:Aloe"]).toBeUndefined();
     expect(store.streaming["en:Aloe"]).toBe(true);
-    expect(store.infoFor("Aloe")[0].ai).toContain('<h2 class="info-header">Light</h2>');
+    expect(store.infoFor("Aloe")[0].ai).toContain('<h3 class="info-header">Light</h3>');
 
     finish();
     await pending;

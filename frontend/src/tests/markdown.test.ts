@@ -13,25 +13,65 @@ describe("renderMarkdown", () => {
     expect(parse("")).toBe("");
   });
 
-  it("converts headings by level", () => {
-    expect(parse("## Light")).toBe('<div><h2 class="info-header">Light</h2></div>');
-    expect(parse("### Water")).toBe('<div><h3 class="info-header">Water</h3></div>');
+  it("converts headings by level, never above h3", () => {
+    expect(parse("# Care")).toBe('<div><h3 class="info-header">Care</h3></div>');
+    expect(parse("## Light")).toBe('<div><h3 class="info-header">Light</h3></div>');
+    expect(parse("### Water")).toBe('<div><h4 class="info-header">Water</h4></div>');
   });
 
   it("splits a heading glued to the previous word", () => {
     const html = parse("Bright light##Water\n\nWeekly");
     expect(html).toContain('<p class="info-text-paragraph">Bright light</p>');
-    expect(html).toContain('<h2 class="info-header">Water</h2>');
+    expect(html).toContain('<h3 class="info-header">Water</h3>');
   });
 
-  it("wraps each dash item in its own list because blank lines are inserted before items", () => {
+  it("groups consecutive dash items into one list", () => {
     expect(parse("- one\n- two")).toBe(
-      '<div><ul class="info-list"><li class="info-item">one</li></ul>' +
-        '<ul class="info-list"><li class="info-item">two</li></ul></div>',
+      '<div><ul class="info-list"><li class="info-item">one</li>' +
+        '<li class="info-item">two</li></ul></div>',
     );
   });
 
+  it("keeps the text on the line after a heading", () => {
+    expect(parse("## Licht\nHelles Licht.")).toBe(
+      '<div><h3 class="info-header">Licht</h3><p class="info-text-paragraph">Helles Licht.</p></div>',
+    );
+  });
+
+  it("renders every section of a guide with its text", () => {
+    expect(parse("## Licht\nHelles Licht.\n\n## Gießen\nWenig.")).toBe(
+      '<div><h3 class="info-header">Licht</h3><p class="info-text-paragraph">Helles Licht.</p>' +
+        '<h3 class="info-header">Gießen</h3><p class="info-text-paragraph">Wenig.</p></div>',
+    );
+  });
+
+  it("renders a heading followed by one list of two items", () => {
+    expect(parse("## Licht\n- a\n- b")).toBe(
+      '<div><h3 class="info-header">Licht</h3><ul class="info-list">' +
+        '<li class="info-item">a</li><li class="info-item">b</li></ul></div>',
+    );
+  });
+
+  it("separates a paragraph and a list without a blank line", () => {
+    expect(parse("Intro\n- a")).toBe(
+      '<div><p class="info-text-paragraph">Intro</p><ul class="info-list">' +
+        '<li class="info-item">a</li></ul></div>',
+    );
+    expect(parse("- a\nOutro")).toBe(
+      '<div><ul class="info-list"><li class="info-item">a</li></ul>' +
+        '<p class="info-text-paragraph">Outro</p></div>',
+    );
+  });
+
+  it("joins consecutive lines of a paragraph with a space", () => {
+    expect(parse("one\ntwo")).toBe('<div><p class="info-text-paragraph">one two</p></div>');
+  });
+
   it("keeps numbered and star items of one block in a single list", () => {
+    expect(parse("1. a\n2. b")).toBe(
+      '<div><ul class="info-list"><li class="info-item">a</li>' +
+        '<li class="info-item">b</li></ul></div>',
+    );
     expect(parse("1. first\n2. second")).toBe(
       '<div><ul class="info-list"><li class="info-item">first</li>' +
         '<li class="info-item">second</li></ul></div>',
@@ -53,6 +93,9 @@ describe("renderMarkdown", () => {
   it("renders a partially streamed buffer without throwing", () => {
     expect(() => parse("## Lig")).not.toThrow();
     expect(parse("## Lig")).toContain("Lig");
+    expect(parse("## Lic")).toBe('<div><h3 class="info-header">Lic</h3></div>');
+    expect(() => parse("- ite")).not.toThrow();
+    expect(parse("- ite")).toContain('<li class="info-item">ite</li>');
   });
 
   it("escapes raw HTML in model output", () => {
@@ -65,7 +108,7 @@ describe("renderMarkdown", () => {
 
   it("still applies markdown after escaping", () => {
     expect(parse("## **Light** <b>")).toContain(
-      '<h2 class="info-header"><strong>Light</strong> &lt;b&gt;</h2>',
+      '<h3 class="info-header"><strong>Light</strong> &lt;b&gt;</h3>',
     );
   });
 });
