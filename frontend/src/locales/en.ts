@@ -1393,6 +1393,7 @@ export default {
   "water.snap_no_match": "No plant matched this photo.",
   "water.snap_other": "Other plant...",
   "water.snap_logged": "{name} watered",
+  "water.fertilizer_prompt": "With fertilizer?",
   "water.snap_done": "Done",
   "water.snap_bad_type": "This photo format is not supported. Please use a JPEG or PNG photo.",
   "water.snap_too_large": "This photo is too large. The limit is 10 MB.",

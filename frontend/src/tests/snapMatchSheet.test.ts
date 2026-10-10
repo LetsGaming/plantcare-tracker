@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { shallowMount } from "@vue/test-utils";
+import { nextTick } from "vue";
 
 vi.mock("@/services/general/LocalizationService", () => ({
   default: {
@@ -12,6 +13,7 @@ vi.mock("@/services/general/LocalizationService", () => ({
 }));
 
 import SnapMatchSheet from "@/components/water/SnapMatchSheet.vue";
+import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
 
 const candidate = (plantId: number, tone: "ok" | "due" | "overdue" | "new" = "ok") => ({
   plantId,
@@ -35,6 +37,7 @@ const mountSheet = (props: Record<string, unknown> = {}) =>
       ...props,
     },
     global: { renderStubDefaultSlot: true },
+    attachTo: document.body,
   });
 
 const isDisabled = (el: { attributes(name: string): string | undefined }) =>
@@ -152,6 +155,95 @@ describe("SnapMatchSheet", () => {
       "organic",
       "mineral",
     ]);
+  });
+});
+
+describe("SnapMatchSheet focus and announcements", () => {
+  it("does not move focus on the initial render", async () => {
+    const wrapper = mountSheet();
+    await nextTick();
+    expect(document.activeElement).toBe(document.body);
+    wrapper.unmount();
+  });
+
+  it("focuses the logged heading when the state changes to logged", async () => {
+    const wrapper = mountSheet({ loggedName: "Monty" });
+    await wrapper.setProps({ state: "logged" });
+    await nextTick();
+    const title = wrapper.find(".sheet-title");
+    expect(title.attributes("tabindex")).toBe("-1");
+    expect(document.activeElement).toBe(title.element);
+    wrapper.unmount();
+  });
+
+  it("focuses the candidates heading when matching finishes", async () => {
+    const wrapper = mountSheet({ state: "matching", candidates: [] });
+    await wrapper.setProps({ state: "candidates", candidates: [candidate(1)] });
+    await nextTick();
+    expect(document.activeElement).toBe(wrapper.find(".sheet-title").element);
+    wrapper.unmount();
+  });
+
+  it("does not steal focus while matching", async () => {
+    const wrapper = mountSheet({ state: "candidates" });
+    await wrapper.setProps({ state: "matching" });
+    await nextTick();
+    expect(document.activeElement).toBe(document.body);
+    wrapper.unmount();
+  });
+
+  it("announces the logged state in a persistent polite live region", async () => {
+    const wrapper = mountSheet({ loggedName: "Monty" });
+    const region = wrapper.find(".sr-status");
+    expect(region.attributes("role")).toBe("status");
+    expect(region.attributes("aria-live")).toBe("polite");
+    expect(region.text()).toBe("");
+    await wrapper.setProps({ state: "logged" });
+    expect(wrapper.find(".sr-status").text()).toContain("water.snap_logged");
+    expect(wrapper.find(".sr-status").text()).toContain("Monty");
+    wrapper.unmount();
+  });
+
+  it("groups the chips under a visible label", () => {
+    const wrapper = mountSheet({ state: "logged", loggedName: "Monty" });
+    const group = wrapper.find(".chips-group");
+    expect(group.attributes("role")).toBe("group");
+    const label = wrapper.find(`#${group.attributes("aria-labelledby")}`);
+    expect(label.exists()).toBe(true);
+    expect(label.text()).toBe("water.fertilizer_prompt");
+    expect(group.findAll(".fertilizer-chip")).toHaveLength(2);
+    wrapper.unmount();
+  });
+
+  it("shows the plant image as a decorative thumbnail when logged", () => {
+    const wrapper = mountSheet({
+      state: "logged",
+      loggedName: "Monty",
+      loggedImageUrl: "/img/monty.jpg",
+    });
+    const img = wrapper.find(".logged-thumb img");
+    expect(img.attributes("src")).toBe("/img/monty.jpg");
+    expect(img.attributes("alt")).toBe("");
+    expect(wrapper.find(".logged-thumb").attributes("aria-hidden")).toBe("true");
+    wrapper.unmount();
+  });
+
+  it("falls back to a seeded placeholder without an image", () => {
+    const wrapper = mountSheet({ state: "logged", loggedName: "Monty", loggedPlantId: 5 });
+    expect(wrapper.find(".logged-thumb img").exists()).toBe(false);
+    expect(wrapper.findComponent(PlantPlaceholder).props("seed")).toBe("5");
+    wrapper.unmount();
+  });
+
+  it("makes done the solid action and undo text only", () => {
+    const wrapper = mountSheet({ state: "logged", loggedName: "Monty" });
+    const buttons = wrapper.findAllComponents({ name: "IonButton" });
+    const undo = buttons.find((b) => b.classes().includes("undo-button"));
+    const done = buttons.find((b) => b.classes().includes("done-button"));
+    expect(undo?.props("fill")).toBe("clear");
+    expect(done?.props("fill")).not.toBe("outline");
+    expect(done?.props("fill")).not.toBe("clear");
+    wrapper.unmount();
   });
 });
 

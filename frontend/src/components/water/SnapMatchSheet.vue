@@ -10,13 +10,14 @@
   >
     <ion-content>
       <div class="sheet">
+        <div class="sr-status" role="status" aria-live="polite">{{ announcement }}</div>
         <div v-if="state === 'matching'" class="matching" role="status">
           <ion-spinner name="crescent" />
           <p>{{ t("water.snap_matching") }}</p>
         </div>
 
         <template v-else-if="state === 'candidates'">
-          <h2 class="sheet-title">{{ heading }}</h2>
+          <h2 ref="title" class="sheet-title" tabindex="-1">{{ heading }}</h2>
           <ul v-if="shown.length" class="candidates">
             <li v-for="(candidate, index) in shown" :key="candidate.plantId">
               <button
@@ -56,8 +57,24 @@
         </template>
 
         <template v-else>
-          <h2 class="sheet-title">{{ t("water.snap_logged", { name: loggedName }) }}</h2>
-          <div v-if="fertilizerTypes.length" class="chips">
+          <div class="logged-head">
+            <span class="logged-thumb" aria-hidden="true">
+              <img v-if="loggedImageUrl" :src="loggedImageUrl" alt="" />
+              <plant-placeholder v-else :seed="String(loggedPlantId ?? '')" />
+            </span>
+            <h2 ref="title" class="sheet-title break-words" tabindex="-1">
+              {{ t("water.snap_logged", { name: loggedName }) }}
+            </h2>
+          </div>
+          <p v-if="fertilizerTypes.length" :id="chipsLabelId" class="chips-label">
+            {{ t("water.fertilizer_prompt") }}
+          </p>
+          <div
+            v-if="fertilizerTypes.length"
+            class="chips chips-group"
+            role="group"
+            :aria-labelledby="chipsLabelId"
+          >
             <button
               v-for="type in fertilizerTypes"
               :key="type.id"
@@ -75,7 +92,7 @@
           <div class="actions">
             <ion-button
               class="undo-button"
-              fill="outline"
+              fill="clear"
               size="large"
               :disabled="busy"
               @click="$emit('undo')"
@@ -97,6 +114,8 @@ import { defineComponent, type PropType } from "vue";
 import { IonButton, IonContent, IonIcon, IonModal, IonSpinner } from "@ionic/vue";
 import localizationService from "@/services/general/LocalizationService";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
+import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
+import { nextFieldId } from "@/components/formcomponent/fieldShared";
 import { icons } from "@/theme/icons";
 import { fertilizerKind, fertilizerLabel } from "@/utils/enumLabels";
 import type { WateringTone } from "@/utils/wateringStats";
@@ -112,7 +131,7 @@ const MAX_SHOWN = 3;
 
 export default defineComponent({
   name: "SnapMatchSheet",
-  components: { IonButton, IonContent, IonIcon, IonModal, IonSpinner },
+  components: { IonButton, IonContent, IonIcon, IonModal, IonSpinner, PlantPlaceholder },
   props: {
     isOpen: { type: Boolean, required: true },
     state: {
@@ -123,12 +142,17 @@ export default defineComponent({
     confident: { type: Boolean, default: false },
     busy: { type: Boolean, default: false },
     loggedName: { type: String, default: "" },
+    loggedImageUrl: { type: String, default: "" },
+    loggedPlantId: { type: Number as PropType<number | null>, default: null },
     selectedFertilizerId: { type: Number as PropType<number | null>, default: null },
     fertilizerTypes: { type: Array as PropType<FertilizerType[]>, default: () => [] },
   },
   emits: ["close", "pick", "other", "fertilize", "undo"],
   setup(props) {
     return { icons, ...useMountWhileOpen(() => props.isOpen) };
+  },
+  data() {
+    return { announcement: "", chipsLabelId: nextFieldId("snap-chips") };
   },
   computed: {
     shown(): SnapCandidate[] {
@@ -137,6 +161,15 @@ export default defineComponent({
     heading(): string {
       if (!this.shown.length) return this.t("water.snap_no_match");
       return this.t(this.confident ? "water.snap_is_this" : "water.snap_not_sure");
+    },
+  },
+  watch: {
+    state(newState: string, oldState: string) {
+      this.announcement =
+        newState === "logged" ? this.t("water.snap_logged", { name: this.loggedName }) : "";
+      if (oldState && newState !== "matching") {
+        void this.$nextTick(() => (this.$refs.title as HTMLElement | undefined)?.focus?.());
+      }
     },
   },
   methods: {
@@ -168,6 +201,48 @@ export default defineComponent({
   margin: 0;
   font-size: var(--text-lg);
   font-weight: 650;
+}
+
+.sr-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.sheet-title:focus {
+  outline: none;
+}
+
+.logged-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.logged-thumb {
+  display: block;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.logged-thumb img,
+.logged-thumb :deep(.placeholder) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chips-label {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
 }
 
 .matching {

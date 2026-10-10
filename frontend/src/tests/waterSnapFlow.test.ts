@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
 import { createTestingPinia } from "@pinia/testing";
-import { nextTick } from "vue";
+import { defineComponent, nextTick } from "vue";
 
 vi.mock("@/services/general/ToastService", () => ({
   default: { showSuccess: vi.fn(), showError: vi.fn(), showToastWithAction: vi.fn() },
@@ -49,6 +49,13 @@ type Vm = {
 
 const photo = () => new File(["x"], "p.jpg", { type: "image/jpeg" });
 
+const focusButton = vi.hoisted(() => vi.fn());
+const SnapButtonStub = defineComponent({
+  name: "SnapButton",
+  methods: { focusButton: () => focusButton() },
+  template: "<div />",
+});
+
 const mountRound = async ({ guest = false, keepPhoto = true } = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const plants = usePlantsStore(pinia);
@@ -60,7 +67,11 @@ const mountRound = async ({ guest = false, keepPhoto = true } = {}) => {
   overridable(useSessionStore(pinia)).isGuest = guest;
   useSnapSettingsStore(pinia).keepPhoto = keepPhoto;
   const wrapper = shallowMount(WaterRound, {
-    global: { plugins: [pinia], renderStubDefaultSlot: true },
+    global: {
+      plugins: [pinia],
+      renderStubDefaultSlot: true,
+      stubs: { SnapButton: SnapButtonStub },
+    },
   });
   await flushPromises();
   return { wrapper, plants, watering, vm: wrapper.vm as unknown as Vm };
@@ -247,6 +258,51 @@ describe("WaterRound snap flow", () => {
     await vm.onUndo();
     expect(watering.deleteRecord).toHaveBeenCalledWith(1, 55);
     expect(images.deleteImage).not.toHaveBeenCalled();
+  });
+
+  it("passes the logged plant image and id to the sheet", async () => {
+    const { wrapper, plants, vm } = await mountRound();
+    (plants.personalPlants[0] as unknown as { images: unknown[] }).images = [
+      { id: 1, url: "/img/fine.jpg" },
+    ];
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    expect(sheetProps(wrapper).loggedImageUrl).toBe("/img/fine.jpg");
+    expect(sheetProps(wrapper).loggedPlantId).toBe(1);
+  });
+
+  it("returns focus to the snap button when the sheet closes", async () => {
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    focusButton.mockClear();
+    wrapper.findComponent(SnapMatchSheet).vm.$emit("close");
+    await nextTick();
+    expect(focusButton).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns focus to the snap button after undo", async () => {
+    const { vm } = await mountRound();
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    focusButton.mockClear();
+    await vm.onUndo();
+    await nextTick();
+    expect(focusButton).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not move focus while a confirmation is in flight", async () => {
+    let resolve!: (value: unknown) => void;
+    recognition.confirm.mockReturnValue(new Promise((r) => (resolve = r)));
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    focusButton.mockClear();
+    const pick = vm.onPick(1);
+    await nextTick();
+    wrapper.findComponent(SnapMatchSheet).vm.$emit("close");
+    await nextTick();
+    expect(focusButton).not.toHaveBeenCalled();
+    resolve({ recordId: 1, imageId: null });
+    await pick;
   });
 
   it("reports an unsupported or oversized photo", async () => {

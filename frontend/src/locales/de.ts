@@ -1405,6 +1405,7 @@ export default {
   "water.snap_no_match": "Keine Pflanze passt zu diesem Foto.",
   "water.snap_other": "Andere Pflanze...",
   "water.snap_logged": "{name} gegossen",
+  "water.fertilizer_prompt": "Mit Dünger?",
   "water.snap_done": "Fertig",
   "water.snap_bad_type":
     "Dieses Fotoformat wird nicht unterstützt. Bitte nimm ein JPEG- oder PNG-Foto.",

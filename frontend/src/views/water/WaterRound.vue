@@ -103,6 +103,8 @@
       :confident="confident"
       :busy="snapBusy"
       :logged-name="logged?.name ?? ''"
+      :logged-image-url="loggedImageUrl"
+      :logged-plant-id="logged?.plantId ?? null"
       :selected-fertilizer-id="logged?.fertilizerTypeId ?? null"
       :fertilizer-types="fertilizerTypes"
       @close="closeSheet"
@@ -211,6 +213,10 @@ export default defineComponent({
     ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
     ...mapState(useSessionStore, ["isGuest"]),
     ...mapState(useSnapSettingsStore, ["keepPhoto"]),
+    loggedImageUrl(): string {
+      const plant = this.personalPlants.find((p) => p.id === this.logged?.plantId);
+      return plant?.images?.[0]?.url ?? plant?.imageUrl ?? "";
+    },
     showSnap(): boolean {
       return this.recognitionAvailable && !this.isGuest && this.rows.length > 0;
     },
@@ -339,6 +345,12 @@ export default defineComponent({
       this.sheet.open = false;
       this.snapshotId = null;
       this.rawTopId = null;
+      this.focusSnapButton();
+    },
+    focusSnapButton() {
+      void this.$nextTick(() => {
+        (this.$refs.snap as { focusButton?: () => void } | undefined)?.focusButton?.();
+      });
     },
     async onPhoto(file: File) {
       const token = ++this.matchToken;
@@ -440,6 +452,7 @@ export default defineComponent({
         }
         this.logged = null;
         this.sheet.open = false;
+        this.focusSnapButton();
       } catch (error) {
         console.error("Undoing the snapped watering failed:", error);
       } finally {
