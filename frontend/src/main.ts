@@ -25,6 +25,7 @@ import "./theme/scrollbar.css";
 
 /* Services */
 import Utils from "./utils/utils";
+import { ionicConfig } from "./utils/motion";
 import TokenUtils from "./utils/tokenUtils";
 import { applyInitialTheme } from "./theme/darkMode";
 import { registerServiceWorker } from "./pwa";
@@ -65,7 +66,7 @@ async function initializeApp() {
     window.location.reload();
   });
 
-  const app = createApp(App).use(IonicVue).use(pinia).use(router);
+  const app = createApp(App).use(IonicVue, ionicConfig()).use(pinia).use(router);
 
   // We provide the service globally
   app.config.globalProperties.$i18n = localizationService;

@@ -131,6 +131,12 @@ export default defineComponent({
   background: var(--leaf-wash);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .offline-banner {
+    animation: none;
+  }
+}
+
 @keyframes offline-in {
   from {
     opacity: 0;

@@ -240,17 +240,6 @@ ion-toast {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 /* Watering state pill used by the round list and the snap sheet */
 .tone-chip {
   padding: var(--space-1) var(--space-2);
