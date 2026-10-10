@@ -63,8 +63,41 @@ describe("renderMarkdown", () => {
     );
   });
 
-  it("joins consecutive lines of a paragraph with a space", () => {
-    expect(parse("one\ntwo")).toBe('<div><p class="info-text-paragraph">one two</p></div>');
+  it("keeps consecutive lines of a paragraph in one paragraph", () => {
+    expect(parse("one\ntwo")).toBe('<div><p class="info-text-paragraph">one\ntwo</p></div>');
+  });
+
+  it("bolds the label of every line in a paragraph", () => {
+    const html = parse("Licht: viel\nWasser: wenig");
+    expect(html).toContain("<strong>Licht:</strong> viel");
+    expect(html).toContain("<strong>Wasser:</strong> wenig");
+  });
+
+  it("renders no heading for an empty heading text", () => {
+    expect(parse("##")).toBe("<div></div>");
+    expect(parse("## ")).toBe("<div></div>");
+    expect(parse("## Lic")).toContain('<h3 class="info-header">Lic</h3>');
+  });
+
+  it("handles CRLF line endings", () => {
+    expect(parse("a\r\nb\r\n\r\n- x\r\n- y")).toBe(
+      '<div><p class="info-text-paragraph">a\nb</p><ul class="info-list">' +
+        '<li class="info-item">x</li><li class="info-item">y</li></ul></div>',
+    );
+  });
+
+  it("does not take a bold label line for a list", () => {
+    const html = parse("**Licht:** viel\n**Wasser:** wenig");
+    expect(html).not.toContain("<ul");
+    expect(html.match(/<p /g)).toHaveLength(1);
+  });
+
+  it("splits a list around a heading", () => {
+    expect(parse("- a\n# h\n- b")).toBe(
+      '<div><ul class="info-list"><li class="info-item">a</li></ul>' +
+        '<h3 class="info-header">h</h3>' +
+        '<ul class="info-list"><li class="info-item">b</li></ul></div>',
+    );
   });
 
   it("keeps numbered and star items of one block in a single list", () => {

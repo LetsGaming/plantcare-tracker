@@ -25,7 +25,7 @@ const renderBlock = (block: string): string => {
 
   const flushParagraph = () => {
     if (paragraph.length) {
-      html += `<p class="info-text-paragraph">${renderInlines(paragraph.join(" "))}</p>`;
+      html += `<p class="info-text-paragraph">${renderInlines(paragraph.join("\n"))}</p>`;
     }
     paragraph = [];
   };
@@ -44,8 +44,11 @@ const renderBlock = (block: string): string => {
     if (heading) {
       flushParagraph();
       flushList();
-      const level = Math.max(3, Math.min(6, heading[1].length + 1));
-      html += `<h${level} class="info-header">${renderInlines(heading[2])}</h${level}>`;
+      const title = heading[2].trim();
+      if (title) {
+        const level = Math.max(3, Math.min(6, heading[1].length + 1));
+        html += `<h${level} class="info-header">${renderInlines(title)}</h${level}>`;
+      }
     } else if (LIST_ITEM.test(line)) {
       flushParagraph();
       items.push(line.replace(LIST_ITEM, ""));
