@@ -3,6 +3,8 @@
     v-if="mounted"
     class="snap-sheet"
     :is-open="isOpen"
+    :aria-label="dialogLabel"
+    :handle="false"
     :breakpoints="[0, 0.65, 1]"
     :initial-breakpoint="0.65"
     :can-dismiss="!busy"
@@ -10,6 +12,7 @@
   >
     <ion-content>
       <div class="sheet">
+        <span class="grabber" aria-hidden="true"></span>
         <div class="sr-status" role="status" aria-live="polite">{{ announcement }}</div>
         <div v-if="state === 'matching'" class="matching" role="status">
           <ion-spinner name="crescent" />
@@ -155,6 +158,11 @@ export default defineComponent({
     return { announcement: "", chipsLabelId: nextFieldId("snap-chips") };
   },
   computed: {
+    dialogLabel(): string {
+      if (this.state === "matching") return this.t("water.snap_matching");
+      if (this.state === "logged") return this.t("water.snap_logged", { name: this.loggedName });
+      return this.heading;
+    },
     shown(): SnapCandidate[] {
       return this.candidates.slice(0, MAX_SHOWN);
     },
@@ -190,6 +198,14 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.grabber {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--control-border);
+}
+
 .sheet {
   display: flex;
   flex-direction: column;

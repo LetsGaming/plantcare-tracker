@@ -775,6 +775,8 @@ export default {
 
   "a11y.edit": "Edit",
 
+  "a11y.image_dialog": "Image",
+
   "a11y.delete": "Delete",
 
   "a11y.upload_image": "Upload image",

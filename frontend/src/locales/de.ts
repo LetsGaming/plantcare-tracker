@@ -778,6 +778,8 @@ export default {
 
   "a11y.edit": "Bearbeiten",
 
+  "a11y.image_dialog": "Bild",
+
   "a11y.delete": "Löschen",
 
   "a11y.upload_image": "Bild hochladen",

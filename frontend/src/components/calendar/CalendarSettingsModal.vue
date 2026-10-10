@@ -1,5 +1,10 @@
 <template>
-  <ion-modal v-if="mounted" :is-open="isOpen" @didDismiss="onDidDismiss">
+  <ion-modal
+    v-if="mounted"
+    :is-open="isOpen"
+    :aria-label="t('calendar.settings.title')"
+    @didDismiss="onDidDismiss"
+  >
     <modal-header :header-title="t('calendar.settings.title')" @close="$emit('close')" />
 
     <ion-content>

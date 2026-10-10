@@ -1,5 +1,10 @@
 <template>
-  <ion-modal v-if="mounted" :is-open="isOpen" @didDismiss="onDismiss">
+  <ion-modal
+    v-if="mounted"
+    :is-open="isOpen"
+    :aria-label="t('water.picker_title')"
+    @didDismiss="onDismiss"
+  >
     <modal-header :header-title="t('water.picker_title')" @close="$emit('close')" />
     <ion-content>
       <ion-searchbar :placeholder="t('water.search')" :debounce="150" @ionInput="onInput" />

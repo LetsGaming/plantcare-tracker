@@ -1,7 +1,7 @@
 <template>
-  <ion-modal v-if="mounted" :is-open="isOpen" @did-dismiss="closeModal">
+  <ion-modal v-if="mounted" :is-open="isOpen" :aria-label="dialogLabel" @did-dismiss="closeModal">
     <editing-header
-      :header-title="label"
+      :header-title="dialogLabel"
       :show-edit-button="showEditButton"
       @edit-click="onEditClick"
       @close="closeModal"
@@ -39,6 +39,7 @@ import { IonModal, IonContent, IonImg } from "@ionic/vue";
 import { defineComponent, PropType, ref } from "vue";
 import EditingHeader from "../modal/EditingHeader.vue";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
+import localizationService from "@/services/general/LocalizationService";
 
 export default defineComponent({
   name: "ImageModal",
@@ -60,7 +61,7 @@ export default defineComponent({
     },
     label: {
       type: String,
-      default: "Image",
+      default: "",
     },
     showEditButton: {
       type: Boolean,
@@ -194,6 +195,12 @@ export default defineComponent({
       onMouseMove,
       onMouseUp,
     };
+  },
+  computed: {
+    dialogLabel(): string {
+      const key = this.label || "a11y.image_dialog";
+      return localizationService.t(key, undefined, key);
+    },
   },
   methods: {
     closeModal() {
