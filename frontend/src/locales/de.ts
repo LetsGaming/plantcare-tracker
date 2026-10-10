@@ -137,7 +137,7 @@ export default {
 
   "tabs.substrates": "Substrate",
 
-  "tabs.components": "Komponenten",
+  "tabs.components": "Zutaten",
 
   "tabs.debug": "Debug",
 
