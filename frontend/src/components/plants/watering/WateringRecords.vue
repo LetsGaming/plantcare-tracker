@@ -65,7 +65,17 @@ import { formatDisplayDate, toDayKey } from "@/utils/localDate";
 import { fertilizerLabel } from "@/utils/enumLabels";
 
 const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
-const FERTILIZER_CATEGORY = "watering.category.organic";
+const ORGANIC_CATEGORY = "watering.category.organic";
+const MINERAL_CATEGORY = "watering.category.mineral";
+const SYNTHETIC_FERTILIZER_ID = 2;
+
+const recordCategory = (record: WateringRecord): string => {
+  if (!record.usedFertilizer) return NO_FERTILIZER_CATEGORY;
+  return record.fertilizerType === "synthetic" ||
+    record.fertilizerTypeId === SYNTHETIC_FERTILIZER_ID
+    ? MINERAL_CATEGORY
+    : ORGANIC_CATEGORY;
+};
 const TOAST_MS = 6000;
 
 let recordsCount = 0;
@@ -120,7 +130,7 @@ export default defineComponent({
       return this.records.map((record) => ({
         date: toDayKey(record.date_millis),
         category: {
-          name: record.usedFertilizer ? FERTILIZER_CATEGORY : NO_FERTILIZER_CATEGORY,
+          name: recordCategory(record),
           textColor: "",
           backgroundColor: "",
         },

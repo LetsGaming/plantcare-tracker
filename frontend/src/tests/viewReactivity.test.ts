@@ -131,11 +131,15 @@ describe("WateringRecords: store-driven records", () => {
     wrapper.unmount();
   });
 
-  it("maps records to local day keys and fertilizer markers", async () => {
+  it("maps records to local day keys and per-type fertilizer markers", async () => {
     const day = new Date(2026, 4, 3, 23, 30).getTime();
     const { wrapper } = mountRecords([
       { ...record(1, day), usedFertilizer: false },
-      { ...record(2, day + 86_400_000), usedFertilizer: true, fertilizerTypeId: 2 },
+      { ...record(2, day + 86_400_000), usedFertilizer: true, fertilizerTypeId: 1 },
+      { ...record(3, day + 2 * 86_400_000), usedFertilizer: true, fertilizerTypeId: 2 },
+      { ...record(4, day + 3 * 86_400_000), usedFertilizer: true, fertilizerType: "synthetic" },
+      { ...record(5, day + 4 * 86_400_000), usedFertilizer: true, fertilizerType: "organic" },
+      { ...record(6, day + 5 * 86_400_000), usedFertilizer: false, fertilizerTypeId: 2 },
     ]);
     await flushPromises();
     expect(
@@ -143,6 +147,10 @@ describe("WateringRecords: store-driven records", () => {
     ).toEqual([
       ["2026-05-03", "watering.category.no_fertilizer"],
       ["2026-05-04", "watering.category.organic"],
+      ["2026-05-05", "watering.category.mineral"],
+      ["2026-05-06", "watering.category.mineral"],
+      ["2026-05-07", "watering.category.organic"],
+      ["2026-05-08", "watering.category.no_fertilizer"],
     ]);
     wrapper.unmount();
   });

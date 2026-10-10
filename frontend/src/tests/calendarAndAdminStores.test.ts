@@ -105,6 +105,24 @@ describe("calendar store", () => {
     expect(store.wateringCategories.map((c) => c.backgroundColor)).toEqual(["", "", "#ff00aa"]);
   });
 
+  it("loads stored watering categories that lack a background color", async () => {
+    memoryStore.set("watering_categories", {
+      data: [
+        { name: "watering.category.no_fertilizer", textColor: "" },
+        { name: "watering.category.organic", textColor: "", backgroundColor: "#1E90FF" },
+      ],
+      timestamp: Date.now(),
+    });
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    await store.ensureLoaded();
+    expect(store.wateringCategories.map((c) => c.name)).toEqual([
+      "watering.category.no_fertilizer",
+      "watering.category.organic",
+    ]);
+    expect(store.wateringCategories[1].backgroundColor).toBe("");
+  });
+
   it("defaults watering categories to empty colors", async () => {
     await createInstalledPinia();
     const store = useCalendarStore();

@@ -81,13 +81,32 @@ import IconButton from "@/components/ui/IconButton.vue";
 import { useCalendarStore } from "@/stores/calendar";
 import CalendarLegend from "./CalendarLegend.vue";
 import localizationService from "@/services/general/LocalizationService";
-import { resolveCategoryColors } from "@/utils/categoryColors";
+import {
+  DEFAULT_WATERING_TOKENS,
+  ResolvedCategoryColors,
+  resolveCategoryColors,
+} from "@/utils/categoryColors";
 import { readCssColor, watchTheme } from "@/utils/themeColors";
 import { formatDisplayDate, parseDayKey, toDayKey } from "@/utils/localDate";
 
 const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
+const ORGANIC_CATEGORY = "watering.category.organic";
+const MINERAL_CATEGORY = "watering.category.mineral";
 
-type MarkerKind = "water" | "fertilizer" | "custom";
+type MarkerKind = "water" | "organic" | "mineral" | "custom";
+type WateringKind = Exclude<MarkerKind, "custom">;
+
+const DAY_LABEL: Record<WateringKind, string> = {
+  water: "plantdetail.day_watered",
+  organic: "plantdetail.day_organic",
+  mineral: "plantdetail.day_mineral",
+};
+
+interface LegendItem {
+  label: string;
+  color: string;
+  shape: "fill" | "ring" | "dashed" | "today";
+}
 
 interface DayCell {
   key: string;
@@ -132,8 +151,9 @@ export default defineComponent({
       required: false,
     },
     /**
-     * "watering" draws watered days as a filled water marker and fertilized days
-     * as a clay ring; "category" paints each day in its category's own colors.
+     * "watering" draws plain watered days as a filled disc, organic fertilizer as a
+     * solid ring and mineral fertilizer as a dashed ring, each in its watering
+     * category color; "category" paints each day in its category's own colors.
      */
     markerMode: {
       type: String as PropType<"category" | "watering">,
@@ -164,7 +184,30 @@ export default defineComponent({
     this.stopWatchingTheme();
   },
   computed: {
-    ...mapState(useCalendarStore, ["firstDayOfWeek"]),
+    ...mapState(useCalendarStore, ["firstDayOfWeek", "wateringCategories"]),
+    pageColor(): string {
+      void this.themeVersion;
+      return readCssColor("--ion-background-color", "#ffffff");
+    },
+    wateringColors(): Record<WateringKind, ResolvedCategoryColors> {
+      void this.themeVersion;
+      const resolve = (name: string) => {
+        const category = this.wateringCategories.find((c) => c.name === name) ?? {
+          name,
+          textColor: "",
+          backgroundColor: "",
+        };
+        return resolveCategoryColors(category, {
+          fallback: readCssColor(DEFAULT_WATERING_TOKENS[name]),
+          page: this.pageColor,
+        });
+      };
+      return {
+        water: resolve(NO_FERTILIZER_CATEGORY),
+        organic: resolve(ORGANIC_CATEGORY),
+        mineral: resolve(MINERAL_CATEGORY),
+      };
+    },
     locale(): string {
       return localizationService.getLocale();
     },
@@ -223,31 +266,33 @@ export default defineComponent({
       for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
       return weeks;
     },
-    legendItems(): { label: string; color: string; shape: "fill" | "ring" | "today" }[] {
+    legendItems(): LegendItem[] {
       if (this.markerMode === "watering") {
+        const colors = this.wateringColors;
         return [
-          { label: "plantdetail.legend_watered", color: "var(--water)", shape: "fill" },
+          { label: "plantdetail.legend_watered", color: colors.water.background, shape: "fill" },
+          { label: "plantdetail.legend_organic", color: colors.organic.background, shape: "ring" },
           {
-            label: "plantdetail.legend_fertilized",
-            color: "var(--ion-color-secondary)",
-            shape: "ring",
+            label: "plantdetail.legend_mineral",
+            color: colors.mineral.background,
+            shape: "dashed",
           },
           { label: "plantdetail.legend_today", color: "var(--ion-text-color)", shape: "today" },
         ];
       }
 
       const seen = new Set<string>();
-      return this.dates
-        .map((entry) => ({
+      const items: LegendItem[] = [];
+      for (const entry of this.dates) {
+        if (seen.has(entry.category.name)) continue;
+        seen.add(entry.category.name);
+        items.push({
           label: entry.category.name,
-          color: entry.category.backgroundColor,
-          shape: "fill" as const,
-        }))
-        .filter((item) => {
-          if (seen.has(item.label)) return false;
-          seen.add(item.label);
-          return true;
+          color: this.customColors(entry.category).background,
+          shape: "fill",
         });
+      }
+      return items;
     },
   },
   methods: {
@@ -258,9 +303,10 @@ export default defineComponent({
     markerKind(entries: CalendarDates[]): MarkerKind | null {
       if (entries.length === 0) return null;
       if (this.markerMode !== "watering") return "custom";
-      return entries.some((entry) => entry.category.name !== NO_FERTILIZER_CATEGORY)
-        ? "fertilizer"
-        : "water";
+      const names = new Set(entries.map((entry) => entry.category.name));
+      if (names.has(MINERAL_CATEGORY)) return "mineral";
+      if (names.has(ORGANIC_CATEGORY)) return "organic";
+      return "water";
     },
     buildCell(key: string, day: number, dateText: string): DayCell {
       const entries = this.datesByDay.get(key) ?? [];
@@ -269,15 +315,17 @@ export default defineComponent({
       const custom = kind === "custom" ? entries[0].category : null;
 
       let label = dateText;
-      if (kind === "water") label = this.tVars("plantdetail.day_watered", { date: dateText });
-      else if (kind === "fertilizer")
-        label = this.tVars("plantdetail.day_fertilized", { date: dateText });
-      else if (custom)
+      let colors: ResolvedCategoryColors | null = null;
+      if (kind && kind !== "custom") {
+        label = this.tVars(DAY_LABEL[kind], { date: dateText });
+        colors = this.wateringColors[kind];
+      } else if (custom) {
+        colors = this.customColors(custom);
         label = this.tVars("plantdetail.day_marked", {
           date: dateText,
           label: this.t(custom.name),
         });
-      else if (isToday) label = this.tVars("plantdetail.day_today", { date: dateText });
+      } else if (isToday) label = this.tVars("plantdetail.day_today", { date: dateText });
 
       return {
         key,
@@ -288,19 +336,21 @@ export default defineComponent({
           "is-today": isToday,
           "is-selected": key === this.selectedDate,
           "is-water": kind === "water",
-          "is-fertilizer": kind === "fertilizer",
+          "is-organic": kind === "organic",
+          "is-mineral": kind === "mineral",
           "is-custom": kind === "custom",
         },
-        style: custom ? this.customMarkerStyle(custom) : undefined,
+        style: colors
+          ? { "--marker-bg": colors.background, "--marker-fg": colors.text }
+          : undefined,
       };
     },
-    customMarkerStyle(category: Category): Record<string, string> {
+    customColors(category: Category): ResolvedCategoryColors {
       void this.themeVersion;
-      const colors = resolveCategoryColors(category, {
+      return resolveCategoryColors(category, {
         fallback: readCssColor("--ink-soft"),
-        page: readCssColor("--ion-background-color", "#ffffff"),
+        page: this.pageColor,
       });
-      return { "--marker-bg": colors.background, "--marker-fg": colors.text };
     },
     tVars(key: string, vars: Record<string, string>) {
       return localizationService.t(key, vars, key);
@@ -434,19 +484,24 @@ export default defineComponent({
 }
 
 .is-water .day-number {
-  background: var(--water);
-  color: var(--ion-color-tertiary-contrast);
-  font-weight: 700;
-}
-
-.is-fertilizer .day-number {
-  border: 3px solid var(--ion-color-secondary);
+  background: var(--marker-bg);
+  color: var(--marker-fg);
   font-weight: 700;
 }
 
 .is-custom .day-number {
   background: var(--marker-bg);
   color: var(--marker-fg);
+  font-weight: 700;
+}
+
+.is-organic .day-number {
+  border: 3px solid var(--marker-bg);
+  font-weight: 700;
+}
+
+.is-mineral .day-number {
+  border: 3px dashed var(--marker-bg);
   font-weight: 700;
 }
 </style>

@@ -56,7 +56,7 @@ export const useCalendarStore = defineStore("calendar", {
         apply: (state, data: Category[]) => {
           if (data.length === 0) return;
           state.wateringCategories = data.map((category) =>
-            LEGACY_DEFAULT_COLORS.has(category.backgroundColor.toLowerCase())
+            LEGACY_DEFAULT_COLORS.has(category.backgroundColor?.toLowerCase() ?? "")
               ? { ...category, backgroundColor: "", textColor: "" }
               : category,
           );

@@ -1023,13 +1023,17 @@ export default {
 
   "plantdetail.legend_watered": "Gegossen",
 
-  "plantdetail.legend_fertilized": "Mit Dünger gegossen",
+  "plantdetail.legend_organic": "Mit organischem Dünger",
+
+  "plantdetail.legend_mineral": "Mit mineralischem Dünger",
 
   "plantdetail.legend_today": "Heute",
 
   "plantdetail.day_watered": "{date}, gegossen",
 
-  "plantdetail.day_fertilized": "{date}, mit Dünger gegossen",
+  "plantdetail.day_organic": "{date}, mit organischem Dünger gegossen",
+
+  "plantdetail.day_mineral": "{date}, mit mineralischem Dünger gegossen",
 
   "plantdetail.day_marked": "{date}, {label}",
 

@@ -1017,13 +1017,17 @@ export default {
 
   "plantdetail.legend_watered": "Watered",
 
-  "plantdetail.legend_fertilized": "Watered with fertilizer",
+  "plantdetail.legend_organic": "Organic fertilizer",
+
+  "plantdetail.legend_mineral": "Mineral fertilizer",
 
   "plantdetail.legend_today": "Today",
 
   "plantdetail.day_watered": "{date}, watered",
 
-  "plantdetail.day_fertilized": "{date}, watered with fertilizer",
+  "plantdetail.day_organic": "{date}, watered with organic fertilizer",
+
+  "plantdetail.day_mineral": "{date}, watered with mineral fertilizer",
 
   "plantdetail.day_marked": "{date}, {label}",
 
