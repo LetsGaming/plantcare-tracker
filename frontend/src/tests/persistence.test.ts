@@ -10,6 +10,9 @@ vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
 );
 
+// Loaded while collecting so the first test does not pay for importing @ionic/vue.
+import "@/stores/pinia";
+
 const useDemoStore = defineStore("demo", {
   state: () => ({ items: [] as number[], status: "idle", fetchedAt: null as number | null }),
   persist: {

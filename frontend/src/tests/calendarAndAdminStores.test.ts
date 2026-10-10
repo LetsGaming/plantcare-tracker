@@ -24,6 +24,8 @@ vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import { useCalendarStore } from "@/stores/calendar";
 import { useAdminHealthStore } from "@/stores/adminHealth";
+// Loaded while collecting so the first test does not pay for importing @ionic/vue.
+import "@/stores/pinia";
 
 const category = (name: string): Category => ({
   name,
