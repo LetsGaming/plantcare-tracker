@@ -138,6 +138,16 @@ export class SQLitePlantRepository implements PlantRepository {
     return Number(result.numDeletedRows) > 0;
   }
 
+  async isSubstrateUsableBy(substrateId: number, userId: number): Promise<boolean> {
+    const row = await getKysely()
+      .selectFrom('substrates')
+      .select('id')
+      .where('id', '=', substrateId)
+      .where((eb) => eb.or([eb('is_public', '=', 1), eb('user_id', '=', userId)]))
+      .executeTakeFirst();
+    return row !== undefined;
+  }
+
   // ── Collapse JOIN rows into Plant entities ────────────────────────────────
   private groupRows(rows: PlantRow[]): Plant[] {
     const map = new Map<number, { data: PlantRow; images: ImageRef[] }>();

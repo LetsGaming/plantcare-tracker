@@ -50,6 +50,21 @@ export const UpdatePlantSchema = z
     { message: 'At least one field must be provided for update' },
   );
 
+/**
+ * A missing substrate and another user's private one answer the same 404,
+ * so a caller cannot probe which ids exist.
+ */
+const assertSubstrateUsable = async (
+  repo: PlantRepository,
+  substrateId: number | null | undefined,
+  userId: number,
+): Promise<void> => {
+  if (substrateId === null || substrateId === undefined) return;
+  if (!(await repo.isSubstrateUsableBy(substrateId, userId))) {
+    throw new NotFoundError('Substrate');
+  }
+};
+
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
 export class GetAllPlantsUseCase {
@@ -87,6 +102,7 @@ export class CreatePlantUseCase {
 
   async execute(input: unknown, userId: number): Promise<Plant> {
     const data = parseOrThrow(CreatePlantSchema, input, 'Invalid plant data');
+    await assertSubstrateUsable(this.repo, data.substrateId, userId);
 
     const plantId = await this.repo.create({ ...data, userId });
 
@@ -107,6 +123,7 @@ export class UpdatePlantUseCase {
 
   async execute(id: number, userId: number, input: unknown): Promise<Plant> {
     const data = parseOrThrow(UpdatePlantSchema, input, 'Invalid update data');
+    await assertSubstrateUsable(this.repo, data.substrateId, userId);
 
     const updated = await this.repo.update(id, userId, data);
     if (!updated) throw new NotFoundError('Plant');

@@ -38,6 +38,7 @@ const makeMockRepo = (): PlantRepository => ({
   create: vi.fn().mockResolvedValue(1),
   update: vi.fn().mockResolvedValue(true),
   delete: vi.fn().mockResolvedValue(true),
+  isSubstrateUsableBy: vi.fn().mockResolvedValue(true),
 });
 
 // ── Plant entity ──────────────────────────────────────────────────────────────
@@ -170,6 +171,23 @@ describe('CreatePlantUseCase', () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it('throws NotFoundError for a substrate the user may not use, without writing', async () => {
+    const repo = makeMockRepo();
+    (repo.isSubstrateUsableBy as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    await expect(
+      new CreatePlantUseCase(repo).execute({ name: 'x', substrateId: 7 }, 2),
+    ).rejects.toThrow(NotFoundError);
+    expect(repo.isSubstrateUsableBy).toHaveBeenCalledWith(7, 2);
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
+  it('skips the substrate check when no substrate is given', async () => {
+    const repo = makeMockRepo();
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
+    await new CreatePlantUseCase(repo).execute({ name: 'x', substrateId: null }, 2);
+    expect(repo.isSubstrateUsableBy).not.toHaveBeenCalled();
+  });
+
   it('defaults isPublic to false', async () => {
     const repo = makeMockRepo();
     (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
@@ -198,6 +216,15 @@ describe('UpdatePlantUseCase', () => {
     await expect(new UpdatePlantUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(
       NotFoundError,
     );
+  });
+
+  it('throws NotFoundError for a substrate the user may not use, without writing', async () => {
+    const repo = makeMockRepo();
+    (repo.isSubstrateUsableBy as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    await expect(new UpdatePlantUseCase(repo).execute(1, 2, { substrateId: 7 })).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(repo.update).not.toHaveBeenCalled();
   });
 
   it('throws ValidationError when no fields provided', async () => {

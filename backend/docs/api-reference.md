@@ -39,7 +39,7 @@ Failures that are the client's doing never answer `500`:
 | Malformed JSON body | `400` | `ValidationError` |
 | JSON body over 100 kb | `413` | `PayloadTooLargeError` |
 | Unique constraint (duplicate component in a substrate, username taken) | `409` | `ConflictError` |
-| Foreign key constraint (unknown `substrateId`, `componentId`) | `400` | `ValidationError` |
+| Foreign key constraint (unknown `componentId`) | `400` | `ValidationError` |
 | Upload that is not a decodable image | `400` | `ValidationError` |
 
 A request from a disallowed `Origin` is answered normally without CORS headers.
@@ -211,11 +211,13 @@ A rename onto an existing username answers `409`. Any profile change invalidates
 
 Only `name` (1 to 100 characters) is required. `species` (up to 100 characters) and `substrateId` (a positive integer) are optional; an empty or `null` species and a `null` substrateId leave the field unset, so `{ "name": "Monstera" }` is a valid request.
 
-Errors: `400` (validation, or an unknown `substrateId`), `401`, `403` (guest)
+A `substrateId` must name a substrate that is public or owned by the caller. A missing substrate and another user's private one both answer `404` (`Substrate not found`), and nothing is written.
+
+Errors: `400` (validation), `401`, `403` (guest), `404` (substrate not usable)
 
 ### PATCH `/:id`
 
-All fields optional (at least one required). Only the owner can update. `"species": ""` or `"species": null` clears the species, `"substrateId": null` clears the substrate.
+All fields optional (at least one required). Only the owner can update. `"species": ""` or `"species": null` clears the species, `"substrateId": null` clears the substrate. A new `substrateId` follows the same rule as on create.
 
 ```json
 // Request

@@ -107,4 +107,6 @@ export interface PlantRepository {
   create(dto: CreatePlantDTO): Promise<number>; // returns new plant ID
   update(id: number, userId: number, dto: UpdatePlantDTO): Promise<boolean>;
   delete(id: number, userId: number): Promise<boolean>;
+  /** True when the substrate exists and is public or owned by the user. */
+  isSubstrateUsableBy(substrateId: number, userId: number): Promise<boolean>;
 }
