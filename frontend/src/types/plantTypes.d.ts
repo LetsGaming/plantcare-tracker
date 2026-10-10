@@ -18,8 +18,9 @@ interface Plant {
   id: number;
   userId: number;
   name: string;
-  species: string;
-  /** Falls back to species if no separate description exists */
+  /** Null when the plant has no species; views print a localized label instead. */
+  species: string | null;
+  /** The species, or empty when there is none */
   description: string;
   isPublic: boolean;
   /** ISO date converted to local display format by mapper */
@@ -42,17 +43,17 @@ interface PlantSubstrateRef {
 /** Payload for creating a new plant */
 interface AddPlant {
   name: string;
-  species: string;
-  substrateId: number;
+  species?: string;
+  substrateId: number | null;
   isPublic?: boolean;
   image?: File;
 }
 
-/** Payload for updating a plant */
+/** Payload for updating a plant; an empty or null species and a null substrateId clear the field */
 interface EditPlant {
   name?: string;
-  species?: string;
-  substrateId?: number;
+  species?: string | null;
+  substrateId?: number | null;
   isPublic?: boolean;
 }
 
@@ -66,7 +67,7 @@ interface APIPlant {
   plant_id: number;
   plant_user_id: number;
   plant_name: string;
-  plant_species: string;
+  plant_species: string | null;
   /** V2 returns boolean (not 0/1) */
   is_public: boolean;
   plant_created_at: number;

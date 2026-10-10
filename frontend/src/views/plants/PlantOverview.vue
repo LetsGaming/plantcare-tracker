@@ -117,11 +117,16 @@ export default defineComponent({
     },
     /** Personal plants carry their watering state; public ones stay plain (other owners' records are not available). */
     overviewItems(): OverviewItem[] {
-      if (this.isPublic) return this.plants;
+      const unknownSpecies = this.t("plant.species_unknown");
+      const labelled = this.plants.map((plant): OverviewItem => ({
+        ...plant,
+        description: plant.species || unknownSpecies,
+      }));
+      if (this.isPublic) return labelled;
       const now = Date.now();
       const locale = localizationService.getLocale();
-      return this.plants.map((plant): OverviewItem => {
-        const records = this.byPlantId[plant.id];
+      return labelled.map((plant): OverviewItem => {
+        const records = this.byPlantId[plant.id as number];
         if (!records) return plant;
         const status = wateringStatus(records, now);
         const statusLine =
@@ -222,7 +227,7 @@ export default defineComponent({
     },
 
     async addPlant(plantData: AddPlant) {
-      if (!plantData.name.trim() || !plantData.species.trim() || plantData.substrateId === 0) {
+      if (!plantData.name.trim()) {
         ToastService.showError({
           key: "plant.add.error_required",
           fallback: "Please fill in all required fields.",

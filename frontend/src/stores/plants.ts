@@ -134,22 +134,27 @@ export const usePlantsStore = defineStore("plants", {
     /** Creates a plant (optimistic); resolves with the plant carrying the real id. */
     async addPlant(plantToAdd: AddPlant): Promise<Plant> {
       // `image` is handled by uploadPlantImage after creation, never sent here.
-      const { image: _image, ...body } = plantToAdd;
+      const { image: _image, substrateId, ...rest } = plantToAdd;
+      const body = substrateId === null ? rest : { ...rest, substrateId };
 
       // Best-effort name lookup for the optimistic card; the picker the user
       // just used has warmed this cache in practice.
-      const substrateName = await this.substrateName(plantToAdd.substrateId);
+      const substrate =
+        substrateId === null
+          ? null
+          : { id: substrateId, name: await this.substrateName(substrateId) };
+      const species = plantToAdd.species?.trim() || null;
 
       const optimistic: Plant = {
         id: -Date.now(),
         userId: useSessionStore().userId,
         name: plantToAdd.name,
-        species: plantToAdd.species,
-        description: plantToAdd.species,
+        species,
+        description: species ?? "",
         isPublic: plantToAdd.isPublic ?? false,
         created_at: Utils.convertDateMillis(Date.now()),
         imageUrl: undefined,
-        substrate: { id: plantToAdd.substrateId, name: substrateName },
+        substrate,
         images: [],
       };
 
@@ -174,19 +179,24 @@ export const usePlantsStore = defineStore("plants", {
       const existing = this.byId(plantId);
 
       let substrate = existing?.substrate ?? null;
-      if (updatedPlantData.substrateId !== undefined) {
-        substrate = {
-          id: updatedPlantData.substrateId,
-          name: await this.substrateName(updatedPlantData.substrateId),
-        };
+      const { substrateId } = updatedPlantData;
+      if (substrateId === null) {
+        substrate = null;
+      } else if (substrateId !== undefined) {
+        substrate = { id: substrateId, name: await this.substrateName(substrateId) };
       }
+
+      const species =
+        updatedPlantData.species === undefined
+          ? (existing?.species ?? null)
+          : updatedPlantData.species?.trim() || null;
 
       const optimistic: Plant = {
         id: plantId,
         userId: existing?.userId ?? -1,
         name: updatedPlantData.name ?? existing?.name ?? "",
-        species: updatedPlantData.species ?? existing?.species ?? "",
-        description: updatedPlantData.species ?? existing?.description ?? "",
+        species,
+        description: species ?? "",
         isPublic: updatedPlantData.isPublic ?? existing?.isPublic ?? false,
         created_at: existing?.created_at ?? Utils.convertDateMillis(Date.now()),
         imageUrl: existing?.imageUrl,

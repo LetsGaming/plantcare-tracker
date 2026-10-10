@@ -229,6 +229,8 @@ export default {
 
   "plant.add.upload_failed": "Failed to upload image.",
 
+  "plant.add.new_substrate": "Create a new substrate",
+
   /* Plant editing */
 
   "plant.edit.title": "Edit plant",
@@ -252,6 +254,10 @@ export default {
   "plant.field.substrate": "Substrate",
 
   "plant.field.substrate_placeholder": "Select substrate",
+
+  "plant.field.substrate_none": "Not set",
+
+  "plant.species_unknown": "Unknown species",
 
   "plant.field.visibility": "Visibility",
 

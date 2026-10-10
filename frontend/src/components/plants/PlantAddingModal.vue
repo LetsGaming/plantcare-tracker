@@ -9,24 +9,40 @@
     :is-loading="isLoading"
     @submit="submit"
     @close="$emit('close')"
-  />
+  >
+    <template #after-field="{ modelKey }">
+      <IonButton
+        v-if="modelKey === 'substrateId'"
+        class="new-substrate"
+        fill="clear"
+        size="small"
+        @click="openNewSubstrate"
+      >
+        <IonIcon slot="start" :icon="icons.add" aria-hidden="true" />
+        {{ t("plant.add.new_substrate") }}
+      </IonButton>
+    </template>
+  </BaseFormModal>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
+import { IonButton, IonIcon } from "@ionic/vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
+import localizationService from "@/services/general/LocalizationService";
+import { icons } from "@/theme/icons";
 
 const blankPlant = (): AddPlant => ({
   name: "",
   species: "",
-  substrateId: 0,
+  substrateId: null,
   isPublic: false,
   image: undefined,
 });
 
 export default defineComponent({
   name: "PlantAddingModal",
-  components: { BaseFormModal },
+  components: { BaseFormModal, IonButton, IonIcon },
   emits: ["close", "save"],
   props: {
     isOpen: { type: Boolean, required: true },
@@ -35,6 +51,9 @@ export default defineComponent({
       type: Array as PropType<Substrate[]>,
       required: true,
     },
+  },
+  setup() {
+    return { icons };
   },
   data() {
     return { plant: blankPlant() };
@@ -59,7 +78,6 @@ export default defineComponent({
           type: "input",
           modelKey: "species",
           label: "plant.field.species",
-          required: true,
           autocapitalize: "words",
           enterkeyhint: "next",
         },
@@ -68,11 +86,13 @@ export default defineComponent({
           modelKey: "substrateId",
           label: "plant.field.substrate",
           placeholder: "plant.field.substrate_placeholder",
-          options: this.substrates.map((s) => ({
-            value: s.id,
-            label: s.name,
-          })),
-          required: true,
+          options: [
+            { value: null, label: "plant.field.substrate_none" },
+            ...this.substrates.map((s) => ({
+              value: s.id,
+              label: s.name,
+            })),
+          ],
         },
         {
           type: "radio",
@@ -93,9 +113,25 @@ export default defineComponent({
     },
   },
   methods: {
+    t(key: string) {
+      return localizationService.t(key, undefined, key);
+    },
     submit() {
       this.$emit("save", { ...this.plant });
+    },
+    /** The substrates tab has no deep link into its add dialog, so the user opens it there. */
+    openNewSubstrate() {
+      this.$emit("close");
+      this.$router.push("/tabs/substrates");
     },
   },
 });
 </script>
+
+<style scoped>
+.new-substrate {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  --padding-start: 0;
+  font-weight: 600;
+}
+</style>

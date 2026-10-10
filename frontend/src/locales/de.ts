@@ -229,6 +229,8 @@ export default {
 
   "plant.add.upload_failed": "Fehler beim Hochladen des Bildes.",
 
+  "plant.add.new_substrate": "Neues Substrat anlegen",
+
   /* Plant editing */
 
   "plant.edit.title": "Pflanze bearbeiten",
@@ -252,6 +254,10 @@ export default {
   "plant.field.substrate": "Substrat",
 
   "plant.field.substrate_placeholder": "Substrat auswählen",
+
+  "plant.field.substrate_none": "Nicht festgelegt",
+
+  "plant.species_unknown": "Unbekannte Art",
 
   "plant.field.visibility": "Sichtbarkeit",
 

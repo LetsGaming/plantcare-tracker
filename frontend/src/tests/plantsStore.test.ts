@@ -217,6 +217,24 @@ describe("addPlant (optimistic)", () => {
     });
   });
 
+  it("creates a name-only plant without a substrate lookup or substrateId in the body", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    const lookup = vi.spyOn(store, "substrateName");
+    const gate = deferred<APIPlant>();
+    vi.mocked(ApiUtils.post).mockReturnValue(gate.promise as never);
+
+    const pending = store.addPlant({ name: "Solo", species: "", substrateId: null });
+    await vi.waitFor(() => expect(store.items).toHaveLength(1));
+    expect(store.items[0]).toMatchObject({ name: "Solo", species: null, substrate: null });
+    expect(lookup).not.toHaveBeenCalled();
+    expect(ApiUtils.post).toHaveBeenCalledWith("/plants", { name: "Solo", species: "" });
+
+    gate.resolve(apiPlant({ plant_id: 3, plant_species: null, substrate: null }));
+    expect(await pending).toMatchObject({ id: 3, species: null, substrate: null });
+  });
+
   it("rolls back only the optimistic plant when the request fails", async () => {
     vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1 })]);
     const store = await newStore();
@@ -261,6 +279,23 @@ describe("editPlant (optimistic)", () => {
     await pending;
     expect(ApiUtils.patch).toHaveBeenCalledWith("/plants/1", { name: "Renamed" });
     expect(store.items[0].name).toBe("Renamed (server)");
+  });
+
+  it("clears species and substrate optimistically and sends null for the substrate", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1 })]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    const gate = deferred<APIPlant>();
+    vi.mocked(ApiUtils.patch).mockReturnValue(gate.promise as never);
+
+    const pending = store.editPlant(1, { species: "", substrateId: null });
+    await vi.waitFor(() => expect(store.items[0].substrate).toBeNull());
+    expect(store.items[0].species).toBeNull();
+    expect(ApiUtils.patch).toHaveBeenCalledWith("/plants/1", { species: "", substrateId: null });
+
+    gate.resolve(apiPlant({ plant_id: 1, plant_species: null, substrate: null }));
+    await pending;
+    expect(store.items[0]).toMatchObject({ species: null, substrate: null });
   });
 
   it("restores the previous plant when the request fails", async () => {
