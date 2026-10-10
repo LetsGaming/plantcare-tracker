@@ -43,6 +43,7 @@ type Vm = {
   onFertilize(typeId: number): Promise<void>;
   onUndo(): Promise<void>;
   closeSheet(): void;
+  rawTopId: number | null;
   sheet: { open: boolean; state: string };
 };
 
@@ -144,6 +145,7 @@ describe("WaterRound snap flow", () => {
     recognition.match.mockReturnValue(new Promise((r) => (resolve = r)));
     const { wrapper, vm } = await mountRound();
     const pending = vm.onPhoto(photo());
+    await nextTick();
     wrapper.findComponent(SnapMatchSheet).vm.$emit("close");
     resolve({ snapshotId: "late", threshold: 0.8, candidates: [{ plantId: 1, score: 0.9 }] });
     await pending;
@@ -155,7 +157,9 @@ describe("WaterRound snap flow", () => {
   it("confirms once with the keep photo setting and refreshes the plant", async () => {
     const { wrapper, plants, watering, vm } = await mountRound({ keepPhoto: false });
     await vm.onPhoto(photo());
+    expect(vm.rawTopId).toBe(1);
     await vm.onPick(1);
+    expect(vm.rawTopId).toBeNull();
     expect(recognition.confirm).toHaveBeenCalledTimes(1);
     expect(recognition.confirm).toHaveBeenCalledWith("snap1", { plantId: 1, keepPhoto: false });
     expect(watering.ensureRecords).toHaveBeenCalledWith(1, { force: true });
@@ -431,25 +435,34 @@ describe("WaterRound snap flow", () => {
     expect(sheetProps(wrapper).confident).toBe(false);
   });
 
-  it("forgets the previous raw best match when a second photo is matched", async () => {
+  it("forgets the previous raw best match while a second photo is matching", async () => {
+    let resolveSecond!: (value: unknown) => void;
     recognition.match
       .mockResolvedValueOnce({
         snapshotId: "a",
         threshold: 0.8,
         candidates: [{ plantId: 3, score: 0.9 }],
       })
-      .mockResolvedValueOnce({
-        snapshotId: "b",
-        threshold: 0.4,
-        candidates: [
-          { plantId: 99, score: 0.95 },
-          { plantId: 3, score: 0.5 },
-        ],
-      });
+      .mockReturnValueOnce(new Promise((r) => (resolveSecond = r)));
     const { wrapper, vm } = await mountRound();
     await vm.onPhoto(photo());
     expect(sheetProps(wrapper).confident).toBe(true);
-    await vm.onPhoto(photo());
+    expect(vm.rawTopId).toBe(3);
+    const pending = vm.onPhoto(photo());
+    await nextTick();
+    expect(sheetProps(wrapper).state).toBe("matching");
+    expect(vm.rawTopId).toBeNull();
+    expect(sheetProps(wrapper).confident).toBe(false);
+    resolveSecond({
+      snapshotId: "b",
+      threshold: 0.4,
+      candidates: [
+        { plantId: 99, score: 0.95 },
+        { plantId: 3, score: 0.5 },
+      ],
+    });
+    await pending;
+    expect(vm.rawTopId).toBe(99);
     expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
     expect(sheetProps(wrapper).confident).toBe(false);
   });

@@ -324,6 +324,7 @@ export default defineComponent({
       if (!snapshotId || this.snapBusy) return;
       this.snapBusy = true;
       this.snapshotId = null;
+      this.rawTopId = null;
       try {
         const result = await RecognitionService.confirm(snapshotId, {
           plantId,
