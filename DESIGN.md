@@ -32,6 +32,18 @@ colors:
   water-wash-dark-mode: "#12353a"
   clay-wash: "#f6e4da"
   clay-wash-dark-mode: "#3a2418"
+  feed-organic: "#7a4a12"
+  feed-organic-dark-mode: "#e0b46a"
+  feed-mineral: "#6b4f8a"
+  feed-mineral-dark-mode: "#b79ad6"
+  control-border: "#839185"
+  control-border-dark-mode: "#74877a"
+  danger-wash: "#fbe3e1"
+  danger-wash-dark-mode: "#3d1a18"
+  warning-wash: "#fdf0cc"
+  warning-wash-dark-mode: "#3a2f10"
+  chrome-bg: "#ffffff"
+  chrome-bg-dark-mode: "#14221a"
 typography:
   display:
     fontFamily: "Bricolage Grotesque Variable, Figtree Variable, system-ui, sans-serif"
@@ -136,14 +148,14 @@ components:
 
 **Creative North Star: "The Potting Bench Logbook"**
 
-An Ionic Vue app restyled so that watering is the hero and every plant wears a painted tag. Leaf green carries brand and primary actions on a sage-white ground (not cream); fired clay marks fertilizer, "new" and overdue; water teal marks watering. Dark mode is a moss-black counterpart, not an inversion. Headings are set in Bricolage Grotesque, body in Figtree. The look is warm and botanical, calm and legible one-handed next to a plant.
+An Ionic Vue app restyled so that watering is the hero and every plant wears a painted tag. Leaf green carries brand and primary actions on a sage-white ground (not cream); fired clay marks overdue; water teal marks watering. Dark mode is a moss-black counterpart, not an inversion. Headings are set in Bricolage Grotesque, body in Figtree. The look is warm and botanical, calm and legible one-handed next to a plant.
 
 Density is moderate: tag cards two per row on a phone, generous 44px touch targets, a single content column capped at 960px on detail screens. Depth is soft and low, as if tags and cards rest on a bench. Ionic components are kept; they are remapped through tokens, never restyled screen by screen.
 
 The build confirms the direction contract with one divergence: the contract names a "punched hole" tag as the motif, and it lands in two forms, a side hole on the detail header tag and a top-center hole with a dashed perforation on list cards.
 
 **Key Characteristics:**
-- Role colors are semantic: green acts, teal waters, clay flags fertilizer, new and overdue.
+- Role colors are semantic: green acts, teal waters, clay flags overdue, brown and violet tell organic from mineral fertilizer, sun yellow marks new.
 - Every plant has an identity: a tag, and when no photo exists an authored leaf silhouette on a tint keyed to the plant.
 - One primary action per screen region, 44px minimum targets, 52px for Water now.
 - Light and dark both first-class, switched only by the `ion-palette-dark` class.
@@ -156,7 +168,7 @@ A leaf-and-clay palette on a sage-white ground, with water teal as the one cool 
 - **Leaf Green** (frontmatter `leaf-green`): brand, primary buttons, selected tab and nav item, caret, text selection tint, focus of the primary path, the browser theme-color in light mode. Dark mode lifts it to a light mint for contrast on moss black.
 
 ### Secondary
-- **Fired Clay** (`fired-clay`): fertilizer, the "new" pill on cards, the overdue status chip, placeholder accent stroke. Clay wash (`clay-wash`) is its tint surface.
+- **Fired Clay** (`fired-clay`): the overdue status chip, its status text (`--overdue-ink`, the clay shade) and the placeholder accent stroke. Clay wash (`clay-wash`) is its tint surface. Clay means overdue and nothing else.
 
 ### Tertiary
 - **Watering Can Teal** (`watering-can-teal`): everything about water: the Water now button, due chip, the watering status band wash (`water-wash`), the public chip, and the keyboard focus ring (`--focus-ring`).
@@ -168,10 +180,12 @@ A leaf-and-clay palette on a sage-white ground, with water teal as the one cool 
 - **Line** (`line`): 1px to 1.5px borders, dashed tag perforation, dividers.
 - **Leaf Wash** (`leaf-wash`): plant tag header surface and active side-menu item.
 - Status colors **New Growth** (success), **Sun on a Sill** (warning, with dark ink text) and **Brick** (danger, invalid field border) complete the Ionic roles.
+- Fertilizer has its own roles: **Feed Organic** (`feed-organic`, bark brown) and **Feed Mineral** (`feed-mineral`, violet), each with a `-contrast` ink for text on a filled chip. The "new" pill is **Sun on a Sill** (`--new`) with `--new-ink`.
+- Semantic helpers: `--danger-wash` and `--warning-wash` (tint surfaces for error and warning banners), `--offline-bg` (offline banner), `--chrome-bg` (toolbar and tab bar surface), `--nav-idle` (idle tab and nav item ink), `--control-border` (3:1 border of inputs and switches, stronger than `--line`), `--category-ink` (text on user category colors) and `--series-1` to `--series-5` (non-role chart series that meet 4.3:1 on `surface-raised`).
 - Placeholder tints `--tint-1` to `--tint-5` (mint, peach, aqua, lime, lilac, each with a dark variant) and chart colors `--chart-1` to `--chart-6` are defined in `variables.css`; they are reached only through those variables.
 
 ### Named Rules
-**The Role Color Rule.** Green means act, teal means water, clay means fertilizer, new or overdue. Never swap them to decorate.
+**The Role Color Rule.** Green means act, teal means water, clay means overdue, brown and violet mean organic and mineral fertilizer, sun yellow means new. Never swap them to decorate.
 
 **The Never-Only-Color Rule.** Status is always color plus text or icon (chip label, status line); chart series differ in lightness and hue and are never the only code.
 
@@ -236,7 +250,7 @@ Always the `IconButton` component: a clear Ionic button with a required accessib
 
 ### Plant tag cards (list)
 - **Anatomy:** raised surface, 14px radius, card shadow; 4:3 photo or tinted placeholder; 2px dashed perforation with a centered 12px hole; name in the display face (16px, 650, two lines clamped); species or sub line (13px, soft ink, one line); status row.
-- **Status:** a "due" chip (teal fill) or "overdue" chip (clay fill) with matching colored status text; a clay "new" pill sits on the photo top-left.
+- **Status:** a "due" chip (teal fill) or "overdue" chip (clay fill) with matching colored status text; a sun-yellow "new" pill sits on the photo top-left.
 - **States:** on pointer devices hover lifts 3px with the lift shadow; press scales to 0.985; transitions run 0.25s on the ease-out curve.
 
 ### Plant tag header (detail)

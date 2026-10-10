@@ -10,14 +10,15 @@ screens read:
 
 | Group | Tokens |
 |-------|--------|
-| Roles | `--ion-color-primary` (leaf green: brand, primary actions), `secondary` (fired clay: fertilizer, "new"), `tertiary` (water teal: watering), `danger` (brick), `medium` (sage), `dark` (moss ink) |
-| Surfaces and ink | `--ion-background-color`, `--surface-raised`, `--surface-sunken`, `--ink-soft`, `--line`, `--focus-ring`, `--water-wash`, `--clay-wash`, `--leaf-wash` |
+| Roles | `--ion-color-primary` (leaf green: brand, primary actions), `secondary` (fired clay: overdue only), `tertiary` (water teal: watering), `danger` (brick), `medium` (sage), `dark` (moss ink) |
+| Surfaces and ink | `--ion-background-color`, `--surface-raised`, `--surface-sunken`, `--ink-soft`, `--line`, `--focus-ring`, `--water-wash`, `--clay-wash`, `--leaf-wash`, `--danger-wash`, `--warning-wash`, `--offline-bg`, `--chrome-bg`, `--nav-idle`, `--control-border` (3:1 control outline), `--category-ink` |
+| Semantic roles | `--water`, `--clay` (overdue only), `--leaf`, `--feed-organic` and `--feed-mineral` (fertilizer kinds, each with a `-contrast` ink), `--new` with `--new-ink` (the "new" pill), `--overdue-ink`, `--z-banner` |
 | Placeholder tints | `--tint-1` to `--tint-5`, `--tint-ink` |
-| Charts | `--chart-1` to `--chart-6`, `--chart-text-color`, `--chart-grid-color`, `--chart-line-color`, `--chart-fill-color` |
+| Charts | `--chart-1` to `--chart-6` (1, 2, 3 and 6 alias the Ionic roles), `--series-1` to `--series-5` (non-role series, 4.3:1 on `--surface-raised`), `--chart-text-color`, `--chart-grid-color`, `--chart-line-color`, `--chart-fill-color` |
 | Type | `--font-display` (Bricolage Grotesque), `--font-body` (Figtree), `--text-xs` to `--text-2xl`; fonts are self-hosted through `@fontsource-variable` (`theme/fonts.ts`) |
 | Space and shape | `--space-1` to `--space-7`, `--radius-sm|md|lg|pill`, `--shadow-card`, `--shadow-lift`, `--tap-min` (44px), `--content-max`, `--ease-out` |
 
-Text pairs meet WCAG AA in both themes (primary on white is 6.5:1). Use tokens only: no hex colors or
+Text pairs meet WCAG AA in both themes (primary on white is 6.5:1); `tests/themeTokens.test.ts` asserts the measured ratios of the semantic pairs for light and dark, and `utils/contrast.ts` provides `contrastRatio`, `readableInk` and `ensureContrast` for colors only known at runtime. Use tokens only: no hex colors or
 inline style attributes in components. `custom.css` carries the global typography, focus ring, selection
 color, reduced-motion rule and the Ionic control defaults; `scrollbar.css` themes the scrollbars.
 
