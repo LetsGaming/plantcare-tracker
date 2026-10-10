@@ -3,7 +3,11 @@
     <div class="main">
       <h3 class="seller">
         {{ source.seller }}
-        <ion-badge :color="statusIonColor(source.status)">
+        <ion-badge
+          :color="source.status === 'ok' ? undefined : statusIonColor(source.status)"
+          :class="{ 'status-ok': source.status === 'ok' }"
+        >
+          <ion-icon v-if="source.status === 'ok'" :icon="icons.statusOk" aria-hidden="true" />
           {{ t(`admin.scrapers.status.${source.status}`) }}
         </ion-badge>
       </h3>
@@ -140,6 +144,16 @@ export default defineComponent({
 .main {
   min-width: 0;
   flex: 1;
+}
+
+.status-ok {
+  --background: var(--leaf-wash);
+  --color: var(--ion-text-color);
+}
+
+.status-ok ion-icon {
+  margin-inline-end: var(--space-1);
+  vertical-align: -2px;
 }
 
 .seller {

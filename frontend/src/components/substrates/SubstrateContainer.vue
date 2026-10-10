@@ -8,7 +8,16 @@
     </div>
 
     <div v-else class="composition-grid">
-      <PieChart :data="chartData" :show-legend="false" class="chart" />
+      <PieChart :data="chartData" :show-legend="false" class="chart composition-pie" />
+      <div class="composition-bar" role="img" :aria-label="barLabel">
+        <span
+          v-for="item in components"
+          :key="item.id"
+          class="bar-segment"
+          :class="`swatch-${item.colorIndex}`"
+          :style="{ width: `${item.share}%` }"
+        />
+      </div>
 
       <div class="list-column">
         <SearchBar
@@ -53,11 +62,12 @@ import Utils from "@/utils/utils";
 import { finenessLabel, partsLabel } from "@/utils/enumLabels";
 
 const SEARCH_THRESHOLD = 5;
-const PALETTE_SIZE = 6;
+const PALETTE_SIZE = 5;
 
 interface CompositionRow extends SubstrateComponent {
   colorIndex: number;
   percent: string;
+  share: number;
 }
 
 export default defineComponent({
@@ -88,6 +98,7 @@ export default defineComponent({
       return list.map((component, index) => ({
         ...component,
         colorIndex: (index % PALETTE_SIZE) + 1,
+        share: total > 0 ? (component.parts / total) * 100 : 0,
         percent: this.t("subdetail.share_value", {
           percent: formatter.format(total > 0 ? component.parts / total : 0),
         }),
@@ -95,6 +106,9 @@ export default defineComponent({
     },
     visibleComponents(): CompositionRow[] {
       return Utils.baseSearchFilter(this.query, this.components);
+    },
+    barLabel(): string {
+      return this.components.map((c) => `${c.name} ${c.percent}`).join(", ");
     },
     chartData(): { name: string; parts: number }[] {
       return this.components.map((component) => ({
@@ -168,22 +182,19 @@ export default defineComponent({
 }
 
 .swatch-1 {
-  background: var(--chart-1);
+  background: var(--series-1);
 }
 .swatch-2 {
-  background: var(--chart-2);
+  background: var(--series-2);
 }
 .swatch-3 {
-  background: var(--chart-3);
+  background: var(--series-3);
 }
 .swatch-4 {
-  background: var(--chart-4);
+  background: var(--series-4);
 }
 .swatch-5 {
-  background: var(--chart-5);
-}
-.swatch-6 {
-  background: var(--chart-6);
+  background: var(--series-5);
 }
 
 .component-link {
@@ -229,6 +240,28 @@ export default defineComponent({
 .no-matches {
   margin: 0;
   color: var(--ink-soft);
+}
+
+.composition-bar {
+  display: none;
+  height: 24px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.bar-segment {
+  height: 100%;
+}
+
+@media (max-width: 575px) {
+  .composition-pie {
+    display: none;
+  }
+
+  .composition-bar {
+    display: flex;
+  }
 }
 
 @container (min-width: 600px) {

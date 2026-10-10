@@ -111,7 +111,7 @@ export default defineComponent({
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-xs);
   font-weight: 650;
 }
@@ -122,8 +122,8 @@ export default defineComponent({
 }
 
 .chip-public {
-  background: var(--water-wash);
-  color: var(--ion-text-color);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
 }
 
 .chip-private {

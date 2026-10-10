@@ -41,7 +41,7 @@ export default defineComponent({
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
-  background: var(--clay-wash);
+  background: var(--danger-wash);
   color: var(--ion-text-color);
 }
 

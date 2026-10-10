@@ -24,7 +24,9 @@ import {
   pricetagOutline,
   pulseOutline,
   settingsOutline,
+  checkmarkCircleOutline,
   swapVerticalOutline,
+  trendingDownOutline,
   water,
   waterOutline,
 } from "ionicons/icons";
@@ -51,6 +53,8 @@ describe("icon family", () => {
       pulse: pulseOutline,
       segmentPublic: peopleOutline,
       segmentPrivate: personOutline,
+      discount: trendingDownOutline,
+      statusOk: checkmarkCircleOutline,
     });
   });
 

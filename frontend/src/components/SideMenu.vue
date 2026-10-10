@@ -39,7 +39,7 @@
           <ion-badge
             v-if="dest.tab === 'sales' && salesCount > 0"
             slot="end"
-            color="secondary"
+            class="sales-badge"
             :aria-label="t('tabs.sales_new', { count: salesCount })"
           >
             {{ salesCount }}
@@ -472,6 +472,11 @@ ion-item.active {
 
 .rail ion-item ion-icon[slot="start"] {
   margin-inline-end: 0;
+}
+
+.sales-badge {
+  --background: var(--new);
+  --color: var(--new-ink);
 }
 
 .rail ion-item ion-badge {

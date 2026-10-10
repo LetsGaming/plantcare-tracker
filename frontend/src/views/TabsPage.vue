@@ -29,7 +29,7 @@
           <ion-label>{{ t("tabs.sales") }}</ion-label>
           <ion-badge
             v-if="salesCount > 0"
-            color="secondary"
+            class="sales-badge"
             :aria-label="t('tabs.sales_new', { count: salesCount })"
           >
             {{ salesCount }}
@@ -125,5 +125,10 @@ ion-badge {
   --padding-start: 6px;
   --padding-end: 6px;
   font-weight: 700;
+}
+
+.sales-badge {
+  --background: var(--new);
+  --color: var(--new-ink);
 }
 </style>

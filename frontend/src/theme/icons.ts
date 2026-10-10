@@ -23,7 +23,9 @@ import {
   pricetagOutline,
   pulseOutline,
   settingsOutline,
+  checkmarkCircleOutline,
   swapVerticalOutline,
+  trendingDownOutline,
   water,
   waterOutline,
 } from "ionicons/icons";
@@ -48,6 +50,8 @@ export const icons = {
   pulse: pulseOutline,
   segmentPublic: peopleOutline,
   segmentPrivate: personOutline,
+  discount: trendingDownOutline,
+  statusOk: checkmarkCircleOutline,
 } as const;
 
 export type NavDestination = "plants" | "water" | "substrates" | "components" | "sales" | "debug";

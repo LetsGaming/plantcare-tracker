@@ -85,7 +85,7 @@ export default defineComponent({
 }
 
 .offline-banner.is-offline {
-  background: var(--clay-wash);
+  background: var(--offline-bg);
 }
 
 .offline-banner.is-online {

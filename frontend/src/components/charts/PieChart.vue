@@ -28,7 +28,7 @@ interface PieSlice {
 
 ChartJS.register(Title, Tooltip, ArcElement);
 
-const PALETTE_SIZE = 6;
+const PALETTE_SIZE = 5;
 
 function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -107,7 +107,7 @@ export default defineComponent({
   },
   methods: {
     applyTheme() {
-      const colors = Array.from({ length: PALETTE_SIZE }, (_, i) => cssVar(`--chart-${i + 1}`));
+      const colors = Array.from({ length: PALETTE_SIZE }, (_, i) => cssVar(`--series-${i + 1}`));
       const background = this.data.map((_, i) => colors[i % PALETTE_SIZE]);
       const textColor = cssVar("--chart-text-color");
       this.chartData = {
@@ -183,22 +183,19 @@ export default defineComponent({
 }
 
 .swatch-1 {
-  background: var(--chart-1);
+  background: var(--series-1);
 }
 .swatch-2 {
-  background: var(--chart-2);
+  background: var(--series-2);
 }
 .swatch-3 {
-  background: var(--chart-3);
+  background: var(--series-3);
 }
 .swatch-4 {
-  background: var(--chart-4);
+  background: var(--series-4);
 }
 .swatch-5 {
-  background: var(--chart-5);
-}
-.swatch-6 {
-  background: var(--chart-6);
+  background: var(--series-5);
 }
 
 .legend-name {

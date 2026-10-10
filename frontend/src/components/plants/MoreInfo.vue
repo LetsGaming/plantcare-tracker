@@ -192,7 +192,8 @@ export default defineComponent({
   gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  background: var(--clay-wash);
+  background: var(--danger-wash);
+  color: var(--ion-text-color);
 }
 
 .guide-error p {
@@ -282,7 +283,8 @@ export default defineComponent({
 .guide-text .info-header {
   margin: var(--space-4) 0 var(--space-2);
   font-size: var(--text-md);
-  color: var(--ion-color-primary);
+  font-family: var(--font-display);
+  color: var(--ion-text-color);
 }
 
 .guide-text h1.info-header {
