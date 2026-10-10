@@ -46,3 +46,27 @@ describe("SnapButton", () => {
     expect(wrapper.emitted("invalid")).toEqual([["size"]]);
   });
 });
+
+describe("SnapButton presentation", () => {
+  it("is a solid button by default and takes an outline fill", () => {
+    const solid = shallowMount(SnapButton, { global: { renderStubDefaultSlot: true } });
+    expect(solid.find(".snap-trigger").attributes("fill")).toBe("solid");
+    const outline = shallowMount(SnapButton, {
+      props: { fill: "outline" },
+      global: { renderStubDefaultSlot: true },
+    });
+    expect(outline.find(".snap-trigger").attributes("fill")).toBe("outline");
+  });
+
+  it("focuses its button on demand", () => {
+    const wrapper = shallowMount(SnapButton, {
+      global: { renderStubDefaultSlot: true },
+      attachTo: document.body,
+    });
+    const el = wrapper.find(".snap-trigger").element as HTMLElement;
+    el.tabIndex = 0;
+    (wrapper.vm as unknown as { focusButton(): void }).focusButton();
+    expect(document.activeElement).toBe(el);
+    wrapper.unmount();
+  });
+});

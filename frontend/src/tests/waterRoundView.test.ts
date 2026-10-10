@@ -30,6 +30,8 @@ vi.mock("@/services/RecognitionService", () => ({
 import WaterRound from "@/views/water/WaterRound.vue";
 import RoundList from "@/components/water/RoundList.vue";
 import SearchBar from "@/components/SearchBar.vue";
+import SnapButton from "@/components/water/SnapButton.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
 import { usePlantsStore } from "@/stores/plants";
 import { useWateringStore } from "@/stores/watering";
 import { useSessionStore } from "@/stores/session";
@@ -40,13 +42,23 @@ const plant = (id: number, name: string) => ({ id, name, images: [] }) as unknow
 
 type Vm = { save(): Promise<void>; saveLabel: string };
 
-const mountRound = ({ guest = false } = {}) => {
+const push = vi.fn();
+
+const mountRound = ({
+  guest = false,
+  plantList = [plant(1, "Fine"), plant(2, "Thirsty"), plant(3, "Parched")],
+  prepare,
+}: {
+  guest?: boolean;
+  plantList?: Plant[];
+  prepare?: (watering: ReturnType<typeof useWateringStore>) => void;
+} = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const plants = usePlantsStore(pinia);
   const watering = useWateringStore(pinia);
   const session = useSessionStore(pinia);
   const overridable = (store: object) => store as unknown as Record<string, unknown>;
-  overridable(plants).personalPlants = [plant(1, "Fine"), plant(2, "Thirsty"), plant(3, "Parched")];
+  overridable(plants).personalPlants = plantList;
   watering.byPlantId = {
     1: [rec(1), rec(8)],
     2: [rec(20), rec(27)],
@@ -55,10 +67,11 @@ const mountRound = ({ guest = false } = {}) => {
   watering.fertilizerTypes = [{ id: 4, name: "Bloom" } as FertilizerType];
   overridable(session).isGuest = guest;
   vi.mocked(watering.addBatch).mockResolvedValue([11, 12]);
+  prepare?.(watering);
   const wrapper = shallowMount(WaterRound, {
-    global: { plugins: [pinia], renderStubDefaultSlot: true },
+    global: { plugins: [pinia], renderStubDefaultSlot: true, mocks: { $router: { push } } },
   });
-  return { wrapper, watering, vm: wrapper.vm as unknown as Vm };
+  return { wrapper, watering, session, vm: wrapper.vm as unknown as Vm };
 };
 
 describe("WaterRound", () => {
@@ -138,11 +151,62 @@ describe("WaterRound", () => {
     expect(watering.addBatch).not.toHaveBeenCalled();
   });
 
-  it("hides the footer and snap slot for guests", async () => {
-    const { wrapper } = mountRound({ guest: true });
+  it("replaces the controls and the footer with a sign in prompt for guests", async () => {
+    const { wrapper, session } = mountRound({ guest: true });
     await flushPromises();
     expect(wrapper.find(".log-button").exists()).toBe(false);
-    expect(wrapper.find(".snap-slot").exists()).toBe(false);
+    expect(wrapper.findComponent(SnapButton).exists()).toBe(false);
+    expect(wrapper.findComponent(SearchBar).exists()).toBe(false);
+    expect(wrapper.findComponent(RoundList).exists()).toBe(false);
+    expect(wrapper.findComponent({ name: "IonSegment" }).exists()).toBe(false);
+    const block = wrapper.findComponent(StateBlock);
+    expect(block.props("message")).toBe("state.guest_hint");
+    expect(block.props("actionLabel")).toBe("water.guest_cta");
+    block.vm.$emit("action");
+    expect(session.logout).toHaveBeenCalledTimes(1);
+  });
+
+  describe("screen states", () => {
+    it("shows row skeletons while the round loads", async () => {
+      const { wrapper } = mountRound({
+        prepare: (watering) =>
+          vi.mocked(watering.ensureRecordsFor).mockReturnValue(new Promise(() => {})),
+      });
+      await flushPromises();
+      expect(wrapper.findComponent(StateBlock).props("kind")).toBe("loading");
+      expect(wrapper.findComponent(RoundList).exists()).toBe(false);
+    });
+
+    it("shows an error with a retry that loads again and recovers", async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { wrapper, watering } = mountRound({
+        prepare: (w) => vi.mocked(w.ensureRecordsFor).mockRejectedValueOnce(new Error("offline")),
+      });
+      await flushPromises();
+      const block = wrapper.findComponent(StateBlock);
+      expect(block.props("kind")).toBe("error");
+      expect(block.props("message")).toBe("water.load_error");
+      expect(block.props("actionLabel")).toBe("state.retry");
+      expect(wrapper.findComponent(RoundList).exists()).toBe(false);
+
+      block.vm.$emit("action");
+      await flushPromises();
+      expect(watering.ensureRecordsFor).toHaveBeenCalledTimes(2);
+      expect(wrapper.findComponent(StateBlock).exists()).toBe(false);
+      expect(wrapper.findComponent(RoundList).exists()).toBe(true);
+      spy.mockRestore();
+    });
+
+    it("sends an empty plant list to the Plants tab", async () => {
+      const { wrapper } = mountRound({ plantList: [] });
+      await flushPromises();
+      const block = wrapper.findComponent(StateBlock);
+      expect(block.props("kind")).toBe("empty");
+      expect(block.props("message")).toBe("water.empty");
+      expect(block.props("actionLabel")).toBe("water.empty_cta");
+      block.vm.$emit("action");
+      expect(push).toHaveBeenCalledWith("/tabs/plants");
+    });
   });
 
   describe("search", () => {
@@ -192,18 +256,24 @@ describe("WaterRound", () => {
     });
   });
 
-  it("shows the footer and snap slot for signed in users", async () => {
+  it("places the snap button in the footer row next to the log button", async () => {
     const { wrapper } = mountRound();
     await flushPromises();
-    expect(wrapper.find(".snap-slot").exists()).toBe(true);
+    const snap = wrapper.findComponent(SnapButton);
+    expect(snap.exists()).toBe(true);
+    expect(snap.props("fill")).toBe("outline");
+    const row = wrapper.find(".footer-actions .action-row");
+    expect(row.findComponent(SnapButton).exists()).toBe(true);
+    expect(row.find(".log-button").exists()).toBe(true);
+    const html = row.html();
+    expect(html.indexOf("snap-button")).toBeLessThan(html.indexOf("log-button"));
+    expect(wrapper.find(".round").findComponent(SnapButton).exists()).toBe(false);
   });
 
-  it("places the snap button above the search field", async () => {
-    const { wrapper } = mountRound();
+  it("hides the snap button when there is no plant to snap", async () => {
+    const { wrapper } = mountRound({ plantList: [] });
     await flushPromises();
-    const html = wrapper.find(".round").html();
-    expect(html.indexOf("snap-slot")).toBeGreaterThan(-1);
-    expect(html.indexOf("snap-slot")).toBeLessThan(html.indexOf("search-field"));
+    expect(wrapper.findComponent(SnapButton).exists()).toBe(false);
   });
 
   it("names the round fertilizer segments in the app language", async () => {

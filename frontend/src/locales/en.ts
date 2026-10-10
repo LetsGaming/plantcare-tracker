@@ -1371,6 +1371,11 @@ export default {
   "water.round_logged": "Waterings logged: {count}",
   "water.empty": "No plants to water yet. Add a plant first.",
   "water.no_match": "No plants match your search.",
+  "water.empty_cta": "Add a plant",
+  "water.guest_cta": "Sign in",
+  "water.load_error":
+    "The watering round could not be loaded. Check your connection and try again.",
+  "water.override_edit": "Change fertilizer for this plant",
   "water.hidden_ticked": "{hidden} more ticked plants are hidden by your search",
   "water.snap_unreadable": "This photo could not be read. Please try another one.",
   "water.snap_busy": "Recognition is busy. Please try again in a moment.",

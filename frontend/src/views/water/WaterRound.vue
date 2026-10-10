@@ -4,62 +4,94 @@
 
     <ion-content>
       <div class="round">
-        <div v-if="showSnap" class="snap-slot">
-          <snap-button :disabled="sheet.open" @photo="onPhoto" @invalid="onInvalidPhoto" />
-        </div>
-        <div class="controls">
-          <search-bar class="search-field" :placeholder="t('water.search')" @search="onSearch" />
-        </div>
-
-        <div v-if="fertilizerTypes.length" class="round-fertilizer">
-          <span class="label">{{ t("water.round_fertilizer") }}</span>
-          <ion-segment :value="segmentValue" scrollable @ionChange="onRoundFertilizer">
-            <ion-segment-button value="none">
-              <ion-label>{{ t("water.fertilizer_none") }}</ion-label>
-            </ion-segment-button>
-            <ion-segment-button
-              v-for="type in fertilizerTypes"
-              :key="type.id"
-              :value="String(type.id)"
-              :data-kind="fertilizerKind(type.name)"
-            >
-              <ion-label>{{ fertilizerLabel(type.name) }}</ion-label>
-            </ion-segment-button>
-          </ion-segment>
-        </div>
-
-        <p v-if="!rows.length && !loading" class="empty">{{ t("water.empty") }}</p>
-        <p v-else-if="rows.length && !visibleRows.length" class="empty empty-search">
-          {{ t("water.no_match") }}
-        </p>
-        <round-list
-          v-else
-          :rows="visibleRows"
-          :fertilizer-types="fertilizerTypes"
-          @toggle="toggle"
-          @set-fertilizer="setFertilizer"
+        <state-block
+          v-if="isGuest"
+          kind="empty"
+          :title="t('water.title')"
+          :message="t('state.guest_hint')"
+          :action-label="t('water.guest_cta')"
+          @action="signIn"
         />
+        <state-block v-else-if="loading" kind="loading" :title="t('state.loading')" />
+        <state-block
+          v-else-if="loadError"
+          kind="error"
+          :title="t('state.error_title')"
+          :message="t('water.load_error')"
+          :action-label="t('state.retry')"
+          @action="load"
+        />
+        <state-block
+          v-else-if="!rows.length"
+          kind="empty"
+          :title="t('state.empty_plants_title')"
+          :message="t('water.empty')"
+          :action-label="t('water.empty_cta')"
+          @action="$router.push('/tabs/plants')"
+        />
+        <template v-else>
+          <div class="controls">
+            <search-bar class="search-field" :placeholder="t('water.search')" @search="onSearch" />
+          </div>
+
+          <div v-if="fertilizerTypes.length" class="round-fertilizer">
+            <span class="label">{{ t("water.round_fertilizer") }}</span>
+            <ion-segment :value="segmentValue" scrollable @ionChange="onRoundFertilizer">
+              <ion-segment-button value="none">
+                <ion-label>{{ t("water.fertilizer_none") }}</ion-label>
+              </ion-segment-button>
+              <ion-segment-button
+                v-for="type in fertilizerTypes"
+                :key="type.id"
+                :value="String(type.id)"
+                :data-kind="fertilizerKind(type.name)"
+              >
+                <ion-label>{{ fertilizerLabel(type.name) }}</ion-label>
+              </ion-segment-button>
+            </ion-segment>
+          </div>
+
+          <p v-if="!visibleRows.length" class="empty empty-search">
+            {{ t("water.no_match") }}
+          </p>
+          <round-list
+            v-else
+            :rows="visibleRows"
+            :fertilizer-types="fertilizerTypes"
+            @toggle="toggle"
+            @set-fertilizer="setFertilizer"
+          />
+        </template>
       </div>
     </ion-content>
 
-    <ion-footer v-if="!isGuest">
+    <ion-footer v-if="!isGuest && rows.length">
       <ion-toolbar>
         <div class="footer-actions">
           <p v-if="hiddenCheckedCount" class="hidden-ticked" role="status">
             {{ t("water.hidden_ticked", { hidden: hiddenCheckedCount }) }}
           </p>
-          <ion-button
-            class="log-button"
-            expand="block"
-            size="large"
-            color="tertiary"
-            :disabled="checkedCount === 0 || saving"
-            @click="save"
-          >
-            <ion-spinner v-if="saving" name="crescent" slot="start" />
-            <ion-icon v-else :icon="icons.water" slot="start" aria-hidden="true" />
-            {{ saveLabel }}
-          </ion-button>
+          <div class="action-row">
+            <snap-button
+              v-if="showSnap"
+              ref="snap"
+              fill="outline"
+              :disabled="sheet.open"
+              @photo="onPhoto"
+              @invalid="onInvalidPhoto"
+            />
+            <ion-button
+              class="log-button"
+              size="large"
+              color="tertiary"
+              :disabled="checkedCount === 0 || saving"
+              @click="save"
+            >
+              <ion-spinner v-if="saving" name="crescent" slot="start" />
+              <ion-icon v-else :icon="icons.water" slot="start" aria-hidden="true" />
+              {{ saveLabel }}
+            </ion-button>
+          </div>
         </div>
       </ion-toolbar>
     </ion-footer>
@@ -100,6 +132,7 @@ import {
 } from "@ionic/vue";
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import SearchBar from "@/components/SearchBar.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
 import RoundList from "@/components/water/RoundList.vue";
 import SnapButton from "@/components/water/SnapButton.vue";
 import SnapMatchSheet, { type SnapCandidate } from "@/components/water/SnapMatchSheet.vue";
@@ -138,6 +171,7 @@ export default defineComponent({
     IonToolbar,
     OverviewHeader,
     SearchBar,
+    StateBlock,
     RoundList,
     SnapButton,
     SnapMatchSheet,
@@ -150,6 +184,7 @@ export default defineComponent({
     return {
       query: "",
       loading: true,
+      loadError: false,
       saving: false,
       roundFertilizer: null as number | null,
       overrides: {} as Record<number, Partial<RoundRow>>,
@@ -177,7 +212,7 @@ export default defineComponent({
     ...mapState(useSessionStore, ["isGuest"]),
     ...mapState(useSnapSettingsStore, ["keepPhoto"]),
     showSnap(): boolean {
-      return this.recognitionAvailable && !this.isGuest;
+      return this.recognitionAvailable && !this.isGuest && this.rows.length > 0;
     },
     sheetCandidates(): SnapCandidate[] {
       return this.candidates.flatMap((candidate) => {
@@ -224,19 +259,13 @@ export default defineComponent({
     void RecognitionService.status().then((available) => {
       this.recognitionAvailable = available;
     });
-    try {
-      await Promise.all([this.ensureLoaded(), this.ensureFertilizerTypes()]);
-      await this.ensureRecordsFor(this.personalPlants.map((plant) => plant.id));
-    } catch (error) {
-      console.error("Failed to load the watering round:", error);
-    } finally {
-      this.loading = false;
-    }
+    await this.load();
   },
   methods: {
     fertilizerKind,
     fertilizerLabel,
     ...mapActions(usePlantsStore, ["ensureLoaded", "getPlant"]),
+    ...mapActions(useSessionStore, { logUserOut: "logout" }),
     ...mapActions(useWateringStore, [
       "addBatch",
       "removeBatch",
@@ -248,6 +277,22 @@ export default defineComponent({
     ]),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
+    },
+    async load() {
+      this.loading = true;
+      this.loadError = false;
+      try {
+        await Promise.all([this.ensureLoaded(), this.ensureFertilizerTypes()]);
+        await this.ensureRecordsFor(this.personalPlants.map((plant) => plant.id));
+      } catch (error) {
+        console.error("Failed to load the watering round:", error);
+        this.loadError = true;
+      } finally {
+        this.loading = false;
+      }
+    },
+    signIn() {
+      return this.logUserOut();
     },
     onSearch(value: string) {
       this.query = value;
@@ -422,10 +467,6 @@ export default defineComponent({
   padding-bottom: var(--space-4);
 }
 
-.snap-slot {
-  padding: var(--space-3) var(--space-4) 0;
-}
-
 .controls {
   display: flex;
   align-items: center;
@@ -469,6 +510,22 @@ export default defineComponent({
   font-weight: 600;
   color: var(--ink-soft);
   text-align: center;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.action-row > .snap-button {
+  flex: 0 1 auto;
+}
+
+.log-button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--tap-min);
 }
 
 .footer-actions ion-button {

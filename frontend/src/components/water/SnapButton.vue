@@ -1,10 +1,11 @@
 <template>
   <div class="snap-button">
     <ion-button
+      ref="button"
       class="snap-trigger"
-      expand="block"
       size="large"
       color="tertiary"
+      :fill="fill"
       :disabled="disabled"
       @click="openCamera"
     >
@@ -25,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, type PropType } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { icons } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
@@ -36,6 +37,7 @@ export default defineComponent({
   components: { IonButton, IonIcon },
   props: {
     disabled: { type: Boolean, default: false },
+    fill: { type: String as PropType<"solid" | "outline">, default: "solid" },
   },
   emits: ["photo", "invalid"],
   setup() {
@@ -44,6 +46,10 @@ export default defineComponent({
   methods: {
     t(key: string) {
       return localizationService.t(key, undefined, key);
+    },
+    focusButton() {
+      const button = this.$refs.button as { $el?: HTMLElement } | undefined;
+      button?.$el?.focus();
     },
     openCamera() {
       (this.$refs.input as HTMLInputElement | undefined)?.click();
@@ -62,6 +68,10 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.snap-button {
+  min-width: 0;
+}
+
 .snap-trigger {
   min-height: var(--tap-min);
   margin: 0;

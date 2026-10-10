@@ -19,6 +19,7 @@ import {
   leafOutline,
   lockClosedOutline,
   logOutOutline,
+  optionsOutline,
   peopleOutline,
   personOutline,
   pricetag,
@@ -57,6 +58,7 @@ describe("icon family", () => {
       segmentPrivate: personOutline,
       discount: trendingDownOutline,
       statusOk: checkmarkCircleOutline,
+      tune: optionsOutline,
     });
   });
 

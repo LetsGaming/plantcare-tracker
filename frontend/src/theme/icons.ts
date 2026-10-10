@@ -18,6 +18,7 @@ import {
   leafOutline,
   lockClosedOutline,
   logOutOutline,
+  optionsOutline,
   peopleOutline,
   personOutline,
   pricetag,
@@ -54,6 +55,7 @@ export const icons = {
   segmentPrivate: personOutline,
   discount: trendingDownOutline,
   statusOk: checkmarkCircleOutline,
+  tune: optionsOutline,
 } as const;
 
 export type NavDestination = "plants" | "water" | "substrates" | "components" | "sales" | "debug";
