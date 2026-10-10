@@ -86,6 +86,31 @@ describe("calendar store", () => {
     expect(store.wateringCategories).toHaveLength(3);
   });
 
+  it("migrates the legacy default watering colors to the role tokens", async () => {
+    memoryStore.set("watering_categories", {
+      data: [
+        {
+          name: "watering.category.no_fertilizer",
+          textColor: "#ffffff",
+          backgroundColor: "#1e90ff",
+        },
+        { name: "watering.category.organic", textColor: "#ffffff", backgroundColor: "#8B4513" },
+        { name: "watering.category.mineral", textColor: "#ffffff", backgroundColor: "#ff00aa" },
+      ],
+      timestamp: Date.now(),
+    });
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    await store.ensureLoaded();
+    expect(store.wateringCategories.map((c) => c.backgroundColor)).toEqual(["", "", "#ff00aa"]);
+  });
+
+  it("defaults watering categories to empty colors", async () => {
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    expect(store.wateringCategories.every((c) => c.backgroundColor === "")).toBe(true);
+  });
+
   it("saves settings as persistent entries and only the ones that changed", async () => {
     vi.useFakeTimers();
     await createInstalledPinia();

@@ -57,6 +57,7 @@ import { mapActions, mapState } from "pinia";
 import { useCalendarStore } from "@/stores/calendar";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+import { contrastTextColor } from "@/utils/categoryColors";
 import { formatDisplayDate } from "@/utils/localDate";
 
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -152,7 +153,10 @@ export default defineComponent({
         title: this.t("calendar2.reminder_on", { date: this.shortDate(item.date) }),
         fields: [
           { label: this.t("calendar2.category"), value: item.category.name },
-          { label: this.t("calendar2.text_color"), value: item.category.textColor },
+          {
+            label: this.t("calendar2.text_color"),
+            value: contrastTextColor(item.category.backgroundColor),
+          },
           { label: this.t("calendar2.background"), value: item.category.backgroundColor },
         ],
       };
@@ -259,7 +263,7 @@ export default defineComponent({
           date: dateKey,
           category: {
             name: category.name,
-            textColor: category.textColor,
+            textColor: "",
             backgroundColor: category.backgroundColor,
           },
         });

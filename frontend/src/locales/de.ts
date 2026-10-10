@@ -462,7 +462,7 @@ export default {
   "calendar.settings.watering_categories": "Gießkategorien",
 
   "calendar.settings.watering_categories_info":
-    "Namen und Anzahl dieser Kategorien sind festgelegt – nur die Farbe kann angepasst werden.",
+    "Die Namen dieser Kategorien sind festgelegt, die Farben kannst du ändern. Eine unveränderte Farbe folgt der App-Palette im hellen und dunklen Modus, der Kontrast wird automatisch angepasst.",
 
   "calendar.settings.categories": "Kategorien",
 

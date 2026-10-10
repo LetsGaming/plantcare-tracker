@@ -81,6 +81,8 @@ import IconButton from "@/components/ui/IconButton.vue";
 import { useCalendarStore } from "@/stores/calendar";
 import CalendarLegend from "./CalendarLegend.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { resolveCategoryColors } from "@/utils/categoryColors";
+import { readCssColor, watchTheme } from "@/utils/themeColors";
 import { formatDisplayDate, parseDayKey, toDayKey } from "@/utils/localDate";
 
 const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
@@ -145,13 +147,21 @@ export default defineComponent({
       viewMonth: now.getMonth(),
       selectedDate: "",
       changedEvent: null as Event | null,
+      themeVersion: 0,
+      stopWatchingTheme: () => {},
     };
   },
   setup() {
     return { chevronBack, chevronForward, settings };
   },
   async mounted() {
+    this.stopWatchingTheme = watchTheme(() => {
+      this.themeVersion += 1;
+    });
     await this.ensureCalendarLoaded();
+  },
+  beforeUnmount() {
+    this.stopWatchingTheme();
   },
   computed: {
     ...mapState(useCalendarStore, ["firstDayOfWeek"]),
@@ -281,10 +291,16 @@ export default defineComponent({
           "is-fertilizer": kind === "fertilizer",
           "is-custom": kind === "custom",
         },
-        style: custom
-          ? { "--marker-bg": custom.backgroundColor, "--marker-fg": custom.textColor }
-          : undefined,
+        style: custom ? this.customMarkerStyle(custom) : undefined,
       };
+    },
+    customMarkerStyle(category: Category): Record<string, string> {
+      void this.themeVersion;
+      const colors = resolveCategoryColors(category, {
+        fallback: readCssColor("--ink-soft"),
+        page: readCssColor("--ion-background-color", "#ffffff"),
+      });
+      return { "--marker-bg": colors.background, "--marker-fg": colors.text };
     },
     tVars(key: string, vars: Record<string, string>) {
       return localizationService.t(key, vars, key);

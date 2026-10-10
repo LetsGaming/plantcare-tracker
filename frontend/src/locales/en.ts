@@ -462,7 +462,7 @@ export default {
   "calendar.settings.watering_categories": "Watering Categories",
 
   "calendar.settings.watering_categories_info":
-    "Names and number of these categories are fixed – only the color can be adjusted.",
+    "The names of these categories are fixed, the colors are yours to change. A color you leave untouched follows the app palette in light and dark mode, and contrast is adjusted automatically.",
 
   "calendar.settings.categories": "Categories",
 

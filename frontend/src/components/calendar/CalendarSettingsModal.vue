@@ -48,11 +48,11 @@
             <ion-item v-for="(category, index) in localWatering" :key="index">
               <ion-label>{{ t(category.name) }}</ion-label>
               <input
-                v-model="category.backgroundColor"
+                :value="wateringColor(category)"
                 type="color"
                 class="color-input"
                 :aria-label="t('calendar2.color_for', { name: t(category.name) })"
-                @input="debouncedUpdateWateringCategories(index)"
+                @input="onWateringColor(index, $event)"
               />
             </ion-item>
           </ion-list>
@@ -121,7 +121,6 @@
                 class="color-input"
                 :aria-label="t('final2.pick_color')"
                 :title="t('final2.pick_color')"
-                @input="newCategory.textColor = contrastTextColor(newCategory.backgroundColor)"
               />
             </ion-item>
             <p v-if="newCategoryError" class="item-error" role="alert">{{ newCategoryError }}</p>
@@ -175,7 +174,8 @@ import ConfirmDialog from "../modal/ConfirmDialog.vue";
 import IconButton from "../ui/IconButton.vue";
 import { useMountWhileOpen } from "../modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
-import { categoryNameProblem, contrastTextColor } from "@/utils/categoryColors";
+import { DEFAULT_WATERING_TOKENS, categoryNameProblem } from "@/utils/categoryColors";
+import { readCssColor } from "@/utils/themeColors";
 
 import Utils from "@/utils/utils";
 
@@ -184,8 +184,8 @@ const copyCategories = (list: readonly Category[]): Category[] =>
 
 const blankCategory = (): Category => ({
   name: "",
-  textColor: "#000000",
-  backgroundColor: "#FFFFFF",
+  textColor: "",
+  backgroundColor: readCssColor("--ink-soft", "#666666"),
 });
 
 export default defineComponent({
@@ -234,7 +234,6 @@ export default defineComponent({
       ...useMountWhileOpen(() => props.isOpen),
       trashOutline,
       refreshOutline,
-      contrastTextColor,
     };
   },
   data() {
@@ -254,14 +253,13 @@ export default defineComponent({
     this.debouncedUpdateCategories = Utils.debounce((index: number) => {
       const category = this.localCategories[index];
       if (!category) return;
-      category.textColor = contrastTextColor(category.backgroundColor);
+      category.textColor = "";
       this.emitCategories();
     }, 300);
 
     this.debouncedUpdateWateringCategories = Utils.debounce((index: number) => {
       const category = this.localWatering[index];
       if (!category) return;
-      category.textColor = contrastTextColor(category.backgroundColor);
       this.$emit("update:wateringCategories", copyCategories(this.localWatering));
     }, 500);
   },
@@ -310,6 +308,18 @@ export default defineComponent({
       this.newCategory = blankCategory();
       this.newCategoryError = "";
     },
+    wateringColor(category: Category): string {
+      if (category.backgroundColor) return category.backgroundColor;
+      const token = DEFAULT_WATERING_TOKENS[category.name];
+      const color = token ? readCssColor(token, "#000000") : "#000000";
+      return /^#[0-9a-f]{6}$/i.test(color) ? color : "#000000";
+    },
+    onWateringColor(index: number, event: Event) {
+      const category = this.localWatering[index];
+      if (!category) return;
+      category.backgroundColor = (event.target as HTMLInputElement).value;
+      this.debouncedUpdateWateringCategories(index);
+    },
     problemText(problem: "empty" | "duplicate" | null): string {
       if (problem === "empty") return this.t("calendar2.name_required");
       if (problem === "duplicate") return this.t("calendar2.name_taken");
@@ -340,7 +350,7 @@ export default defineComponent({
         return;
       }
       this.newCategory.name = this.newCategory.name.trim();
-      this.newCategory.textColor = contrastTextColor(this.newCategory.backgroundColor);
+      this.newCategory.textColor = "";
       this.$emit("add-category", { ...this.newCategory });
       this.newCategory = blankCategory();
       this.newCategoryError = "";

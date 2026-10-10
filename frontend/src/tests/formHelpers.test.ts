@@ -79,9 +79,9 @@ describe("category helpers", () => {
     expect(categoryNameProblem("Ferns", ["Herbs"])).toBeNull();
   });
 
-  it("picks a light text color on dark backgrounds", () => {
-    const red = (hex: string) => parseInt(hex.slice(1, 3), 16);
-    expect(red(contrastTextColor("#000000"))).toBeGreaterThan(0x80);
+  it("picks white text on dark and dark ink on light backgrounds", () => {
+    expect(contrastTextColor("#000000")).toBe("#ffffff");
     expect(contrastTextColor("#ffffff")).toMatch(/^#[0-9a-f]{6}$/);
+    expect(contrastTextColor("#ffffff")).not.toBe("#ffffff");
   });
 });
