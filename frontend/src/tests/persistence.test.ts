@@ -128,3 +128,18 @@ describe("l2Persistence", () => {
     expect(memoryStore.has("demo_items")).toBe(false);
   });
 });
+
+describe("test isolation", () => {
+  it("leaves a write pending on real timers when the test ends", async () => {
+    await createInstalledPinia();
+    const store = useDemoStore();
+    store.items = [1];
+    store.fetchedAt = 1;
+    expect(memoryStore.has("demo_items")).toBe(false);
+  });
+
+  it("never sees the write left pending by the previous test", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(memoryStore.has("demo_items")).toBe(false);
+  });
+});
