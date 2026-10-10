@@ -108,7 +108,7 @@ export class SQLitePlantRepository implements PlantRepository {
         const changes: {
           name?: string;
           species_id?: number | null;
-          substrate_id?: number;
+          substrate_id?: number | null;
           is_public?: number;
         } = {};
         if (dto.name !== undefined) changes.name = dto.name;
@@ -169,7 +169,7 @@ export class SQLitePlantRepository implements PlantRepository {
         plant_id: data.plant_id,
         plant_user_id: data.plant_user_id,
         plant_name: data.plant_name,
-        plant_species: data.plant_species_name ?? 'Unknown',
+        plant_species: data.plant_species_name ?? null,
         is_public: Boolean(data.is_public),
         plant_created_at: data.plant_created_at,
         image_url: latestImage,

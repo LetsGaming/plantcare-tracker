@@ -26,7 +26,8 @@ Nothing leaves the machine.
 | Feature | How to test it |
 |---------|----------------|
 | Roles | `admin` (components, scraper health), `grower` (owns most data), `collector` (owns public plants and a public substrate), `newbie` (empty account), guest button on login |
-| Plant list watering states | `grower`: ok (Monty, Pink Princess, Gummibaum Ünal, Calathea Cleo, Snake Plant), watered today (Dracaena Dave), due (Failing Fern, Spike), overdue (Sunny Pothos, the long named plant), never watered (Unknown Orchid, Blue Echeveria) |
+| Plant list watering states | `grower`: ok (Monty, Pink Princess, Gummibaum Ünal, Calathea Cleo, Snake Plant), watered today (Dracaena Dave), due (Failing Fern, Spike), overdue (Sunny Pothos, the long named plant), never watered (Unknown Orchid, Blue Echeveria, Windowsill Cutting) |
+| Optional plant fields | `grower`: `Windowsill Cutting` has no species and no substrate (shows "Unknown species") |
 | Public tab and ownership | Public plants and substrates of `admin` and `collector` appear for everyone; `Private Treasure` is private and must not appear for others |
 | Watering records | Fertilizer organic and synthetic, short and long rhythms, edit and delete through the calendar |
 | Photos | Monty (4 dated photos), Calathea Cleo (3), Pink Princess and Rare Albo (2), single photos, and many plants without any |

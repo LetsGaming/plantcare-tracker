@@ -156,10 +156,10 @@ describe('CreatePlantUseCase', () => {
     ).rejects.toThrow(ValidationError);
   });
 
-  it('throws ValidationError for missing species', async () => {
+  it('throws ValidationError for a species over 100 characters', async () => {
     const repo = makeMockRepo();
     await expect(
-      new CreatePlantUseCase(repo).execute({ name: 'x', substrateId: 1 }, 2),
+      new CreatePlantUseCase(repo).execute({ name: 'x', species: 'x'.repeat(101) }, 2),
     ).rejects.toThrow(ValidationError);
   });
 

@@ -92,6 +92,71 @@ describe('POST /plants', () => {
     expect(Object.keys(res.body.error.fields).sort()).toEqual(['name', 'species', 'substrateId']);
   });
 
+  it('creates a plant from a name alone, without species or substrate', async () => {
+    const { owner } = await setup();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'First plant' },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({
+      plant_name: 'First plant',
+      plant_species: null,
+      substrate: null,
+    });
+  });
+
+  it('treats an empty species and a null substrateId as not set', async () => {
+    const { owner } = await setup();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Blank', species: '', substrateId: null },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ plant_species: null, substrate: null });
+  });
+
+  it('answers a plant with an unknown substrate with 400', async () => {
+    const { owner } = await setup();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Orphan', substrateId: 987654 },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('lists and reads back a plant without species or substrate', async () => {
+    const { owner } = await setup();
+    const created = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Bare' },
+    });
+    const id = created.body.data.plant_id;
+    const one = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${id}`,
+      headers: owner.auth,
+    });
+    expect(one.status).toBe(200);
+    expect(one.body.data).toMatchObject({ plant_species: null, substrate: null });
+    const all = await app.client.request({
+      method: 'get',
+      url: `${API}/plants`,
+      headers: owner.auth,
+    });
+    expect(all.status).toBe(200);
+    const listed = all.body.data.find((p: { plant_id: number }) => p.plant_id === id);
+    expect(listed).toMatchObject({ plant_species: null, substrate: null });
+  });
+
   it('answers 401 without a token and 403 for a guest', async () => {
     const anon = await app.client.request({ method: 'post', url: `${API}/plants`, json: {} });
     expect(anon.status).toBe(401);
@@ -231,6 +296,57 @@ describe('PATCH /plants/:id', () => {
       plant_name: 'Renamed',
       is_public: true,
     });
+  });
+
+  it('clears the substrate with substrateId null', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { substrateId: null },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.substrate).toBeNull();
+    expect(res.body.data.plant_species).toBe('Monstera deliciosa');
+  });
+
+  it('clears the species with an empty string or null', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const empty = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { species: '' },
+    });
+    expect(empty.status).toBe(200);
+    expect(empty.body.data.plant_species).toBeNull();
+    expect(empty.body.data.substrate).not.toBeNull();
+
+    const other = await createPlant(app, owner.auth, substrate.substrate_id);
+    const cleared = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${other.plant_id}`,
+      headers: owner.auth,
+      json: { species: null },
+    });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data.plant_species).toBeNull();
+  });
+
+  it('keeps the length and positive checks on update', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { species: 'x'.repeat(101), substrateId: 0 },
+    });
+    expect(res.status).toBe(400);
+    expect(Object.keys(res.body.error.fields).sort()).toEqual(['species', 'substrateId']);
   });
 
   it('rejects an empty update with 400', async () => {

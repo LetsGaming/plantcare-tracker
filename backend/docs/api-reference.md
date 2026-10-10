@@ -25,7 +25,7 @@ All endpoints return a consistent JSON envelope:
     "type": "ValidationError",
     "message": "Invalid plant data",
     "statusCode": 400,
-    "fields": { "species": "Species is required" }
+    "fields": { "name": "Name is required" }
   }
 }
 ```
@@ -192,6 +192,8 @@ A rename onto an existing username answers `409`. Any profile change invalidates
 }
 ```
 
+`plant_species` is `null` when the plant has no species and `substrate` is `null` when it has no substrate.
+
 ### POST `/`
 
 ```json
@@ -207,11 +209,13 @@ A rename onto an existing username answers `409`. Any profile change invalidates
 { "data": { "plant_id": 7, "plant_name": "Monstera deliciosa", "...": "full Plant Object" } }
 ```
 
-Errors: `400` (validation), `401`, `403` (guest)
+Only `name` (1 to 100 characters) is required. `species` (up to 100 characters) and `substrateId` (a positive integer) are optional; an empty or `null` species and a `null` substrateId leave the field unset, so `{ "name": "Monstera" }` is a valid request.
+
+Errors: `400` (validation, or an unknown `substrateId`), `401`, `403` (guest)
 
 ### PATCH `/:id`
 
-All fields optional (at least one required). Only the owner can update.
+All fields optional (at least one required). Only the owner can update. `"species": ""` or `"species": null` clears the species, `"substrateId": null` clears the substrate.
 
 ```json
 // Request

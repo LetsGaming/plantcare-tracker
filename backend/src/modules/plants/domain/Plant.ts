@@ -28,7 +28,7 @@ export interface PlantData {
   plant_id: number;
   plant_user_id: number;
   plant_name: string;
-  plant_species: string;
+  plant_species: string | null;
   is_public: boolean;
   plant_created_at: number;
   image_url: string | null;
@@ -42,7 +42,7 @@ export class Plant {
   public readonly id: number;
   public readonly userId: number;
   public readonly name: string;
-  public readonly species: string;
+  public readonly species: string | null;
   public readonly isPublic: boolean;
   public readonly createdAt: number;
   public readonly imageUrl: string | null;
@@ -85,16 +85,16 @@ export class Plant {
 
 export interface CreatePlantDTO {
   name: string;
-  species: string;
-  substrateId: number;
+  species?: string | null;
+  substrateId?: number | null;
   isPublic: boolean;
   userId: number;
 }
 
 export interface UpdatePlantDTO {
   name?: string;
-  species?: string;
-  substrateId?: number;
+  species?: string | null;
+  substrateId?: number | null;
   isPublic?: boolean;
 }
 

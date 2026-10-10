@@ -1,5 +1,6 @@
 /** Names double as test hooks: "Failing Fern" ends its mocked guide stream with an error, "Unknown Orchid"
- *  has no external link, the long name and the umlaut exercise layout. The watering state of each plant is
+ *  has no external link, the long name and the umlaut exercise layout, "Windowsill Cutting" has neither species
+ *  nor substrate. The watering state of each plant is
  *  set in 05-watering.mjs. */
 const PLANTS = [
   { owner: "grower", name: "Monty", species: "Monstera deliciosa", substrate: "Aroid chunky mix", isPublic: true },
@@ -20,6 +21,7 @@ const PLANTS = [
   { owner: "grower", name: "Dracaena Dave", species: "Dracaena marginata", substrate: "Everything bagel", isPublic: false },
   { owner: "grower", name: "Calathea Cleo", species: "Calathea orbifolia", substrate: "Aroid chunky mix", isPublic: false },
   { owner: "grower", name: "Snake Plant", species: "Dracaena trifasciata", substrate: "Gritty cactus mix", isPublic: false },
+  { owner: "grower", name: "Windowsill Cutting", isPublic: false },
   { owner: "admin", name: "Office Hoya", species: "Hoya kerrii", substrate: "Orchid bark blend", isPublic: true },
   { owner: "collector", name: "Rare Albo", species: "Monstera deliciosa", substrate: "Semi hydro starter", isPublic: true },
   { owner: "collector", name: "Collector Hoya", species: "Hoya carnosa", substrate: "Semi hydro starter", isPublic: true },
@@ -36,7 +38,7 @@ export default {
         json: {
           name: plant.name,
           species: plant.species,
-          substrateId: ctx.state.substrates[plant.substrate],
+          substrateId: plant.substrate ? ctx.state.substrates[plant.substrate] : undefined,
           isPublic: plant.isPublic,
         },
       });

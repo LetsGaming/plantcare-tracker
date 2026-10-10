@@ -23,16 +23,22 @@ import { parseOrThrow } from '../../../core/validation';
 
 export const CreatePlantSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
-  species: z.string().min(1, 'Species is required').max(100),
-  substrateId: z.number().int().positive('substrateId must be a positive integer'),
+  species: z.string().max(100).nullable().optional(),
+  substrateId: z
+    .number()
+    .int()
+    .positive('substrateId must be a positive integer')
+    .nullable()
+    .optional(),
   isPublic: z.boolean().default(false),
 });
 
+/** An empty or null species and a null substrateId clear the field. */
 export const UpdatePlantSchema = z
   .object({
     name: z.string().min(1).max(100).optional(),
-    species: z.string().min(1).max(100).optional(),
-    substrateId: z.number().int().positive().optional(),
+    species: z.string().max(100).nullable().optional(),
+    substrateId: z.number().int().positive().nullable().optional(),
     isPublic: z.boolean().optional(),
   })
   .refine(
