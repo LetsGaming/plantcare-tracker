@@ -94,10 +94,22 @@ describe("RoundList row details", () => {
     expect(wrapper.find("ion-select-stub").exists()).toBe(false);
   });
 
-  it("shows the select and a chip with the fertilizer name while an override is set", () => {
+  it("shows only the chip, inside the text column, while an override is set and the editor is closed", () => {
     const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
+    const chip = wrapper.find(".override-chip");
+    expect(chip.text()).toBe("copy2.fertilizer.organic");
+    expect(chip.element.parentElement?.classList.contains("text")).toBe(true);
+  });
+
+  it("swaps the chip for the select when the editor opens and back when it closes", async () => {
+    const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    await wrapper.find(".override-edit").trigger("click");
     expect(wrapper.find("ion-select-stub").exists()).toBe(true);
-    expect(wrapper.find(".override-chip").text()).toBe("copy2.fertilizer.organic");
+    expect(wrapper.find(".override-chip").exists()).toBe(false);
+    await wrapper.find(".override-edit").trigger("click");
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
+    expect(wrapper.find(".override-chip").exists()).toBe(true);
   });
 
   it("names an explicit no fertilizer override in the chip", () => {
@@ -109,12 +121,15 @@ describe("RoundList row details", () => {
     expect(mountList([row()]).find(".override-chip").exists()).toBe(false);
   });
 
-  it("clears the override when the select returns to the round default", async () => {
+  it("emits the new override and closes the editor when the select changes", async () => {
     const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    await wrapper.find(".override-edit").trigger("click");
     wrapper.findComponent({ name: "IonSelect" }).vm.$emit("ionChange", {
       detail: { value: "default" },
     });
+    await wrapper.vm.$nextTick();
     expect(wrapper.emitted("set-fertilizer")?.[0]).toEqual([7, undefined]);
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
   });
 
   it("tints the placeholder per plant when there is no photo", () => {

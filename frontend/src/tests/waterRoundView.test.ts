@@ -167,7 +167,7 @@ describe("WaterRound", () => {
   });
 
   describe("screen states", () => {
-    it("shows row skeletons while the round loads", async () => {
+    it("shows the loading state instead of the list while the round loads", async () => {
       const { wrapper } = mountRound({
         prepare: (watering) =>
           vi.mocked(watering.ensureRecordsFor).mockReturnValue(new Promise(() => {})),
