@@ -58,7 +58,7 @@ export default defineComponent({
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--surface-sunken);
+  background: var(--ion-background-color);
   box-shadow: inset 0 0 0 1.5px var(--line);
 }
 

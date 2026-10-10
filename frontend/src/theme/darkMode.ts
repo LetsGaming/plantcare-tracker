@@ -9,9 +9,8 @@ const systemPrefersDark = (): boolean => window.matchMedia("(prefers-color-schem
 const apply = (dark: boolean): void => {
   document.documentElement.classList.toggle(DARK_CLASS, dark);
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  document
-    .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", dark ? "#14221a" : "#1f6b3b");
+  const chrome = getComputedStyle(document.documentElement).getPropertyValue("--chrome-bg").trim();
+  if (chrome) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", chrome);
 };
 
 export const isDarkMode = (): boolean => document.documentElement.classList.contains(DARK_CLASS);
