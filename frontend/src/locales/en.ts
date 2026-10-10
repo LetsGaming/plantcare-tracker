@@ -1390,6 +1390,8 @@ export default {
   "water.snap_unavailable": "Plant recognition is currently unavailable.",
   "water.snap": "Snap a plant",
   "water.snap_matching": "Looking for your plant...",
+
+  "water.snap_dialog_label": "Identify plant",
   "water.snap_is_this": "Is this your plant?",
   "water.snap_not_sure": "Not sure. Which one is it?",
   "water.snap_no_match": "No plant matched this photo.",

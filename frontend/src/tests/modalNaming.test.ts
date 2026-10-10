@@ -42,7 +42,7 @@ const dialogLabel = (wrapper: ReturnType<typeof mountModal>) =>
   wrapper.find("[data-handle]").attributes("aria-label");
 
 describe("dialog accessible names", () => {
-  it("names the base form modal after its translated title", () => {
+  it("binds the translated title as the base form modal aria-label", () => {
     const wrapper = mountModal(BaseFormModal, {
       isLoading: false,
       modalTitle: "plantadd.title",
@@ -54,21 +54,21 @@ describe("dialog accessible names", () => {
     expect(dialogLabel(wrapper)).toBe("plantadd.title");
   });
 
-  it("names the watering record modal after its title", () => {
+  it("binds the title as the watering record modal aria-label", () => {
     const add = mountModal(WateringRecordModal, { mode: "add", fertilizerOptions: [] });
     expect(dialogLabel(add)).toBe("plantdetail.modal_add_title");
     const edit = mountModal(WateringRecordModal, { mode: "edit", fertilizerOptions: [] });
     expect(dialogLabel(edit)).toBe("plantdetail.modal_edit_title");
   });
 
-  it("names the image modal after its caption or a localized default", () => {
+  it("binds the caption or a localized default as the image modal aria-label", () => {
     const captioned = mountModal(ImageModal, { imageUrl: "/a.png", label: "Monty, May" });
     expect(dialogLabel(captioned)).toBe("Monty, May");
     const plain = mountModal(ImageModal, { imageUrl: "/a.png" });
     expect(dialogLabel(plain)).toBe("a11y.image_dialog");
   });
 
-  it("names the plant picker, sales filter, calendar settings and substrate dialogs", () => {
+  it("binds a title aria-label on the plant picker, sales filter, calendar settings and substrate dialogs", () => {
     expect(dialogLabel(mountModal(PlantPickerModal, {}))).toBe("water.picker_title");
     expect(dialogLabel(mountModal(SalesFilterModal, { query: defaultSalesQuery() }))).toBe(
       "sales.filter.title",
@@ -98,12 +98,14 @@ describe("SnapMatchSheet dialog", () => {
       ...extra,
     });
 
-  it("follows the heading of each state", () => {
-    expect(dialogLabel(sheet("matching"))).toBe("water.snap_matching");
-    expect(dialogLabel(sheet("candidates"))).toBe("water.snap_is_this");
-    expect(dialogLabel(sheet("candidates", { confident: false }))).toBe("water.snap_not_sure");
-    expect(dialogLabel(sheet("candidates", { candidates: [] }))).toBe("water.snap_no_match");
-    expect(dialogLabel(sheet("logged"))).toBe("water.snap_logged");
+  it("binds one stable label in every state, because Ionic reads it only once", () => {
+    const labels = [
+      dialogLabel(sheet("matching")),
+      dialogLabel(sheet("candidates")),
+      dialogLabel(sheet("candidates", { confident: false, candidates: [] })),
+      dialogLabel(sheet("logged")),
+    ];
+    expect(new Set(labels)).toEqual(new Set(["water.snap_dialog_label"]));
   });
 
   it("drops the built in English handle button for a decorative grabber", () => {

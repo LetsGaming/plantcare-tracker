@@ -159,9 +159,7 @@ export default defineComponent({
   },
   computed: {
     dialogLabel(): string {
-      if (this.state === "matching") return this.t("water.snap_matching");
-      if (this.state === "logged") return this.t("water.snap_logged", { name: this.loggedName });
-      return this.heading;
+      return this.t("water.snap_dialog_label");
     },
     shown(): SnapCandidate[] {
       return this.candidates.slice(0, MAX_SHOWN);
