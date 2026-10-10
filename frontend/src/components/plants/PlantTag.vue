@@ -101,7 +101,7 @@ export default defineComponent({
 .chip-private {
   background: var(--surface-raised);
   color: var(--ink-soft);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--control-border);
 }
 
 @media (min-width: 900px) {

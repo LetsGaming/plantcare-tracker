@@ -443,6 +443,10 @@ ion-item {
   font-size: var(--text-md);
 }
 
+ion-item:not(.active) ion-icon[slot="start"] {
+  color: var(--nav-idle);
+}
+
 ion-item.active {
   --background: var(--leaf-wash);
   font-weight: 600;

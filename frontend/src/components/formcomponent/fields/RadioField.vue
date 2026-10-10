@@ -82,7 +82,7 @@ export default defineComponent({
 .radio-group {
   display: grid;
   overflow: hidden;
-  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border: 1.5px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
 }

@@ -68,11 +68,36 @@ ion-textarea {
   border-radius: var(--radius-sm);
 }
 
-ion-button:focus-visible,
-ion-segment-button:focus-visible,
-ion-tab-button:focus-visible {
+ion-button.ion-focused,
+ion-tab-button.ion-focused,
+ion-segment-button.ion-focused,
+ion-select.ion-focused,
+ion-menu-button.ion-focused,
+ion-back-button.ion-focused,
+ion-fab-button.ion-focused {
   outline: 3px solid var(--focus-ring);
-  outline-offset: -3px;
+  outline-offset: 2px;
+}
+
+ion-button.button-solid.ion-focused,
+ion-fab-button.ion-focused {
+  box-shadow: 0 0 0 2px var(--ion-background-color);
+}
+
+ion-back-button,
+ion-alert .alert-button {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+ion-select {
+  --background: var(--surface-sunken);
+  color: var(--nav-idle);
+}
+
+ion-select::part(icon) {
+  color: var(--nav-idle);
+  opacity: 1;
 }
 
 /* Controls */
@@ -105,6 +130,7 @@ ion-segment {
 
 ion-segment-button {
   --indicator-color: var(--surface-raised);
+  --color: var(--nav-idle);
   --color-checked: var(--ion-color-primary);
   --border-radius: var(--radius-md);
   min-height: var(--tap-min);
@@ -117,6 +143,7 @@ ion-tab-bar {
 }
 
 ion-tab-button {
+  --color: var(--nav-idle);
   --color-selected: var(--ion-color-primary);
   font-weight: 600;
 }
@@ -200,21 +227,6 @@ ion-toast {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-ion-input.field-input {
-  --border-radius: var(--radius-md);
-  --border-width: 1.5px;
-  --border-color: var(--line);
-  --highlight-color-focused: var(--focus-ring);
-  --placeholder-color: var(--ink-soft);
-  --placeholder-opacity: 1;
-  min-height: var(--tap-min);
-}
-
-ion-input.field-input.field-invalid {
-  --border-color: var(--ion-color-danger);
-  --highlight-color-focused: var(--ion-color-danger);
 }
 
 /* Watering state pill used by the round list and the snap sheet */
