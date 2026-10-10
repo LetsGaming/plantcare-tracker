@@ -35,8 +35,13 @@
           </div>
 
           <div v-if="fertilizerTypes.length" class="round-fertilizer">
-            <span class="label">{{ t("water.round_fertilizer") }}</span>
-            <ion-segment :value="segmentValue" scrollable @ionChange="onRoundFertilizer">
+            <span :id="segmentLabelId" class="label">{{ t("water.round_fertilizer") }}</span>
+            <ion-segment
+              :value="segmentValue"
+              :aria-labelledby="segmentLabelId"
+              scrollable
+              @ionChange="onRoundFertilizer"
+            >
               <ion-segment-button value="none">
                 <ion-label>{{ t("water.fertilizer_none") }}</ion-label>
               </ion-segment-button>
@@ -139,6 +144,7 @@ import RoundList from "@/components/water/RoundList.vue";
 import SnapButton from "@/components/water/SnapButton.vue";
 import SnapMatchSheet, { type SnapCandidate } from "@/components/water/SnapMatchSheet.vue";
 import PlantPickerModal from "@/components/water/PlantPickerModal.vue";
+import { nextFieldId } from "@/components/formcomponent/fieldShared";
 import { icons } from "@/theme/icons";
 import { fertilizerKind, fertilizerLabel } from "@/utils/enumLabels";
 import { usePlantsStore } from "@/stores/plants";
@@ -184,6 +190,7 @@ export default defineComponent({
   },
   data() {
     return {
+      segmentLabelId: nextFieldId("round-fertilizer"),
       query: "",
       loading: true,
       loadError: false,
