@@ -2,6 +2,47 @@
 
 Branch `feat/quick-watering` at `ca6abf0`, 2026-10-10. Scope: every screen of `frontend/src`, for the roles grower, admin, guest and a first-run account, in German (the longer locale), light and dark, at 360, 390, 430 and 1440 px wide.
 
+## Status
+
+Implemented on `feat/ux-color-review`. "Pending browser check" means the code and tests are in place and the item is verified in the real-browser pass (plan task 27).
+
+| Finding | Task | Closing commits | Status |
+|---------|------|-----------------|--------|
+| 1 | 7 | dae5ea8, 2a62c4d | Done, pending browser check |
+| 2 | 12 | 40c1665 | Done, pending browser check (fit at 320, 360, 390 px) |
+| 3 | 13 | c3bac5d | Done, pending browser check (banner on top, header pushed down) |
+| 4 | 10 | 64f9a48, 4f4f958 | Done, pending browser check |
+| 5 | 8 | 27b625c | Done, pending browser check |
+| 6 | 9 | 7797692 | Done, pending browser check |
+| 7 | 1, 2 | 46407f4, f72a5b0, c94c3c7 | Done, pending browser check (visible ring on each control) |
+| 8 | 1, 5 | 46407f4, a09f06f | Done: category colors corrected at render time |
+| 9 | 1, 2 | 46407f4, f72a5b0 | Done |
+| 10 | 5, 6 | a09f06f, e503149, 7921155 | Done, pending browser check (organic and mineral distinct, custom color in dark mode) |
+| 11 | 14 | 043ceea, 40167f4 | Done, pending browser check (`lang` follows the switch) |
+| 12 | 16 | c9cea4d | Done, pending real focus check inside the modal |
+| 13 | 3 | f541f17 | Done, pending browser check (`theme-color` matches the header) |
+| 14 | 4 | 49334c3 | Done |
+| 15 | 2 | f72a5b0 | Done |
+| 16 | 2 | f72a5b0 | Done |
+| 17 | 15 | 2babe60, b2a9600, 8a6258f, 8ba88cf | Done (backend and frontend; foreign private substrate answers 404) |
+| 18 | 11 | 14f7510, 386a9f2 | Done |
+| 19 | 21 | 4236467, 079ddfb | Done with a deliberate exception: no persistent toast (it would block the global toast queue); a 10 s undo toast (`UNDO_TOAST_MS`) plus the 5 minute in-page last-round row |
+| 20 | 14, 17 | 043ceea, 26b45d0, 37a3c1f | Done |
+| 21 | 18 | 90773a4 | Done (state cues such as the watering fill keep their motion) |
+| 22 | 19 | 8cd9102 | Done |
+| 23 | 4 | 49334c3 | Done |
+| 24 | 19 | 8cd9102 | Done |
+| 25 | 22 | 9fc95bc, 076c5ba | Done |
+| 26 | 20 | 68f0d1f, 18085c1 | Done |
+| 27 | 23 | be23006 | Done, pending browser check (desktop layout, reminders open in a dialog instead of a route or side panel) |
+| 28 | 24 | 7895993 | Done |
+| 29 | 23 | be23006 | Done (logout only in the menu) |
+| 30 | 2 | f72a5b0 | Done |
+| 31 | 4, 25 | 49334c3, 0e55e0c | Done |
+| 32 | 1, 2, 3, 4, 5 | 46407f4, f72a5b0, f541f17, 49334c3, a09f06f | Done, except `views/Debug.vue` (development only, keeps its terminal green) |
+| 33 | 7, 16, 18, 19, 20, 22, 25 | 2a62c4d, c9cea4d, 90773a4, 8cd9102, 68f0d1f, 9fc95bc, 0e55e0c | Done, except calendar day width: the number disc is 36px inside a 44px tall cell whose width is a seventh of the calendar, so it can fall under 44px on narrow phones (documented exception, the whole cell is the tap target) |
+| 34 | 4, 16, 20, 25 | 49334c3, c9cea4d, 68f0d1f, 0e55e0c | Done with two deviations: the pie is replaced by a stacked bar only under 576px (the pie stays on wider screens), and the snap logged state still opens at 0.65 because Ionic cannot change the initial breakpoint after presentation (thumbnail, filled Done and text Undo were added) |
+
 ## Verdict
 
 1. **Palette:** one coherent token palette holds (leaf green, water teal, clay, moss ink). Ionic's variables are remapped onto it, no shipped component hard-codes a hex, and dark mode shows zero text contrast failures on 16 audited screens.
