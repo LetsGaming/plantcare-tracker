@@ -60,9 +60,9 @@ import SearchBar from "@/components/SearchBar.vue";
 import localizationService from "@/services/general/LocalizationService";
 import Utils from "@/utils/utils";
 import { finenessLabel, partsLabel } from "@/utils/enumLabels";
+import { seriesSlots } from "@/utils/seriesColors";
 
 const SEARCH_THRESHOLD = 5;
-const PALETTE_SIZE = 5;
 
 interface CompositionRow extends SubstrateComponent {
   colorIndex: number;
@@ -95,9 +95,10 @@ export default defineComponent({
         style: "percent",
         maximumFractionDigits: 0,
       });
+      const slots = seriesSlots(list.length);
       return list.map((component, index) => ({
         ...component,
-        colorIndex: (index % PALETTE_SIZE) + 1,
+        colorIndex: slots[index] + 1,
         share: total > 0 ? (component.parts / total) * 100 : 0,
         percent: this.t("subdetail.share_value", {
           percent: formatter.format(total > 0 ? component.parts / total : 0),

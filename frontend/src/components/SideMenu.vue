@@ -109,6 +109,8 @@
           <ion-select
             :label="t('shell.language')"
             label-placement="start"
+            :cancel-text="t('common.cancel')"
+            :ok-text="t('copy2.select.ok')"
             :value="selectedLocale"
             @ionChange="changeLocale"
           >

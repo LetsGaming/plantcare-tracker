@@ -16,6 +16,8 @@
             <ion-select
               :label="t('calendar.settings.first_weekday_label')"
               :value="firstDayOfWeek"
+              :cancel-text="t('common.cancel')"
+              :ok-text="t('copy2.select.ok')"
               :placeholder="t('calendar.settings.first_weekday_placeholder')"
               @ionChange="$emit('update:firstDayOfWeek', $event.detail.value)"
             >

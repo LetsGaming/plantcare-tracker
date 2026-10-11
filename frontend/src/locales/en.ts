@@ -244,6 +244,7 @@ export default {
   "plant.edit.error": "Error while editing the plant",
 
   "plant.delete.error": "Error while deleting the plant",
+  "plant.delete.success": "Plant deleted",
 
   /* Plant fields */
 
@@ -1382,7 +1383,7 @@ export default {
   "water.fertilizer_none": "None",
   "water.fertilizer_round_default": "Round default",
   "water.row_fertilizer": "Fertilizer for {name}",
-  "water.log_count": "Log waterings ({count})",
+  "water.log_count": "Water ({count})",
   "water.round_logged": "Waterings logged: {count}",
   "water.last_round": "Last round: {count} watered",
   "water.empty": "No plants to water yet. Add a plant first.",

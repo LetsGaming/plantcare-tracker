@@ -244,6 +244,7 @@ export default {
   "plant.edit.error": "Fehler beim Bearbeiten der Pflanze",
 
   "plant.delete.error": "Fehler beim Löschen der Pflanze",
+  "plant.delete.success": "Pflanze gelöscht",
 
   /* Plant fields */
 
@@ -1393,7 +1394,7 @@ export default {
   "water.fertilizer_none": "Keiner",
   "water.fertilizer_round_default": "Wie die Runde",
   "water.row_fertilizer": "Dünger für {name}",
-  "water.log_count": "Gießen eintragen ({count})",
+  "water.log_count": "Gießen ({count})",
   "water.round_logged": "Gießvorgänge eingetragen: {count}",
   "water.last_round": "Letzte Runde: {count} gegossen",
   "water.empty": "Noch keine Pflanzen zum Gießen. Lege zuerst eine Pflanze an.",
