@@ -1,6 +1,6 @@
 # UX and Color Review Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax. On approval this file is copied to `docs/superpowers/plans/2026-10-10-ux-color-review.md` and committed on `feat/ux-color-review`.
+> **Execution:** sequential, task by task. Steps use checkbox (`- [ ]`) syntax. This file lives at `docs/superpowers/plans/2026-10-10-ux-color-review.md` on `feat/ux-color-review`.
 
 **Goal:** Resolve all 34 findings of `docs/refactor/ux-color-review.md`: restore the meaning of the color palette, fix the five AA contrast failures, repair the broken flows (care guide, tab bar, offline banner, snap confidence, never-watered plants, guest history) and close the accessibility and polish gaps.
 
@@ -24,7 +24,7 @@
 - Every new user-visible string needs a key in both `frontend/src/locales/de.ts` and `en.ts` (flat dotted keys, real German); `pnpm run check-keys` must exit 0.
 - Styling uses tokens only; icons come from `frontend/src/theme/icons.ts`; no new hex outside `variables.css`.
 - No em or en dashes anywhere (code, comments, docs, locale strings, commit messages). Comments only for non-obvious present behaviour.
-- Commit messages carry no Claude or AI attribution and no trailers.
+- Commit messages carry no attribution trailers.
 - Dark mode is the class `:root.ion-palette-dark` only (no OS media query); put new dark tokens inside the existing `:root.ion-palette-dark` block of `variables.css`.
 - Never run `pnpm dev`; use `node scripts/dev-up.mjs --id <name>` and `dev-down.mjs` (see root `CLAUDE.md`).
 - Frontend gates: `pnpm run lint`, `format:check`, `pnpm exec vue-tsc --noEmit`, `pnpm run check-keys`, `pnpm exec vitest run --coverage`, `pnpm run build`. Backend gates (task 15): `pnpm run lint`, `format:check`, `typecheck`, `test:coverage`, `build`. Run backend and frontend suites one after the other, never concurrently.
@@ -44,7 +44,7 @@ Sequential, one implementer per task (sonnet; the first task of each phase and t
 
 ---
 
-## Phase 0: Branch and baseline (controller, no subagent)
+## Phase 0: Branch and baseline (no delegation)
 
 - [ ] `git checkout feat/quick-watering && git checkout -b feat/ux-color-review`.
 - [ ] Commit the untracked review as the first commit: `git add docs/refactor/ux-color-review.md && git commit -m "docs: UX and color review"`.
@@ -492,7 +492,7 @@ export const syncNativeAria = async (
 ### Task 27: Verification, review and PR (controller)
 
 - [ ] Run all frontend gates, then all backend gates, one after the other; record counts against the baseline.
-- [ ] Real-browser pass (Edge, new window; isolated stack `node scripts/dev-up.mjs --id uxverify --user grower`, plus `--user newbie` and the guest button) at 360x740, 390x844, 430x932 and 1440x900, light and dark, German and English. A verification subagent checks: every `ion-tab-button` rect inside `[0, innerWidth]` at 320, 360, 390; Tab walk shows a visible ring (non-none outline or shadow) on Water now, Log, Snap, tab buttons, segments, selects; offline emulation shows the banner as the topmost element and pushes the header down; care guide on Sunny Pothos renders paragraphs under headings; Monty snapshot is not highlighted as confident when Sunny Pothos is ahead by bonus only; never-watered plants show the new chip and are pre-ticked; a guest on a public plant sees the private-history note; organic and mineral days are distinguishable in the plant calendar and the legend; a custom category color stays visible in dark mode; headers are raised surfaces in both themes and `meta theme-color` matches; the contrast script from the review re-run on the rendered token pairs shows no failures; `document.documentElement.lang` follows the language switch; screenshots of the key screens.
+- [ ] Real-browser pass (Edge, new window; isolated stack `node scripts/dev-up.mjs --id uxverify --user grower`, plus `--user newbie` and the guest button) at 360x740, 390x844, 430x932 and 1440x900, light and dark, German and English. The verification checks: every `ion-tab-button` rect inside `[0, innerWidth]` at 320, 360, 390; Tab walk shows a visible ring (non-none outline or shadow) on Water now, Log, Snap, tab buttons, segments, selects; offline emulation shows the banner as the topmost element and pushes the header down; care guide on Sunny Pothos renders paragraphs under headings; Monty snapshot is not highlighted as confident when Sunny Pothos is ahead by bonus only; never-watered plants show the new chip and are pre-ticked; a guest on a public plant sees the private-history note; organic and mineral days are distinguishable in the plant calendar and the legend; a custom category color stays visible in dark mode; headers are raised surfaces in both themes and `meta theme-color` matches; the contrast script from the review re-run on the rendered token pairs shows no failures; `document.documentElement.lang` follows the language switch; screenshots of the key screens.
 - [ ] Whole-branch review on the most capable model against `docs/refactor/ux-color-review.md` and this plan; one fix wave; one scoped re-review.
 - [ ] Push `feat/ux-color-review` and open the PR with base `feat/quick-watering` (retarget to `main` after #42 merges). Description: what changed by phase, findings closed (all 34, with any deliberate exceptions), tests added, verification summary, and what could not be verified (real screen reader, iOS, on-screen keyboard vs sticky footer). No AI attribution.
 

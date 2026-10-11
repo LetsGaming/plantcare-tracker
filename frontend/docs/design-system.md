@@ -11,10 +11,10 @@ screens read:
 | Group | Tokens |
 |-------|--------|
 | Roles | `--ion-color-primary` (leaf green: brand, primary actions), `secondary` (fired clay: overdue only), `tertiary` (water teal: watering), `danger` (brick), `medium` (sage), `dark` (moss ink) |
-| Surfaces and ink | `--ion-background-color`, `--surface-raised`, `--surface-sunken`, `--ink-soft`, `--line`, `--focus-ring`, `--water-wash`, `--clay-wash`, `--leaf-wash`, `--danger-wash`, `--warning-wash`, `--offline-bg`, `--chrome-bg`, `--nav-idle`, `--control-border` (3:1 control outline), `--category-ink` |
-| Semantic roles | `--water`, `--clay` (overdue only), `--leaf`, `--feed-organic` and `--feed-mineral` (fertilizer kinds, each with a `-contrast` ink), `--new` with `--new-ink` (the "new" pill), `--overdue-ink`, `--z-banner` |
+| Surfaces and ink | `--ion-background-color`, `--surface-raised`, `--surface-sunken`, `--ink-soft`, `--line`, `--focus-ring`, `--water-wash`, `--clay-wash`, `--leaf-wash`, `--danger-wash`, `--offline-bg`, `--chrome-bg`, `--nav-idle`, `--control-border` (3:1 control outline) |
+| Semantic roles | `--water`, `--feed-organic` and `--feed-mineral` (fertilizer kinds, each with a `-contrast` ink), `--new` with `--new-ink` (the "new" pill), `--overdue-ink`, `--z-banner` |
 | Placeholder tints | `--tint-1` to `--tint-5`, `--tint-ink` |
-| Charts | `--chart-1` to `--chart-6` (1, 2, 3 and 6 alias the Ionic roles), `--series-1` to `--series-5` (non-role series, 4.3:1 on `--surface-raised`), `--chart-text-color`, `--chart-grid-color`, `--chart-line-color`, `--chart-fill-color` |
+| Charts | `--series-1` to `--series-5` (non-role series, 4.3:1 on `--surface-raised`), `--chart-text-color`, `--chart-grid-color`, `--chart-line-color`, `--chart-fill-color` |
 | Type | `--font-display` (Bricolage Grotesque), `--font-body` (Figtree), `--text-xs` to `--text-2xl`; fonts are self-hosted through `@fontsource-variable` (`theme/fonts.ts`) |
 | Space and shape | `--space-1` to `--space-7`, `--radius-sm|md|lg|pill`, `--shadow-card`, `--shadow-lift`, `--tap-min` (44px), `--content-max`, `--ease-out` |
 
@@ -29,15 +29,15 @@ Each color role has one job. Never swap them to decorate.
 | Meaning | Token | Shown as |
 |---------|-------|----------|
 | Watering, due, watered day | `--water` (teal), `--water-wash` | due chip, Water now, watering band, public chip |
-| Overdue | `--clay`, `--overdue-ink` for text, `--clay-wash` | overdue chip and status line, nothing else |
+| Overdue | `--ion-color-secondary`, `--overdue-ink` for text, `--clay-wash` | overdue chip and status line, nothing else |
 | Organic fertilizer | `--feed-organic` (bark brown) | solid ring on the calendar, filled chip |
 | Mineral fertilizer | `--feed-mineral` (violet) | dashed ring on the calendar, filled chip |
 | New | `--new` with `--new-ink` (sun) | "new" pill and the Sales tab badge |
 | Error | `--ion-color-danger`, `--danger-wash` | error banners, invalid fields |
-| Degraded | `--ion-color-warning` as a fill only, `--warning-wash` | never as text |
+| Degraded | `--ion-color-warning` as a fill only | never as text |
 | Ok (admin sources) | `--leaf-wash` with ink and a check icon | quiet badge; only failing and degraded carry saturated color |
 | Offline | `--offline-bg` (neutral, `--surface-sunken`) | banner with a cloud icon |
-| Brand, action, selected | `--ion-color-primary` (`--leaf`) | buttons, selected tab |
+| Brand, action, selected | `--ion-color-primary` | buttons, selected tab |
 
 Fertilizer kinds differ by color and by ring style (solid versus dashed), so the distinction does not
 depend on color alone. Chart series that are not roles use `--series-1` to `--series-5`, never a role
@@ -89,7 +89,7 @@ The dark token block uses the selector `:root.ion-palette-dark` so it outranks I
 | `PlantPlaceholder` | Authored botanical glyphs on a tint keyed to the item, for missing or failed images |
 | `DetailHero` | Photo capped at 40vh with the name on a plant tag; used by substrate, component and sales details |
 | `PullRefresher` | Pull to refresh that takes a promise-returning handler |
-| `OfflineBanner` | Polite, in-flow offline and back-online notice mounted in `App.vue` |
+| `OfflineBanner` | Polite offline and back-online notice mounted in `App.vue`, fixed at `--z-banner` and pushing the page down through `--offline-h` |
 
 Others: `ProgressiveImage` (low resolution first, then full; placeholder instead of a broken image),
 `overview/ItemsOverview` (tag cards, search, states), `ConfirmDialog` (typed confirmation for account
