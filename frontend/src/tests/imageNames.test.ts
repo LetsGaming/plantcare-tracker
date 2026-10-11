@@ -31,6 +31,6 @@ describe("image accessible names", () => {
     const overview = source("ItemsOverview.vue");
     const card = /<progressive-image[^>]*>/s.exec(overview)?.[0] ?? "";
     expect(card).toMatch(/\salt=""/);
-    expect(overview).toContain('class="tag-name"');
+    expect(overview).toMatch(/class="tag-name[\s"]/);
   });
 });

@@ -284,7 +284,7 @@ describe("stopInfo", () => {
     const store = await newStore();
     let release!: () => void;
     vi.spyOn(store, "$hydrate").mockImplementation(
-      () => new Promise<void>((resolve) => (release = resolve)),
+      () => new Promise<boolean>((resolve) => (release = () => resolve(false))),
     );
     const pending = store.ensureInfo("Aloe");
     await vi.advanceTimersByTimeAsync(0);
@@ -315,7 +315,7 @@ describe("stopInfo", () => {
     let release!: () => void;
     const store = await newStore();
     vi.spyOn(store, "$hydrate").mockImplementationOnce(
-      () => new Promise<void>((resolve) => (release = resolve)),
+      () => new Promise<boolean>((resolve) => (release = () => resolve(false))),
     );
     const pending = store.ensureInfo("Aloe");
     await vi.waitFor(() => expect(release).toBeTypeOf("function"));
