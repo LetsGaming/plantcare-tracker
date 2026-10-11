@@ -6,6 +6,7 @@ import {
   chevronForwardOutline,
   bug,
   bugOutline,
+  calendarOutline,
   cameraOutline,
   closeOutline,
   cloudDoneOutline,
@@ -42,6 +43,7 @@ describe("icon family", () => {
   it("uses outline glyphs for every semantic action", () => {
     expect(icons).toEqual({
       add: addCircleOutline,
+      calendar: calendarOutline,
       camera: cameraOutline,
       plant: leafOutline,
       chevronBack: chevronBackOutline,

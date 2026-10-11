@@ -91,9 +91,17 @@
         </ion-item>
       </ion-list>
 
-      <div v-if="!rail" class="section calendar">
-        <menu-calendar :show-settings-button="true" @settings-click="showDateSettings = true" />
-      </div>
+      <ion-list lines="none" class="section">
+        <ion-item
+          button
+          :aria-label="rail ? t('shell.reminders') : undefined"
+          :title="rail ? t('shell.reminders') : undefined"
+          @click="openReminders"
+        >
+          <ion-icon slot="start" :icon="calendarIcon" aria-hidden="true" />
+          <ion-label>{{ t("shell.reminders") }}</ion-label>
+        </ion-item>
+      </ion-list>
 
       <ion-list v-if="!rail" lines="none" class="section">
         <h2 class="section-title">{{ t("shell.section_preferences") }}</h2>
@@ -155,6 +163,20 @@
     </ion-footer>
   </ion-menu>
 
+  <ion-modal
+    v-if="remindersMounted"
+    :is-open="showReminders"
+    :aria-label="t('shell.reminders')"
+    @didDismiss="onRemindersDismiss"
+  >
+    <modal-header :header-title="t('shell.reminders')" @close="showReminders = false" />
+    <ion-content>
+      <div class="reminders-body">
+        <menu-calendar :show-settings-button="true" @settings-click="openDateSettings" />
+      </div>
+    </ion-content>
+  </ion-modal>
+
   <calendar-settings-modal
     :is-open="showDateSettings"
     :first-day-of-week="firstDayOfWeek"
@@ -173,7 +195,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, ref } from "vue";
 import {
   IonMenu,
   IonHeader,
@@ -191,6 +213,7 @@ import {
   IonLabel,
   IonToggle,
   IonFooter,
+  IonModal,
   menuController,
 } from "@ionic/vue";
 import { icons, navIcons, type NavDestination } from "@/theme/icons";
@@ -198,6 +221,8 @@ import { icons, navIcons, type NavDestination } from "@/theme/icons";
 import MenuCalendar from "./calendar/MenuCalendar.vue";
 import CalendarSettingsModal from "./calendar/CalendarSettingsModal.vue";
 import IconButton from "@/components/ui/IconButton.vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
+import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 
 import { isDarkMode, setDarkMode } from "@/theme/darkMode";
 import localizationService from "@/services/general/LocalizationService";
@@ -243,8 +268,16 @@ export default defineComponent({
     IonLabel,
     IonToggle,
     IonFooter,
+    IonModal,
+    ModalHeader,
     MenuCalendar,
     CalendarSettingsModal,
+  },
+
+  setup() {
+    const showReminders = ref(false);
+    const { mounted, release } = useMountWhileOpen(() => showReminders.value);
+    return { showReminders, remindersMounted: mounted, releaseReminders: release };
   },
 
   data() {
@@ -256,6 +289,7 @@ export default defineComponent({
       expandIcon: icons.chevronForward,
       personIcon: icons.profile,
       logOutIcon: icons.logout,
+      calendarIcon: icons.calendar,
       settingsIcon: icons.settings,
       pulseIcon: icons.pulse,
       showDateSettings: false,
@@ -369,6 +403,20 @@ export default defineComponent({
       this.setKeepPhoto(e.detail.checked);
     },
 
+    /* ---------- Reminders ---------- */
+    async openReminders() {
+      await menuController.close();
+      this.showReminders = true;
+    },
+    onRemindersDismiss() {
+      this.showReminders = false;
+      this.releaseReminders();
+    },
+    openDateSettings() {
+      this.showReminders = false;
+      this.showDateSettings = true;
+    },
+
     /* ---------- Calendar logic ---------- */
     updateFirstDayOfWeek(value: number) {
       this.saveFirstDayOfWeek(value);
@@ -456,8 +504,8 @@ ion-item.active {
   font-weight: 600;
 }
 
-.calendar {
-  padding-inline: var(--space-3);
+.reminders-body {
+  padding: var(--space-3);
 }
 
 /* Collapsed to icons: labels go, badges shrink to a dot on the icon. */

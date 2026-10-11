@@ -14,7 +14,6 @@
           :label="t('a11y.add')"
           @press="onAddClick"
         />
-        <icon-button :icon="icons.logout" :label="t('a11y.logout')" @press="confirmLogout" />
       </ion-buttons>
     </ion-toolbar>
 
@@ -59,11 +58,10 @@ import {
   IonMenuButton,
 } from "@ionic/vue";
 import { icons } from "@/theme/icons";
-import { mapActions, mapState } from "pinia";
+import { mapState } from "pinia";
 import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
 import IconButton from "@/components/ui/IconButton.vue";
-import { confirmLogout } from "@/utils/confirmLogout";
 
 export default defineComponent({
   name: "OverviewHeader",
@@ -152,12 +150,8 @@ export default defineComponent({
     }
   },
   methods: {
-    ...mapActions(useSessionStore, { logUserOut: "logout" }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback || key);
-    },
-    confirmLogout() {
-      return confirmLogout(() => this.logUserOut());
     },
     handleSegmentChange(event: any) {
       this.onSegmentChange?.(event.detail.value);
@@ -228,5 +222,16 @@ export default defineComponent({
 
 .add-button {
   flex-shrink: 0;
+}
+
+@media (min-width: 992px) {
+  .segment-row {
+    justify-content: space-between;
+  }
+
+  .segment {
+    flex: 0 1 360px;
+    max-width: 360px;
+  }
 }
 </style>
