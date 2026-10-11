@@ -13,7 +13,7 @@
           <button type="button" class="plant" @click="$emit('pick', plant.id)">
             <span class="thumb" aria-hidden="true">
               <img v-if="plant.imageUrl" :src="plant.imageUrl" alt="" loading="lazy" />
-              <ion-icon v-else :icon="icons.plant" />
+              <plant-placeholder v-else :seed="String(plant.id)" />
             </span>
             <span class="name break-words">{{ plant.name }}</span>
           </button>
@@ -26,22 +26,22 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { mapState } from "pinia";
-import { IonContent, IonIcon, IonModal, IonSearchbar } from "@ionic/vue";
+import { IonContent, IonModal, IonSearchbar } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
+import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
 import { usePlantsStore } from "@/stores/plants";
-import { icons } from "@/theme/icons";
 
 export default defineComponent({
   name: "PlantPickerModal",
-  components: { IonContent, IonIcon, IonModal, IonSearchbar, ModalHeader },
+  components: { IonContent, IonModal, IonSearchbar, ModalHeader, PlantPlaceholder },
   props: {
     isOpen: { type: Boolean, required: true },
   },
   emits: ["close", "pick"],
   setup(props) {
-    return { icons, ...useMountWhileOpen(() => props.isOpen) };
+    return useMountWhileOpen(() => props.isOpen);
   },
   data() {
     return { query: "" };
@@ -109,10 +109,15 @@ export default defineComponent({
   color: var(--ink-soft);
 }
 
-.thumb img {
+.thumb img,
+.thumb :deep(.placeholder) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.thumb :deep(.placeholder) {
+  min-height: 0;
 }
 
 .name {

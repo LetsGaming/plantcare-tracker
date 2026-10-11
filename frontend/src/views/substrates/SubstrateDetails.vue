@@ -17,6 +17,7 @@
           :image-url="substrate.imageUrl"
           :image-alt="t('subdetail.image_alt', { name: substrate.name })"
           kind="substrate"
+          :seed="String(substrate.id)"
           :is-public="substrate.isPublic"
         >
           <span v-if="substrate.created_at">

@@ -1,7 +1,7 @@
 <template>
   <header class="hero">
     <div class="media">
-      <ProgressiveImage :src="imageUrl" :alt="imageAlt" :kind="kind" :seed="title" />
+      <ProgressiveImage :src="imageUrl" :alt="imageAlt" :kind="kind" :seed="seed || title" />
     </div>
     <div class="tag">
       <span class="hole" aria-hidden="true" />
@@ -38,6 +38,8 @@ export default defineComponent({
     imageUrl: { type: String, default: "" },
     imageAlt: { type: String, default: "" },
     kind: { type: String as PropType<PlaceholderKind>, default: "plant" },
+    /** Item id, so the placeholder drawing matches the one in the list. */
+    seed: { type: String, default: "" },
     isPublic: { type: Boolean, default: undefined },
   },
   setup() {

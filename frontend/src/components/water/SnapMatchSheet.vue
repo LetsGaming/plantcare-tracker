@@ -32,7 +32,7 @@
               >
                 <span class="thumb" aria-hidden="true">
                   <img v-if="candidate.imageUrl" :src="candidate.imageUrl" alt="" />
-                  <ion-icon v-else :icon="icons.plant" />
+                  <plant-placeholder v-else :seed="String(candidate.plantId)" />
                 </span>
                 <span class="text">
                   <span class="name break-words">{{ candidate.name }}</span>
@@ -114,12 +114,11 @@
 
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
-import { IonButton, IonContent, IonIcon, IonModal, IonSpinner } from "@ionic/vue";
+import { IonButton, IonContent, IonModal, IonSpinner } from "@ionic/vue";
 import localizationService from "@/services/general/LocalizationService";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
 import { nextFieldId } from "@/components/formcomponent/fieldShared";
-import { icons } from "@/theme/icons";
 import { fertilizerKind, fertilizerLabel } from "@/utils/enumLabels";
 import type { WateringTone } from "@/utils/wateringStats";
 
@@ -134,7 +133,7 @@ const MAX_SHOWN = 3;
 
 export default defineComponent({
   name: "SnapMatchSheet",
-  components: { IonButton, IonContent, IonIcon, IonModal, IonSpinner, PlantPlaceholder },
+  components: { IonButton, IonContent, IonModal, IonSpinner, PlantPlaceholder },
   props: {
     isOpen: { type: Boolean, required: true },
     state: {
@@ -152,7 +151,7 @@ export default defineComponent({
   },
   emits: ["close", "pick", "other", "fertilize", "undo"],
   setup(props) {
-    return { icons, ...useMountWhileOpen(() => props.isOpen) };
+    return useMountWhileOpen(() => props.isOpen);
   },
   data() {
     return { announcement: "", chipsLabelId: nextFieldId("snap-chips") };
@@ -315,10 +314,15 @@ export default defineComponent({
   color: var(--ink-soft);
 }
 
-.thumb img {
+.thumb img,
+.thumb :deep(.placeholder) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.thumb :deep(.placeholder) {
+  min-height: 0;
 }
 
 .text {

@@ -61,7 +61,12 @@
 
         <div class="area-photo" :class="{ 'has-gallery': hasGallery }">
           <div class="hero">
-            <details-banner :banner-title="plant.name" :image-url="plant.imageUrl" image-only />
+            <details-banner
+              :banner-title="plant.name"
+              :image-url="plant.imageUrl"
+              :seed="String(plant.id)"
+              image-only
+            />
           </div>
           <horizontal-gallery
             :images="plant.images"

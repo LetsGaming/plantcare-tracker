@@ -5,7 +5,7 @@
         :src="imageUrl ?? ''"
         :alt="altText"
         :kind="placeholderKind"
-        :seed="bannerTitle"
+        :seed="seed || bannerTitle"
       />
     </div>
     <div v-if="!imageOnly" class="details-banner__content">
@@ -49,6 +49,11 @@ export default defineComponent({
     placeholderKind: {
       type: String as PropType<PlaceholderKind>,
       default: "plant",
+    },
+    /** Item id, so the placeholder drawing matches the one in the list. */
+    seed: {
+      type: String,
+      default: "",
     },
     /** Renders the photo alone, for screens that show the title elsewhere. */
     imageOnly: {

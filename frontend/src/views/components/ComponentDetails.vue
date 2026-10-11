@@ -14,6 +14,7 @@
           :image-url="component.imageUrl"
           :image-alt="t('compdetail.image_alt', { name: component.name })"
           kind="component"
+          :seed="String(component.id)"
         />
 
         <div class="detail-body">

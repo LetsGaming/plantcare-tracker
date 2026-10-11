@@ -10,6 +10,7 @@
           :image-url="sale.imageUrl"
           :image-alt="t('saledetail.image_alt', { name: sale.name })"
           kind="sale"
+          :seed="String(sale.id)"
         >
           <span>{{ t("saledetail.seller", { seller: sale.seller }) }}</span>
         </detail-hero>
