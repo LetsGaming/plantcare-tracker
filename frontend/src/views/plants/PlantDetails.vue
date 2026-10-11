@@ -59,8 +59,10 @@
           {{ t("plantdetail.history_private") }}
         </p>
 
-        <div class="area-photo">
-          <details-banner :banner-title="plant.name" :image-url="plant.imageUrl" image-only />
+        <div class="area-photo" :class="{ 'has-gallery': hasGallery }">
+          <div class="hero">
+            <details-banner :banner-title="plant.name" :image-url="plant.imageUrl" image-only />
+          </div>
           <horizontal-gallery
             :images="plant.images"
             :is-public="isPublic"
@@ -200,6 +202,9 @@ export default defineComponent({
     ...mapState(useSubstratesStore, { substrates: "items" }),
     ...mapState(useSessionStore, ["isGuest", "userId"]),
     /** This page's plant, straight from the store so every update repaints it. */
+    hasGallery(): boolean {
+      return (this.plant?.images?.length ?? 0) > 0;
+    },
     plant(): Plant | null {
       return this.byId(this.plantId) ?? null;
     },
@@ -407,6 +412,12 @@ export default defineComponent({
   display: grid;
   gap: var(--space-4);
   align-content: start;
+}
+
+@media (max-width: 899px) {
+  .has-gallery .hero {
+    display: none;
+  }
 }
 
 @media (min-width: 900px) {

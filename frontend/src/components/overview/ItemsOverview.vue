@@ -48,7 +48,7 @@
       <div v-if="items.length" class="count-row">
         <p class="count" aria-live="polite">
           {{ filteredItems.length }} {{ t("overview.items") }}
-          <strong v-if="newInView > 0" class="count-new">
+          <strong v-if="showNewCount" class="count-new">
             {{ t("sales3.new_total", { count: newInView }) }}
           </strong>
         </p>
@@ -117,9 +117,12 @@
                 item.description
               }}</span>
               <span v-if="item.statusLine" class="tag-status">
-                <span class="status-line break-words" :class="`tone-${item.statusTone ?? 'ok'}`">{{
-                  item.statusLine
-                }}</span>
+                <span
+                  v-if="item.statusTone !== 'new'"
+                  class="status-line break-words"
+                  :class="`tone-${item.statusTone ?? 'ok'}`"
+                  >{{ item.statusLine }}</span
+                >
                 <span
                   v-if="item.statusLabel"
                   class="status-chip tone-chip"
@@ -256,6 +259,9 @@ export default defineComponent({
     };
   },
   computed: {
+    showNewCount(): boolean {
+      return this.newInView > 0 && this.newInView < this.filteredItems.length;
+    },
     newInView(): number {
       return this.filteredItems.filter((item) => item.isNew).length;
     },

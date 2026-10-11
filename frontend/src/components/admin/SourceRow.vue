@@ -37,7 +37,7 @@
     </div>
 
     <ion-button
-      v-if="checkable"
+      v-if="showRecheck"
       class="check"
       fill="outline"
       :disabled="disabled || checking"
@@ -78,6 +78,10 @@ export default defineComponent({
     return { statusIonColor, icons };
   },
   computed: {
+    showRecheck(): boolean {
+      const { status } = this.source;
+      return this.checkable && (status === "failing" || status === "degraded");
+    },
     cause(): string {
       return failureCause(this.source.lastError);
     },
