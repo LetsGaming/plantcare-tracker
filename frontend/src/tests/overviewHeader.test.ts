@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 
 const menuClose = vi.hoisted(() => vi.fn(async () => true));
 
@@ -58,12 +59,32 @@ describe("overview header chrome", () => {
     expect(Object.keys(vueFiles).length).toBeGreaterThan(20);
   });
 
-  it("renders no logout button in the toolbar", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it.each([
+    ["without segments", []],
+    [
+      "with segments",
+      [
+        { value: "mine", label: "plants.mine", icon: "a" },
+        { value: "public", label: "plants.public", icon: "b" },
+      ],
+    ],
+  ])("renders no logout button in the toolbar %s", (_name, segments) => {
     const wrapper = mount(OverviewHeader, {
-      props: { title: "plants.title", addIcon: "add-icon", onAddClick: () => undefined },
+      props: {
+        title: "plants.title",
+        segments,
+        showAddButton: true,
+        addIcon: "add-icon",
+        onAddClick: () => undefined,
+      },
       global: { stubs },
     });
     const labels = wrapper.findAll("button").map((b) => b.attributes("data-label"));
+    expect(labels).toHaveLength(1);
     expect(labels).not.toContain("a11y.logout");
     expect(labels).not.toContain(en["a11y.logout"]);
   });
