@@ -10,12 +10,7 @@
       <ion-button v-if="status === 'loading'" size="small" fill="outline" @click="stop">
         {{ t("moreinfo2.stop") }}
       </ion-button>
-      <ion-button
-        v-else-if="status === 'stopped'"
-        size="small"
-        fill="outline"
-        @click="load(true)"
-      >
+      <ion-button v-else-if="status === 'stopped'" size="small" fill="outline" @click="load(true)">
         {{ t("state.retry") }}
       </ion-button>
     </div>

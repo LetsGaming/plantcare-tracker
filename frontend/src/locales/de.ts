@@ -1412,7 +1412,6 @@ export default {
   "water.snap_unavailable": "Die Pflanzenerkennung ist derzeit nicht verfügbar.",
   "water.snap": "Foto machen",
   "water.snap_matching": "Deine Pflanze wird gesucht...",
-
   "water.snap_dialog_label": "Pflanze erkennen",
   "water.snap_is_this": "Ist das deine Pflanze?",
   "water.snap_not_sure": "Nicht sicher. Welche ist es?",

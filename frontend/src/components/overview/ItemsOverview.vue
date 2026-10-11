@@ -96,12 +96,7 @@
         <li v-for="item in filteredItems" :key="item.id">
           <button type="button" class="tag-card" @click="navigateToItem(item.id)">
             <span class="tag-media">
-              <progressive-image
-                :src="item.imageUrl"
-                alt=""
-                :kind="kind"
-                :seed="String(item.id)"
-              />
+              <progressive-image :src="item.imageUrl" alt="" :kind="kind" :seed="String(item.id)" />
               <span v-if="item.isNew" class="new-pill">{{ t("label.new") }}</span>
             </span>
             <span class="tag-body">
