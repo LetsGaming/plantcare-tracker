@@ -226,12 +226,19 @@ export default defineComponent({
 
 @media (min-width: 992px) {
   .segment-row {
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
   }
 
   .segment {
-    flex: 0 1 360px;
-    max-width: 360px;
+    grid-column: 2;
+    width: 360px;
+    max-width: 100%;
+  }
+
+  .add-button {
+    grid-column: 3;
+    justify-self: end;
   }
 }
 </style>

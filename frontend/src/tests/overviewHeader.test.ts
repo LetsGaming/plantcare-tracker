@@ -96,13 +96,18 @@ describe("overview header chrome", () => {
     expect(source).not.toContain("icons.logout");
   });
 
-  it("caps the segment at 360px from 992px up and spreads the row", () => {
+  it("centers the segment in a three column grid from 992px up", () => {
     const source = sourceOf("OverviewHeader.vue");
     const start = source.indexOf("@media (min-width: 992px)");
     expect(start).toBeGreaterThan(-1);
     const block = source.slice(start);
-    expect(block).toMatch(/\.segment\s*\{[^}]*max-width:\s*360px/);
-    expect(block).toMatch(/\.segment-row\s*\{[^}]*justify-content:\s*space-between/);
+    expect(block).toMatch(/\.segment-row\s*\{[^}]*display:\s*grid/);
+    expect(block).toMatch(/\.segment-row\s*\{[^}]*grid-template-columns:\s*1fr auto 1fr/);
+    expect(block).toMatch(/\.segment\s*\{[^}]*grid-column:\s*2/);
+    expect(block).toMatch(/\.segment\s*\{[^}]*width:\s*360px/);
+    expect(block).toMatch(/\.add-button\s*\{[^}]*grid-column:\s*3/);
+    expect(block).toMatch(/\.add-button\s*\{[^}]*justify-self:\s*end/);
+    expect(block).not.toContain("space-between");
     const base = source.slice(0, start);
     expect(base).not.toContain("360px");
   });
