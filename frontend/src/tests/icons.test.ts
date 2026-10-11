@@ -27,6 +27,8 @@ import {
   pricetag,
   pricetagOutline,
   pulseOutline,
+  removeCircleOutline,
+  scanOutline,
   settingsOutline,
   checkmarkCircleOutline,
   swapVerticalOutline,
@@ -63,6 +65,9 @@ describe("icon family", () => {
       discount: trendingDownOutline,
       statusOk: checkmarkCircleOutline,
       tune: optionsOutline,
+      zoomIn: addCircleOutline,
+      zoomOut: removeCircleOutline,
+      zoomReset: scanOutline,
     });
   });
 

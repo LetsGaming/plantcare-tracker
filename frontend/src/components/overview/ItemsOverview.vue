@@ -98,7 +98,7 @@
             <span class="tag-media">
               <progressive-image
                 :src="item.imageUrl"
-                :alt="item.name"
+                alt=""
                 :kind="kind"
                 :seed="String(item.id)"
               />

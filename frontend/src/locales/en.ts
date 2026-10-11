@@ -776,6 +776,9 @@ export default {
   "a11y.edit": "Edit",
 
   "a11y.image_dialog": "Image",
+  "a11y.zoom_in": "Zoom in",
+  "a11y.zoom_out": "Zoom out",
+  "a11y.zoom_reset": "Reset zoom",
 
   "a11y.delete": "Delete",
 
