@@ -1,0 +1,72 @@
+{
+  "products": [
+    {
+      "handle": "philodendron-pink-galaxy-small",
+      "title": "Philodendron Pink Galaxy Small",
+      "product_type": "Philodendron",
+      "tags": [
+        "Galaxy",
+        "Philodendron",
+        "Pink Variegation",
+        "Rare Plant"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0601/2344/7392/files/IMG_4089.heic?v=1755065086"
+        }
+      ],
+      "variants": [
+        {
+          "price": "12.73",
+          "compare_at_price": "32.40",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "pellionia-repens-variegated",
+      "title": "Pellionia Repens Variegated",
+      "product_type": "Pellionia",
+      "tags": [
+        "Pellionia",
+        "Rare Plant",
+        "Variegated"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0601/2344/7392/files/IMG_7846-scaled.jpg?v=1732630293"
+        }
+      ],
+      "variants": [
+        {
+          "price": "9.78",
+          "compare_at_price": "19.62",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "heatpack-72h",
+      "title": "Heatpack 72H",
+      "product_type": "Plant Care",
+      "tags": [
+        "Accessories",
+        "Heat Pack",
+        "Plant Care",
+        "Shipping Protection"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0601/2344/7392/files/550x397.jpg?v=1736408646"
+        }
+      ],
+      "variants": [
+        {
+          "price": "8.00",
+          "compare_at_price": "10.00",
+          "available": true
+        }
+      ]
+    }
+  ]
+}

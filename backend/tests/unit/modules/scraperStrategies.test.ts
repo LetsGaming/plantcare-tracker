@@ -18,7 +18,14 @@ vi.mock('../../../src/modules/sales/infrastructure/HttpFetcher', () => ({
 import { fetchJson } from '../../../src/modules/sales/infrastructure/HttpFetcher';
 import { ShopifyJsonStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/ShopifyJsonStrategy';
 import { JsonLdStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/JsonLdStrategy';
-import { PlntsScraper } from '../../../src/modules/sales/infrastructure/scrapers';
+import {
+  BlattmanufakturScraper,
+  FoliageFactoryScraper,
+  GrowJungleScraper,
+  MgPlantsScraper,
+  PlantThatPlantScraper,
+  PlntsScraper,
+} from '../../../src/modules/sales/infrastructure/scrapers';
 import { NodeCacheAdapter } from '../../../src/core/cache';
 import { SelectorStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/SelectorStrategy';
 import { HeuristicStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/HeuristicStrategy';
@@ -299,5 +306,197 @@ describe('HeuristicStrategy', () => {
   it('refuses a container that holds several products instead of guessing a link', async () => {
     const items = await strategy.extract(ctxFor(fixture('single-container.html')));
     expect(items).toEqual([]);
+  });
+});
+
+// ── Shop configurations ───────────────────────────────────────────────────────
+
+describe.each([
+  {
+    name: 'FoliageFactoryScraper',
+    Scraper: FoliageFactoryScraper,
+    feedFixture: 'foliage-factory-products.json',
+    htmlFixture: 'foliage-factory-cards.html',
+    feedUrl: 'https://foliage-factory.com/collections/sale/products.json?limit=250&page=1',
+    finalUrl: 'https://foliage-factory.com/de/collections/sale',
+    feedItems: [
+      { name: "Monstera deliciosa variegata 'Super White'", newPrice: 59, oldPrice: 93.45 },
+      { name: "Monstera 'Thai Constellation'", newPrice: 35, oldPrice: 49.75 },
+    ],
+    htmlItems: [
+      {
+        name: 'Monstera deliciosa variegata ‘Super White’',
+        newPrice: 59,
+        oldPrice: 93.45,
+        linkPath: '/de/products/monstera-deliciosa-variegata-super-white',
+        imgPath: '/cdn/shop/files/monstera-deliciosa-variegata-super-white-foliage-01.webp',
+      },
+    ],
+  },
+  {
+    name: 'PlantThatPlantScraper',
+    Scraper: PlantThatPlantScraper,
+    feedFixture: 'plantthatplant-products.json',
+    htmlFixture: 'plantthatplant-cards.html',
+    feedUrl:
+      'https://www.plantthatplant.com/collections/all-plants-1/products.json?limit=250&page=1&country=DE',
+    finalUrl: 'https://www.plantthatplant.com/collections/all-plants-1',
+    feedItems: [
+      { name: 'Monstera ’White Monster’', newPrice: 63.95, oldPrice: 81.95 },
+      { name: 'Philodendron billietiae', newPrice: 18.95, oldPrice: 22.95 },
+    ],
+    htmlItems: [
+      {
+        name: 'Alocasia Mystery Subscription',
+        newPrice: 17.95,
+        oldPrice: 34.95,
+        linkPath: '/products/1x-alocasia-mystery-subscription',
+        imgPath: '/cdn/shop/files/Screenshot2025-12-03at21.46.00.png',
+      },
+    ],
+  },
+  {
+    name: 'GrowJungleScraper',
+    Scraper: GrowJungleScraper,
+    feedFixture: 'growjungle-products.json',
+    htmlFixture: 'growjungle-cards.html',
+    feedUrl: 'https://www.growjungle.com/collections/sale-2/products.json?limit=250&page=1',
+    finalUrl: 'https://www.growjungle.com/de/collections/sale-2',
+    feedItems: [
+      { name: 'Philodendron Pink Galaxy Small', newPrice: 12.73, oldPrice: 32.4 },
+      { name: 'Pellionia Repens Variegated', newPrice: 9.78, oldPrice: 19.62 },
+    ],
+    htmlItems: [
+      {
+        name: 'Philodendron Pink Galaxy Small',
+        newPrice: 12.73,
+        oldPrice: 32.4,
+        linkPath: '/de/products/philodendron-pink-galaxy-small',
+        imgPath: '/cdn/shop/files/IMG_4089.heic',
+      },
+    ],
+  },
+  {
+    name: 'BlattmanufakturScraper',
+    Scraper: BlattmanufakturScraper,
+    feedFixture: 'blattmanufaktur-products.json',
+    htmlFixture: 'blattmanufaktur-cards.html',
+    feedUrl:
+      'https://www.blattmanufaktur.de/collections/sale-automatisch/products.json?limit=250&page=1',
+    finalUrl: 'https://www.blattmanufaktur.de/collections/sale-automatisch',
+    feedItems: [
+      { name: "Alocasia 'Dragon Scale Mint Variegata'", newPrice: 19.9, oldPrice: 29.9 },
+      { name: 'Alocasia Mandalay', newPrice: 14.9, oldPrice: 20.9 },
+    ],
+    htmlItems: [
+      {
+        name: "Alocasia 'Dragon Scale Mint Variegata'",
+        newPrice: 19.9,
+        oldPrice: 29.9,
+        linkPath: '/products/alocasia-dragon-scale-variegata',
+        imgPath:
+          '/cdn/shop/files/rn-image_picker_lib_temp_6d1cf4ff-a42c-416d-af68-b7aa7981ad03.jpg',
+      },
+      {
+        name: 'Alocasia Mandalay',
+        newPrice: 14.9,
+        oldPrice: 20.9,
+        linkPath: '/products/alocasia-mandalay',
+        imgPath: '/cdn/shop/files/de9c8665-c22a-4650-98b3-7e16ea46a8d8.webp',
+      },
+    ],
+  },
+])('$name', (shop) => {
+  const config = (new shop.Scraper(new NodeCacheAdapter()) as unknown as { config: ScraperConfig })
+    .config;
+
+  it('reads the feed of its collection and keeps only plants', async () => {
+    vi.mocked(fetchJson).mockResolvedValue(JSON.parse(fixture(shop.feedFixture)));
+
+    const items = await new ShopifyJsonStrategy().extract(ctxFor(null, { config }));
+
+    expect(fetchJson).toHaveBeenCalledWith(shop.feedUrl);
+    expect(items.map(({ name, newPrice, oldPrice }) => ({ name, newPrice, oldPrice }))).toEqual(
+      shop.feedItems,
+    );
+    for (const item of items) expect(item.img).toMatch(/^https:\/\//);
+  });
+
+  it('extracts discounted cards with the theme selectors as fallback', async () => {
+    const html = fixture(shop.htmlFixture);
+
+    const items = await new SelectorStrategy().extract(
+      ctxFor(html, {
+        config,
+        pageUrl: config.baseUrl,
+        loadHtml: async () => ({ html, finalUrl: shop.finalUrl }),
+      }),
+    );
+
+    expect(items).toHaveLength(shop.htmlItems.length);
+    shop.htmlItems.forEach(({ linkPath, imgPath, ...prices }, index) => {
+      expect(items[index]).toMatchObject(prices);
+      expect(items[index].link).toContain(linkPath);
+      expect(items[index].img).toContain(imgPath);
+    });
+  });
+});
+
+describe('MgPlantsScraper', () => {
+  const config = (
+    new MgPlantsScraper(new NodeCacheAdapter()) as unknown as { config: ScraperConfig }
+  ).config;
+
+  it('reads the whole catalogue feed and drops soil and bundles', async () => {
+    vi.mocked(fetchJson).mockResolvedValue(JSON.parse(fixture('mgplants-products.json')));
+
+    const items = await new ShopifyJsonStrategy().extract(ctxFor(null, { config }));
+
+    expect(fetchJson).toHaveBeenCalledWith(
+      'https://mg-plants.com/collections/all/products.json?limit=250&page=1',
+    );
+    expect(items.map(({ name, newPrice, oldPrice }) => ({ name, newPrice, oldPrice }))).toEqual([
+      { name: 'Alocasia Frydek Varigata - Tissue Culture (TC)', newPrice: 9.9, oldPrice: 19.9 },
+      { name: 'Alocasia Jacklyn Aurea- TC', newPrice: 39, oldPrice: 59 },
+    ]);
+    for (const item of items) expect(item.img).toMatch(/^https:\/\//);
+  });
+
+  it('reads four feed pages and has no HTML fallback', () => {
+    expect(config.maxPages).toBe(4);
+    expect(config.selectors).toBeUndefined();
+  });
+});
+
+describe('ShopifyJsonStrategy product filter', () => {
+  it('hands type and tags of each product to the shop filter', async () => {
+    const shopifyProductFilter = vi.fn().mockReturnValue(true);
+    vi.mocked(fetchJson).mockResolvedValue({
+      products: [
+        {
+          handle: 'a',
+          title: 'A',
+          product_type: 'Plants',
+          tags: 'Rare, Pre-order',
+          variants: [{ price: '5.00', compare_at_price: '9.00', available: true }],
+        },
+      ],
+    });
+
+    await new ShopifyJsonStrategy().extract(
+      ctxFor(null, {
+        config: {
+          ...baseConfig,
+          shopifyCollectionUrl: 'https://shop.example/collections/sale',
+          shopifyProductFilter,
+        },
+      }),
+    );
+
+    expect(shopifyProductFilter).toHaveBeenCalledWith({
+      title: 'A',
+      productType: 'Plants',
+      tags: ['Rare', 'Pre-order'],
+    });
   });
 });

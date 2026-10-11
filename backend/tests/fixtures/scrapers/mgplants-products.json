@@ -1,0 +1,83 @@
+{
+  "products": [
+    {
+      "handle": "alocasia-frydek-varigata",
+      "title": "Alocasia Frydek Varigata - Tissue Culture (TC)",
+      "product_type": "Alocasia",
+      "tags": [],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0821/5720/7890/files/rn-image_picker_lib_temp_ee57a5ff-9749-4ac8-8df2-ac6c68b8c9f8.jpg?v=1719557757"
+        }
+      ],
+      "variants": [
+        {
+          "price": "9.90",
+          "compare_at_price": "19.90",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "alocasia-jacklyn-premium-variegated-tv",
+      "title": "Alocasia Jacklyn Aurea- TC",
+      "product_type": "",
+      "tags": [],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0821/5720/7890/files/rn-image_picker_lib_temp_d15bc91b-13a3-4b05-93b0-f8cd53e33d0e.jpg?v=1739877185"
+        }
+      ],
+      "variants": [
+        {
+          "price": "39.00",
+          "compare_at_price": "59.00",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "mg-s-soil-aroid-substrat-spezial-erde",
+      "title": "MG´s Soil - Aroid Substrat - Spezial Erde",
+      "product_type": "Substrat",
+      "tags": [
+        "steuer19"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0821/5720/7890/files/rn-image_picker_lib_temp_7e946bd1-7fed-45ab-821b-89569e49bd1b.jpg?v=1780131222"
+        }
+      ],
+      "variants": [
+        {
+          "price": "16.00",
+          "compare_at_price": "16.00",
+          "available": true
+        },
+        {
+          "price": "29.00",
+          "compare_at_price": "30.00",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "pink-philodendron-bundel",
+      "title": "Pink Philodendron Bundel",
+      "product_type": "",
+      "tags": [],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0821/5720/7890/files/rn-image_picker_lib_temp_a215bffb-0b09-4762-a10c-fbc38bb14a8d.jpg?v=1781265697"
+        }
+      ],
+      "variants": [
+        {
+          "price": "160.00",
+          "compare_at_price": "200.00",
+          "available": true
+        }
+      ]
+    }
+  ]
+}

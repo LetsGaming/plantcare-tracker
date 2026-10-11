@@ -19,6 +19,13 @@ export interface ScraperSelectors {
   nameAttr?: string;
 }
 
+/** The product fields of a Shopify feed that a shop can filter on. */
+export interface ShopifyProductInfo {
+  title: string;
+  productType: string;
+  tags: string[];
+}
+
 export interface ScraperConfig {
   key: string;
   seller: string;
@@ -34,6 +41,10 @@ export interface ScraperConfig {
   strategies?: StrategyName[];
   /** Shopify collection URL (without /products.json) enabling the JSON feed. */
   shopifyCollectionUrl?: string;
+  /** Drops feed products that are no plants (accessories, pre-orders, boxes). */
+  shopifyProductFilter?: (product: ShopifyProductInfo) => boolean;
+  /** Pins the market of the feed so prices stay in EUR whatever the server location. */
+  shopifyCountry?: string;
 }
 
 export interface StrategyContext {

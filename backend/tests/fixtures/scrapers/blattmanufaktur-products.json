@@ -1,0 +1,84 @@
+{
+  "products": [
+    {
+      "handle": "alocasia-dragon-scale-variegata",
+      "title": "Alocasia 'Dragon Scale Mint Variegata'",
+      "product_type": "",
+      "tags": [
+        "alocasia"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0976/4303/7010/files/rn-image_picker_lib_temp_6d1cf4ff-a42c-416d-af68-b7aa7981ad03.jpg?v=1789635814"
+        }
+      ],
+      "variants": [
+        {
+          "price": "19.90",
+          "compare_at_price": "29.90",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "alocasia-mandalay",
+      "title": "Alocasia Mandalay",
+      "product_type": "",
+      "tags": [
+        "alocasia"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0976/4303/7010/files/de9c8665-c22a-4650-98b3-7e16ea46a8d8.webp?v=1752214113"
+        }
+      ],
+      "variants": [
+        {
+          "price": "14.90",
+          "compare_at_price": "20.90",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "beerentopf-6-cm",
+      "title": "Beerentopf 6 cm",
+      "product_type": "",
+      "tags": [
+        "töpfe"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0976/4303/7010/files/rn-image_picker_lib_temp_52786562-f25a-463a-9821-572c2acf69ba.jpg?v=1763053508"
+        }
+      ],
+      "variants": [
+        {
+          "price": "4.90",
+          "compare_at_price": "8.90",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "botanopia-plant-food",
+      "title": "Botanopia Plant Food",
+      "product_type": "",
+      "tags": [
+        "substrate"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0976/4303/7010/files/899bff0b-6435-44e5-8d0a-e6b906523255.avif?v=1752502842"
+        }
+      ],
+      "variants": [
+        {
+          "price": "8.90",
+          "compare_at_price": "9.49",
+          "available": true
+        }
+      ]
+    }
+  ]
+}

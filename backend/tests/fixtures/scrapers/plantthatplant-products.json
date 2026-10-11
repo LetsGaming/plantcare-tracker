@@ -1,0 +1,121 @@
+{
+  "products": [
+    {
+      "handle": "monstera-white-monster",
+      "title": "Monstera ’White Monster’",
+      "product_type": "",
+      "tags": [],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0102/9957/2282/files/20260727_200015.jpg?v=1785260001"
+        }
+      ],
+      "variants": [
+        {
+          "price": "63.95",
+          "compare_at_price": "81.95",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "philodendron-billietiae",
+      "title": "Philodendron billietiae",
+      "product_type": "",
+      "tags": [],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0102/9957/2282/files/Unknown-9.jpg?v=1765216502"
+        }
+      ],
+      "variants": [
+        {
+          "price": "18.95",
+          "compare_at_price": "22.95",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "monstera-deliciosa-platinum",
+      "title": "Monstera deliciosa 'Platinum' - limited",
+      "product_type": "Plants",
+      "tags": [
+        "Aroid",
+        "Aroids",
+        "Collector plant",
+        "Indoor plant",
+        "monstera",
+        "Plant care",
+        "Pre-order",
+        "Preorder",
+        "Preorders",
+        "rare monstera",
+        "Rare plant",
+        "Tropical houseplant",
+        "Tropical plant"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0102/9957/2282/files/Unknown-43.jpg?v=1770167430"
+        }
+      ],
+      "variants": [
+        {
+          "price": "54.95",
+          "compare_at_price": "455.95",
+          "available": true
+        },
+        {
+          "price": "36.95",
+          "compare_at_price": "364.95",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "mystery-signature-bundle",
+      "title": "Mystery Signature Bundle",
+      "product_type": "",
+      "tags": [],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0102/9957/2282/files/Unknown-46.jpg?v=1766697910"
+        }
+      ],
+      "variants": [
+        {
+          "price": "27.95",
+          "compare_at_price": "36.95",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "philodendron-pink-princess-prince-of-orange-bundle",
+      "title": "Philodendron Pink Princess & Orange Princess Bundle",
+      "product_type": "Philodendron",
+      "tags": [
+        "Aroid",
+        "Bundle",
+        "Collector plant",
+        "Indoor plant",
+        "Philodendron",
+        "Rare plant",
+        "Variegata"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0102/9957/2282/files/plant-cleaned-1788442841787.png?v=1788760837"
+        }
+      ],
+      "variants": [
+        {
+          "price": "49.95",
+          "compare_at_price": "62.95",
+          "available": true
+        }
+      ]
+    }
+  ]
+}

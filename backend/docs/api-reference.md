@@ -597,7 +597,7 @@ data: {"message":"Stream interrupted"}
 
 Items arrive in batches as each scraper completes. The `done` event is sent when all scrapers have finished. A heartbeat (`: heartbeat`) is sent every 20 seconds to keep the connection alive.
 
-**Supported shops:** Foliage Dreams, White Leaf Plants, Palmenmann, Plant Circle, PLNTS, Green Me Up, Jungle Leaves, Potflourri, Harmony Plants.
+**Supported shops:** Foliage Dreams, White Leaf Plants, Palmenmann, Plant Circle, PLNTS, Green Me Up, Jungle Leaves, Potflourri, Harmony Plants, Foliage Factory, PlantThatPlant, Grow Jungle, Blattmanufaktur, MG-Plants.
 
 ### Source health (admin)
 

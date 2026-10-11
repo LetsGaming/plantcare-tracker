@@ -12,6 +12,8 @@ interface ShopifyVariant {
 interface ShopifyProduct {
   handle: string;
   title: string;
+  product_type?: string;
+  tags?: string[] | string;
   variants?: ShopifyVariant[];
   images?: { src: string }[];
 }
@@ -21,6 +23,9 @@ interface ProductsFeed {
 }
 
 const PAGE_SIZE = 250;
+
+const toTags = (tags: ShopifyProduct['tags']): string[] =>
+  Array.isArray(tags) ? tags : (tags?.split(',').map((tag) => tag.trim()) ?? []);
 
 const toRawItem = (product: ShopifyProduct, productBase: string): RawSaleItem | null => {
   const discounted = (product.variants ?? [])
@@ -62,14 +67,26 @@ export class ShopifyJsonStrategy implements ExtractionStrategy {
     // Localized storefronts (e.g. /de) prefix product paths as well
     const localePrefix = collectionPath.split('/collections/')[0];
 
+    const { shopifyCountry, shopifyProductFilter } = ctx.config;
+    const market = shopifyCountry ? `&country=${encodeURIComponent(shopifyCountry)}` : '';
+
     const feed = await fetchJson<ProductsFeed>(
-      `${origin}${collectionPath}/products.json?limit=${PAGE_SIZE}&page=${ctx.page}`,
+      `${origin}${collectionPath}/products.json?limit=${PAGE_SIZE}&page=${ctx.page}${market}`,
     );
     if (!feed || !Array.isArray(feed.products)) {
       throw new Error('products.json unavailable');
     }
 
     return feed.products
+      .filter(
+        (p) =>
+          !shopifyProductFilter ||
+          shopifyProductFilter({
+            title: p.title,
+            productType: p.product_type ?? '',
+            tags: toTags(p.tags),
+          }),
+      )
       .map((p) => toRawItem(p, `${origin}${localePrefix}`))
       .filter((item): item is RawSaleItem => item !== null);
   }
