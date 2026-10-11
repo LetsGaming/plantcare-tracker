@@ -22,7 +22,9 @@
               :seed="`${plantName}:${image.id}`"
             />
           </span>
-          <span v-if="image.date" class="image-date" aria-hidden="true">{{ captionFor(image) }}</span>
+          <span v-if="image.date" class="image-date" aria-hidden="true">{{
+            captionFor(image)
+          }}</span>
         </button>
       </li>
     </ul>

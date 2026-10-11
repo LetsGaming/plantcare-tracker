@@ -64,16 +64,28 @@ describe("ImageModal zoom buttons", () => {
     expect(offsets(wrapper)).toEqual([0, 0]);
   });
 
-  it("disables zoom out and reset at 1 and zoom in at the maximum", async () => {
+  it("marks the limited zoom buttons aria-disabled without disabling them", async () => {
     const wrapper = mountModal();
-    expect(button(wrapper, "a11y.zoom_out").props("disabled")).toBe(true);
-    expect(button(wrapper, "a11y.zoom_reset").props("disabled")).toBe(true);
-    expect(button(wrapper, "a11y.zoom_in").props("disabled")).toBe(false);
+    expect(button(wrapper, "a11y.zoom_out").attributes("aria-disabled")).toBe("true");
+    expect(button(wrapper, "a11y.zoom_reset").attributes("aria-disabled")).toBe("true");
+    expect(button(wrapper, "a11y.zoom_in").attributes("aria-disabled")).toBeUndefined();
     for (let i = 0; i < 4; i++) button(wrapper, "a11y.zoom_in").vm.$emit("press");
     await wrapper.vm.$nextTick();
     expect(scale(wrapper)).toBe(3);
-    expect(button(wrapper, "a11y.zoom_in").props("disabled")).toBe(true);
-    expect(button(wrapper, "a11y.zoom_out").props("disabled")).toBe(false);
+    expect(button(wrapper, "a11y.zoom_in").attributes("aria-disabled")).toBe("true");
+    expect(button(wrapper, "a11y.zoom_out").attributes("aria-disabled")).toBeUndefined();
+    for (const label of ["a11y.zoom_in", "a11y.zoom_out", "a11y.zoom_reset"]) {
+      expect(button(wrapper, label).props("disabled")).toBe(false);
+    }
+  });
+
+  it("keeps the zoom at the limits when pressing a limited button", () => {
+    const wrapper = mountModal();
+    expect(() => button(wrapper, "a11y.zoom_out").vm.$emit("press")).not.toThrow();
+    expect(scale(wrapper)).toBe(1);
+    for (let i = 0; i < 4; i++) button(wrapper, "a11y.zoom_in").vm.$emit("press");
+    expect(() => button(wrapper, "a11y.zoom_in").vm.$emit("press")).not.toThrow();
+    expect(scale(wrapper)).toBe(3);
   });
 });
 
@@ -117,6 +129,33 @@ describe("ImageModal keyboard", () => {
     await press(wrapper, "-");
     expect(scale(wrapper)).toBe(1);
     expect(offsets(wrapper)).toEqual([0, 0]);
+  });
+
+  it("leaves browser zoom shortcuts alone when a modifier key is held", async () => {
+    const wrapper = mountModal();
+    const el = surface(wrapper).element;
+    const ctrlEquals = new KeyboardEvent("keydown", { key: "=", ctrlKey: true, cancelable: true });
+    const metaZero = new KeyboardEvent("keydown", { key: "0", metaKey: true, cancelable: true });
+    const altMinus = new KeyboardEvent("keydown", { key: "-", altKey: true, cancelable: true });
+    el.dispatchEvent(ctrlEquals);
+    el.dispatchEvent(metaZero);
+    el.dispatchEvent(altMinus);
+    expect(scale(wrapper)).toBe(1);
+    expect(ctrlEquals.defaultPrevented).toBe(false);
+    expect(metaZero.defaultPrevented).toBe(false);
+    expect(altMinus.defaultPrevented).toBe(false);
+    await press(wrapper, "+");
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: "0", metaKey: true, cancelable: true }));
+    expect(scale(wrapper)).toBe(1.5);
+  });
+
+  it("stops keyboard panning at a bounded distance", async () => {
+    const wrapper = mountModal();
+    for (let i = 0; i < 4; i++) await press(wrapper, "+");
+    for (let i = 0; i < 30; i++) await press(wrapper, "ArrowRight");
+    expect(offsets(wrapper)[0]).toBe(-300);
+    await press(wrapper, "ArrowRight");
+    expect(offsets(wrapper)[0]).toBe(-300);
   });
 
   it("leaves Escape and Tab alone", () => {

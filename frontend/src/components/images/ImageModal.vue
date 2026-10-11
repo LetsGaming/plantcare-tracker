@@ -11,19 +11,22 @@
         <icon-button
           :icon="icons.zoomOut"
           :label="zoomOutLabel"
-          :disabled="zoomScale <= zoomMin"
+          :class="{ 'is-limit': atMin }"
+          :aria-disabled="atMin ? 'true' : undefined"
           @press="zoomOut"
         />
         <icon-button
           :icon="icons.zoomReset"
           :label="zoomResetLabel"
-          :disabled="zoomScale <= zoomMin"
+          :class="{ 'is-limit': atMin }"
+          :aria-disabled="atMin ? 'true' : undefined"
           @press="resetZoom"
         />
         <icon-button
           :icon="icons.zoomIn"
           :label="zoomInLabel"
-          :disabled="zoomScale >= zoomMax"
+          :class="{ 'is-limit': atMax }"
+          :aria-disabled="atMax ? 'true' : undefined"
           @press="zoomIn"
         />
       </div>
@@ -66,7 +69,14 @@ import { defineComponent, PropType, ref, watch } from "vue";
 import EditingHeader from "../modal/EditingHeader.vue";
 import IconButton from "@/components/ui/IconButton.vue";
 import { icons } from "@/theme/icons";
-import { PAN_STEP, ZOOM_MAX, ZOOM_MIN, clampZoom, stepZoom } from "@/utils/zoom";
+import {
+  PAN_LIMIT_PER_LEVEL,
+  PAN_STEP,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  clampZoom,
+  stepZoom,
+} from "@/utils/zoom";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -146,12 +156,18 @@ export default defineComponent({
       offsetY.value = 0;
     };
 
+    const panLimit = () => (zoomScale.value - ZOOM_MIN) * PAN_LIMIT_PER_LEVEL;
+    const clampOffset = (value: number) => Math.min(Math.max(value, -panLimit()), panLimit());
+
     const applyZoom = (next: number) => {
+      if (next === zoomScale.value) return;
       if (next <= ZOOM_MIN) {
         resetZoom();
         return;
       }
       zoomScale.value = next;
+      offsetX.value = clampOffset(offsetX.value);
+      offsetY.value = clampOffset(offsetY.value);
     };
 
     const zoomIn = () => applyZoom(stepZoom(zoomScale.value, 1));
@@ -165,6 +181,7 @@ export default defineComponent({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
         zoomIn();
@@ -177,8 +194,8 @@ export default defineComponent({
       } else if (event.key in panOffsets && zoomScale.value > ZOOM_MIN) {
         event.preventDefault();
         const [dx, dy] = panOffsets[event.key];
-        offsetX.value += dx;
-        offsetY.value += dy;
+        offsetX.value = clampOffset(offsetX.value + dx);
+        offsetY.value = clampOffset(offsetY.value + dy);
       }
     };
 
@@ -292,6 +309,12 @@ export default defineComponent({
       const key = this.label || "a11y.image_dialog";
       return localizationService.t(key, undefined, key);
     },
+    atMin(): boolean {
+      return this.zoomScale <= this.zoomMin;
+    },
+    atMax(): boolean {
+      return this.zoomScale >= this.zoomMax;
+    },
     zoomInLabel(): string {
       return localizationService.t("a11y.zoom_in", undefined, "a11y.zoom_in");
     },
@@ -317,6 +340,10 @@ export default defineComponent({
   display: flex;
   justify-content: center;
   gap: var(--space-2);
+}
+
+.zoom-toolbar .is-limit {
+  opacity: 0.5;
 }
 
 .enlarged-image-container {
