@@ -58,6 +58,7 @@ const routes: Array<RouteRecordRaw> = [
     component: Profile,
     meta: titled("profile.title"),
   },
+  { path: "/water", redirect: "/tabs/plants/water" },
   { path: "/sales", redirect: "/tabs/sales" },
   { path: "/sales/details/:id", redirect: (to) => `/tabs/sales/details/${to.params.id}` },
   {
@@ -85,10 +86,11 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         name: "water-round",
-        path: "water",
+        path: "plants/water",
         meta: titled("water.title"),
         component: WaterRound,
       },
+      { path: "water", redirect: "/tabs/plants/water" },
       {
         name: "plant-details",
         path: "plants/details/:id/:public",

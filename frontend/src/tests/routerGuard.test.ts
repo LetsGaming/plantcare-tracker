@@ -117,3 +117,17 @@ describe("global guard", () => {
     expect(router.currentRoute.value.name).toBe("plant-overview");
   });
 });
+
+describe("watering round route", () => {
+  it("lives under the plants tab", () => {
+    const route = router.getRoutes().find((r) => r.name === "water-round");
+    expect(route?.path).toBe("/tabs/plants/water");
+    expect(route?.meta.titleKey).toBe("water.title");
+  });
+
+  it.each(["/tabs/water", "/water"])("redirects %s to the round", async (legacy) => {
+    await router.push(legacy);
+    expect(router.currentRoute.value.path).toBe("/tabs/plants/water");
+    expect(router.currentRoute.value.name).toBe("water-round");
+  });
+});

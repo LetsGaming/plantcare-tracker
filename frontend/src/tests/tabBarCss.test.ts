@@ -58,10 +58,9 @@ describe("tab labels", () => {
     expect(en["tabs.components"]).toBe("Components");
   });
 
-  it("keeps every German tab label short enough for five tabs", () => {
+  it("keeps every German tab label short enough for four tabs", () => {
     for (const key of [
       "tabs.plants",
-      "tabs.water",
       "tabs.substrates",
       "tabs.components",
       "tabs.sales",

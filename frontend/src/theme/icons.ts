@@ -33,7 +33,6 @@ import {
   checkmarkCircleOutline,
   swapVerticalOutline,
   trendingDownOutline,
-  water,
   waterOutline,
 } from "ionicons/icons";
 
@@ -69,11 +68,10 @@ export const icons = {
   zoomReset: scanOutline,
 } as const;
 
-export type NavDestination = "plants" | "water" | "substrates" | "components" | "sales" | "debug";
+export type NavDestination = "plants" | "substrates" | "components" | "sales" | "debug";
 
 export const navIcons: Record<NavDestination, { idle: string; selected: string }> = {
   plants: { idle: leafOutline, selected: leaf },
-  water: { idle: waterOutline, selected: water },
   substrates: { idle: cubeOutline, selected: cube },
   components: { idle: gridOutline, selected: grid },
   sales: { idle: pricetagOutline, selected: pricetag },

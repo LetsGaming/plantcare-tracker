@@ -196,6 +196,7 @@ export default {
    * ===================================================== */
 
   "plants.title": "Plants",
+  "plants.water_round": "Watering round",
 
   "plants.updated": "{type} plants updated.",
 
@@ -1376,7 +1377,6 @@ export default {
   "final2.category_name_label": "Category name",
   "final2.pick_color": "Choose color",
   "final3.pick_category": "Select a category",
-  "tabs.water": "Water",
   "water.title": "Water round",
   "water.search": "Search plants",
   "water.round_fertilizer": "Fertilizer for this round",

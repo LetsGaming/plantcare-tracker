@@ -220,7 +220,7 @@ Mobile first. Spacing uses a 4/8/12/16/24/32/48 scale (`space-1` to `space-7`); 
 
 - Plants list: two tag cards per row below 640px (12px gap); from 640px an auto-fill grid with 240px minimum columns and 16px gap.
 - Detail screens (plant): tag header, then the watering status band with Water now above the fold, then the photo. Other details use the hero (photo capped at `min(40vh, 360px)` with the tag overlapping its bottom edge by 24px).
-- Tab bar: bottom tabs (Plants, Water, Substrates, Components ("Zutaten" in German), Sales with a count badge, Debug in development only) below 992px; hidden from 992px.
+- Tab bar: bottom tabs (Plants, Substrates, Components ("Zutaten" in German), Sales with a count badge, Debug in development only) below 992px; hidden from 992px. The watering round is not a tab: a leaf-green "Gießrunde" button above the list in the private Plants segment opens it (hidden for guests and in the public segment).
 - Side menu: 320px wide overlay (max 88vw) with a raised header toolbar below 992px; from 992px a persistent split pane that also shows the navigation section. Active item sits on leaf wash at weight 600.
 - Safe areas: the tab bar pads by `env(safe-area-inset-bottom)`.
 

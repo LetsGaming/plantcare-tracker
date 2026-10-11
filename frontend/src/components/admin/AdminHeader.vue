@@ -19,7 +19,7 @@ import { defineComponent } from "vue";
 import { IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton } from "@ionic/vue";
 import localizationService from "@/services/general/LocalizationService";
 
-/** Header chrome shared by the admin screens. */
+/** Title and back button chrome shared by the admin screens and the watering round. */
 export default defineComponent({
   name: "AdminHeader",
   components: { IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton },

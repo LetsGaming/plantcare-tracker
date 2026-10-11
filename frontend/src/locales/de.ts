@@ -196,6 +196,7 @@ export default {
    * ===================================================== */
 
   "plants.title": "Pflanzen",
+  "plants.water_round": "Gießrunde",
 
   "plants.updated": "{type} Pflanzen aktualisiert.",
 
@@ -1387,7 +1388,6 @@ export default {
   "final2.category_name_label": "Name der Kategorie",
   "final2.pick_color": "Farbe wählen",
   "final3.pick_category": "Kategorie auswählen",
-  "tabs.water": "Gießen",
   "water.title": "Gießrunde",
   "water.search": "Pflanzen suchen",
   "water.round_fertilizer": "Dünger für diese Runde",

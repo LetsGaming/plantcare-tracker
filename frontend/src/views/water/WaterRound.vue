@@ -1,6 +1,6 @@
 <template>
   <ion-page>
-    <overview-header :title="t('water.title')" :show-add-button="false" />
+    <admin-header :title="t('water.title')" back-href="/tabs/plants" />
 
     <ion-content>
       <div class="round">
@@ -150,7 +150,7 @@ import {
   IonSpinner,
   IonToolbar,
 } from "@ionic/vue";
-import OverviewHeader from "@/components/overview/OverviewHeader.vue";
+import AdminHeader from "@/components/admin/AdminHeader.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import StateBlock from "@/components/ui/StateBlock.vue";
 import RoundList from "@/components/water/RoundList.vue";
@@ -197,7 +197,7 @@ export default defineComponent({
     IonSegmentButton,
     IonSpinner,
     IonToolbar,
-    OverviewHeader,
+    AdminHeader,
     SearchBar,
     StateBlock,
     RoundList,

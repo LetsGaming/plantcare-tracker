@@ -43,6 +43,8 @@ Implemented on `feat/ux-color-review`. "Pending browser check" means the code an
 | 33 | 7, 16, 18, 19, 20, 22, 25 | 2a62c4d, c9cea4d, 90773a4, 8cd9102, 68f0d1f, 9fc95bc, 0e55e0c | Done, except calendar day width: the number disc is 36px inside a 44px tall cell whose width is a seventh of the calendar, so it can fall under 44px on narrow phones (documented exception, the whole cell is the tap target) |
 | 34 | 4, 16, 20, 25 | 49334c3, c9cea4d, 68f0d1f, 0e55e0c | Done with two deviations: the pie is replaced by a stacked bar only under 576px (the pie stays on wider screens), and the snap logged state still opens at 0.65 because Ionic cannot change the initial breakpoint after presentation (thumbnail, filled Done and text Undo were added) |
 
+Follow-up: the watering round is no longer a tab. It lives at `/tabs/plants/water`, opened from the private Plants segment, so the bar has four tabs and findings 2 and 18 now describe a four tab bar (the old `/tabs/water` url redirects).
+
 ## Verdict
 
 1. **Palette:** one coherent token palette holds (leaf green, water teal, clay, moss ink). Ionic's variables are remapped onto it, no shipped component hard-codes a hex, and dark mode shows zero text contrast failures on 16 audited screens.

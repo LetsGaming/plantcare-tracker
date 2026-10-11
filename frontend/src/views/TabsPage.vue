@@ -9,11 +9,6 @@
           <ion-label>{{ t("tabs.plants") }}</ion-label>
         </ion-tab-button>
 
-        <ion-tab-button tab="water" href="/tabs/water">
-          <ion-icon :icon="tabIcon('water')" aria-hidden="true" />
-          <ion-label>{{ t("tabs.water") }}</ion-label>
-        </ion-tab-button>
-
         <ion-tab-button tab="substrates" href="/tabs/substrates">
           <ion-icon :icon="tabIcon('substrates')" aria-hidden="true" />
           <ion-label>{{ t("tabs.substrates") }}</ion-label>

@@ -107,12 +107,12 @@ not the `public` segment of the url. Guests never see write controls and get a s
 
 ## Navigation
 
-Plants, Water, Substrates, Components and Sales are the bottom tabs (the Components tab reads "Zutaten"
+Plants, Substrates, Components and Sales are the bottom tabs (the Components tab reads "Zutaten"
 in German; Sales shows the count of new sales as a badge; the debug tab exists in development only). Tab
 labels are length-capped so the German bar fits at 360px. The side menu holds account, admin tools (admins),
 reminders (opened in a dialog), settings and log out (the only place for it); from 992px it is a persistent split pane, `--menu-width` wide (264px), that
 collapses to an icon rail of `--menu-rail-width` (72px) with the toggle at its foot; the choice is remembered. Old
-`/sales` urls redirect to `/tabs/sales`. A logged-out visit redirects to login with `?redirect=` and login honors it for same-app
+`/sales` urls redirect to `/tabs/sales`. The watering round is a sub page of Plants (`/tabs/plants/water`, with a back button; the Plants tab stays selected), reached from the "Gießrunde" button in the private segment; `/tabs/water` and `/water` redirect to it. A logged-out visit redirects to login with `?redirect=` and login honors it for same-app
 paths only.
 
 ## PWA and offline
