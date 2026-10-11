@@ -397,6 +397,13 @@ describe.each([
         imgPath:
           '/cdn/shop/files/rn-image_picker_lib_temp_6d1cf4ff-a42c-416d-af68-b7aa7981ad03.jpg',
       },
+      {
+        name: 'Alocasia Mandalay',
+        newPrice: 14.9,
+        oldPrice: 20.9,
+        linkPath: '/products/alocasia-mandalay',
+        imgPath: '/cdn/shop/files/de9c8665-c22a-4650-98b3-7e16ea46a8d8.webp',
+      },
     ],
   },
 ])('$name', (shop) => {
