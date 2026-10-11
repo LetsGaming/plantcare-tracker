@@ -79,6 +79,13 @@ ion-fab-button.ion-focused {
   outline-offset: 2px;
 }
 
+ion-searchbar.searchbar-has-focus,
+ion-searchbar:focus-within {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
 ion-button.button-solid.ion-focused,
 ion-fab-button.ion-focused {
   box-shadow: 0 0 0 2px var(--ion-background-color);
@@ -156,18 +163,21 @@ ion-tab-button {
   font-weight: 600;
   min-width: 0;
   flex: 1 1 0;
-  --padding-start: 2px;
-  --padding-end: 2px;
+  --padding-start: 0;
+  --padding-end: 0;
 }
 
 ion-tab-button ion-label {
   max-width: 100%;
-  font-size: var(--text-xs);
+  font-size: clamp(0.625rem, 2.6vw, var(--text-xs));
+  letter-spacing: -0.01em;
   line-height: 1.2;
   text-align: center;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  hyphens: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  hyphens: none;
 }
 
 ion-card {

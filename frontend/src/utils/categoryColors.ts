@@ -16,15 +16,20 @@ export const contrastTextColor = (backgroundHex: string): string => readableInk(
 
 /**
  * Colors to paint a category with. An empty background means "use the role
- * token"; a user color is lifted until it stands out from the page. The ink is
- * always derived, a stored textColor is ignored.
+ * token"; a user color is lifted until it stands out from the page and from the
+ * surface it is drawn on. The ink is always derived, a stored textColor is ignored.
  */
 export const resolveCategoryColors = (
   category: Category,
-  tokens: { fallback: string; page: string },
+  tokens: { fallback: string; page: string; surface?: string },
 ): ResolvedCategoryColors => {
-  const background = category.backgroundColor
+  const lifted = category.backgroundColor
     ? ensureContrast(category.backgroundColor, tokens.page, 3)
+    : undefined;
+  const background = lifted
+    ? tokens.surface
+      ? ensureContrast(lifted, tokens.surface, 3)
+      : lifted
     : tokens.fallback;
   return { background, text: contrastTextColor(background) };
 };

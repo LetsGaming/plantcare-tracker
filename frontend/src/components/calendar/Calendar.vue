@@ -189,6 +189,10 @@ export default defineComponent({
       void this.themeVersion;
       return readCssColor("--ion-background-color", "#ffffff");
     },
+    surfaceColor(): string {
+      void this.themeVersion;
+      return readCssColor("--surface-raised", "#ffffff");
+    },
     wateringColors(): Record<WateringKind, ResolvedCategoryColors> {
       void this.themeVersion;
       const resolve = (name: string) => {
@@ -200,6 +204,8 @@ export default defineComponent({
         return resolveCategoryColors(category, {
           fallback: readCssColor(DEFAULT_WATERING_TOKENS[name]),
           page: this.pageColor,
+        surface: this.surfaceColor,
+          surface: this.surfaceColor,
         });
       };
       return {
@@ -350,6 +356,7 @@ export default defineComponent({
       return resolveCategoryColors(category, {
         fallback: readCssColor("--ink-soft"),
         page: this.pageColor,
+        surface: this.surfaceColor,
       });
     },
     tVars(key: string, vars: Record<string, string>) {

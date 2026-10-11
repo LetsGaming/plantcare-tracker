@@ -29,13 +29,24 @@ describe("tab bar styles", () => {
     expect(body).toContain("--color-selected: var(--ion-color-primary)");
   });
 
-  it("shrinks and wraps the label", () => {
+  it("keeps each label on one line without mid word breaks", () => {
     const body = rulesFor("ion-tab-button ion-label");
-    expect(body).toContain("font-size: var(--text-xs)");
-    expect(body).toContain("overflow-wrap: anywhere");
-    expect(body).toContain("hyphens: auto");
-    expect(body).toContain("white-space: normal");
+    expect(body).toContain("font-size: clamp(0.625rem, 2.6vw, var(--text-xs))");
+    expect(body).toContain("white-space: nowrap");
+    expect(body).toContain("overflow-wrap: normal");
+    expect(body).toContain("hyphens: none");
+    expect(body).toContain("text-overflow: ellipsis");
+    expect(body).not.toContain("anywhere");
     expect(body).toContain("text-align: center");
+  });
+});
+
+describe("searchbar focus", () => {
+  it("draws the shared 3px focus ring with an offset", () => {
+    const body = rulesFor("ion-searchbar.searchbar-has-focus,
+ion-searchbar:focus-within");
+    expect(body).toContain("outline: 3px solid var(--focus-ring)");
+    expect(body).toContain("outline-offset: 2px");
   });
 });
 

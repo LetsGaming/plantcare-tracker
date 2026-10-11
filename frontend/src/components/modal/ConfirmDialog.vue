@@ -4,6 +4,7 @@
     :is-open="isOpen"
     ref="modal"
     :can-dismiss="canDismiss"
+    :aria-label="title"
     class="confirm-modal"
     @didDismiss="onDismiss"
     @didPresent="onPresent"

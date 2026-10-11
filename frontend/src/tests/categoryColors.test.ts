@@ -51,6 +51,21 @@ describe("resolveCategoryColors", () => {
     expect(contrastRatio(resolved.background, tokens.page)).toBeGreaterThanOrEqual(3);
   });
 
+  it("keeps a dark custom color at 3:1 on both the page and the lighter dark card", () => {
+    const dark = { fallback: "#2b6cb0", page: "#0f1a14", surface: "#17261d" };
+    for (const color of ["#1E90FF", "#0a1f5c", "#0a1a40", "#1e3a8a"]) {
+      const resolved = resolveCategoryColors(category(color), dark);
+      expect(contrastRatio(resolved.background, dark.page)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(resolved.background, dark.surface)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("keeps a light custom color at 3:1 on the white card", () => {
+    const light = { fallback: "#2b6cb0", page: "#f3f6f0", surface: "#ffffff" };
+    const resolved = resolveCategoryColors(category("#ffff66"), light);
+    expect(contrastRatio(resolved.background, light.surface)).toBeGreaterThanOrEqual(3);
+  });
+
   it("derives the ink from the background and ignores a stored textColor", () => {
     const light = resolveCategoryColors(category("#f5f5f5"), { fallback: "#000", page: "#ffffff" });
     expect(light.text).toBe(INK);
