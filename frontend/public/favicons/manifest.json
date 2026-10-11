@@ -36,7 +36,7 @@
     {
       "name": "Log watering",
       "short_name": "Water",
-      "url": "/tabs/water",
+      "url": "/tabs/plants/water",
       "icons": [
         {
           "src": "/favicons/android-chrome-192x192.png",

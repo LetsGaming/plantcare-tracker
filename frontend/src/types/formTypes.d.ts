@@ -37,7 +37,8 @@ interface PasswordField extends FormFieldBase {
 interface SelectField extends FormFieldBase {
   type: "select";
   placeholder?: string;
-  options: Array<{ value: string | number; label: string }>;
+  /** A null value is a real choice, for example "not set". */
+  options: Array<{ value: string | number | null; label: string }>;
 }
 
 interface RadioField extends FormFieldBase {

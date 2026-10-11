@@ -29,6 +29,29 @@ export default defineComponent({
     disabled: { type: Boolean, default: false },
   },
   emits: ["press"],
+  mounted() {
+    this.whenReady(this.syncNativeAria);
+  },
+  updated() {
+    this.syncNativeAria();
+  },
+  methods: {
+    whenReady(callback: () => void) {
+      const host = this.$el as { componentOnReady?: () => Promise<unknown> };
+      void host.componentOnReady?.().then(callback);
+    },
+    // Ionic copies aria attributes to its inner button only once; keep later changes in sync.
+    syncNativeAria() {
+      const native = (this.$el as HTMLElement).shadowRoot?.querySelector("button");
+      if (!native) return;
+      const value = this.$attrs["aria-disabled"];
+      if (value === undefined || value === null || value === false) {
+        native.removeAttribute("aria-disabled");
+      } else {
+        native.setAttribute("aria-disabled", String(value));
+      }
+    },
+  },
 });
 </script>
 

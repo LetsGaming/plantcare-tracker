@@ -3,7 +3,11 @@
     <div class="main">
       <h3 class="seller">
         {{ source.seller }}
-        <ion-badge :color="statusIonColor(source.status)">
+        <ion-badge
+          :color="source.status === 'ok' ? undefined : statusIonColor(source.status)"
+          :class="{ 'status-ok': source.status === 'ok' }"
+        >
+          <ion-icon v-if="source.status === 'ok'" :icon="icons.statusOk" aria-hidden="true" />
           {{ t(`admin.scrapers.status.${source.status}`) }}
         </ion-badge>
       </h3>
@@ -33,7 +37,7 @@
     </div>
 
     <ion-button
-      v-if="checkable"
+      v-if="showRecheck"
       class="check"
       fill="outline"
       :disabled="disabled || checking"
@@ -74,6 +78,10 @@ export default defineComponent({
     return { statusIonColor, icons };
   },
   computed: {
+    showRecheck(): boolean {
+      const { status } = this.source;
+      return this.checkable && (status === "failing" || status === "degraded");
+    },
     cause(): string {
       return failureCause(this.source.lastError);
     },
@@ -140,6 +148,16 @@ export default defineComponent({
 .main {
   min-width: 0;
   flex: 1;
+}
+
+.status-ok {
+  --background: var(--leaf-wash);
+  --color: var(--ion-text-color);
+}
+
+.status-ok ion-icon {
+  margin-inline-end: var(--space-1);
+  vertical-align: -2px;
 }
 
 .seller {

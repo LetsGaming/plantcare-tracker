@@ -6,6 +6,8 @@ vi.mock("@/services/general/StorageService", async () =>
 );
 
 import { useLayoutStore } from "@/stores/layout";
+// Loaded while collecting so the first test does not pay for importing @ionic/vue.
+import "@/stores/pinia";
 
 beforeEach(() => {
   resetStore();

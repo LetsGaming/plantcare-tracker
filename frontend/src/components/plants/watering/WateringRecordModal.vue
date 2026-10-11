@@ -1,5 +1,5 @@
 <template>
-  <ion-modal v-if="mounted" :is-open="isOpen" @did-dismiss="onDismiss">
+  <ion-modal v-if="mounted" :is-open="isOpen" :aria-label="title" @did-dismiss="onDismiss">
     <modal-header :header-title="title" @close="$emit('close')" />
 
     <ion-content>

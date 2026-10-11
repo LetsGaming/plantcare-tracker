@@ -2,6 +2,7 @@
   <IonModal
     v-if="mounted"
     :is-open="isOpen"
+    :aria-label="translatedTitle"
     :can-dismiss="canDismissModal"
     @didPresent="captureBaseline"
     @didDismiss="onDidDismiss"
@@ -21,7 +22,11 @@
         :field-errors="fieldErrors"
         :onSubmitClick="submitHandler"
         :onDeleteClick="deleteHandler"
-      />
+      >
+        <template #after-field="{ modelKey }">
+          <slot name="after-field" :model-key="modelKey" />
+        </template>
+      </FormComponent>
       <slot />
     </IonContent>
   </IonModal>
@@ -85,6 +90,9 @@ export default defineComponent({
     };
   },
   computed: {
+    translatedTitle(): string {
+      return this.t(this.modalTitle, this.modalTitle);
+    },
     isDirty(): boolean {
       return this.baseline !== null && formSnapshot(this.formData) !== this.baseline;
     },

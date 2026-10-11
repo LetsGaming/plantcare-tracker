@@ -66,7 +66,7 @@
       <ion-grid class="ion-no-padding ion-margin-bottom">
         <ion-row>
           <ion-col size="6">
-            <ion-button expand="block" color="secondary" @click="getPlants">
+            <ion-button expand="block" color="tertiary" @click="getPlants">
               <ion-icon slot="start" :icon="leafOutline"></ion-icon>
               Get Plants
             </ion-button>

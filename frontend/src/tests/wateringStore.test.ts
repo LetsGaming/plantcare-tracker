@@ -375,7 +375,7 @@ describe("batch watering", () => {
     expect(api.get).toHaveBeenCalledWith("/watering/plant/8");
   });
   const many = (count: number): WateringBatchEntry[] =>
-    Array.from({ length: count }, (_, i) => ({ plantId: i + 1, usedFertilizer: false }));
+    Array.from({ length: count }, (_, i) => ({ plantId: (i % 5) + 1, usedFertilizer: false }));
   const sizes = (path: string, key: "entries" | "ids") =>
     api.post.mock.calls.filter((c) => c[0] === path).map((c) => c[1][key].length);
 

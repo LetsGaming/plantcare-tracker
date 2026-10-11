@@ -241,8 +241,8 @@ export default defineComponent({
 
 .saving {
   margin: var(--space-2) 0 var(--space-4);
-  font-weight: 600;
-  color: var(--ion-color-secondary-shade);
+  font-weight: 700;
+  color: var(--ion-text-color);
 }
 
 .shop-button {

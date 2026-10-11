@@ -26,6 +26,8 @@ import { describeOutcome, useAdminHealthStore } from "@/stores/adminHealth";
 import SaleMapper from "@/mapping/SaleMapping";
 import { countByStatus, failureCause, statusRank, statusTone } from "@/utils/sourceStatus";
 import { discountPercent, formatDiscount, formatPrice } from "@/utils/formatPrice";
+// Loaded while collecting so the first test does not pay for importing @ionic/vue.
+import "@/stores/pinia";
 
 const row = (key: string, status: string, kind = "sales"): APISourceHealth =>
   ({

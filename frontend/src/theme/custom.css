@@ -68,11 +68,43 @@ ion-textarea {
   border-radius: var(--radius-sm);
 }
 
-ion-button:focus-visible,
-ion-segment-button:focus-visible,
-ion-tab-button:focus-visible {
+ion-button.ion-focused,
+ion-tab-button.ion-focused,
+ion-segment-button.ion-focused,
+ion-select.ion-focused,
+ion-menu-button.ion-focused,
+ion-back-button.ion-focused,
+ion-fab-button.ion-focused {
   outline: 3px solid var(--focus-ring);
-  outline-offset: -3px;
+  outline-offset: 2px;
+}
+
+ion-searchbar.searchbar-has-focus,
+ion-searchbar:focus-within {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+ion-button.button-solid.ion-focused,
+ion-fab-button.ion-focused {
+  box-shadow: 0 0 0 2px var(--ion-background-color);
+}
+
+ion-back-button,
+ion-alert .alert-button {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+ion-select {
+  --background: var(--surface-sunken);
+  color: var(--nav-idle);
+}
+
+ion-select::part(icon) {
+  color: var(--nav-idle);
+  opacity: 1;
 }
 
 /* Controls */
@@ -105,6 +137,7 @@ ion-segment {
 
 ion-segment-button {
   --indicator-color: var(--surface-raised);
+  --color: var(--nav-idle);
   --color-checked: var(--ion-color-primary);
   --border-radius: var(--radius-md);
   min-height: var(--tap-min);
@@ -112,13 +145,39 @@ ion-segment-button {
   text-transform: none;
 }
 
+ion-segment-button[data-kind="organic"] {
+  --color-checked: var(--feed-organic);
+}
+
+ion-segment-button[data-kind="mineral"] {
+  --color-checked: var(--feed-mineral);
+}
+
 ion-tab-bar {
   --border: 1px solid var(--line);
 }
 
 ion-tab-button {
+  --color: var(--nav-idle);
   --color-selected: var(--ion-color-primary);
   font-weight: 600;
+  min-width: 0;
+  flex: 1 1 0;
+  --padding-start: 0;
+  --padding-end: 0;
+}
+
+ion-tab-button ion-label {
+  max-width: 100%;
+  font-size: clamp(0.5625rem, 2.6vw, var(--text-xs));
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  hyphens: none;
 }
 
 ion-card {
@@ -191,32 +250,6 @@ ion-toast {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-ion-input.field-input {
-  --border-radius: var(--radius-md);
-  --border-width: 1.5px;
-  --border-color: var(--line);
-  --highlight-color-focused: var(--focus-ring);
-  --placeholder-color: var(--ink-soft);
-  --placeholder-opacity: 1;
-  min-height: var(--tap-min);
-}
-
-ion-input.field-input.field-invalid {
-  --border-color: var(--ion-color-danger);
-  --highlight-color-focused: var(--ion-color-danger);
-}
-
 /* Watering state pill used by the round list and the snap sheet */
 .tone-chip {
   padding: var(--space-1) var(--space-2);
@@ -233,4 +266,13 @@ ion-input.field-input.field-invalid {
 .tone-chip.tone-overdue {
   background: var(--ion-color-secondary);
   color: var(--ion-color-secondary-contrast);
+}
+
+.tone-chip.tone-new {
+  background: var(--water-wash);
+  color: var(--ion-color-tertiary-shade);
+}
+
+ion-split-pane {
+  top: var(--offline-h, 0px);
 }

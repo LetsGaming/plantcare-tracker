@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
 import { createTestingPinia } from "@pinia/testing";
-import { nextTick } from "vue";
+import { defineComponent, nextTick } from "vue";
 
 vi.mock("@/services/general/ToastService", () => ({
   default: { showSuccess: vi.fn(), showError: vi.fn(), showToastWithAction: vi.fn() },
@@ -32,6 +32,7 @@ import { useWateringStore } from "@/stores/watering";
 import { useSessionStore } from "@/stores/session";
 import { useSnapSettingsStore } from "@/stores/snapSettings";
 import ToastService from "@/services/general/ToastService";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 
 const DAY = 86_400_000;
 const rec = (daysAgo: number) => ({ date_millis: Date.now() - daysAgo * DAY }) as WateringRecord;
@@ -43,10 +44,18 @@ type Vm = {
   onFertilize(typeId: number): Promise<void>;
   onUndo(): Promise<void>;
   closeSheet(): void;
+  rawTopId: number | null;
   sheet: { open: boolean; state: string };
 };
 
 const photo = () => new File(["x"], "p.jpg", { type: "image/jpeg" });
+
+const focusButton = vi.hoisted(() => vi.fn());
+const SnapButtonStub = defineComponent({
+  name: "SnapButton",
+  methods: { focusButton: () => focusButton() },
+  template: "<div />",
+});
 
 const mountRound = async ({ guest = false, keepPhoto = true } = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
@@ -59,7 +68,11 @@ const mountRound = async ({ guest = false, keepPhoto = true } = {}) => {
   overridable(useSessionStore(pinia)).isGuest = guest;
   useSnapSettingsStore(pinia).keepPhoto = keepPhoto;
   const wrapper = shallowMount(WaterRound, {
-    global: { plugins: [pinia], renderStubDefaultSlot: true },
+    global: {
+      plugins: [pinia],
+      renderStubDefaultSlot: true,
+      stubs: { SnapButton: SnapButtonStub },
+    },
   });
   await flushPromises();
   return { wrapper, plants, watering, vm: wrapper.vm as unknown as Vm };
@@ -100,6 +113,14 @@ describe("WaterRound snap flow", () => {
   });
 
   it("matches a photo and offers reranked candidates with the confidence flag", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "snap1",
+      threshold: 0.8,
+      candidates: [
+        { plantId: 3, score: 0.9 },
+        { plantId: 1, score: 0.86 },
+      ],
+    });
     const { wrapper } = await mountRound();
     const file = photo();
     wrapper.findComponent(SnapButton).vm.$emit("photo", file);
@@ -136,6 +157,7 @@ describe("WaterRound snap flow", () => {
     recognition.match.mockReturnValue(new Promise((r) => (resolve = r)));
     const { wrapper, vm } = await mountRound();
     const pending = vm.onPhoto(photo());
+    await nextTick();
     wrapper.findComponent(SnapMatchSheet).vm.$emit("close");
     resolve({ snapshotId: "late", threshold: 0.8, candidates: [{ plantId: 1, score: 0.9 }] });
     await pending;
@@ -147,7 +169,9 @@ describe("WaterRound snap flow", () => {
   it("confirms once with the keep photo setting and refreshes the plant", async () => {
     const { wrapper, plants, watering, vm } = await mountRound({ keepPhoto: false });
     await vm.onPhoto(photo());
+    expect(vm.rawTopId).toBe(1);
     await vm.onPick(1);
+    expect(vm.rawTopId).toBeNull();
     expect(recognition.confirm).toHaveBeenCalledTimes(1);
     expect(recognition.confirm).toHaveBeenCalledWith("snap1", { plantId: 1, keepPhoto: false });
     expect(watering.ensureRecords).toHaveBeenCalledWith(1, { force: true });
@@ -237,6 +261,63 @@ describe("WaterRound snap flow", () => {
     expect(images.deleteImage).not.toHaveBeenCalled();
   });
 
+  it("passes the logged plant image and id to the sheet", async () => {
+    const { wrapper, plants, vm } = await mountRound();
+    (plants.personalPlants[0] as unknown as { images: unknown[] }).images = [
+      { id: 1, url: "/img/fine.jpg" },
+    ];
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    expect(sheetProps(wrapper).loggedImageUrl).toBe("/img/fine.jpg");
+    expect(sheetProps(wrapper).loggedPlantId).toBe(1);
+  });
+
+  it("shows the latest photo of the logged plant", async () => {
+    const { wrapper, plants, vm } = await mountRound();
+    (plants.personalPlants[0] as unknown as { images: unknown[] }).images = [
+      { id: 1, url: "/img/first.jpg" },
+      { id: 2, url: "/img/second.jpg" },
+      { id: 3, url: "/img/latest.jpg" },
+    ];
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    expect(sheetProps(wrapper).loggedImageUrl).toBe("/img/latest.jpg");
+  });
+
+  it("returns focus to the snap button when the sheet closes", async () => {
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    focusButton.mockClear();
+    wrapper.findComponent(SnapMatchSheet).vm.$emit("close");
+    await nextTick();
+    expect(focusButton).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns focus to the snap button after undo", async () => {
+    const { vm } = await mountRound();
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    focusButton.mockClear();
+    await vm.onUndo();
+    await nextTick();
+    expect(focusButton).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not move focus while a confirmation is in flight", async () => {
+    let resolve!: (value: unknown) => void;
+    recognition.confirm.mockReturnValue(new Promise((r) => (resolve = r)));
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    focusButton.mockClear();
+    const pick = vm.onPick(1);
+    await nextTick();
+    wrapper.findComponent(SnapMatchSheet).vm.$emit("close");
+    await nextTick();
+    expect(focusButton).not.toHaveBeenCalled();
+    resolve({ recordId: 1, imageId: null });
+    await pick;
+  });
+
   it("reports an unsupported or oversized photo", async () => {
     const { wrapper } = await mountRound();
     wrapper.findComponent(SnapButton).vm.$emit("invalid", "type");
@@ -296,8 +377,10 @@ describe("WaterRound snap flow", () => {
     resolve({ recordId: 55, imageId: null });
     await pending;
     expect(ToastService.showToastWithAction).toHaveBeenCalledTimes(1);
-    const [message, , handler] = vi.mocked(ToastService.showToastWithAction).mock.calls[0];
+    const [message, , handler, duration] = vi.mocked(ToastService.showToastWithAction).mock
+      .calls[0];
     expect(message).toEqual({ key: "water.snap_logged", vars: { name: "Fine" } });
+    expect(duration).toBe(UNDO_TOAST_MS);
     await handler();
     await flushPromises();
     expect(watering.deleteRecord).toHaveBeenCalledWith(1, 55);
@@ -358,6 +441,100 @@ describe("WaterRound snap flow", () => {
     const { wrapper, vm } = await mountRound();
     await vm.onPhoto(photo());
     expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(1);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("is not confident when the due bonus reorders past the raw best match", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.7,
+      candidates: [
+        { plantId: 1, score: 0.83 },
+        { plantId: 3, score: 0.8 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.map((c: { plantId: number }) => c.plantId)).toEqual([
+      3, 1,
+    ]);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("is confident when the raw best match is first and clears the threshold", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.8,
+      candidates: [
+        { plantId: 3, score: 0.9 },
+        { plantId: 1, score: 0.5 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
+    expect(sheetProps(wrapper).confident).toBe(true);
+  });
+
+  it("is not confident when the raw best match is first but below the threshold", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.8,
+      candidates: [
+        { plantId: 3, score: 0.7 },
+        { plantId: 1, score: 0.5 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("is not confident when the raw best match is outside the round even above the threshold", async () => {
+    recognition.match.mockResolvedValue({
+      snapshotId: "s",
+      threshold: 0.4,
+      candidates: [
+        { plantId: 99, score: 0.95 },
+        { plantId: 1, score: 0.5 },
+      ],
+    });
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(1);
+    expect(sheetProps(wrapper).confident).toBe(false);
+  });
+
+  it("forgets the previous raw best match while a second photo is matching", async () => {
+    let resolveSecond!: (value: unknown) => void;
+    recognition.match
+      .mockResolvedValueOnce({
+        snapshotId: "a",
+        threshold: 0.8,
+        candidates: [{ plantId: 3, score: 0.9 }],
+      })
+      .mockReturnValueOnce(new Promise((r) => (resolveSecond = r)));
+    const { wrapper, vm } = await mountRound();
+    await vm.onPhoto(photo());
+    expect(sheetProps(wrapper).confident).toBe(true);
+    expect(vm.rawTopId).toBe(3);
+    const pending = vm.onPhoto(photo());
+    await nextTick();
+    expect(sheetProps(wrapper).state).toBe("matching");
+    expect(vm.rawTopId).toBeNull();
+    expect(sheetProps(wrapper).confident).toBe(false);
+    resolveSecond({
+      snapshotId: "b",
+      threshold: 0.4,
+      candidates: [
+        { plantId: 99, score: 0.95 },
+        { plantId: 3, score: 0.5 },
+      ],
+    });
+    await pending;
+    expect(vm.rawTopId).toBe(99);
+    expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
     expect(sheetProps(wrapper).confident).toBe(false);
   });
 });

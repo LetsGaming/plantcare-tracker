@@ -196,6 +196,7 @@ export default {
    * ===================================================== */
 
   "plants.title": "Plants",
+  "plants.water_round": "Watering round",
 
   "plants.updated": "{type} plants updated.",
 
@@ -229,6 +230,8 @@ export default {
 
   "plant.add.upload_failed": "Failed to upload image.",
 
+  "plant.add.new_substrate": "Create a new substrate",
+
   /* Plant editing */
 
   "plant.edit.title": "Edit plant",
@@ -242,6 +245,7 @@ export default {
   "plant.edit.error": "Error while editing the plant",
 
   "plant.delete.error": "Error while deleting the plant",
+  "plant.delete.success": "Plant deleted",
 
   /* Plant fields */
 
@@ -252,6 +256,10 @@ export default {
   "plant.field.substrate": "Substrate",
 
   "plant.field.substrate_placeholder": "Select substrate",
+
+  "plant.field.substrate_none": "Not set",
+
+  "plant.species_unknown": "Unknown species",
 
   "plant.field.visibility": "Visibility",
 
@@ -462,7 +470,7 @@ export default {
   "calendar.settings.watering_categories": "Watering Categories",
 
   "calendar.settings.watering_categories_info":
-    "Names and number of these categories are fixed – only the color can be adjusted.",
+    "The names of these categories are fixed, the colors are yours to change. A color you leave untouched follows the app palette in light and dark mode, and contrast is adjusted automatically.",
 
   "calendar.settings.categories": "Categories",
 
@@ -769,6 +777,11 @@ export default {
 
   "a11y.edit": "Edit",
 
+  "a11y.image_dialog": "Image",
+  "a11y.zoom_in": "Zoom in",
+  "a11y.zoom_out": "Zoom out",
+  "a11y.zoom_reset": "Reset zoom",
+
   "a11y.delete": "Delete",
 
   "a11y.upload_image": "Upload image",
@@ -940,6 +953,8 @@ export default {
 
   "plantdetail.private": "Private",
 
+  "plantdetail.history_private": "Watering history is private.",
+
   "plantdetail.water_now": "Water now",
 
   "plantdetail.watering_saving": "Saving...",
@@ -982,8 +997,6 @@ export default {
 
   "plantdetail.add_watering": "Add watering",
 
-  "plantdetail.double_tap_hint": "Tip: tap an empty day twice to log a watering for that day.",
-
   "plantdetail.no_records_title": "No waterings logged yet",
 
   "plantdetail.no_records_message":
@@ -1017,13 +1030,17 @@ export default {
 
   "plantdetail.legend_watered": "Watered",
 
-  "plantdetail.legend_fertilized": "Watered with fertilizer",
+  "plantdetail.legend_organic": "Organic fertilizer",
+
+  "plantdetail.legend_mineral": "Mineral fertilizer",
 
   "plantdetail.legend_today": "Today",
 
   "plantdetail.day_watered": "{date}, watered",
 
-  "plantdetail.day_fertilized": "{date}, watered with fertilizer",
+  "plantdetail.day_organic": "{date}, watered with organic fertilizer",
+
+  "plantdetail.day_mineral": "{date}, watered with mineral fertilizer",
 
   "plantdetail.day_marked": "{date}, {label}",
 
@@ -1032,6 +1049,12 @@ export default {
   "moreinfo2.guide_title": "Care guide",
 
   "moreinfo2.writing": "Writing the care guide...",
+
+  "moreinfo2.stop": "Stop",
+
+  "moreinfo2.done": "Guide complete",
+
+  "moreinfo2.stopped": "Guide stopped",
 
   "moreinfo2.error": "The care guide could not be loaded",
 
@@ -1196,6 +1219,8 @@ export default {
 
   "plantlist.never": "Not watered yet",
 
+  "plantlist.new": "Never watered",
+
   "plantlist.due": "Needs water",
 
   "plantlist.overdue": "Overdue",
@@ -1352,28 +1377,35 @@ export default {
   "final2.category_name_label": "Category name",
   "final2.pick_color": "Choose color",
   "final3.pick_category": "Select a category",
-  "tabs.water": "Water",
   "water.title": "Water round",
   "water.search": "Search plants",
   "water.round_fertilizer": "Fertilizer for this round",
   "water.fertilizer_none": "None",
   "water.fertilizer_round_default": "Round default",
   "water.row_fertilizer": "Fertilizer for {name}",
-  "water.log_count": "Log waterings ({count})",
+  "water.log_count": "Water ({count})",
   "water.round_logged": "Waterings logged: {count}",
+  "water.last_round": "Last round: {count} watered",
   "water.empty": "No plants to water yet. Add a plant first.",
   "water.no_match": "No plants match your search.",
+  "water.empty_cta": "Add a plant",
+  "water.guest_cta": "Sign in",
+  "water.load_error":
+    "The watering round could not be loaded. Check your connection and try again.",
+  "water.override_edit": "Change fertilizer for this plant",
   "water.hidden_ticked": "{hidden} more ticked plants are hidden by your search",
   "water.snap_unreadable": "This photo could not be read. Please try another one.",
   "water.snap_busy": "Recognition is busy. Please try again in a moment.",
   "water.snap_unavailable": "Plant recognition is currently unavailable.",
   "water.snap": "Snap a plant",
   "water.snap_matching": "Looking for your plant...",
+  "water.snap_dialog_label": "Identify plant",
   "water.snap_is_this": "Is this your plant?",
   "water.snap_not_sure": "Not sure. Which one is it?",
   "water.snap_no_match": "No plant matched this photo.",
   "water.snap_other": "Other plant...",
   "water.snap_logged": "{name} watered",
+  "water.fertilizer_prompt": "With fertilizer?",
   "water.snap_done": "Done",
   "water.snap_bad_type": "This photo format is not supported. Please use a JPEG or PNG photo.",
   "water.snap_too_large": "This photo is too large. The limit is 10 MB.",
@@ -1382,4 +1414,6 @@ export default {
   "recognition.title": "Plant recognition",
   "recognition.match": "Recognizing the plant failed.",
   "recognition.confirm": "Logging the watering failed. Take a new photo to try again.",
+  "page.plant_details": "Plant",
+  "page.substrate_details": "Substrate",
 };

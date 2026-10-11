@@ -1,5 +1,9 @@
+/// <reference types="node" />
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { shallowMount } from "@vue/test-utils";
+import { nextTick } from "vue";
 
 vi.mock("@/services/general/LocalizationService", () => ({
   default: {
@@ -9,8 +13,9 @@ vi.mock("@/services/general/LocalizationService", () => ({
 }));
 
 import SnapMatchSheet from "@/components/water/SnapMatchSheet.vue";
+import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
 
-const candidate = (plantId: number, tone: "ok" | "due" | "overdue" = "ok") => ({
+const candidate = (plantId: number, tone: "ok" | "due" | "overdue" | "new" = "ok") => ({
   plantId,
   name: `Plant ${plantId}`,
   tone,
@@ -32,6 +37,7 @@ const mountSheet = (props: Record<string, unknown> = {}) =>
       ...props,
     },
     global: { renderStubDefaultSlot: true },
+    attachTo: document.body,
   });
 
 const isDisabled = (el: { attributes(name: string): string | undefined }) =>
@@ -48,6 +54,13 @@ describe("SnapMatchSheet", () => {
     const wrapper = mountSheet({ confident: false });
     expect(wrapper.find(".sheet-title").text()).toBe("water.snap_not_sure");
     expect(wrapper.find(".candidate.highlight").exists()).toBe(false);
+  });
+
+  it("badges a never watered candidate with the new tone", () => {
+    const wrapper = mountSheet({ candidates: [candidate(1, "new"), candidate(2)] });
+    const chip = wrapper.findAll(".candidate")[0].find(".tone-chip");
+    expect(chip.text()).toBe("plantlist.new");
+    expect(chip.classes()).toContain("tone-new");
   });
 
   it("shows at most three candidates with their tone badge", () => {
@@ -128,5 +141,136 @@ describe("SnapMatchSheet", () => {
       fertilizerTypes: [{ id: 7, name: "organic" }],
     });
     expect(wrapper.find(".fertilizer-chip").text()).toBe("copy2.fertilizer.organic");
+  });
+
+  it("tags each fertilizer chip with its kind", () => {
+    const wrapper = mountSheet({
+      state: "logged",
+      fertilizerTypes: [
+        { id: 1, name: "organic" },
+        { id: 2, name: "synthetic" },
+      ],
+    });
+    expect(wrapper.findAll(".fertilizer-chip").map((c) => c.attributes("data-kind"))).toEqual([
+      "organic",
+      "mineral",
+    ]);
+  });
+});
+
+describe("SnapMatchSheet focus and announcements", () => {
+  it("does not move focus on the initial render", async () => {
+    const wrapper = mountSheet();
+    await nextTick();
+    expect(document.activeElement).toBe(document.body);
+    wrapper.unmount();
+  });
+
+  it("focuses the logged heading when the state changes to logged", async () => {
+    const wrapper = mountSheet({ loggedName: "Monty" });
+    await wrapper.setProps({ state: "logged" });
+    await nextTick();
+    const title = wrapper.find(".sheet-title");
+    expect(title.attributes("tabindex")).toBe("-1");
+    expect(document.activeElement).toBe(title.element);
+    wrapper.unmount();
+  });
+
+  it("focuses the candidates heading when matching finishes", async () => {
+    const wrapper = mountSheet({ state: "matching", candidates: [] });
+    await wrapper.setProps({ state: "candidates", candidates: [candidate(1)] });
+    await nextTick();
+    expect(document.activeElement).toBe(wrapper.find(".sheet-title").element);
+    wrapper.unmount();
+  });
+
+  it("does not steal focus while matching", async () => {
+    const wrapper = mountSheet({ state: "candidates" });
+    await wrapper.setProps({ state: "matching" });
+    await nextTick();
+    expect(document.activeElement).toBe(document.body);
+    wrapper.unmount();
+  });
+
+  it("announces the logged state in a persistent polite live region", async () => {
+    const wrapper = mountSheet({ loggedName: "Monty" });
+    const region = wrapper.find(".sr-status");
+    expect(region.attributes("role")).toBe("status");
+    expect(region.attributes("aria-live")).toBe("polite");
+    expect(region.text()).toBe("");
+    await wrapper.setProps({ state: "logged" });
+    expect(wrapper.find(".sr-status").text()).toContain("water.snap_logged");
+    expect(wrapper.find(".sr-status").text()).toContain("Monty");
+    wrapper.unmount();
+  });
+
+  it("groups the chips under a visible label", () => {
+    const wrapper = mountSheet({ state: "logged", loggedName: "Monty" });
+    const group = wrapper.find(".chips-group");
+    expect(group.attributes("role")).toBe("group");
+    const label = wrapper.find(`#${group.attributes("aria-labelledby")}`);
+    expect(label.exists()).toBe(true);
+    expect(label.text()).toBe("water.fertilizer_prompt");
+    expect(group.findAll(".fertilizer-chip")).toHaveLength(2);
+    wrapper.unmount();
+  });
+
+  it("shows the plant image as a decorative thumbnail when logged", () => {
+    const wrapper = mountSheet({
+      state: "logged",
+      loggedName: "Monty",
+      loggedImageUrl: "/img/monty.jpg",
+    });
+    const img = wrapper.find(".logged-thumb img");
+    expect(img.attributes("src")).toBe("/img/monty.jpg");
+    expect(img.attributes("alt")).toBe("");
+    expect(wrapper.find(".logged-thumb").attributes("aria-hidden")).toBe("true");
+    wrapper.unmount();
+  });
+
+  it("falls back to a seeded placeholder without an image", () => {
+    const wrapper = mountSheet({ state: "logged", loggedName: "Monty", loggedPlantId: 5 });
+    expect(wrapper.find(".logged-thumb img").exists()).toBe(false);
+    expect(wrapper.findComponent(PlantPlaceholder).props("seed")).toBe("5");
+    wrapper.unmount();
+  });
+
+  it("makes done the solid action and undo text only", () => {
+    const wrapper = mountSheet({ state: "logged", loggedName: "Monty" });
+    const buttons = wrapper.findAllComponents({ name: "IonButton" });
+    const undo = buttons.find((b) => b.classes().includes("undo-button"));
+    const done = buttons.find((b) => b.classes().includes("done-button"));
+    expect(undo?.props("fill")).toBe("clear");
+    expect(done?.props("fill")).not.toBe("outline");
+    expect(done?.props("fill")).not.toBe("clear");
+    wrapper.unmount();
+  });
+});
+
+describe("SnapMatchSheet chip colors", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "..", "components/water/SnapMatchSheet.vue"),
+    "utf8",
+  );
+  const ruleBody = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "m").exec(source)?.[1] ?? "";
+  };
+
+  it.each([
+    ["organic", "--feed-organic"],
+    ["mineral", "--feed-mineral"],
+  ])("paints %s chips with their feed token", (kind, token) => {
+    const chip = ruleBody(`.fertilizer-chip[data-kind="${kind}"]`);
+    expect(chip).toContain(`border-color: var(${token})`);
+    expect(chip).toContain(`color: var(${token})`);
+    const selected = ruleBody(`.fertilizer-chip[data-kind="${kind}"].selected`);
+    expect(selected).toContain(`background: var(${token})`);
+    expect(selected).toContain(`color: var(${token}-contrast)`);
+  });
+
+  it("keeps the done button primary", () => {
+    expect(source).not.toMatch(/\.done-button[^{]*\{[^}]*--feed-/);
+    expect(source).toMatch(/class="done-button"(?![^>]*color=)/);
   });
 });

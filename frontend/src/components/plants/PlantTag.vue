@@ -3,7 +3,7 @@
     <span class="hole" aria-hidden="true" />
     <div class="tag-text">
       <h1 class="tag-name break-words">{{ name }}</h1>
-      <p v-if="species" class="tag-species break-words">{{ species }}</p>
+      <p class="tag-species break-words">{{ species || t("plant.species_unknown") }}</p>
     </div>
     <span class="chip" :class="isPublic ? 'chip-public' : 'chip-private'">
       <ion-icon :icon="isPublic ? earthOutline : lockClosedOutline" aria-hidden="true" />
@@ -13,7 +13,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { earthOutline, lockClosedOutline } from "ionicons/icons";
 import localizationService from "@/services/general/LocalizationService";
@@ -24,7 +24,7 @@ export default defineComponent({
   components: { IonIcon },
   props: {
     name: { type: String, required: true },
-    species: { type: String, default: "" },
+    species: { type: String as PropType<string | null>, default: null },
     isPublic: { type: Boolean, default: false },
   },
   setup() {
@@ -58,7 +58,7 @@ export default defineComponent({
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--surface-sunken);
+  background: var(--ion-background-color);
   box-shadow: inset 0 0 0 1.5px var(--line);
 }
 
@@ -83,7 +83,7 @@ export default defineComponent({
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-xs);
   font-weight: 650;
 }
@@ -94,14 +94,14 @@ export default defineComponent({
 }
 
 .chip-public {
-  background: var(--water-wash);
-  color: var(--ion-text-color);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
 }
 
 .chip-private {
   background: var(--surface-raised);
   color: var(--ink-soft);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--control-border);
 }
 
 @media (min-width: 900px) {

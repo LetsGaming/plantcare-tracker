@@ -29,7 +29,14 @@
       @refresh-items="refreshPlants"
       @retry="refreshPlants"
       @empty-action="openAddModal"
-    />
+    >
+      <template #filters>
+        <ion-button v-if="showRoundButton" class="round-button" color="primary" @click="openRound">
+          <ion-icon slot="start" :icon="icons.water" aria-hidden="true" />
+          {{ t("plants.water_round") }}
+        </ion-button>
+      </template>
+    </items-overview>
 
     <plant-adding-modal
       :isOpen="showAddingModal"
@@ -43,7 +50,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { IonPage } from "@ionic/vue";
+import { IonButton, IonIcon, IonPage } from "@ionic/vue";
 import { icons } from "@/theme/icons";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
@@ -63,6 +70,8 @@ import localizationService from "@/services/general/LocalizationService";
 export default defineComponent({
   name: "PlantOverview",
   components: {
+    IonButton,
+    IonIcon,
     IonPage,
     OverviewHeader,
     ItemsOverview,
@@ -108,6 +117,9 @@ export default defineComponent({
         this.isPublic ? "state.empty_plants_public_message" : "state.empty_plants_message",
       );
     },
+    showRoundButton(): boolean {
+      return !this.isPublic && !this.isGuest && this.personalPlants.length > 0;
+    },
     emptyActionLabel(): string {
       return !this.isGuest && !this.isPublic ? this.t("state.empty_plants_action") : "";
     },
@@ -117,11 +129,16 @@ export default defineComponent({
     },
     /** Personal plants carry their watering state; public ones stay plain (other owners' records are not available). */
     overviewItems(): OverviewItem[] {
-      if (this.isPublic) return this.plants;
+      const unknownSpecies = this.t("plant.species_unknown");
+      const labelled = this.plants.map((plant): OverviewItem => ({
+        ...plant,
+        description: plant.species || unknownSpecies,
+      }));
+      if (this.isPublic) return labelled;
       const now = Date.now();
       const locale = localizationService.getLocale();
-      return this.plants.map((plant): OverviewItem => {
-        const records = this.byPlantId[plant.id];
+      return labelled.map((plant): OverviewItem => {
+        const records = this.byPlantId[plant.id as number];
         if (!records) return plant;
         const status = wateringStatus(records, now);
         const statusLine =
@@ -200,6 +217,10 @@ export default defineComponent({
       this.fetchPlants();
     },
 
+    openRound() {
+      this.$router.push("/tabs/plants/water");
+    },
+
     navigateToPlant(id: number) {
       this.$router.push({
         name: "plant-details",
@@ -222,7 +243,7 @@ export default defineComponent({
     },
 
     async addPlant(plantData: AddPlant) {
-      if (!plantData.name.trim() || !plantData.species.trim() || plantData.substrateId === 0) {
+      if (!plantData.name.trim()) {
         ToastService.showError({
           key: "plant.add.error_required",
           fallback: "Please fill in all required fields.",
@@ -263,3 +284,19 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+.round-button {
+  min-height: var(--tap-min);
+  width: 100%;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .round-button {
+    width: auto;
+    min-width: 240px;
+    align-self: flex-start;
+  }
+}
+</style>

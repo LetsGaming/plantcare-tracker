@@ -137,7 +137,7 @@ export default {
 
   "tabs.substrates": "Substrate",
 
-  "tabs.components": "Komponenten",
+  "tabs.components": "Zutaten",
 
   "tabs.debug": "Debug",
 
@@ -196,6 +196,7 @@ export default {
    * ===================================================== */
 
   "plants.title": "Pflanzen",
+  "plants.water_round": "Gießrunde",
 
   "plants.updated": "{type} Pflanzen aktualisiert.",
 
@@ -229,6 +230,8 @@ export default {
 
   "plant.add.upload_failed": "Fehler beim Hochladen des Bildes.",
 
+  "plant.add.new_substrate": "Neues Substrat anlegen",
+
   /* Plant editing */
 
   "plant.edit.title": "Pflanze bearbeiten",
@@ -242,6 +245,7 @@ export default {
   "plant.edit.error": "Fehler beim Bearbeiten der Pflanze",
 
   "plant.delete.error": "Fehler beim Löschen der Pflanze",
+  "plant.delete.success": "Pflanze gelöscht",
 
   /* Plant fields */
 
@@ -252,6 +256,10 @@ export default {
   "plant.field.substrate": "Substrat",
 
   "plant.field.substrate_placeholder": "Substrat auswählen",
+
+  "plant.field.substrate_none": "Nicht festgelegt",
+
+  "plant.species_unknown": "Unbekannte Art",
 
   "plant.field.visibility": "Sichtbarkeit",
 
@@ -462,7 +470,7 @@ export default {
   "calendar.settings.watering_categories": "Gießkategorien",
 
   "calendar.settings.watering_categories_info":
-    "Namen und Anzahl dieser Kategorien sind festgelegt – nur die Farbe kann angepasst werden.",
+    "Die Namen dieser Kategorien sind festgelegt, die Farben kannst du ändern. Eine unveränderte Farbe folgt der App-Palette im hellen und dunklen Modus, der Kontrast wird automatisch angepasst.",
 
   "calendar.settings.categories": "Kategorien",
 
@@ -772,6 +780,11 @@ export default {
 
   "a11y.edit": "Bearbeiten",
 
+  "a11y.image_dialog": "Bild",
+  "a11y.zoom_in": "Vergrößern",
+  "a11y.zoom_out": "Verkleinern",
+  "a11y.zoom_reset": "Zoom zurücksetzen",
+
   "a11y.delete": "Löschen",
 
   "a11y.upload_image": "Bild hochladen",
@@ -945,6 +958,8 @@ export default {
 
   "plantdetail.private": "Privat",
 
+  "plantdetail.history_private": "Der Gießverlauf ist privat.",
+
   "plantdetail.water_now": "Jetzt gießen",
 
   "plantdetail.watering_saving": "Wird gespeichert...",
@@ -987,9 +1002,6 @@ export default {
 
   "plantdetail.add_watering": "Gießen eintragen",
 
-  "plantdetail.double_tap_hint":
-    "Tipp: Tippe einen leeren Tag zweimal an, um dort ein Gießen einzutragen.",
-
   "plantdetail.no_records_title": "Noch kein Gießen eingetragen",
 
   "plantdetail.no_records_message":
@@ -1023,13 +1035,17 @@ export default {
 
   "plantdetail.legend_watered": "Gegossen",
 
-  "plantdetail.legend_fertilized": "Mit Dünger gegossen",
+  "plantdetail.legend_organic": "Mit organischem Dünger",
+
+  "plantdetail.legend_mineral": "Mit mineralischem Dünger",
 
   "plantdetail.legend_today": "Heute",
 
   "plantdetail.day_watered": "{date}, gegossen",
 
-  "plantdetail.day_fertilized": "{date}, mit Dünger gegossen",
+  "plantdetail.day_organic": "{date}, mit organischem Dünger gegossen",
+
+  "plantdetail.day_mineral": "{date}, mit mineralischem Dünger gegossen",
 
   "plantdetail.day_marked": "{date}, {label}",
 
@@ -1038,6 +1054,12 @@ export default {
   "moreinfo2.guide_title": "Pflegeanleitung",
 
   "moreinfo2.writing": "Pflegeanleitung wird geschrieben...",
+
+  "moreinfo2.stop": "Anhalten",
+
+  "moreinfo2.done": "Pflegeanleitung fertig",
+
+  "moreinfo2.stopped": "Pflegeanleitung angehalten",
 
   "moreinfo2.error": "Pflegeanleitung konnte nicht geladen werden",
 
@@ -1205,6 +1227,8 @@ export default {
 
   "plantlist.never": "Noch nie gegossen",
 
+  "plantlist.new": "Noch nie gegossen",
+
   "plantlist.due": "Zum Gießen",
 
   "plantlist.overdue": "Überfällig",
@@ -1364,28 +1388,35 @@ export default {
   "final2.category_name_label": "Name der Kategorie",
   "final2.pick_color": "Farbe wählen",
   "final3.pick_category": "Kategorie auswählen",
-  "tabs.water": "Gießen",
   "water.title": "Gießrunde",
   "water.search": "Pflanzen suchen",
   "water.round_fertilizer": "Dünger für diese Runde",
   "water.fertilizer_none": "Keiner",
   "water.fertilizer_round_default": "Wie die Runde",
   "water.row_fertilizer": "Dünger für {name}",
-  "water.log_count": "Gießen eintragen ({count})",
+  "water.log_count": "Gießen ({count})",
   "water.round_logged": "Gießvorgänge eingetragen: {count}",
+  "water.last_round": "Letzte Runde: {count} gegossen",
   "water.empty": "Noch keine Pflanzen zum Gießen. Lege zuerst eine Pflanze an.",
   "water.no_match": "Keine Pflanze passt zu deiner Suche.",
+  "water.empty_cta": "Pflanze hinzufügen",
+  "water.guest_cta": "Anmelden",
+  "water.load_error":
+    "Die Gießrunde konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.",
+  "water.override_edit": "Dünger für diese Pflanze ändern",
   "water.hidden_ticked": "{hidden} weitere angehakte Pflanzen sind durch die Suche ausgeblendet",
   "water.snap_unreadable": "Dieses Foto konnte nicht gelesen werden. Bitte versuche ein anderes.",
   "water.snap_busy": "Die Erkennung ist gerade ausgelastet. Bitte versuche es gleich noch einmal.",
   "water.snap_unavailable": "Die Pflanzenerkennung ist derzeit nicht verfügbar.",
-  "water.snap": "Pflanze fotografieren",
+  "water.snap": "Foto machen",
   "water.snap_matching": "Deine Pflanze wird gesucht...",
+  "water.snap_dialog_label": "Pflanze erkennen",
   "water.snap_is_this": "Ist das deine Pflanze?",
   "water.snap_not_sure": "Nicht sicher. Welche ist es?",
   "water.snap_no_match": "Keine Pflanze passt zu diesem Foto.",
   "water.snap_other": "Andere Pflanze...",
   "water.snap_logged": "{name} gegossen",
+  "water.fertilizer_prompt": "Mit Dünger?",
   "water.snap_done": "Fertig",
   "water.snap_bad_type":
     "Dieses Fotoformat wird nicht unterstützt. Bitte nimm ein JPEG- oder PNG-Foto.",
@@ -1396,4 +1427,6 @@ export default {
   "recognition.match": "Die Pflanze konnte nicht erkannt werden.",
   "recognition.confirm":
     "Das Gießen konnte nicht eingetragen werden. Mach ein neues Foto und versuche es erneut.",
+  "page.plant_details": "Pflanze",
+  "page.substrate_details": "Substrat",
 };

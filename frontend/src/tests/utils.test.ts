@@ -279,4 +279,43 @@ describe("closeAllOpenModals", () => {
     await Utils.closeAllOpenModals();
     expect(dismiss).toHaveBeenCalledTimes(1);
   });
+
+  it("resolves when the dismiss rejects", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    top.mockResolvedValue({} as HTMLIonModalElement);
+    dismiss.mockRejectedValue(
+      new TypeError("Cannot read properties of null (reading 'insertBefore')"),
+    );
+    await expect(Utils.closeAllOpenModals()).resolves.toBeUndefined();
+  });
+
+  it("resolves when looking up the top modal rejects", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    top.mockRejectedValue(new Error("overlay host gone"));
+    await expect(Utils.closeAllOpenModals()).resolves.toBeUndefined();
+    expect(dismiss).not.toHaveBeenCalled();
+  });
+});
+
+describe("closeOpenModal", () => {
+  const top = vi.mocked(modalController.getTop);
+  const dismiss = vi.mocked(modalController.dismiss);
+
+  afterEach(() => {
+    top.mockReset().mockResolvedValue(undefined);
+    dismiss.mockReset().mockResolvedValue(true);
+  });
+
+  it("dismisses the top modal", async () => {
+    top.mockResolvedValue({} as HTMLIonModalElement);
+    await Utils.closeOpenModal();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves when the dismiss rejects", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    top.mockResolvedValue({} as HTMLIonModalElement);
+    dismiss.mockRejectedValue(new TypeError("insertBefore"));
+    await expect(Utils.closeOpenModal()).resolves.toBeUndefined();
+  });
 });

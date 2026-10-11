@@ -48,7 +48,7 @@
       <div v-if="items.length" class="count-row">
         <p class="count" aria-live="polite">
           {{ filteredItems.length }} {{ t("overview.items") }}
-          <strong v-if="newInView > 0" class="count-new">
+          <strong v-if="showNewCount" class="count-new">
             {{ t("sales3.new_total", { count: newInView }) }}
           </strong>
         </p>
@@ -96,12 +96,7 @@
         <li v-for="item in filteredItems" :key="item.id">
           <button type="button" class="tag-card" @click="navigateToItem(item.id)">
             <span class="tag-media">
-              <progressive-image
-                :src="item.imageUrl"
-                :alt="item.name"
-                :kind="kind"
-                :seed="String(item.id)"
-              />
+              <progressive-image :src="item.imageUrl" alt="" :kind="kind" :seed="String(item.id)" />
               <span v-if="item.isNew" class="new-pill">{{ t("label.new") }}</span>
             </span>
             <span class="tag-body">
@@ -113,18 +108,24 @@
                   <span class="sr-only">{{ t("sales3.was", { price: item.oldPriceText }) }}</span>
                   <s aria-hidden="true">{{ item.oldPriceText }}</s>
                 </span>
-                <span v-if="item.discountText" class="discount-chip">{{ item.discountText }}</span>
+                <span v-if="item.discountText" class="discount-chip">
+                  <ion-icon :icon="icons.discount" aria-hidden="true" />
+                  {{ item.discountText }}
+                </span>
               </span>
               <span v-if="item.description" class="tag-sub break-words">{{
                 item.description
               }}</span>
               <span v-if="item.statusLine" class="tag-status">
-                <span class="status-line break-words" :class="`tone-${item.statusTone ?? 'ok'}`">{{
-                  item.statusLine
-                }}</span>
+                <span
+                  v-if="item.statusTone !== 'new'"
+                  class="status-line break-words"
+                  :class="`tone-${item.statusTone ?? 'ok'}`"
+                  >{{ item.statusLine }}</span
+                >
                 <span
                   v-if="item.statusLabel"
-                  class="status-chip"
+                  class="status-chip tone-chip"
                   :class="`tone-${item.statusTone ?? 'ok'}`"
                 >
                   <ion-icon
@@ -156,6 +157,8 @@ import { alertCircle, chevronDownCircleOutline, reload, arrowUp, water } from "i
 
 import SearchBar from "@/components/SearchBar.vue";
 import Utils from "@/utils/utils";
+import type { WateringTone } from "@/utils/wateringStats";
+import { icons } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 import ProgressiveImage from "@/components/ProgressiveImage.vue";
 import IconButton from "@/components/ui/IconButton.vue";
@@ -170,7 +173,7 @@ export interface OverviewItem {
   isNew?: boolean;
   /** Watering state shown in the tag body; sortRank orders ascending ahead of unranked items. */
   statusLine?: string;
-  statusTone?: "due" | "overdue" | "ok";
+  statusTone?: WateringTone;
   statusLabel?: string;
   sortRank?: number;
   /** Formatted prices of a sale card, shown between the name and the shop line. */
@@ -250,11 +253,15 @@ export default defineComponent({
       arrowUp: arrowUp,
       alertCircle,
       water,
+      icons,
       isRefreshing: false,
       showScrollTop: false,
     };
   },
   computed: {
+    showNewCount(): boolean {
+      return this.newInView > 0 && this.newInView < this.filteredItems.length;
+    },
     newInView(): number {
       return this.filteredItems.filter((item) => item.isNew).length;
     },
@@ -375,7 +382,10 @@ ion-content {
 
 .count-new {
   margin-inline-start: var(--space-2);
-  color: var(--ion-color-secondary-shade);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--new);
+  color: var(--new-ink);
 }
 
 .grid {
@@ -443,10 +453,10 @@ ion-content {
   position: absolute;
   top: var(--space-2);
   left: var(--space-2);
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--ion-color-secondary);
-  color: var(--ion-color-secondary-contrast);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--new);
+  color: var(--new-ink);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -519,10 +529,13 @@ ion-content {
 
 .discount-chip {
   align-self: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--ion-color-secondary);
-  color: var(--ion-color-secondary-contrast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ion-text-color);
   font-size: var(--text-xs);
   font-weight: 700;
 }
@@ -551,27 +564,20 @@ ion-content {
 
 .status-line.tone-due,
 .status-line.tone-overdue {
-  color: var(--ion-color-tertiary-shade);
   font-weight: 600;
+}
+
+.status-line.tone-due {
+  color: var(--ion-color-tertiary-shade);
+}
+
+.status-line.tone-overdue {
+  color: var(--overdue-ink);
 }
 
 .status-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
-.status-chip.tone-due {
-  background: var(--ion-color-tertiary);
-  color: var(--ion-color-tertiary-contrast);
-}
-
-.status-chip.tone-overdue {
-  background: var(--ion-color-secondary);
-  color: var(--ion-color-secondary-contrast);
+  gap: var(--space-1);
 }
 </style>

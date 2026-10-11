@@ -1,64 +1,115 @@
 <template>
   <ion-page>
-    <overview-header :title="t('water.title')" :show-add-button="false" />
+    <admin-header :title="t('water.title')" back-href="/tabs/plants" />
 
     <ion-content>
       <div class="round">
-        <div v-if="showSnap" class="snap-slot">
-          <snap-button :disabled="sheet.open" @photo="onPhoto" @invalid="onInvalidPhoto" />
-        </div>
-        <div class="controls">
-          <search-bar class="search-field" :placeholder="t('water.search')" @search="onSearch" />
-        </div>
-
-        <div v-if="fertilizerTypes.length" class="round-fertilizer">
-          <span class="label">{{ t("water.round_fertilizer") }}</span>
-          <ion-segment :value="segmentValue" scrollable @ionChange="onRoundFertilizer">
-            <ion-segment-button value="none">
-              <ion-label>{{ t("water.fertilizer_none") }}</ion-label>
-            </ion-segment-button>
-            <ion-segment-button
-              v-for="type in fertilizerTypes"
-              :key="type.id"
-              :value="String(type.id)"
-            >
-              <ion-label>{{ fertilizerLabel(type.name) }}</ion-label>
-            </ion-segment-button>
-          </ion-segment>
-        </div>
-
-        <p v-if="!rows.length && !loading" class="empty">{{ t("water.empty") }}</p>
-        <p v-else-if="rows.length && !visibleRows.length" class="empty empty-search">
-          {{ t("water.no_match") }}
-        </p>
-        <round-list
-          v-else
-          :rows="visibleRows"
-          :fertilizer-types="fertilizerTypes"
-          @toggle="toggle"
-          @set-fertilizer="setFertilizer"
+        <state-block
+          v-if="isGuest"
+          kind="empty"
+          :title="t('water.title')"
+          :message="t('state.guest_hint')"
+          :action-label="t('water.guest_cta')"
+          @action="signIn"
         />
+        <state-block v-else-if="loading" kind="loading" :title="t('state.loading')" />
+        <state-block
+          v-else-if="loadError"
+          kind="error"
+          :title="t('state.error_title')"
+          :message="t('water.load_error')"
+          :action-label="t('state.retry')"
+          @action="load"
+        />
+        <state-block
+          v-else-if="!rows.length"
+          kind="empty"
+          :title="t('state.empty_plants_title')"
+          :message="t('water.empty')"
+          :action-label="t('water.empty_cta')"
+          @action="$router.push('/tabs/plants')"
+        />
+        <template v-else>
+          <div class="controls">
+            <search-bar class="search-field" :placeholder="t('water.search')" @search="onSearch" />
+          </div>
+
+          <div v-if="fertilizerTypes.length" class="round-fertilizer">
+            <span :id="segmentLabelId" class="label">{{ t("water.round_fertilizer") }}</span>
+            <ion-segment
+              :value="segmentValue"
+              :aria-labelledby="segmentLabelId"
+              scrollable
+              @ionChange="onRoundFertilizer"
+            >
+              <ion-segment-button value="none">
+                <ion-label>{{ t("water.fertilizer_none") }}</ion-label>
+              </ion-segment-button>
+              <ion-segment-button
+                v-for="type in fertilizerTypes"
+                :key="type.id"
+                :value="String(type.id)"
+                :data-kind="fertilizerKind(type.name)"
+              >
+                <ion-label>{{ fertilizerLabel(type.name) }}</ion-label>
+              </ion-segment-button>
+            </ion-segment>
+          </div>
+
+          <div v-if="lastRound" class="last-round" role="status">
+            <span>{{ t("water.last_round", { count: lastRound.count }) }}</span>
+            <ion-button
+              class="last-round-undo"
+              fill="clear"
+              size="small"
+              :disabled="undoing"
+              @click="undoLastRound"
+            >
+              {{ t("plantdetail.undo") }}
+            </ion-button>
+          </div>
+
+          <p v-if="!visibleRows.length" class="empty empty-search">
+            {{ t("water.no_match") }}
+          </p>
+          <round-list
+            v-else
+            :rows="visibleRows"
+            :fertilizer-types="fertilizerTypes"
+            @toggle="toggle"
+            @set-fertilizer="setFertilizer"
+          />
+        </template>
       </div>
     </ion-content>
 
-    <ion-footer v-if="!isGuest">
+    <ion-footer v-if="!isGuest && rows.length">
       <ion-toolbar>
         <div class="footer-actions">
           <p v-if="hiddenCheckedCount" class="hidden-ticked" role="status">
             {{ t("water.hidden_ticked", { hidden: hiddenCheckedCount }) }}
           </p>
-          <ion-button
-            class="log-button"
-            expand="block"
-            size="large"
-            color="tertiary"
-            :disabled="checkedCount === 0 || saving"
-            @click="save"
-          >
-            <ion-spinner v-if="saving" name="crescent" slot="start" />
-            <ion-icon v-else :icon="icons.water" slot="start" aria-hidden="true" />
-            {{ saveLabel }}
-          </ion-button>
+          <div class="action-row">
+            <snap-button
+              v-if="showSnap"
+              ref="snap"
+              fill="outline"
+              :disabled="sheet.open"
+              @photo="onPhoto"
+              @invalid="onInvalidPhoto"
+            />
+            <ion-button
+              class="log-button"
+              size="large"
+              color="tertiary"
+              :disabled="checkedCount === 0 || saving"
+              @click="save"
+            >
+              <ion-spinner v-if="saving" name="crescent" slot="start" />
+              <ion-icon v-else :icon="icons.water" slot="start" aria-hidden="true" />
+              {{ saveLabel }}
+            </ion-button>
+          </div>
         </div>
       </ion-toolbar>
     </ion-footer>
@@ -70,6 +121,8 @@
       :confident="confident"
       :busy="snapBusy"
       :logged-name="logged?.name ?? ''"
+      :logged-image-url="loggedImageUrl"
+      :logged-plant-id="logged?.plantId ?? null"
       :selected-fertilizer-id="logged?.fertilizerTypeId ?? null"
       :fertilizer-types="fertilizerTypes"
       @close="closeSheet"
@@ -97,14 +150,16 @@ import {
   IonSpinner,
   IonToolbar,
 } from "@ionic/vue";
-import OverviewHeader from "@/components/overview/OverviewHeader.vue";
+import AdminHeader from "@/components/admin/AdminHeader.vue";
 import SearchBar from "@/components/SearchBar.vue";
+import StateBlock from "@/components/ui/StateBlock.vue";
 import RoundList from "@/components/water/RoundList.vue";
 import SnapButton from "@/components/water/SnapButton.vue";
 import SnapMatchSheet, { type SnapCandidate } from "@/components/water/SnapMatchSheet.vue";
 import PlantPickerModal from "@/components/water/PlantPickerModal.vue";
+import { nextFieldId } from "@/components/formcomponent/fieldShared";
 import { icons } from "@/theme/icons";
-import { fertilizerLabel } from "@/utils/enumLabels";
+import { fertilizerKind, fertilizerLabel } from "@/utils/enumLabels";
 import { usePlantsStore } from "@/stores/plants";
 import { useSessionStore } from "@/stores/session";
 import { useWateringStore } from "@/stores/watering";
@@ -112,6 +167,7 @@ import { useSnapSettingsStore } from "@/stores/snapSettings";
 import RecognitionService from "@/services/RecognitionService";
 import ImageService from "@/services/ImageService";
 import ToastService from "@/services/general/ToastService";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 import localizationService from "@/services/general/LocalizationService";
 import {
   buildBatchEntries,
@@ -120,7 +176,13 @@ import {
   type RoundRow,
 } from "@/utils/waterRound";
 
-const UNDO_TOAST_MS = 6000;
+const LAST_ROUND_MS = 5 * 60 * 1000;
+
+interface LastRound {
+  ids: number[];
+  plantIds: number[];
+  count: number;
+}
 
 export default defineComponent({
   name: "WaterRound",
@@ -135,8 +197,9 @@ export default defineComponent({
     IonSegmentButton,
     IonSpinner,
     IonToolbar,
-    OverviewHeader,
+    AdminHeader,
     SearchBar,
+    StateBlock,
     RoundList,
     SnapButton,
     SnapMatchSheet,
@@ -147,8 +210,10 @@ export default defineComponent({
   },
   data() {
     return {
+      segmentLabelId: nextFieldId("round-fertilizer"),
       query: "",
       loading: true,
+      loadError: false,
       saving: false,
       roundFertilizer: null as number | null,
       overrides: {} as Record<number, Partial<RoundRow>>,
@@ -157,6 +222,7 @@ export default defineComponent({
       pickerOpen: false,
       snapBusy: false,
       snapshotId: null as string | null,
+      rawTopId: null as number | null,
       candidates: [] as RecognitionCandidate[],
       threshold: 1,
       logged: null as {
@@ -167,15 +233,23 @@ export default defineComponent({
         fertilizerTypeId: number | null;
       } | null,
       matchToken: 0,
+      lastRound: null as LastRound | null,
+      lastRoundTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      undoing: false,
+      undoneRounds: [] as string[],
     };
   },
   computed: {
     ...mapState(usePlantsStore, ["personalPlants"]),
-    ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
+    ...mapState(useWateringStore, ["byPlantId", "fertilizerTypes"]),
     ...mapState(useSessionStore, ["isGuest"]),
     ...mapState(useSnapSettingsStore, ["keepPhoto"]),
+    loggedImageUrl(): string {
+      const plant = this.personalPlants.find((p) => p.id === this.logged?.plantId);
+      return plant?.imageUrl ?? plant?.images?.at(-1)?.url ?? "";
+    },
     showSnap(): boolean {
-      return this.recognitionAvailable && !this.isGuest;
+      return this.recognitionAvailable && !this.isGuest && this.rows.length > 0;
     },
     sheetCandidates(): SnapCandidate[] {
       return this.candidates.flatMap((candidate) => {
@@ -186,12 +260,14 @@ export default defineComponent({
       });
     },
     confident(): boolean {
+      // The rerank only orders the list; confidence needs the server's own best match shown first.
       const first = this.sheetCandidates[0];
-      const raw = this.candidates.find((candidate) => candidate.plantId === first?.plantId);
+      if (!first || first.plantId !== this.rawTopId) return false;
+      const raw = this.candidates.find((candidate) => candidate.plantId === first.plantId);
       return !!raw && raw.score >= this.threshold;
     },
     rows(): RoundRow[] {
-      return buildRoundRows(this.personalPlants, this.recordsFor).map((row) => ({
+      return buildRoundRows(this.personalPlants, (id) => this.byPlantId[id]).map((row) => ({
         ...row,
         ...this.overrides[row.plantId],
       }));
@@ -220,18 +296,16 @@ export default defineComponent({
     void RecognitionService.status().then((available) => {
       this.recognitionAvailable = available;
     });
-    try {
-      await Promise.all([this.ensureLoaded(), this.ensureFertilizerTypes()]);
-      await this.ensureRecordsFor(this.personalPlants.map((plant) => plant.id));
-    } catch (error) {
-      console.error("Failed to load the watering round:", error);
-    } finally {
-      this.loading = false;
-    }
+    await this.load();
+  },
+  beforeUnmount() {
+    clearTimeout(this.lastRoundTimer);
   },
   methods: {
+    fertilizerKind,
     fertilizerLabel,
     ...mapActions(usePlantsStore, ["ensureLoaded", "getPlant"]),
+    ...mapActions(useSessionStore, { logUserOut: "logout" }),
     ...mapActions(useWateringStore, [
       "addBatch",
       "removeBatch",
@@ -243,6 +317,22 @@ export default defineComponent({
     ]),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
+    },
+    async load() {
+      this.loading = true;
+      this.loadError = false;
+      try {
+        await Promise.all([this.ensureLoaded(), this.ensureFertilizerTypes()]);
+        await this.ensureRecordsFor(this.personalPlants.map((plant) => plant.id));
+      } catch (error) {
+        console.error("Failed to load the watering round:", error);
+        this.loadError = true;
+      } finally {
+        this.loading = false;
+      }
+    },
+    signIn() {
+      return this.logUserOut();
     },
     onSearch(value: string) {
       this.query = value;
@@ -266,6 +356,7 @@ export default defineComponent({
       try {
         const ids = await this.addBatch(entries);
         for (const plantId of plantIds) delete this.overrides[plantId];
+        this.rememberRound({ ids, plantIds, count: ids.length });
         ToastService.showToastWithAction(
           { key: "water.round_logged", vars: { count: ids.length } },
           this.t("plantdetail.undo"),
@@ -288,10 +379,18 @@ export default defineComponent({
       this.matchToken += 1;
       this.sheet.open = false;
       this.snapshotId = null;
+      this.rawTopId = null;
+      this.focusSnapButton();
+    },
+    focusSnapButton() {
+      void this.$nextTick(() => {
+        (this.$refs.snap as { focusButton?: () => void } | undefined)?.focusButton?.();
+      });
     },
     async onPhoto(file: File) {
       const token = ++this.matchToken;
       this.snapshotId = null;
+      this.rawTopId = null;
       this.sheet = { open: true, state: "matching" };
       let match: MatchResult;
       try {
@@ -303,6 +402,7 @@ export default defineComponent({
       if (token !== this.matchToken) return;
       const toneOf = (id: number) => this.rows.find((row) => row.plantId === id)?.tone;
       this.snapshotId = match.snapshotId;
+      this.rawTopId = match.candidates[0]?.plantId ?? null;
       this.candidates = rerankCandidates(match.candidates, toneOf);
       this.threshold = match.threshold;
       this.sheet.state = "candidates";
@@ -316,6 +416,7 @@ export default defineComponent({
       if (!snapshotId || this.snapBusy) return;
       this.snapBusy = true;
       this.snapshotId = null;
+      this.rawTopId = null;
       try {
         const result = await RecognitionService.confirm(snapshotId, {
           plantId,
@@ -386,18 +487,41 @@ export default defineComponent({
         }
         this.logged = null;
         this.sheet.open = false;
+        this.focusSnapButton();
       } catch (error) {
         console.error("Undoing the snapped watering failed:", error);
       } finally {
         this.snapBusy = false;
       }
     },
+    rememberRound(round: LastRound) {
+      clearTimeout(this.lastRoundTimer);
+      this.lastRound = round;
+      this.lastRoundTimer = setTimeout(() => {
+        this.lastRound = null;
+      }, LAST_ROUND_MS);
+    },
+    async undoLastRound() {
+      const round = this.lastRound;
+      if (!round) return;
+      await this.undoRound(round.ids, round.plantIds);
+    },
     async undoRound(ids: number[], plantIds: number[]) {
+      const roundKey = ids.join();
+      if (this.undoing || this.undoneRounds.includes(roundKey)) return;
+      this.undoing = true;
       try {
         await this.removeBatch(ids, plantIds);
+        this.undoneRounds.push(roundKey);
+        if (this.lastRound?.ids.join() === roundKey) {
+          clearTimeout(this.lastRoundTimer);
+          this.lastRound = null;
+        }
         ToastService.showSuccess({ key: "plantdetail.undone" });
       } catch (error) {
         console.error("Undoing the watering round failed:", error);
+      } finally {
+        this.undoing = false;
       }
     },
   },
@@ -411,10 +535,6 @@ export default defineComponent({
   max-width: var(--content-max);
   margin: 0 auto;
   padding-bottom: var(--space-4);
-}
-
-.snap-slot {
-  padding: var(--space-3) var(--space-4) 0;
 }
 
 .controls {
@@ -442,6 +562,19 @@ export default defineComponent({
   color: var(--ink-soft);
 }
 
+.last-round {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
 .empty {
   padding: var(--space-4);
   text-align: center;
@@ -460,6 +593,25 @@ export default defineComponent({
   font-weight: 600;
   color: var(--ink-soft);
   text-align: center;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.action-row > .snap-button {
+  flex: 0 1 auto;
+}
+
+.log-button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--tap-min);
+  --padding-start: var(--space-3);
+  --padding-end: var(--space-3);
+  white-space: nowrap;
 }
 
 .footer-actions ion-button {

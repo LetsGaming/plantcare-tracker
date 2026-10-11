@@ -30,8 +30,6 @@
       @dismissed-popover="showPopover = false"
     />
 
-    <p v-if="canAdd" class="hint">{{ t("plantdetail.double_tap_hint") }}</p>
-
     <watering-record-modal
       :is-open="showModal"
       :mode="modalMode"
@@ -58,6 +56,7 @@ import WateringRecordModal, {
 } from "@/components/plants/watering/WateringRecordModal.vue";
 
 import { useSessionStore } from "@/stores/session";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -65,7 +64,17 @@ import { formatDisplayDate, toDayKey } from "@/utils/localDate";
 import { fertilizerLabel } from "@/utils/enumLabels";
 
 const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
-const FERTILIZER_CATEGORY = "watering.category.organic";
+const ORGANIC_CATEGORY = "watering.category.organic";
+const MINERAL_CATEGORY = "watering.category.mineral";
+const SYNTHETIC_FERTILIZER_ID = 2;
+
+const recordCategory = (record: WateringRecord): string => {
+  if (!record.usedFertilizer) return NO_FERTILIZER_CATEGORY;
+  return record.fertilizerType === "synthetic" ||
+    record.fertilizerTypeId === SYNTHETIC_FERTILIZER_ID
+    ? MINERAL_CATEGORY
+    : ORGANIC_CATEGORY;
+};
 const TOAST_MS = 6000;
 
 let recordsCount = 0;
@@ -120,7 +129,7 @@ export default defineComponent({
       return this.records.map((record) => ({
         date: toDayKey(record.date_millis),
         category: {
-          name: record.usedFertilizer ? FERTILIZER_CATEGORY : NO_FERTILIZER_CATEGORY,
+          name: recordCategory(record),
           textColor: "",
           backgroundColor: "",
         },
@@ -210,7 +219,7 @@ export default defineComponent({
         this.records.find((record) => toDayKey(record.date_millis) === day) ?? null;
       this.showPopover = !!this.selectedRecord;
 
-      if (!this.selectedRecord && this.selectedDate === day) this.openAdd(day);
+      if (!this.selectedRecord) this.openAdd(day);
 
       this.selectedDate = day;
     },
@@ -239,7 +248,7 @@ export default defineComponent({
             { key: "plantdetail.record_saved" },
             this.t("plantdetail.undo"),
             () => void this.undoCreate(created.id),
-            TOAST_MS,
+            UNDO_TOAST_MS,
           );
         }
         this.isSaving = false;
@@ -279,7 +288,7 @@ export default defineComponent({
           { key: "plantdetail.record_deleted" },
           this.t("plantdetail.undo"),
           () => void this.restore(record),
-          TOAST_MS,
+          UNDO_TOAST_MS,
         );
       } catch (error) {
         console.error("Deleting the watering failed:", error);
@@ -331,7 +340,6 @@ export default defineComponent({
 }
 
 .fertilizer-stat,
-.hint,
 .empty-message {
   margin: 0;
   font-size: var(--text-sm);
@@ -341,9 +349,5 @@ export default defineComponent({
 .empty-title {
   margin: 0;
   font-weight: 600;
-}
-
-.hint {
-  font-size: var(--text-xs);
 }
 </style>

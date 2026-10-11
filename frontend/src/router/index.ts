@@ -6,6 +6,7 @@ import { pinia } from "@/stores/pinia";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import { resolveAccess } from "./guards";
+import { updateDocumentTitle } from "@/utils/pageTitle";
 
 // Dynamic imports for lazy loading
 const Login = () => import("@/views/Login.vue");
@@ -35,6 +36,10 @@ const isDevelopment = import.meta.env.MODE === "development";
 
 const authMeta = { requiresAuth: true };
 const adminMeta = { requiresAuth: true, requiresAdmin: true };
+const titled = (titleKey: string, base: Record<string, unknown> = authMeta) => ({
+  ...base,
+  titleKey,
+});
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -45,21 +50,22 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login",
     name: "login",
     component: Login,
-    meta: { requiresAuth: false },
+    meta: titled("login2.heading_login", { requiresAuth: false }),
   },
   {
     path: "/profile",
     name: "profile",
     component: Profile,
-    meta: authMeta,
+    meta: titled("profile.title"),
   },
+  { path: "/water", redirect: "/tabs/plants/water" },
   { path: "/sales", redirect: "/tabs/sales" },
   { path: "/sales/details/:id", redirect: (to) => `/tabs/sales/details/${to.params.id}` },
   {
     path: "/:catchAll(.*)",
     name: "not-found",
     component: NotFound,
-    meta: { requiresAuth: false },
+    meta: titled("state.not_found_title", { requiresAuth: false }),
   },
 
   {
@@ -70,50 +76,51 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       // The debug tools exist only in development builds.
       ...(isDevelopment
-        ? [{ name: "debug", path: "debug", meta: authMeta, component: Debug }]
+        ? [{ name: "debug", path: "debug", meta: titled("tabs.debug"), component: Debug }]
         : []),
       {
         name: "plant-overview",
         path: "plants",
-        meta: authMeta,
+        meta: titled("plants.title"),
         component: PlantOverview,
       },
       {
         name: "water-round",
-        path: "water",
-        meta: authMeta,
+        path: "plants/water",
+        meta: titled("water.title"),
         component: WaterRound,
       },
+      { path: "water", redirect: "/tabs/plants/water" },
       {
         name: "plant-details",
         path: "plants/details/:id/:public",
-        meta: authMeta,
+        meta: titled("page.plant_details"),
         props: true,
         component: PlantDetails,
       },
       {
         name: "substrate-overview",
         path: "substrates",
-        meta: authMeta,
+        meta: titled("substrate.title"),
         component: SubstrateOverview,
       },
       {
         name: "substrate-details",
         path: "substrates/details/:id/:public",
-        meta: authMeta,
+        meta: titled("page.substrate_details"),
         props: true,
         component: SubstrateDetails,
       },
       {
         name: "component-overview",
         path: "components",
-        meta: authMeta,
+        meta: titled("components.title"),
         component: ComponentOverview,
       },
       {
         name: "component-details",
         path: "components/details/:id/:public",
-        meta: authMeta,
+        meta: titled("component.details.title"),
         props: true,
         component: ComponentDetails,
       },
@@ -121,31 +128,31 @@ const routes: Array<RouteRecordRaw> = [
         path: "sales",
         name: "sales",
         component: SalesOverview,
-        meta: authMeta,
+        meta: titled("sales.title"),
       },
       {
         name: "sales-details",
         path: "sales/details/:id",
-        meta: authMeta,
+        meta: titled("sales.details.title"),
         props: true,
         component: SalesDetails,
       },
       {
         name: "admin-dashboard",
         path: "admin",
-        meta: adminMeta,
+        meta: titled("admin.title", adminMeta),
         component: AdminDashboard,
       },
       {
         name: "admin-scrapers",
         path: "admin/scrapers",
-        meta: adminMeta,
+        meta: titled("admin.scrapers.title", adminMeta),
         component: ScraperHealth,
       },
       {
         name: "tabs-not-found",
         path: ":catchAll(.*)",
-        meta: authMeta,
+        meta: titled("state.not_found_title"),
         component: NotFound,
       },
     ],
@@ -188,5 +195,7 @@ router.beforeEach(async (to, from, next) => {
     next({ name: "login", query: { redirect: to.fullPath } });
   }
 });
+
+router.afterEach((to) => updateDocumentTitle(to));
 
 export default router;

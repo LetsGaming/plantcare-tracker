@@ -26,22 +26,28 @@
     </div>
 
     <div :id="panelId" class="accordion-content-wrapper" :class="{ open: isOpen }" :inert="!isOpen">
-      <div class="accordion-content">
-        <template v-if="item.details && Object.keys(item.details).length > 0">
-          <p v-for="(value, key) in item.details" :key="key">
-            <strong>{{ key }}:</strong> {{ value }}
+      <div class="accordion-clip">
+        <div class="accordion-content">
+          <template v-if="item.details && Object.keys(item.details).length > 0">
+            <p v-for="(value, key) in item.details" :key="key">
+              <strong>{{ key }}:</strong> {{ value }}
+            </p>
+          </template>
+
+          <template v-if="item.components && item.components.length > 0">
+            <div class="components-container">
+              <component
+                v-for="(component, index) in item.components"
+                :key="index"
+                :is="component"
+              />
+            </div>
+          </template>
+
+          <p v-else>
+            {{ t("accordion.no_details", "No details available.") }}
           </p>
-        </template>
-
-        <template v-if="item.components && item.components.length > 0">
-          <div class="components-container">
-            <component v-for="(component, index) in item.components" :key="index" :is="component" />
-          </div>
-        </template>
-
-        <p v-else>
-          {{ t("accordion.no_details", "No details available.") }}
-        </p>
+        </div>
       </div>
     </div>
   </li>
@@ -151,17 +157,32 @@ export default defineComponent({
 }
 
 .accordion-content-wrapper {
-  overflow: hidden;
-  max-height: 0;
+  display: grid;
+  grid-template-rows: 0fr;
   opacity: 0;
   transition:
-    max-height 280ms var(--ease-out),
+    grid-template-rows 280ms var(--ease-out),
     opacity 200ms var(--ease-out);
 }
 
 .accordion-content-wrapper.open {
-  max-height: 1000px;
+  grid-template-rows: 1fr;
   opacity: 1;
+}
+
+.accordion-clip {
+  overflow: hidden;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accordion-content-wrapper {
+    transition: opacity 120ms linear;
+  }
+
+  .toggle-icon {
+    transition: none;
+  }
 }
 
 .accordion-content {

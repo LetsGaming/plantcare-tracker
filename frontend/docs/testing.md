@@ -25,6 +25,7 @@ gate lives in `vite.config.ts`; raise it when coverage rises.
 ```
 src/tests/
 ├── helpers.ts                    In-memory storage, toast and localization mocks, JWT builder, createInstalledPinia()
+├── setup.ts                      Global afterEach that cancels storage writes still pending from the test
 ├── sessionStore.test.ts          Login, logout, single-flight refresh, identity getters
 ├── plantsStore.test.ts           Reads, staleness, optimistic add/edit/delete, image refresh, persistence
 ├── wateringStore.test.ts         Records per plant, 404 as empty, optimistic mutations, persistence
@@ -65,8 +66,14 @@ await store.ensureLoaded();
 ```
 
 `createInstalledPinia()` installs the app's plugins (persistence) on a throwaway app; plain
-`createPinia()` would skip them. Persistence is debounced, so tests that read storage use fake
-timers and advance them by about 500 ms.
+`createPinia()` would skip them. Persistence is debounced (250 ms), so a test that reads storage
+calls `vi.useFakeTimers()` before creating the store, advances with
+`await vi.advanceTimersByTimeAsync(500)` and restores real timers in `afterEach`. Never size a real
+`setTimeout` wait against the debounce. Writes still pending when a test ends are cancelled by the
+global `afterEach` in `setup.ts` (`cancelPendingPersistence()`), so they cannot land in a later
+test's `memoryStore`. A store test file that does not import a store depending on `@/utils/utils`
+adds `import "@/stores/pinia";`, so `@ionic/vue` loads during collection rather than inside the
+first test's 5 s timeout.
 
 **Optimistic behavior** is asserted in the middle of a request with a deferred promise: the painted
 state is checked before the request settles, then again after it resolves or rejects.

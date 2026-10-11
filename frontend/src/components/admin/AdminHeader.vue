@@ -4,7 +4,9 @@
       <ion-buttons slot="start">
         <ion-back-button :text="t('common.back')" :default-href="backHref" />
       </ion-buttons>
-      <ion-title>{{ title }}</ion-title>
+      <ion-title
+        ><h1 class="toolbar-title">{{ title }}</h1></ion-title
+      >
       <ion-buttons slot="end">
         <slot name="actions" />
       </ion-buttons>
@@ -17,7 +19,7 @@ import { defineComponent } from "vue";
 import { IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton } from "@ionic/vue";
 import localizationService from "@/services/general/LocalizationService";
 
-/** Header chrome shared by the admin screens. */
+/** Title and back button chrome shared by the admin screens and the watering round. */
 export default defineComponent({
   name: "AdminHeader",
   components: { IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton },
@@ -35,9 +37,10 @@ export default defineComponent({
 
 <style scoped>
 .admin-toolbar {
-  --background: var(--ion-color-primary);
-  --color: var(--ion-color-primary-contrast);
-  --border-width: 0;
+  --background: var(--chrome-bg);
+  --color: var(--ion-text-color);
+  --border-color: var(--line);
+  --border-width: 0 0 1px;
 }
 
 .admin-toolbar ion-back-button {
@@ -45,10 +48,19 @@ export default defineComponent({
   min-height: var(--tap-min);
 }
 
-.admin-toolbar ion-title,
+.admin-toolbar ion-title {
+  color: var(--ion-text-color);
+}
+
+.toolbar-title {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
 .admin-toolbar ion-back-button,
 .admin-toolbar :deep(.icon-button) {
-  color: var(--ion-color-primary-contrast);
-  --color: var(--ion-color-primary-contrast);
+  color: var(--ion-color-primary);
+  --color: var(--ion-color-primary);
 }
 </style>

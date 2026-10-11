@@ -21,7 +21,7 @@ export default defineComponent({
   props: {
     legendItems: {
       type: Array as PropType<
-        { label: string; color: string; shape?: "fill" | "ring" | "today" }[]
+        { label: string; color: string; shape?: "fill" | "ring" | "dashed" | "today" }[]
       >,
       required: true,
     },
@@ -67,6 +67,11 @@ export default defineComponent({
 .swatch-ring {
   border-radius: 50%;
   border: 3px solid var(--swatch);
+}
+
+.swatch-dashed {
+  border-radius: 50%;
+  border: 3px dashed var(--swatch);
 }
 
 .swatch-today {

@@ -1,14 +1,8 @@
 /* Scrollbars follow the palette and the app's own dark mode class. */
 :root {
-  --scrollbar-thumb: #9db0a1;
-  --scrollbar-thumb-hover: #6f8575;
-  --scrollbar-track: #e6ede2;
-}
-
-.ion-palette-dark {
-  --scrollbar-thumb: #3d5445;
-  --scrollbar-thumb-hover: #5b7a66;
-  --scrollbar-track: #0f1a14;
+  --scrollbar-thumb: color-mix(in srgb, var(--ink-soft) 60%, var(--surface-sunken));
+  --scrollbar-thumb-hover: var(--ink-soft);
+  --scrollbar-track: var(--surface-sunken);
 }
 
 :root {

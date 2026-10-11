@@ -83,7 +83,7 @@ export default defineComponent({
   gap: var(--space-1);
   min-height: 32px;
   padding: 0 var(--space-3);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 650;
 }
@@ -105,8 +105,8 @@ export default defineComponent({
 }
 
 .tone-success {
-  background: var(--ion-color-success);
-  color: var(--ion-color-success-contrast);
+  background: var(--leaf-wash);
+  color: var(--ion-text-color);
 }
 
 .tone-neutral {
@@ -117,6 +117,6 @@ export default defineComponent({
 .chip.empty {
   background: var(--surface-raised);
   color: var(--ink-soft);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--control-border);
 }
 </style>

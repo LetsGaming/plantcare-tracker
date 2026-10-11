@@ -22,6 +22,8 @@ import SideMenu from "./components/SideMenu.vue";
 import { useLayoutStore } from "./stores/layout";
 import { useSnapSettingsStore } from "./stores/snapSettings";
 import OfflineBanner from "./components/ui/OfflineBanner.vue";
+import localizationService from "./services/general/LocalizationService";
+import { updateDocumentTitle } from "./utils/pageTitle";
 
 export default defineComponent({
   name: "App",
@@ -43,6 +45,10 @@ export default defineComponent({
   created() {
     void useLayoutStore().ensureLoaded();
     void useSnapSettingsStore().ensureLoaded();
+    this.$watch(
+      () => localizationService.locale.value,
+      () => updateDocumentTitle(this.$route),
+    );
   },
 });
 </script>
