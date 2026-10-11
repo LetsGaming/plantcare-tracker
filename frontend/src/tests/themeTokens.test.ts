@@ -53,7 +53,6 @@ const pairs: Pair[] = [
   ["--series-4", "--surface-raised", 4.3, 4.3],
   ["--series-5", "--surface-raised", 4.3, 4.3],
   ["--ion-text-color", "--danger-wash", 11, 11],
-  ["--ion-text-color", "--warning-wash", 11, 11],
 ];
 
 describe("theme tokens", () => {
@@ -87,18 +86,14 @@ describe("theme tokens", () => {
       "--new",
       "--new-ink",
       "--danger-wash",
-      "--warning-wash",
       "--offline-bg",
       "--overdue-ink",
-      "--category-ink",
       "--series-1",
       "--series-2",
       "--series-3",
       "--series-4",
       "--series-5",
       "--z-banner",
-      "--clay",
-      "--leaf",
     ];
     for (const name of shared) expect(light[name], name).toBeTruthy();
     const darkOnly = parseTokens(blockBody(":root.ion-palette-dark"));
@@ -111,7 +106,6 @@ describe("theme tokens", () => {
       "--feed-mineral-contrast",
       "--new",
       "--danger-wash",
-      "--warning-wash",
       "--series-1",
       "--series-2",
       "--series-3",
@@ -121,14 +115,10 @@ describe("theme tokens", () => {
     for (const name of overridden) expect(darkOnly[name], name).toBeTruthy();
   });
 
-  it("aliases the border color and chart colors to their single source", () => {
+  it("aliases the border color to its single source", () => {
     expect(light["--ion-border-color"]).toBe("var(--line)");
     expect(parseTokens(blockBody(":root.ion-palette-dark"))["--ion-border-color"]).toBe(
       "var(--line)",
     );
-    expect(light["--chart-1"]).toBe("var(--ion-color-primary)");
-    expect(light["--chart-2"]).toBe("var(--ion-color-secondary)");
-    expect(light["--chart-3"]).toBe("var(--ion-color-tertiary)");
-    expect(light["--chart-6"]).toBe("var(--ion-color-medium)");
   });
 });

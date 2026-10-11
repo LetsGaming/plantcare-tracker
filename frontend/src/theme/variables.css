@@ -79,8 +79,6 @@
   --line: #d5dfd2;
   --focus-ring: #0e6b75;
   --water: var(--ion-color-tertiary);
-  --clay: var(--ion-color-secondary);
-  --leaf: var(--ion-color-primary);
   --water-wash: #dcf0f2;
   --clay-wash: #f6e4da;
   --leaf-wash: #dcebdf;
@@ -94,10 +92,8 @@
   --new: #f0b429;
   --new-ink: #0e1812;
   --danger-wash: #fbe3e1;
-  --warning-wash: #fdf0cc;
   --offline-bg: var(--surface-sunken);
   --overdue-ink: var(--ion-color-secondary-shade);
-  --category-ink: #0e1812;
   --z-banner: 20001;
 
   /* Plant placeholder tints (hue families of the palette, light on dark ink) */
@@ -113,12 +109,6 @@
   --chart-grid-color: rgba(29, 43, 34, 0.12);
   --chart-line-color: var(--ion-color-primary);
   --chart-fill-color: rgba(var(--ion-color-primary-rgb), 0.16);
-  --chart-1: var(--ion-color-primary);
-  --chart-2: var(--ion-color-secondary);
-  --chart-3: var(--ion-color-tertiary);
-  --chart-4: #8a7a1e;
-  --chart-5: #6b4f8a;
-  --chart-6: var(--ion-color-medium);
   --series-1: #8a7a1e;
   --series-2: #4f6488;
   --series-3: #8a4f6b;
@@ -243,7 +233,6 @@
   --feed-mineral-contrast: #0e1812;
   --new: #f5c451;
   --danger-wash: #3d1a18;
-  --warning-wash: #3a2f10;
 
   --tint-1: #1e3a29;
   --tint-2: #3d2a1f;
@@ -254,8 +243,6 @@
 
   --chart-text-color: var(--ion-text-color);
   --chart-grid-color: rgba(227, 238, 229, 0.16);
-  --chart-4: #d8c85a;
-  --chart-5: #b79ad6;
   --series-1: #d8c85a;
   --series-2: #9fb3d6;
   --series-3: #d69ab7;
