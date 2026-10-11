@@ -58,6 +58,7 @@ import WateringRecordModal, {
 } from "@/components/plants/watering/WateringRecordModal.vue";
 
 import { useSessionStore } from "@/stores/session";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -249,7 +250,7 @@ export default defineComponent({
             { key: "plantdetail.record_saved" },
             this.t("plantdetail.undo"),
             () => void this.undoCreate(created.id),
-            TOAST_MS,
+            UNDO_TOAST_MS,
           );
         }
         this.isSaving = false;
@@ -289,7 +290,7 @@ export default defineComponent({
           { key: "plantdetail.record_deleted" },
           this.t("plantdetail.undo"),
           () => void this.restore(record),
-          TOAST_MS,
+          UNDO_TOAST_MS,
         );
       } catch (error) {
         console.error("Deleting the watering failed:", error);

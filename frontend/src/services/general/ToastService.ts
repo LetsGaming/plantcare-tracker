@@ -113,7 +113,7 @@ class ToastService {
 
     const buttons: ToastButton[] = [];
     if (actionText) buttons.push({ text: actionText, handler: actionHandler });
-    if (showCloseButton) {
+    if (showCloseButton || duration === 0) {
       buttons.push({
         text: closeButtonText || localizationService.t("toast.dismiss", undefined, "Dismiss"),
         role: "cancel",

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
 import { createTestingPinia } from "@pinia/testing";
 
@@ -6,6 +6,7 @@ const toast = vi.hoisted(() => ({
   showSuccess: vi.fn(),
   showError: vi.fn(),
   showToastWithAction: vi.fn(),
+  dismissAllToasts: vi.fn(),
 }));
 
 vi.mock("@/services/general/ToastService", () => ({ default: toast }));
@@ -35,6 +36,7 @@ import StateBlock from "@/components/ui/StateBlock.vue";
 import { usePlantsStore } from "@/stores/plants";
 import { useWateringStore } from "@/stores/watering";
 import { useSessionStore } from "@/stores/session";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 
 const DAY = 86_400_000;
 const rec = (daysAgo: number) => ({ date_millis: Date.now() - daysAgo * DAY }) as WateringRecord;
@@ -133,12 +135,116 @@ describe("WaterRound", () => {
     await wrapper.find(".log-button").trigger("click");
     await flushPromises();
     expect(toast.showToastWithAction).toHaveBeenCalledTimes(1);
-    const [message, , handler] = toast.showToastWithAction.mock.calls[0];
+    const [message, , handler, duration] = toast.showToastWithAction.mock.calls[0];
     expect(message).toEqual({ key: "water.round_logged", vars: { count: 2 } });
+    expect(duration).toBe(0);
+    expect(duration).not.toBe(UNDO_TOAST_MS);
     await handler();
     await flushPromises();
     expect(watering.removeBatch).toHaveBeenCalledWith([11, 12], expect.arrayContaining([2, 3]));
     expect(toast.showSuccess).toHaveBeenCalledWith({ key: "plantdetail.undone" });
+  });
+
+  describe("last round row", () => {
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    const settle = () => vi.advanceTimersByTimeAsync(0);
+    const saveRound = async (wrapper: ReturnType<typeof mountRound>["wrapper"]) => {
+      await wrapper.find(".log-button").trigger("click");
+      await settle();
+    };
+
+    afterEach(() => vi.useRealTimers());
+
+    it("shows the count after saving and is absent before", async () => {
+      const { wrapper } = mountRound();
+      await flushPromises();
+      expect(wrapper.find(".last-round").exists()).toBe(false);
+      await wrapper.find(".log-button").trigger("click");
+      await flushPromises();
+      const row = wrapper.find(".last-round");
+      expect(row.exists()).toBe(true);
+      expect(row.attributes("role")).toBe("status");
+      expect(row.text()).toContain('"count":2');
+      expect(row.text()).toContain("plantdetail.undo");
+    });
+
+    it("undoes the same records as the toast and then disappears", async () => {
+      const { wrapper, watering } = mountRound();
+      await flushPromises();
+      await wrapper.find(".log-button").trigger("click");
+      await flushPromises();
+      await wrapper.find(".last-round-undo").trigger("click");
+      await flushPromises();
+      expect(watering.removeBatch).toHaveBeenCalledTimes(1);
+      expect(watering.removeBatch).toHaveBeenCalledWith([11, 12], expect.arrayContaining([2, 3]));
+      expect(toast.dismissAllToasts).toHaveBeenCalled();
+      expect(toast.showSuccess).toHaveBeenCalledWith({ key: "plantdetail.undone" });
+      expect(wrapper.find(".last-round").exists()).toBe(false);
+    });
+
+    it("hides the row when the toast undo is used", async () => {
+      const { wrapper } = mountRound();
+      await flushPromises();
+      await wrapper.find(".log-button").trigger("click");
+      await flushPromises();
+      await toast.showToastWithAction.mock.calls[0][2]();
+      await flushPromises();
+      expect(wrapper.find(".last-round").exists()).toBe(false);
+    });
+
+    it("keeps the row when the undo request fails", async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { wrapper, watering } = mountRound();
+      await flushPromises();
+      await wrapper.find(".log-button").trigger("click");
+      await flushPromises();
+      vi.mocked(watering.removeBatch).mockRejectedValueOnce(new Error("offline"));
+      await wrapper.find(".last-round-undo").trigger("click");
+      await flushPromises();
+      expect(wrapper.find(".last-round").exists()).toBe(true);
+      expect(toast.showSuccess).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it("removes the row by itself after five minutes", async () => {
+      const { wrapper } = mountRound();
+      await flushPromises();
+      vi.useFakeTimers();
+      await saveRound(wrapper);
+      expect(wrapper.find(".last-round").exists()).toBe(true);
+      await vi.advanceTimersByTimeAsync(FIVE_MINUTES - 1);
+      expect(wrapper.find(".last-round").exists()).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(wrapper.find(".last-round").exists()).toBe(false);
+    });
+
+    it("shows only the newer round and restarts the timer", async () => {
+      const { wrapper, watering } = mountRound();
+      await flushPromises();
+      vi.useFakeTimers();
+      await saveRound(wrapper);
+      await vi.advanceTimersByTimeAsync(FIVE_MINUTES - 1000);
+      vi.mocked(watering.addBatch).mockResolvedValue([21, 22, 23]);
+      await saveRound(wrapper);
+      expect(wrapper.findAll(".last-round")).toHaveLength(1);
+      expect(wrapper.find(".last-round").text()).toContain('"count":3');
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(wrapper.find(".last-round").exists()).toBe(true);
+      await wrapper.find(".last-round-undo").trigger("click");
+      await settle();
+      expect(watering.removeBatch).toHaveBeenCalledWith([21, 22, 23], expect.any(Array));
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("leaves no timer behind after unmount", async () => {
+      const { wrapper } = mountRound();
+      await flushPromises();
+      vi.useFakeTimers();
+      await saveRound(wrapper);
+      expect(vi.getTimerCount()).toBe(1);
+      wrapper.unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   it("does not save an empty selection", async () => {

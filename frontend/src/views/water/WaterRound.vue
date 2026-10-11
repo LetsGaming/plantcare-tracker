@@ -56,6 +56,13 @@
             </ion-segment>
           </div>
 
+          <div v-if="lastRound" class="last-round" role="status">
+            <span>{{ t("water.last_round", { count: lastRound.count }) }}</span>
+            <ion-button class="last-round-undo" fill="clear" size="small" @click="undoLastRound">
+              {{ t("plantdetail.undo") }}
+            </ion-button>
+          </div>
+
           <p v-if="!visibleRows.length" class="empty empty-search">
             {{ t("water.no_match") }}
           </p>
@@ -154,6 +161,7 @@ import { useSnapSettingsStore } from "@/stores/snapSettings";
 import RecognitionService from "@/services/RecognitionService";
 import ImageService from "@/services/ImageService";
 import ToastService from "@/services/general/ToastService";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 import localizationService from "@/services/general/LocalizationService";
 import {
   buildBatchEntries,
@@ -162,7 +170,13 @@ import {
   type RoundRow,
 } from "@/utils/waterRound";
 
-const UNDO_TOAST_MS = 6000;
+const LAST_ROUND_MS = 5 * 60 * 1000;
+
+interface LastRound {
+  ids: number[];
+  plantIds: number[];
+  count: number;
+}
 
 export default defineComponent({
   name: "WaterRound",
@@ -213,6 +227,8 @@ export default defineComponent({
         fertilizerTypeId: number | null;
       } | null,
       matchToken: 0,
+      lastRound: null as LastRound | null,
+      lastRoundTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   computed: {
@@ -274,6 +290,9 @@ export default defineComponent({
     });
     await this.load();
   },
+  beforeUnmount() {
+    clearTimeout(this.lastRoundTimer);
+  },
   methods: {
     fertilizerKind,
     fertilizerLabel,
@@ -329,11 +348,13 @@ export default defineComponent({
       try {
         const ids = await this.addBatch(entries);
         for (const plantId of plantIds) delete this.overrides[plantId];
+        if (this.lastRound) await this.dismissToasts();
+        this.rememberRound({ ids, plantIds, count: ids.length });
         ToastService.showToastWithAction(
           { key: "water.round_logged", vars: { count: ids.length } },
           this.t("plantdetail.undo"),
           () => void this.undoRound(ids, plantIds),
-          UNDO_TOAST_MS,
+          0,
         );
       } catch (error) {
         console.error("Logging the watering round failed:", error);
@@ -466,9 +487,33 @@ export default defineComponent({
         this.snapBusy = false;
       }
     },
+    rememberRound(round: LastRound) {
+      clearTimeout(this.lastRoundTimer);
+      this.lastRound = round;
+      this.lastRoundTimer = setTimeout(() => {
+        this.lastRound = null;
+      }, LAST_ROUND_MS);
+    },
+    async dismissToasts() {
+      try {
+        await ToastService.dismissAllToasts();
+      } catch {
+        // No toast was showing.
+      }
+    },
+    async undoLastRound() {
+      const round = this.lastRound;
+      if (!round) return;
+      await this.undoRound(round.ids, round.plantIds);
+    },
     async undoRound(ids: number[], plantIds: number[]) {
       try {
         await this.removeBatch(ids, plantIds);
+        if (this.lastRound?.ids.join() === ids.join()) {
+          clearTimeout(this.lastRoundTimer);
+          this.lastRound = null;
+        }
+        await this.dismissToasts();
         ToastService.showSuccess({ key: "plantdetail.undone" });
       } catch (error) {
         console.error("Undoing the watering round failed:", error);
@@ -510,6 +555,19 @@ export default defineComponent({
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--ink-soft);
+}
+
+.last-round {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
 }
 
 .empty {

@@ -32,6 +32,7 @@ import { useWateringStore } from "@/stores/watering";
 import { useSessionStore } from "@/stores/session";
 import { useSnapSettingsStore } from "@/stores/snapSettings";
 import ToastService from "@/services/general/ToastService";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 
 const DAY = 86_400_000;
 const rec = (daysAgo: number) => ({ date_millis: Date.now() - daysAgo * DAY }) as WateringRecord;
@@ -364,8 +365,10 @@ describe("WaterRound snap flow", () => {
     resolve({ recordId: 55, imageId: null });
     await pending;
     expect(ToastService.showToastWithAction).toHaveBeenCalledTimes(1);
-    const [message, , handler] = vi.mocked(ToastService.showToastWithAction).mock.calls[0];
+    const [message, , handler, duration] = vi.mocked(ToastService.showToastWithAction).mock
+      .calls[0];
     expect(message).toEqual({ key: "water.snap_logged", vars: { name: "Fine" } });
+    expect(duration).toBe(UNDO_TOAST_MS);
     await handler();
     await flushPromises();
     expect(watering.deleteRecord).toHaveBeenCalledWith(1, 55);

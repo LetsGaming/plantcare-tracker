@@ -1383,6 +1383,7 @@ export default {
   "water.row_fertilizer": "Fertilizer for {name}",
   "water.log_count": "Log waterings ({count})",
   "water.round_logged": "Waterings logged: {count}",
+  "water.last_round": "Last round: {count} plants watered",
   "water.empty": "No plants to water yet. Add a plant first.",
   "water.no_match": "No plants match your search.",
   "water.empty_cta": "Add a plant",

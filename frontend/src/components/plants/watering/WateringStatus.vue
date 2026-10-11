@@ -40,6 +40,7 @@ import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import { calendarDaysBetween } from "@/utils/localDate";
+import { UNDO_TOAST_MS } from "@/utils/undo";
 import {
   averageIntervalDays,
   describeInterval,
@@ -126,7 +127,7 @@ export default defineComponent({
           { key: "plantdetail.watered_toast", vars: { name: this.plantName } },
           this.t("plantdetail.undo"),
           () => void this.undo(record.id),
-          6000,
+          UNDO_TOAST_MS,
         );
       } catch (error) {
         console.error("Water now failed:", error);
