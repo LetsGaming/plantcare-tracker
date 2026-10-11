@@ -390,7 +390,7 @@ export class GrowJungleScraper extends BaseScraper {
           container: '.m-product-card',
           oldPrice: '.m-price__sale s.m-price-item--regular',
           newPrice: '.m-price__sale .m-price-item--sale',
-          outOfStockText: /ausverkauft|sold out/i,
+          outOfStock: '.m-product-tag--soldout:not([style*="display: none"])',
           link: 'a.m-product-card__name',
           name: 'a.m-product-card__name',
           img: '.m-product-card__main-image img',
