@@ -34,7 +34,7 @@ describe("tab bar styles", () => {
 
   it("keeps each label on one line without mid word breaks", () => {
     const body = rulesFor("ion-tab-button ion-label");
-    expect(body).toContain("font-size: clamp(0.625rem, 2.6vw, var(--text-xs))");
+    expect(body).toContain("font-size: clamp(0.5625rem, 2.6vw, var(--text-xs))");
     expect(body).toContain("white-space: nowrap");
     expect(body).toContain("overflow-wrap: normal");
     expect(body).toContain("hyphens: none");
