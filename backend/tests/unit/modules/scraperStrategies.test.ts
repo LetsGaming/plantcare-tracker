@@ -323,7 +323,7 @@ describe.each([
     ],
     htmlItems: [
       {
-        name: "Monstera deliciosa variegata 'Super White'",
+        name: 'Monstera deliciosa variegata ‘Super White’',
         newPrice: 59,
         oldPrice: 93.45,
         linkPath: '/de/products/monstera-deliciosa-variegata-super-white',
