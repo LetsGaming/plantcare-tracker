@@ -18,21 +18,23 @@ const TONE_BONUS: Record<WateringTone, number> = {
   ok: 0,
 };
 
+/** `recordsFor` answers undefined for a plant whose records never loaded; such a row stays neutral. */
 export const buildRoundRows = (
   plants: Plant[],
-  recordsFor: (id: number) => WateringRecord[],
+  recordsFor: (id: number) => WateringRecord[] | undefined,
   now = Date.now(),
 ): RoundRow[] =>
   plants
     .map((plant) => {
-      const status = wateringStatus(recordsFor(plant.id) ?? [], now);
+      const records = recordsFor(plant.id);
+      const status = records ? wateringStatus(records, now) : undefined;
       return {
         plantId: plant.id,
         name: plant.name,
         imageUrl: plant.imageUrl,
-        tone: status.tone,
-        rank: status.rank,
-        checked: status.tone !== "ok",
+        tone: status?.tone ?? "ok",
+        rank: status?.rank ?? 0,
+        checked: !!status && status.tone !== "ok",
         fertilizerTypeId: undefined,
       };
     })

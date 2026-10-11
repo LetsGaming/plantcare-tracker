@@ -58,7 +58,13 @@
 
           <div v-if="lastRound" class="last-round" role="status">
             <span>{{ t("water.last_round", { count: lastRound.count }) }}</span>
-            <ion-button class="last-round-undo" fill="clear" size="small" @click="undoLastRound">
+            <ion-button
+              class="last-round-undo"
+              fill="clear"
+              size="small"
+              :disabled="undoing"
+              @click="undoLastRound"
+            >
               {{ t("plantdetail.undo") }}
             </ion-button>
           </div>
@@ -229,16 +235,18 @@ export default defineComponent({
       matchToken: 0,
       lastRound: null as LastRound | null,
       lastRoundTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      undoing: false,
+      undoneRounds: [] as string[],
     };
   },
   computed: {
     ...mapState(usePlantsStore, ["personalPlants"]),
-    ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
+    ...mapState(useWateringStore, ["byPlantId", "fertilizerTypes"]),
     ...mapState(useSessionStore, ["isGuest"]),
     ...mapState(useSnapSettingsStore, ["keepPhoto"]),
     loggedImageUrl(): string {
       const plant = this.personalPlants.find((p) => p.id === this.logged?.plantId);
-      return plant?.images?.[0]?.url ?? plant?.imageUrl ?? "";
+      return plant?.imageUrl ?? plant?.images?.at(-1)?.url ?? "";
     },
     showSnap(): boolean {
       return this.recognitionAvailable && !this.isGuest && this.rows.length > 0;
@@ -259,7 +267,7 @@ export default defineComponent({
       return !!raw && raw.score >= this.threshold;
     },
     rows(): RoundRow[] {
-      return buildRoundRows(this.personalPlants, this.recordsFor).map((row) => ({
+      return buildRoundRows(this.personalPlants, (id) => this.byPlantId[id]).map((row) => ({
         ...row,
         ...this.overrides[row.plantId],
       }));
@@ -499,15 +507,21 @@ export default defineComponent({
       await this.undoRound(round.ids, round.plantIds);
     },
     async undoRound(ids: number[], plantIds: number[]) {
+      const roundKey = ids.join();
+      if (this.undoing || this.undoneRounds.includes(roundKey)) return;
+      this.undoing = true;
       try {
         await this.removeBatch(ids, plantIds);
-        if (this.lastRound?.ids.join() === ids.join()) {
+        this.undoneRounds.push(roundKey);
+        if (this.lastRound?.ids.join() === roundKey) {
           clearTimeout(this.lastRoundTimer);
           this.lastRound = null;
         }
         ToastService.showSuccess({ key: "plantdetail.undone" });
       } catch (error) {
         console.error("Undoing the watering round failed:", error);
+      } finally {
+        this.undoing = false;
       }
     },
   },
@@ -595,6 +609,9 @@ export default defineComponent({
   flex: 1 1 0;
   min-width: 0;
   min-height: var(--tap-min);
+  --padding-start: var(--space-3);
+  --padding-end: var(--space-3);
+  white-space: nowrap;
 }
 
 .footer-actions ion-button {

@@ -89,6 +89,23 @@ describe("WaterRound", () => {
     expect(names.sort()).toEqual(["Fine:false", "Parched:true", "Thirsty:true"]);
   });
 
+  it("treats a plant whose records fetch failed (never stored) as neutral, not never watered", async () => {
+    const { wrapper } = mountRound({
+      prepare: (w) => {
+        w.byPlantId = { 1: [rec(1), rec(8)], 2: [rec(20), rec(27)] };
+      },
+    });
+    await flushPromises();
+    const rows = wrapper.findComponent(RoundList).props("rows") as {
+      name: string;
+      tone: string;
+      checked: boolean;
+    }[];
+    const parched = rows.find((row) => row.name === "Parched");
+    expect(parched?.tone).toBe("ok");
+    expect(parched?.checked).toBe(false);
+  });
+
   it("loads plants, fertilizer types and records on creation", async () => {
     const { watering } = mountRound();
     await flushPromises();
@@ -187,6 +204,36 @@ describe("WaterRound", () => {
       await toast.showToastWithAction.mock.calls[0][2]();
       await flushPromises();
       expect(wrapper.find(".last-round").exists()).toBe(false);
+    });
+
+    it("undoes a round only once when the toast and the page button both fire", async () => {
+      const { wrapper, watering } = mountRound();
+      await flushPromises();
+      await wrapper.find(".log-button").trigger("click");
+      await flushPromises();
+      await wrapper.find(".last-round-undo").trigger("click");
+      await flushPromises();
+      await toast.showToastWithAction.mock.calls[0][2]();
+      await flushPromises();
+      expect(watering.removeBatch).toHaveBeenCalledTimes(1);
+      expect(toast.showSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores a second undo while the first is pending", async () => {
+      const { wrapper, watering } = mountRound();
+      await flushPromises();
+      await wrapper.find(".log-button").trigger("click");
+      await flushPromises();
+      let finish: () => void = () => {};
+      vi.mocked(watering.removeBatch).mockReturnValueOnce(
+        new Promise<void>((resolve) => (finish = resolve)),
+      );
+      await wrapper.find(".last-round-undo").trigger("click");
+      expect(wrapper.find(".last-round-undo").attributes("disabled")).toBeDefined();
+      await toast.showToastWithAction.mock.calls[0][2]();
+      finish();
+      await flushPromises();
+      expect(watering.removeBatch).toHaveBeenCalledTimes(1);
     });
 
     it("keeps the row when the undo request fails", async () => {

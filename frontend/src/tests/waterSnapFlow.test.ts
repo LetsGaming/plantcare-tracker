@@ -272,6 +272,18 @@ describe("WaterRound snap flow", () => {
     expect(sheetProps(wrapper).loggedPlantId).toBe(1);
   });
 
+  it("shows the latest photo of the logged plant", async () => {
+    const { wrapper, plants, vm } = await mountRound();
+    (plants.personalPlants[0] as unknown as { images: unknown[] }).images = [
+      { id: 1, url: "/img/first.jpg" },
+      { id: 2, url: "/img/second.jpg" },
+      { id: 3, url: "/img/latest.jpg" },
+    ];
+    await vm.onPhoto(photo());
+    await vm.onPick(1);
+    expect(sheetProps(wrapper).loggedImageUrl).toBe("/img/latest.jpg");
+  });
+
   it("returns focus to the snap button when the sheet closes", async () => {
     const { wrapper, vm } = await mountRound();
     await vm.onPhoto(photo());

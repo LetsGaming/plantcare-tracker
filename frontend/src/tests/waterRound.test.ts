@@ -50,6 +50,26 @@ describe("buildRoundRows", () => {
     expect(rows.map((r) => r.name)).toEqual(["Alpha", "Beta"]);
   });
 
+  it("keeps a plant whose records never loaded neutral, unticked and last", () => {
+    const history: Record<number, WateringRecord[] | undefined> = {
+      1: undefined,
+      2: [],
+      3: [rec(1)],
+    };
+    const rows = buildRoundRows(
+      [plant(1, "Unloaded"), plant(2, "Empty"), plant(3, "Fresh")],
+      (id) => history[id],
+      now,
+    );
+    const unloaded = rows.find((r) => r.name === "Unloaded")!;
+    expect(unloaded.tone).toBe("ok");
+    expect(unloaded.checked).toBe(false);
+    expect(unloaded.rank).toBe(0);
+    const empty = rows.find((r) => r.name === "Empty")!;
+    expect(empty.tone).toBe("new");
+    expect(empty.checked).toBe(true);
+  });
+
   it("leaves the fertilizer following the round", () => {
     const [row] = buildRoundRows([plant(1, "A")], () => [], now);
     expect(row.fertilizerTypeId).toBeUndefined();
