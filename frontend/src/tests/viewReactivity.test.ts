@@ -35,6 +35,8 @@ import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
 import PlantOverview from "@/views/plants/PlantOverview.vue";
 import { usePlantsStore } from "@/stores/plants";
 import { useWateringStore } from "@/stores/watering";
+import en from "@/locales/en";
+import de from "@/locales/de";
 
 const record = (id: number, millis: number) => ({
   id,
@@ -47,12 +49,12 @@ const record = (id: number, millis: number) => ({
 
 // ── WateringRecords component ────────────────────────────────────────────────
 
-const mountRecords = (records: unknown[] = []) => {
+const mountRecords = (records: unknown[] = [], props: Record<string, unknown> = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const store = useWateringStore(pinia);
   store.byPlantId = { 1: records as WateringRecord[] };
   const wrapper = shallowMount(WateringRecords, {
-    props: { plantId: 1 },
+    props: { plantId: 1, ...props },
     global: { plugins: [pinia] },
   });
   return { wrapper, store };
@@ -152,6 +154,57 @@ describe("WateringRecords: store-driven records", () => {
       ["2026-05-07", "watering.category.organic"],
       ["2026-05-08", "watering.category.no_fertilizer"],
     ]);
+    wrapper.unmount();
+  });
+});
+
+describe("WateringRecords: one tap on a calendar day", () => {
+  const recordDay = new Date(2026, 4, 3, 12, 0).getTime();
+
+  it("opens the add form for an empty day on the first tap", async () => {
+    const { wrapper } = mountRecords([record(1, recordDay)]);
+    await flushPromises();
+
+    (wrapper.vm as any).onDateChange("2026-05-10");
+
+    expect((wrapper.vm as any).showModal).toBe(true);
+    expect((wrapper.vm as any).modalMode).toBe("add");
+    expect((wrapper.vm as any).modalDay).toBe("2026-05-10");
+    expect((wrapper.vm as any).showPopover).toBe(false);
+    expect((wrapper.vm as any).selectedDate).toBe("2026-05-10");
+    wrapper.unmount();
+  });
+
+  it("opens the popover and not the add form for a day with a record", async () => {
+    const { wrapper } = mountRecords([record(1, recordDay)]);
+    await flushPromises();
+
+    (wrapper.vm as any).onDateChange("2026-05-03");
+
+    expect((wrapper.vm as any).showPopover).toBe(true);
+    expect((wrapper.vm as any).selectedRecord?.id).toBe(1);
+    expect((wrapper.vm as any).showModal).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("opens nothing for an empty day when adding is not allowed", async () => {
+    const { wrapper } = mountRecords([record(1, recordDay)], { showAddButton: false });
+    await flushPromises();
+
+    (wrapper.vm as any).onDateChange("2026-05-10");
+
+    expect((wrapper.vm as any).showModal).toBe(false);
+    expect((wrapper.vm as any).showPopover).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("renders no double tap hint and no longer ships its locale key", async () => {
+    const { wrapper } = mountRecords([record(1, recordDay)]);
+    await flushPromises();
+
+    expect(wrapper.find(".hint").exists()).toBe(false);
+    expect("plantdetail.double_tap_hint" in (en as Record<string, string>)).toBe(false);
+    expect("plantdetail.double_tap_hint" in (de as Record<string, string>)).toBe(false);
     wrapper.unmount();
   });
 });

@@ -30,8 +30,6 @@
       @dismissed-popover="showPopover = false"
     />
 
-    <p v-if="canAdd" class="hint">{{ t("plantdetail.double_tap_hint") }}</p>
-
     <watering-record-modal
       :is-open="showModal"
       :mode="modalMode"
@@ -221,7 +219,7 @@ export default defineComponent({
         this.records.find((record) => toDayKey(record.date_millis) === day) ?? null;
       this.showPopover = !!this.selectedRecord;
 
-      if (!this.selectedRecord && this.selectedDate === day) this.openAdd(day);
+      if (!this.selectedRecord) this.openAdd(day);
 
       this.selectedDate = day;
     },
@@ -342,7 +340,6 @@ export default defineComponent({
 }
 
 .fertilizer-stat,
-.hint,
 .empty-message {
   margin: 0;
   font-size: var(--text-sm);
@@ -352,9 +349,5 @@ export default defineComponent({
 .empty-title {
   margin: 0;
   font-weight: 600;
-}
-
-.hint {
-  font-size: var(--text-xs);
 }
 </style>

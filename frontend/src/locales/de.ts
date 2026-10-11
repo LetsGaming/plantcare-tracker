@@ -1000,9 +1000,6 @@ export default {
 
   "plantdetail.add_watering": "Gießen eintragen",
 
-  "plantdetail.double_tap_hint":
-    "Tipp: Tippe einen leeren Tag zweimal an, um dort ein Gießen einzutragen.",
-
   "plantdetail.no_records_title": "Noch kein Gießen eingetragen",
 
   "plantdetail.no_records_message":

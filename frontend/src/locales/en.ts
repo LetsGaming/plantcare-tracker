@@ -995,8 +995,6 @@ export default {
 
   "plantdetail.add_watering": "Add watering",
 
-  "plantdetail.double_tap_hint": "Tip: tap an empty day twice to log a watering for that day.",
-
   "plantdetail.no_records_title": "No waterings logged yet",
 
   "plantdetail.no_records_message":
