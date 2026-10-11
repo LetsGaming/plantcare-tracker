@@ -19,8 +19,10 @@ import { fetchJson } from '../../../src/modules/sales/infrastructure/HttpFetcher
 import { ShopifyJsonStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/ShopifyJsonStrategy';
 import { JsonLdStrategy } from '../../../src/modules/sales/infrastructure/scrapers/strategies/JsonLdStrategy';
 import {
+  BlattmanufakturScraper,
   FoliageFactoryScraper,
   GrowJungleScraper,
+  MgPlantsScraper,
   PlantThatPlantScraper,
   PlntsScraper,
 } from '../../../src/modules/sales/infrastructure/scrapers';
@@ -374,6 +376,29 @@ describe.each([
       },
     ],
   },
+  {
+    name: 'BlattmanufakturScraper',
+    Scraper: BlattmanufakturScraper,
+    feedFixture: 'blattmanufaktur-products.json',
+    htmlFixture: 'blattmanufaktur-cards.html',
+    feedUrl:
+      'https://www.blattmanufaktur.de/collections/sale-automatisch/products.json?limit=250&page=1',
+    finalUrl: 'https://www.blattmanufaktur.de/collections/sale-automatisch',
+    feedItems: [
+      { name: "Alocasia 'Dragon Scale Mint Variegata'", newPrice: 19.9, oldPrice: 29.9 },
+      { name: 'Alocasia Mandalay', newPrice: 14.9, oldPrice: 20.9 },
+    ],
+    htmlItems: [
+      {
+        name: "Alocasia 'Dragon Scale Mint Variegata'",
+        newPrice: 19.9,
+        oldPrice: 29.9,
+        linkPath: '/products/alocasia-dragon-scale-variegata',
+        imgPath:
+          '/cdn/shop/files/rn-image_picker_lib_temp_6d1cf4ff-a42c-416d-af68-b7aa7981ad03.jpg',
+      },
+    ],
+  },
 ])('$name', (shop) => {
   const config = (new shop.Scraper(new NodeCacheAdapter()) as unknown as { config: ScraperConfig })
     .config;
@@ -407,6 +432,32 @@ describe.each([
       expect(items[index].link).toContain(linkPath);
       expect(items[index].img).toContain(imgPath);
     });
+  });
+});
+
+describe('MgPlantsScraper', () => {
+  const config = (
+    new MgPlantsScraper(new NodeCacheAdapter()) as unknown as { config: ScraperConfig }
+  ).config;
+
+  it('reads the whole catalogue feed and drops soil and bundles', async () => {
+    vi.mocked(fetchJson).mockResolvedValue(JSON.parse(fixture('mgplants-products.json')));
+
+    const items = await new ShopifyJsonStrategy().extract(ctxFor(null, { config }));
+
+    expect(fetchJson).toHaveBeenCalledWith(
+      'https://mg-plants.com/collections/all/products.json?limit=250&page=1',
+    );
+    expect(items.map(({ name, newPrice, oldPrice }) => ({ name, newPrice, oldPrice }))).toEqual([
+      { name: 'Alocasia Frydek Varigata - Tissue Culture (TC)', newPrice: 9.9, oldPrice: 19.9 },
+      { name: 'Alocasia Jacklyn Aurea- TC', newPrice: 39, oldPrice: 59 },
+    ]);
+    for (const item of items) expect(item.img).toMatch(/^https:\/\//);
+  });
+
+  it('reads four feed pages and has no HTML fallback', () => {
+    expect(config.maxPages).toBe(4);
+    expect(config.selectors).toBeUndefined();
   });
 });
 

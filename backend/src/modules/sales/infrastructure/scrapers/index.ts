@@ -402,6 +402,63 @@ export class GrowJungleScraper extends BaseScraper {
   }
 }
 
+// ── Blattmanufaktur ───────────────────────────────────────────────────────────
+
+export class BlattmanufakturScraper extends BaseScraper {
+  constructor(cache: CacheService, health?: SourceHealthReporter) {
+    super(
+      {
+        key: 'blattmanufaktur',
+        seller: 'Blattmanufaktur',
+        baseUrl:
+          'https://www.blattmanufaktur.de/collections/sale-automatisch?filter.v.availability=1',
+        shopifyCollectionUrl: 'https://www.blattmanufaktur.de/collections/sale-automatisch',
+        // The product type is empty, only the tags tell pots, substrate and cards from plants
+        shopifyProductFilter: ({ tags }) =>
+          !tags.some((tag) => /^(töpfe|substrate|karte|botanic)/i.test(tag)),
+        pagePattern: '&page={{page}}',
+        maxPages: 1,
+        selectors: {
+          container: '.card-wrapper',
+          oldPrice: '.price__sale s.price-item--regular',
+          newPrice: '.price__sale .price-item--sale',
+          link: '.card__heading a',
+          name: '.card__heading a',
+          img: '.card__media img',
+        },
+      },
+      cache,
+      health,
+    );
+  }
+}
+
+// ── MG-Plants ─────────────────────────────────────────────────────────────────
+
+export class MgPlantsScraper extends BaseScraper {
+  constructor(cache: CacheService, health?: SourceHealthReporter) {
+    super(
+      {
+        key: 'mgPlants',
+        seller: 'MG-Plants',
+        // No sale collection covers the stock and the theme lists 12 products per page, so only
+        // the JSON feed of the whole catalogue is usable. Without selectors, a broken feed
+        // reports the source as failing instead of silently degraded.
+        baseUrl: 'https://mg-plants.com/collections/all?filter.v.availability=1',
+        shopifyCollectionUrl: 'https://mg-plants.com/collections/all',
+        shopifyProductFilter: ({ title, productType, tags }) =>
+          !/^(substrat|vify gift card)$/i.test(productType) &&
+          !tags.some((tag) => /^pre-?order$/i.test(tag)) &&
+          !/bundel|bundle|\bset\b|dünger|gutschein|\bsoil\b|substrat/i.test(title),
+        pagePattern: '&page={{page}}',
+        maxPages: 4,
+      },
+      cache,
+      health,
+    );
+  }
+}
+
 // ── Registry factory ──────────────────────────────────────────────────────────
 
 export const createAllScrapers = (
@@ -420,4 +477,6 @@ export const createAllScrapers = (
   new FoliageFactoryScraper(cache, health),
   new PlantThatPlantScraper(cache, health),
   new GrowJungleScraper(cache, health),
+  new BlattmanufakturScraper(cache, health),
+  new MgPlantsScraper(cache, health),
 ];
