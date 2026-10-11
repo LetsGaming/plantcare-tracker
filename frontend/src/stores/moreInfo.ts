@@ -7,7 +7,8 @@
  * written when the stream completes. A stream that errors or ends with a status
  * other than completed rejects, keeps its partial draft for display and is
  * never cached. A stream stopped by the user resolves, keeps its partial draft
- * for display and is never cached either. Failures are not toasted: the guide section presents them inline.
+ * for display and is never cached either.
+ * Failures are not toasted: the guide section presents them inline.
  */
 
 import { defineStore } from "pinia";
@@ -21,6 +22,10 @@ const BASE_ENDPOINT = "/more-info";
 
 /** Halts the running stream per key; kept outside the reactive state. */
 const haltByKey = new Map<string, () => void>();
+
+/** Keys whose load is running, and those stopped before their stream opened. */
+const pendingKeys = new Set<string>();
+const stopRequested = new Set<string>();
 
 /** One guide per plant name and language. */
 export const moreInfoKey = (plantName: string, lang: string): string => `${lang}:${plantName}`;
@@ -70,17 +75,28 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       if (!force && fresh) return Promise.resolve();
 
       return coalesced(this, key, async () => {
-        if (!force && Object.keys(this.byKey).length === 0) {
-          await this.$hydrate();
-          if (this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null)) return;
+        pendingKeys.add(key);
+        stopRequested.delete(key);
+        try {
+          if (!force && Object.keys(this.byKey).length === 0) {
+            await this.$hydrate();
+            if (this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null)) return;
+          }
+          if (stopRequested.has(key)) return;
+          await this.runStream(plantName, key);
+        } finally {
+          pendingKeys.delete(key);
+          stopRequested.delete(key);
         }
-        await this.runStream(plantName, key);
       });
     },
 
     /** Stops the running stream for this plant; every waiting caller resolves. */
     stopInfo(plantName: string): void {
-      haltByKey.get(moreInfoKey(plantName, localizationService.getLocale()))?.();
+      const key = moreInfoKey(plantName, localizationService.getLocale());
+      const halt = haltByKey.get(key);
+      if (halt) halt();
+      else if (pendingKeys.has(key)) stopRequested.add(key);
     },
 
     runStream(plantName: string, key: string): Promise<void> {

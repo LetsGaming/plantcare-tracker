@@ -54,6 +54,8 @@ const messages =
     h.onDone?.({ status: "completed" });
   };
 
+type StoredGuides = { data: Record<string, unknown> };
+
 const newStore = async () => {
   await createInstalledPinia();
   return useMoreInfoStore();
@@ -272,9 +274,59 @@ describe("stopInfo", () => {
     store.stopInfo("Aloe");
     await pending;
     await vi.advanceTimersByTimeAsync(500);
-    const stored = memoryStore.get("more_info_data") as
-      { data: Record<string, unknown> } | undefined;
+    const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
     expect(Object.keys(stored?.data ?? {})).toEqual([]);
+  });
+
+  it("stops a load that is still hydrating without ever opening a stream", async () => {
+    vi.useFakeTimers();
+    startOpenStream();
+    const store = await newStore();
+    let release!: () => void;
+    vi.spyOn(store, "$hydrate").mockImplementation(
+      () => new Promise<void>((resolve) => (release = resolve)),
+    );
+    const pending = store.ensureInfo("Aloe");
+    await vi.advanceTimersByTimeAsync(0);
+
+    store.stopInfo("Aloe");
+    release();
+    await expect(pending).resolves.toBeUndefined();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(stream.endpoints).toHaveLength(0);
+    expect(store.streaming["en:Aloe"]).toBeFalsy();
+    expect(store.byKey["en:Aloe"]).toBeUndefined();
+    expect(store.fetchedAtByKey["en:Aloe"]).toBeUndefined();
+    const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
+    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+  });
+
+  it("does not let an earlier stop cancel a later forced load", async () => {
+    const store = await newStore();
+    store.stopInfo("Aloe");
+    stream.script = messages({ type: "ai_chunk", value: "whole guide" });
+    await store.ensureInfo("Aloe", { force: true });
+    expect(stream.endpoints).toHaveLength(1);
+    expect(store.byKey["en:Aloe"][0].ai).toContain("whole guide");
+  });
+
+  it("clears a stop request when the stopped load settles", async () => {
+    let release!: () => void;
+    const store = await newStore();
+    vi.spyOn(store, "$hydrate").mockImplementationOnce(
+      () => new Promise<void>((resolve) => (release = resolve)),
+    );
+    const pending = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    store.stopInfo("Aloe");
+    release();
+    await pending;
+
+    stream.script = messages({ type: "ai_chunk", value: "whole guide" });
+    await store.ensureInfo("Aloe", { force: true });
+    expect(stream.endpoints).toHaveLength(1);
+    expect(store.byKey["en:Aloe"][0].ai).toContain("whole guide");
   });
 
   it("ignores messages, errors and completion arriving after the stop", async () => {
