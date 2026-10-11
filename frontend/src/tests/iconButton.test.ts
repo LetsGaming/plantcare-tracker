@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import IconButton from "@/components/ui/IconButton.vue";
 
 type Ctx = { $el: unknown; $attrs: Record<string, unknown> };
-const sync = (IconButton as unknown as { methods: { syncNativeAria: (this: Ctx) => void } })
-  .methods.syncNativeAria;
+const sync = (IconButton as unknown as { methods: { syncNativeAria: (this: Ctx) => void } }).methods
+  .syncNativeAria;
 
 const native = () => document.createElement("button");
 const host = (button: HTMLButtonElement | null) => ({

@@ -204,7 +204,6 @@ export default defineComponent({
         return resolveCategoryColors(category, {
           fallback: readCssColor(DEFAULT_WATERING_TOKENS[name]),
           page: this.pageColor,
-        surface: this.surfaceColor,
           surface: this.surfaceColor,
         });
       };

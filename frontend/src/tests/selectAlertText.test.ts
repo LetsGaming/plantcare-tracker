@@ -9,8 +9,8 @@ describe("select alert buttons", () => {
     "translates cancel and ok in %s",
     (file) => {
       const select = source(file).match(/<ion-select\b[^>]*>/s)?.[0] ?? "";
-      expect(select).toContain(':cancel-text="t(\'common.cancel\')"');
-      expect(select).toContain(':ok-text="t(\'copy2.select.ok\')"');
+      expect(select).toContain(":cancel-text=\"t('common.cancel')\"");
+      expect(select).toContain(":ok-text=\"t('copy2.select.ok')\"");
     },
   );
 });

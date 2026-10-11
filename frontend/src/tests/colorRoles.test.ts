@@ -147,7 +147,7 @@ describe("chart series tokens", () => {
   for (const file of ["charts/PieChart.vue", "substrates/SubstrateContainer.vue"]) {
     it(`${file} reads --series-1..5 only`, () => {
       const source = vue(file);
-      expect(source).toContain("PALETTE_SIZE = 5");
+      expect(source).toContain("@/utils/seriesColors");
       expect(source).toMatch(/--series-/);
       expect(source).not.toMatch(/--chart-\d|--chart-\$\{/);
       expect(source).not.toContain("swatch-6");

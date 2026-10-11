@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import de from "@/locales/de";
 import en from "@/locales/en";
 
-const css = readFileSync(resolve(__dirname, "../theme/custom.css"), "utf8");
+const css = readFileSync(resolve(__dirname, "../theme/custom.css"), "utf8").replaceAll(
+  "\r\n",
+  "\n",
+);
 
 function rulesFor(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -43,8 +46,7 @@ describe("tab bar styles", () => {
 
 describe("searchbar focus", () => {
   it("draws the shared 3px focus ring with an offset", () => {
-    const body = rulesFor("ion-searchbar.searchbar-has-focus,
-ion-searchbar:focus-within");
+    const body = rulesFor("ion-searchbar.searchbar-has-focus,\nion-searchbar:focus-within");
     expect(body).toContain("outline: 3px solid var(--focus-ring)");
     expect(body).toContain("outline-offset: 2px");
   });
