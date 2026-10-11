@@ -1395,7 +1395,7 @@ export default {
   "water.row_fertilizer": "Dünger für {name}",
   "water.log_count": "Gießen eintragen ({count})",
   "water.round_logged": "Gießvorgänge eingetragen: {count}",
-  "water.last_round": "Letzte Runde: {count} Pflanzen gegossen",
+  "water.last_round": "Letzte Runde: {count} gegossen",
   "water.empty": "Noch keine Pflanzen zum Gießen. Lege zuerst eine Pflanze an.",
   "water.no_match": "Keine Pflanze passt zu deiner Suche.",
   "water.empty_cta": "Pflanze hinzufügen",

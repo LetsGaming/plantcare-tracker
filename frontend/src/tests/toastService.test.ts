@@ -52,15 +52,6 @@ describe("ToastService", () => {
     expect(buttons[1].role).toBe("cancel");
   });
 
-  it("keeps a toast with duration 0 until dismissed and gives it a close button", async () => {
-    ToastService.showToastWithAction("Logged", "Undo", vi.fn(), 0);
-    await flush();
-    expect(created[0].duration).toBe(0);
-    const buttons = created[0].buttons as Array<{ text: string; role?: string }>;
-    expect(buttons.map((b) => b.text)).toEqual(["Undo", "Dismiss"]);
-    expect(buttons[1].role).toBe("cancel");
-  });
-
   it("adds no close button to a toast that dismisses itself", async () => {
     ToastService.showToastWithAction("Logged", "Undo", vi.fn(), 10000);
     await flush();

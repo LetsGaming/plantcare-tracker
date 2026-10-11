@@ -348,13 +348,12 @@ export default defineComponent({
       try {
         const ids = await this.addBatch(entries);
         for (const plantId of plantIds) delete this.overrides[plantId];
-        if (this.lastRound) await this.dismissToasts();
         this.rememberRound({ ids, plantIds, count: ids.length });
         ToastService.showToastWithAction(
           { key: "water.round_logged", vars: { count: ids.length } },
           this.t("plantdetail.undo"),
           () => void this.undoRound(ids, plantIds),
-          0,
+          UNDO_TOAST_MS,
         );
       } catch (error) {
         console.error("Logging the watering round failed:", error);
@@ -494,13 +493,6 @@ export default defineComponent({
         this.lastRound = null;
       }, LAST_ROUND_MS);
     },
-    async dismissToasts() {
-      try {
-        await ToastService.dismissAllToasts();
-      } catch {
-        // No toast was showing.
-      }
-    },
     async undoLastRound() {
       const round = this.lastRound;
       if (!round) return;
@@ -513,7 +505,6 @@ export default defineComponent({
           clearTimeout(this.lastRoundTimer);
           this.lastRound = null;
         }
-        await this.dismissToasts();
         ToastService.showSuccess({ key: "plantdetail.undone" });
       } catch (error) {
         console.error("Undoing the watering round failed:", error);

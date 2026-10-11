@@ -6,7 +6,6 @@ const toast = vi.hoisted(() => ({
   showSuccess: vi.fn(),
   showError: vi.fn(),
   showToastWithAction: vi.fn(),
-  dismissAllToasts: vi.fn(),
 }));
 
 vi.mock("@/services/general/ToastService", () => ({ default: toast }));
@@ -137,8 +136,7 @@ describe("WaterRound", () => {
     expect(toast.showToastWithAction).toHaveBeenCalledTimes(1);
     const [message, , handler, duration] = toast.showToastWithAction.mock.calls[0];
     expect(message).toEqual({ key: "water.round_logged", vars: { count: 2 } });
-    expect(duration).toBe(0);
-    expect(duration).not.toBe(UNDO_TOAST_MS);
+    expect(duration).toBe(UNDO_TOAST_MS);
     await handler();
     await flushPromises();
     expect(watering.removeBatch).toHaveBeenCalledWith([11, 12], expect.arrayContaining([2, 3]));
@@ -177,7 +175,6 @@ describe("WaterRound", () => {
       await flushPromises();
       expect(watering.removeBatch).toHaveBeenCalledTimes(1);
       expect(watering.removeBatch).toHaveBeenCalledWith([11, 12], expect.arrayContaining([2, 3]));
-      expect(toast.dismissAllToasts).toHaveBeenCalled();
       expect(toast.showSuccess).toHaveBeenCalledWith({ key: "plantdetail.undone" });
       expect(wrapper.find(".last-round").exists()).toBe(false);
     });
@@ -228,6 +225,7 @@ describe("WaterRound", () => {
       await saveRound(wrapper);
       expect(wrapper.findAll(".last-round")).toHaveLength(1);
       expect(wrapper.find(".last-round").text()).toContain('"count":3');
+      expect(toast.showToastWithAction).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(2000);
       expect(wrapper.find(".last-round").exists()).toBe(true);
       await wrapper.find(".last-round-undo").trigger("click");
