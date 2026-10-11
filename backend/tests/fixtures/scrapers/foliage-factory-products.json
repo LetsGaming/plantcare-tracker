@@ -1,0 +1,85 @@
+{
+  "products": [
+    {
+      "handle": "monstera-deliciosa-variegata-super-white",
+      "title": "Monstera deliciosa variegata 'Super White'",
+      "product_type": "fah",
+      "tags": [
+        "Araceae",
+        "Aroids",
+        "Bestselling Plants",
+        "ffcoll-fenestrated-split-leaves",
+        "Houseplants",
+        "Monstera",
+        "Rare Plants",
+        "Toxic",
+        "Variegated Plants"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0979/5115/4506/files/monstera-deliciosa-variegata-super-white-foliage-01.webp?v=1780485076"
+        }
+      ],
+      "variants": [
+        {
+          "price": "59.00",
+          "compare_at_price": "93.45",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "monstera-thai-constellation",
+      "title": "Monstera 'Thai Constellation'",
+      "product_type": "fah",
+      "tags": [
+        "Araceae",
+        "Aroids",
+        "Bestselling Plants",
+        "ffcoll-fenestrated-split-leaves",
+        "Houseplants",
+        "Monstera",
+        "Toxic",
+        "Variegated Plants"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0979/5115/4506/files/monstera-thai-constellation-foliage-06.webp?v=1780614908"
+        }
+      ],
+      "variants": [
+        {
+          "price": "10.75",
+          "compare_at_price": null,
+          "available": true
+        },
+        {
+          "price": "35.00",
+          "compare_at_price": "49.75",
+          "available": true
+        }
+      ]
+    },
+    {
+      "handle": "artstone-planter-claire",
+      "title": "Artstone Planter 'Claire'",
+      "product_type": "fah",
+      "tags": [
+        "Planters",
+        "Pots & Planters"
+      ],
+      "images": [
+        {
+          "src": "https://cdn.shopify.com/s/files/1/0979/5115/4506/files/Claire-Artstone-Plant-Pots.webp?v=1774643879"
+        }
+      ],
+      "variants": [
+        {
+          "price": "24.50",
+          "compare_at_price": "29.00",
+          "available": true
+        }
+      ]
+    }
+  ]
+}

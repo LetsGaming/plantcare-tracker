@@ -197,7 +197,7 @@ Scrapers inherit from `BaseScraper` and only provide config. `BaseScraper` runs 
 
 | Strategy | Source of data | Notes |
 |----------|----------------|-------|
-| `shopifyJson` | `<collection>/products.json` | Primary for the seven Shopify shops. An empty feed counts as a valid, empty sale. |
+| `shopifyJson` | `<collection>/products.json` | Primary for the ten Shopify shops. An empty feed counts as a valid, empty sale. A shop can set `shopifyProductFilter` to drop non-plants by title, type or tags and `shopifyCountry` to pin the market (and so the currency) of the feed. |
 | `selector` | CSS selectors from the shop config | Selector fields accept a list of candidates. Foliage Dreams and Harmony Plants use a custom `parseFn`. |
 | `jsonLd` | `application/ld+json` product data | Needs a strike-through price in the markup. |
 | `heuristic` | Struck-through prices and the surrounding card | Last resort. It refuses containers holding several products rather than guessing a link. |

@@ -303,6 +303,105 @@ export class HarmonyPlantsScraper extends BaseScraper {
   }
 }
 
+// ── FoliageFactory ────────────────────────────────────────────────────────────
+
+export class FoliageFactoryScraper extends BaseScraper {
+  constructor(cache: CacheService, health?: SourceHealthReporter) {
+    super(
+      {
+        key: 'foliageFactory',
+        seller: 'Foliage Factory',
+        baseUrl: 'https://foliage-factory.com/collections/sale?filter.v.availability=1',
+        shopifyCollectionUrl: 'https://foliage-factory.com/collections/sale',
+        // The product type is a shop internal code, only the tags tell plants from planters
+        shopifyProductFilter: ({ tags }) => tags.includes('Houseplants'),
+        pagePattern: '&page={{page}}',
+        maxPages: 1,
+        selectors: {
+          container: 'product-card',
+          oldPrice: 'compare-at-price',
+          newPrice: 'sale-price',
+          outOfStockText: /ausverkauft|sold out/i,
+          link: 'a.product-title',
+          name: 'a.product-title',
+          img: '.product-card__image--primary',
+        },
+      },
+      cache,
+      health,
+    );
+  }
+}
+
+// ── PlantThatPlant ────────────────────────────────────────────────────────────
+
+const PTP_EXCLUDED_TYPE = /pre-?order|accessor|pest|pot|gift/i;
+const PTP_EXCLUDED_TAG = /pre-?order|bundle/i;
+const PTP_EXCLUDED_TITLE = /pre-?order|mystery|subscription|bundle|starter kit|\bbox\b/i;
+
+export class PlantThatPlantScraper extends BaseScraper {
+  constructor(cache: CacheService, health?: SourceHealthReporter) {
+    super(
+      {
+        key: 'plantThatPlant',
+        seller: 'PlantThatPlant',
+        // No sale collection exists, so the plant catalogue is read for compare-at prices.
+        // The shop prices in SEK unless the market is pinned.
+        baseUrl:
+          'https://www.plantthatplant.com/collections/all-plants-1?filter.v.availability=1&country=DE',
+        shopifyCollectionUrl: 'https://www.plantthatplant.com/collections/all-plants-1',
+        shopifyCountry: 'DE',
+        shopifyProductFilter: ({ title, productType, tags }) =>
+          !PTP_EXCLUDED_TYPE.test(productType) &&
+          !tags.some((tag) => PTP_EXCLUDED_TAG.test(tag)) &&
+          !PTP_EXCLUDED_TITLE.test(title),
+        pagePattern: '&page={{page}}',
+        maxPages: 2,
+        selectors: {
+          container: '.card-wrapper',
+          oldPrice: '.price__sale s.price-item--regular',
+          newPrice: '.price__sale .price-item--sale',
+          link: '.card__heading a',
+          name: '.card__heading a',
+          img: '.card__media img',
+        },
+      },
+      cache,
+      health,
+    );
+  }
+}
+
+// ── GrowJungle ────────────────────────────────────────────────────────────────
+
+export class GrowJungleScraper extends BaseScraper {
+  constructor(cache: CacheService, health?: SourceHealthReporter) {
+    super(
+      {
+        key: 'growJungle',
+        seller: 'Grow Jungle',
+        baseUrl: 'https://www.growjungle.com/collections/sale-2?filter.v.availability=1',
+        shopifyCollectionUrl: 'https://www.growjungle.com/collections/sale-2',
+        shopifyProductFilter: ({ title, productType }) =>
+          !/care|accessor|gift/i.test(productType) && !/pre-?order/i.test(title),
+        pagePattern: '&page={{page}}',
+        maxPages: 1,
+        selectors: {
+          container: '.m-product-card',
+          oldPrice: '.m-price__sale s.m-price-item--regular',
+          newPrice: '.m-price__sale .m-price-item--sale',
+          outOfStockText: /ausverkauft|sold out/i,
+          link: 'a.m-product-card__name',
+          name: 'a.m-product-card__name',
+          img: '.m-product-card__main-image img',
+        },
+      },
+      cache,
+      health,
+    );
+  }
+}
+
 // ── Registry factory ──────────────────────────────────────────────────────────
 
 export const createAllScrapers = (
@@ -318,4 +417,7 @@ export const createAllScrapers = (
   new JungleLeavesScraper(cache, health),
   new PotflourriScraper(cache, health),
   new HarmonyPlantsScraper(cache, health),
+  new FoliageFactoryScraper(cache, health),
+  new PlantThatPlantScraper(cache, health),
+  new GrowJungleScraper(cache, health),
 ];
