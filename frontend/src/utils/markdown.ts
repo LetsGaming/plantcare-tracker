@@ -10,10 +10,13 @@ const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (c) => HTM
 
 const renderInlines = (text: string): string =>
   text
-    .replace(/\*\*\*(.*?)\*\*\*/g, "<strong><em>$1</em></strong>")
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/^([\w\s/]+):/gm, "<strong>$1:</strong>");
+    .replace(
+      /\*\*\*(.*?)\*\*\*/g,
+      '<strong class="info-strong"><em class="info-em">$1</em></strong>',
+    )
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="info-strong">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em class="info-em">$1</em>')
+    .replace(/^([\w\s/]+):/gm, '<strong class="info-strong">$1:</strong>');
 
 const HEADING = /^(#{1,6})\s*(.*)$/;
 const LIST_ITEM = /^([-*]|\d+\.)\s+/;

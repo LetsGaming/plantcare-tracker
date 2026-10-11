@@ -1047,6 +1047,12 @@ export default {
 
   "moreinfo2.writing": "Writing the care guide...",
 
+  "moreinfo2.stop": "Stop",
+
+  "moreinfo2.done": "Guide complete",
+
+  "moreinfo2.stopped": "Guide stopped",
+
   "moreinfo2.error": "The care guide could not be loaded",
 
   "moreinfo2.error_partial": "Showing what arrived before the connection broke.",

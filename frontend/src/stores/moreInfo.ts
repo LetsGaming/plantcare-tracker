@@ -6,7 +6,8 @@
  * lives in `drafts` and is shown; `byKey` (the persisted part) is only
  * written when the stream completes. A stream that errors or ends with a status
  * other than completed rejects, keeps its partial draft for display and is
- * never cached. Failures are not toasted: the guide section presents them inline.
+ * never cached. A stream stopped by the user resolves, keeps its partial draft
+ * for display and is never cached either. Failures are not toasted: the guide section presents them inline.
  */
 
 import { defineStore } from "pinia";
@@ -17,6 +18,9 @@ import { renderMarkdown } from "@/utils/markdown";
 import { coalesced, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/more-info";
+
+/** Halts the running stream per key; kept outside the reactive state. */
+const haltByKey = new Map<string, () => void>();
 
 /** One guide per plant name and language. */
 export const moreInfoKey = (plantName: string, lang: string): string => `${lang}:${plantName}`;
@@ -74,6 +78,11 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       });
     },
 
+    /** Stops the running stream for this plant; every waiting caller resolves. */
+    stopInfo(plantName: string): void {
+      haltByKey.get(moreInfoKey(plantName, localizationService.getLocale()))?.();
+    },
+
     runStream(plantName: string, key: string): Promise<void> {
       this.streaming[key] = true;
       delete this.drafts[key];
@@ -81,10 +90,15 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       return new Promise<void>((resolve, reject) => {
         const raw = { links: [] as string[], ai: "" };
         let stop: (() => void) | null = null;
+        let ended = false;
 
         const render = (): MoreInfo[] =>
           MoreInfoMapper.convertToMoreInfo({ ...raw, ai: renderMarkdown(raw.ai) });
 
+        const end = () => {
+          ended = true;
+          haltByKey.delete(key);
+        };
         const finish = () => {
           this.streaming[key] = false;
           delete this.drafts[key];
@@ -92,6 +106,8 @@ export const useMoreInfoStore = defineStore("moreInfo", {
         // A failed run keeps its partial draft visible (never cached or persisted);
         // the next run clears it.
         const fail = (error: unknown) => {
+          if (ended) return;
+          end();
           stop?.();
           this.streaming[key] = false;
           reject(error);
@@ -103,9 +119,18 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           lang: localizationService.getLocale(),
         });
 
+        haltByKey.set(key, () => {
+          if (ended) return;
+          end();
+          stop?.();
+          this.streaming[key] = false;
+          resolve();
+        });
+
         void ApiUtils.stream<{ type: string; value: string }>(
           `${BASE_ENDPOINT}?${params.toString()}`,
           (event) => {
+            if (ended) return;
             try {
               // Each SSE event is one { type, value } object.
               const { type, value } = event.data;
@@ -120,10 +145,12 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           },
           fail,
           (done) => {
+            if (ended) return;
             if (done?.status && done.status !== "completed") {
               fail(new Error(`Information stream ended with status: ${done.status}`));
               return;
             }
+            end();
             stop?.();
             this.byKey[key] = render();
             this.fetchedAtByKey[key] = Date.now();
@@ -133,6 +160,7 @@ export const useMoreInfoStore = defineStore("moreInfo", {
         )
           .then((cleanup) => {
             stop = cleanup;
+            if (ended) cleanup();
           })
           .catch(fail);
       });

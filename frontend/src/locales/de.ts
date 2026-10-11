@@ -1053,6 +1053,12 @@ export default {
 
   "moreinfo2.writing": "Pflegeanleitung wird geschrieben...",
 
+  "moreinfo2.stop": "Anhalten",
+
+  "moreinfo2.done": "Pflegeanleitung fertig",
+
+  "moreinfo2.stopped": "Pflegeanleitung angehalten",
+
   "moreinfo2.error": "Pflegeanleitung konnte nicht geladen werden",
 
   "moreinfo2.error_partial": "Gezeigt wird, was vor dem Verbindungsabbruch ankam.",

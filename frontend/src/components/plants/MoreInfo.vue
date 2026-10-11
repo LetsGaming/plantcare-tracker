@@ -1,13 +1,26 @@
 <template>
-  <section class="guide" :aria-labelledby="headingId" :aria-busy="status === 'loading'">
+  <section class="guide" :aria-labelledby="headingId">
     <h2 :id="headingId" class="guide-title">{{ t("moreinfo2.guide_title") }}</h2>
 
-    <p v-if="status === 'loading'" class="guide-status" role="status">
-      <ion-spinner name="dots" aria-hidden="true" />
-      {{ t("moreinfo2.writing") }}
-    </p>
+    <div class="guide-status-row" :class="{ 'is-idle': !statusText }">
+      <p class="guide-status" role="status">
+        <ion-spinner v-if="status === 'loading'" name="dots" aria-hidden="true" />
+        {{ statusText }}
+      </p>
+      <ion-button v-if="status === 'loading'" size="small" fill="outline" @click="stop">
+        {{ t("moreinfo2.stop") }}
+      </ion-button>
+      <ion-button
+        v-else-if="status === 'stopped'"
+        size="small"
+        fill="outline"
+        @click="load(true)"
+      >
+        {{ t("state.retry") }}
+      </ion-button>
+    </div>
 
-    <div v-else-if="status === 'error'" class="guide-error" role="alert">
+    <div v-if="status === 'error'" class="guide-error" role="alert">
       <p class="guide-error-title">{{ t("moreinfo2.error") }}</p>
       <p v-if="hasContent" class="guide-error-note">{{ t("moreinfo2.error_partial") }}</p>
       <ion-button size="small" fill="outline" @click="load(true)">
@@ -15,23 +28,22 @@
       </ion-button>
     </div>
 
-    <p v-else-if="!hasContent" class="guide-empty">{{ t("moreinfo2.empty") }}</p>
+    <p v-else-if="status === 'ready' && !hasContent" class="guide-empty">
+      {{ t("moreinfo2.empty") }}
+    </p>
 
     <template v-if="hasContent">
+      <p class="note">
+        <ion-icon :icon="informationCircleOutline" aria-hidden="true" />
+        <span>{{ noteText }}</span>
+      </p>
+
       <div v-if="ai" class="guide-body">
-        <p class="note">
-          <ion-icon :icon="informationCircleOutline" aria-hidden="true" />
-          <span>{{ t("moreinfo2.disclaimer_ai") }}</span>
-        </p>
-        <div v-html="formattedAi" class="guide-text" />
+        <div v-html="ai" class="guide-text" :aria-busy="status === 'loading'" />
       </div>
 
       <div v-if="links.length > 0" class="guide-links">
         <h3 class="links-title">{{ t("moreinfo.links") }}</h3>
-        <p class="note">
-          <ion-icon :icon="informationCircleOutline" aria-hidden="true" />
-          <span>{{ t("moreinfo2.disclaimer_links") }}</span>
-        </p>
         <ul class="link-list">
           <li v-for="link in links" :key="link">
             <a
@@ -56,19 +68,12 @@ import { defineComponent } from "vue";
 import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
 import { informationCircleOutline, openOutline } from "ionicons/icons";
 import { mapActions, mapState } from "pinia";
-import { useMoreInfoStore } from "@/stores/moreInfo";
+import { moreInfoKey, useMoreInfoStore } from "@/stores/moreInfo";
 import localizationService from "@/services/general/LocalizationService";
 
-type GuideStatus = "loading" | "error" | "ready";
+type GuideStatus = "loading" | "error" | "ready" | "stopped";
 
-const CLASS_BY_SELECTOR = [
-  { sel: "ul", cls: "info-list" },
-  { sel: "li", cls: "info-item" },
-  { sel: "p", cls: "info-text-paragraph" },
-  { sel: "h1, h2, h3, h4, h5, h6", cls: "info-header" },
-  { sel: "strong", cls: "info-strong" },
-  { sel: "em", cls: "info-em" },
-];
+const DONE_NOTICE_MS = 4000;
 
 let guideCount = 0;
 
@@ -89,6 +94,10 @@ export default defineComponent({
     return {
       status: "loading" as GuideStatus,
       loadToken: 0,
+      stopped: false,
+      streamed: false,
+      doneNotice: false,
+      doneTimer: null as number | null,
       headingId: `care-guide-${++guideCount}`,
     };
   },
@@ -100,14 +109,21 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.loadToken++;
+    this.clearDoneNotice();
   },
   watch: {
+    isStreaming(active: boolean) {
+      if (active) this.streamed = true;
+    },
     plantName() {
       void this.load();
     },
   },
   computed: {
-    ...mapState(useMoreInfoStore, ["infoFor"]),
+    ...mapState(useMoreInfoStore, ["infoFor", "streaming"]),
+    isStreaming(): boolean {
+      return !!this.streaming[moreInfoKey(this.plantName, localizationService.getLocale())];
+    },
     /** The guide for this plant; the store updates it while the stream runs. */
     infos(): MoreInfo[] {
       return this.infoFor(this.plantName);
@@ -124,35 +140,55 @@ export default defineComponent({
     hasContent(): boolean {
       return this.ai.length > 0 || this.links.length > 0;
     },
-    formattedAi(): string {
-      return this.formatStreamingHtml(this.ai);
+    statusText(): string {
+      if (this.status === "loading") return this.t("moreinfo2.writing");
+      if (this.status === "stopped") return this.t("moreinfo2.stopped");
+      return this.doneNotice ? this.t("moreinfo2.done") : "";
+    },
+    noteText(): string {
+      const parts: string[] = [];
+      if (this.ai) parts.push(this.t("moreinfo2.disclaimer_ai"));
+      if (this.links.length > 0) parts.push(this.t("moreinfo2.disclaimer_links"));
+      return parts.join(" ");
     },
   },
   methods: {
-    ...mapActions(useMoreInfoStore, ["ensureInfo"]),
+    ...mapActions(useMoreInfoStore, ["ensureInfo", "stopInfo"]),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
     async load(force = false) {
       const token = ++this.loadToken;
+      this.clearDoneNotice();
+      this.stopped = false;
+      this.streamed = this.isStreaming;
       this.status = "loading";
       try {
         await this.ensureInfo(this.plantName, { force });
-        if (token === this.loadToken) this.status = "ready";
+        if (token !== this.loadToken) return;
+        if (this.stopped) {
+          this.status = "stopped";
+          return;
+        }
+        this.status = "ready";
+        if (this.streamed) this.showDoneNotice();
       } catch (error) {
         console.error("Failed to fetch more info:", error);
         if (token === this.loadToken) this.status = "error";
       }
     },
-    /** Adds the style hooks the markdown renderer leaves out. */
-    formatStreamingHtml(content: string): string {
-      if (!content) return "";
-
-      const doc = new DOMParser().parseFromString(content, "text/html");
-      CLASS_BY_SELECTOR.forEach(({ sel, cls }) => {
-        doc.querySelectorAll(sel).forEach((el) => el.classList.add(cls));
-      });
-      return doc.body.innerHTML;
+    stop() {
+      this.stopped = true;
+      this.stopInfo(this.plantName);
+    },
+    showDoneNotice() {
+      this.doneNotice = true;
+      this.doneTimer = window.setTimeout(() => this.clearDoneNotice(), DONE_NOTICE_MS);
+    },
+    clearDoneNotice() {
+      if (this.doneTimer !== null) window.clearTimeout(this.doneTimer);
+      this.doneTimer = null;
+      this.doneNotice = false;
     },
   },
 });
@@ -170,6 +206,26 @@ export default defineComponent({
 
 .guide-title {
   font-size: var(--text-lg);
+}
+
+.guide-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.guide-status-row.is-idle {
+  display: contents;
+}
+
+.guide-status-row.is-idle .guide-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .guide-status {

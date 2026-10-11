@@ -69,8 +69,8 @@ describe("renderMarkdown", () => {
 
   it("bolds the label of every line in a paragraph", () => {
     const html = parse("Licht: viel\nWasser: wenig");
-    expect(html).toContain("<strong>Licht:</strong> viel");
-    expect(html).toContain("<strong>Wasser:</strong> wenig");
+    expect(html).toContain('<strong class="info-strong">Licht:</strong> viel');
+    expect(html).toContain('<strong class="info-strong">Wasser:</strong> wenig');
   });
 
   it("renders no heading for an empty heading text", () => {
@@ -114,13 +114,13 @@ describe("renderMarkdown", () => {
 
   it("converts bold, italic and bold italic", () => {
     const html = parse("**bold** *em* ***both***");
-    expect(html).toContain("<strong>bold</strong>");
-    expect(html).toContain("<em>em</em>");
-    expect(html).toContain("<strong><em>both</em></strong>");
+    expect(html).toContain('<strong class="info-strong">bold</strong>');
+    expect(html).toContain('<em class="info-em">em</em>');
+    expect(html).toContain('<strong class="info-strong"><em class="info-em">both</em></strong>');
   });
 
   it("bolds a leading label before a colon", () => {
-    expect(parse("Light: bright")).toContain("<strong>Light:</strong> bright");
+    expect(parse("Light: bright")).toContain('<strong class="info-strong">Light:</strong> bright');
   });
 
   it("renders a partially streamed buffer without throwing", () => {
@@ -141,7 +141,7 @@ describe("renderMarkdown", () => {
 
   it("still applies markdown after escaping", () => {
     expect(parse("## **Light** <b>")).toContain(
-      '<h3 class="info-header"><strong>Light</strong> &lt;b&gt;</h3>',
+      '<h3 class="info-header"><strong class="info-strong">Light</strong> &lt;b&gt;</h3>',
     );
   });
 });
