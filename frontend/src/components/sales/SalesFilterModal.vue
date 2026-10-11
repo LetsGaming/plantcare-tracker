@@ -1,5 +1,10 @@
 <template>
-  <ion-modal v-if="mounted" :is-open="isOpen" @didDismiss="onDidDismiss">
+  <ion-modal
+    v-if="mounted"
+    :is-open="isOpen"
+    :aria-label="t('sales.filter.title')"
+    @didDismiss="onDidDismiss"
+  >
     <modal-header :header-title="t('sales.filter.title')" @close="$emit('close')" />
 
     <ion-content>

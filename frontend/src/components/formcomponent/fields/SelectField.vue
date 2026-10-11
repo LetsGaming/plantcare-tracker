@@ -20,7 +20,11 @@
       @ionBlur="$emit('blur')"
       @ionDismiss="$emit('blur')"
     >
-      <IonSelectOption v-for="option in field.options" :key="option.value" :value="option.value">
+      <IonSelectOption
+        v-for="option in field.options"
+        :key="String(option.value)"
+        :value="option.value"
+      >
         {{ t(option.label, undefined, option.label) }}
       </IonSelectOption>
     </IonSelect>
@@ -72,7 +76,7 @@ export default defineComponent({
       get() {
         return this.modelValue;
       },
-      set(val: string | number) {
+      set(val: string | number | null) {
         this.$emit("update:modelValue", val);
       },
     },

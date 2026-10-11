@@ -198,6 +198,12 @@ describe("PlantMapper.mapPlant", () => {
     expect(result.description).toBe("Monstera deliciosa");
   });
 
+  it("keeps a missing species null and the description empty", () => {
+    const result = PlantMapper.mapPlant(makeAPIPlant({ plant_species: null }));
+    expect(result.species).toBeNull();
+    expect(result.description).toBe("");
+  });
+
   it("maps substrate as a lightweight PlantSubstrateRef", () => {
     const result = PlantMapper.mapPlant(makeAPIPlant());
     expect(result.substrate).not.toBeNull();

@@ -62,7 +62,7 @@ export default defineComponent({
 .field-box {
   box-sizing: border-box;
   min-height: var(--tap-min);
-  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border: 1.5px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   transition: border-color 0.15s var(--ease-out);

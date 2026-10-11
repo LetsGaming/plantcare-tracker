@@ -22,7 +22,9 @@
               :seed="`${plantName}:${image.id}`"
             />
           </span>
-          <span v-if="image.date" class="image-date">{{ captionFor(image) }}</span>
+          <span v-if="image.date" class="image-date" aria-hidden="true">{{
+            captionFor(image)
+          }}</span>
         </button>
       </li>
     </ul>
@@ -32,6 +34,7 @@
       :isOpen="isModalVisible"
       :imageUrl="enlargedImage.url"
       :label="captionFor(enlargedImage)"
+      :alt="altFor(enlargedImage)"
       :showEditButton="showEditButton"
       @close="closeModal"
       @editClick="editClick"

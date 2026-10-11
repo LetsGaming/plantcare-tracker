@@ -1,3 +1,4 @@
+import type { Store } from "pinia";
 import { vi } from "vitest";
 
 /** In-memory stand-in for the Ionic storage backing StorageService. */
@@ -62,6 +63,8 @@ export const resetStore = () => {
   memoryStore.clear();
 };
 
+const installedStores = new Set<Store>();
+
 /** A pinia with the app's plugins, installed on a throwaway app so the plugins run. */
 export const createInstalledPinia = async () => {
   const [{ createApp }, { setActivePinia }, { createAppPinia }] = await Promise.all([
@@ -70,7 +73,20 @@ export const createInstalledPinia = async () => {
     import("@/stores/pinia"),
   ]);
   const pinia = createAppPinia();
+  pinia.use(({ store }) => {
+    installedStores.add(store);
+  });
   createApp({}).use(pinia);
   setActivePinia(pinia);
   return pinia;
+};
+
+/**
+ * Drops the debounced storage writes still pending on stores from
+ * `createInstalledPinia`. A test that ran on real timers would otherwise
+ * write into `memoryStore` up to 250 ms later, in the middle of a later test.
+ */
+export const cancelPendingPersistence = () => {
+  for (const store of installedStores) store.$cancelPersist();
+  installedStores.clear();
 };

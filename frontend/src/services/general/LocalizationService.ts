@@ -46,6 +46,23 @@ class LocalizationService {
    * @private
    */
   private initLocale(): string {
+    return this.readInitialLocale();
+  }
+
+  /**
+   * Mirrors the language the UI is actually shown in onto the document so screen
+   * readers, hyphenation and spell checking use the right language. A locale
+   * without a registered bundle is displayed in the fallback language.
+   * @private
+   */
+  private applyDocumentLanguage(locale: string): void {
+    if (typeof document === "undefined") return;
+    const supported = this.translations.has(locale) || this.loaders.has(locale);
+    document.documentElement.lang = supported ? locale : this.fallbackLocale;
+  }
+
+  /** @private */
+  private readInitialLocale(): string {
     try {
       if (typeof window !== "undefined") {
         const stored = localStorage.getItem(this.storageKey);
@@ -125,6 +142,7 @@ class LocalizationService {
 
     // Trigger reactive UI update
     this._locale.value = normalized;
+    this.applyDocumentLanguage(normalized);
 
     try {
       localStorage.setItem(this.storageKey, normalized);
@@ -204,6 +222,7 @@ class LocalizationService {
   public async resolveInitialLocale(): Promise<void> {
     const current = this._locale.value;
     await this.ensureLocaleLoaded(current);
+    this.applyDocumentLanguage(current);
   }
 
   /**

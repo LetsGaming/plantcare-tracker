@@ -122,20 +122,31 @@ const Utils = {
   },
 
   async closeOpenModal(): Promise<void> {
-    const topModal = await modalController.getTop();
-    if (topModal) {
-      await modalController.dismiss();
+    try {
+      const topModal = await modalController.getTop();
+      if (topModal) {
+        await modalController.dismiss();
+      }
+    } catch (error) {
+      console.warn("Closing the open modal failed:", error);
     }
   },
 
-  /** Closes every open modal; gives up on one that stays open, so a busy modal cannot hang navigation. */
+  /**
+   * Closes every open modal; gives up on one that stays open, so a busy modal cannot hang navigation.
+   * Never throws: a modal whose host is already unmounted rejects its dismiss, and that must not abort a navigation.
+   */
   async closeAllOpenModals(): Promise<void> {
-    let topModal = await modalController.getTop();
-    while (topModal) {
-      const dismissed = await modalController.dismiss();
-      const next = await modalController.getTop();
-      if (dismissed === false || next === topModal) return;
-      topModal = next;
+    try {
+      let topModal = await modalController.getTop();
+      while (topModal) {
+        const dismissed = await modalController.dismiss();
+        const next = await modalController.getTop();
+        if (dismissed === false || next === topModal) return;
+        topModal = next;
+      }
+    } catch (error) {
+      console.warn("Closing the open modals failed:", error);
     }
   },
 };

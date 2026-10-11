@@ -24,6 +24,7 @@
               @blur="touch(field.modelKey)"
               @update:model-value="dismissServerError(field.modelKey)"
             />
+            <slot name="after-field" :model-key="field.modelKey" />
           </div>
 
           <p v-if="submitAttempted && hasErrors" class="form-summary" role="alert">

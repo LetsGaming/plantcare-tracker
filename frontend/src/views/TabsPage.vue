@@ -9,11 +9,6 @@
           <ion-label>{{ t("tabs.plants") }}</ion-label>
         </ion-tab-button>
 
-        <ion-tab-button tab="water" href="/tabs/water">
-          <ion-icon :icon="tabIcon('water')" aria-hidden="true" />
-          <ion-label>{{ t("tabs.water") }}</ion-label>
-        </ion-tab-button>
-
         <ion-tab-button tab="substrates" href="/tabs/substrates">
           <ion-icon :icon="tabIcon('substrates')" aria-hidden="true" />
           <ion-label>{{ t("tabs.substrates") }}</ion-label>
@@ -29,7 +24,7 @@
           <ion-label>{{ t("tabs.sales") }}</ion-label>
           <ion-badge
             v-if="salesCount > 0"
-            color="secondary"
+            class="sales-badge"
             :aria-label="t('tabs.sales_new', { count: salesCount })"
           >
             {{ salesCount }}
@@ -125,5 +120,10 @@ ion-badge {
   --padding-start: 6px;
   --padding-end: 6px;
   font-weight: 700;
+}
+
+.sales-badge {
+  --background: var(--new);
+  --color: var(--new-ink);
 }
 </style>

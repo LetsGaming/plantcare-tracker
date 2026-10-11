@@ -27,12 +27,47 @@ describe("buildRoundRows", () => {
     expect(rows[0].name).toBe("Thirsty");
     expect(rows.find((r) => r.name === "Thirsty")!.checked).toBe(true);
     expect(rows.find((r) => r.name === "Ok")!.checked).toBe(false);
-    expect(rows.find((r) => r.name === "Never")!.checked).toBe(false);
+    expect(rows.find((r) => r.name === "Never")!.checked).toBe(true);
+  });
+
+  it("sorts a never watered plant after an overdue one and before a due one", () => {
+    const history: Record<number, WateringRecord[]> = {
+      1: [rec(10)],
+      2: [],
+      3: [rec(20)],
+    };
+    const rows = buildRoundRows(
+      [plant(1, "Due"), plant(2, "Never"), plant(3, "Overdue")],
+      (id) => history[id],
+      now,
+    );
+    expect(rows.map((r) => r.name)).toEqual(["Overdue", "Never", "Due"]);
+    expect(rows[1].tone).toBe("new");
   });
 
   it("orders plants of equal rank by name", () => {
     const rows = buildRoundRows([plant(1, "Beta"), plant(2, "Alpha")], () => [], now);
     expect(rows.map((r) => r.name)).toEqual(["Alpha", "Beta"]);
+  });
+
+  it("keeps a plant whose records never loaded neutral, unticked and last", () => {
+    const history: Record<number, WateringRecord[] | undefined> = {
+      1: undefined,
+      2: [],
+      3: [rec(1)],
+    };
+    const rows = buildRoundRows(
+      [plant(1, "Unloaded"), plant(2, "Empty"), plant(3, "Fresh")],
+      (id) => history[id],
+      now,
+    );
+    const unloaded = rows.find((r) => r.name === "Unloaded")!;
+    expect(unloaded.tone).toBe("ok");
+    expect(unloaded.checked).toBe(false);
+    expect(unloaded.rank).toBe(0);
+    const empty = rows.find((r) => r.name === "Empty")!;
+    expect(empty.tone).toBe("new");
+    expect(empty.checked).toBe(true);
   });
 
   it("leaves the fertilizer following the round", () => {
@@ -82,6 +117,17 @@ describe("rerankCandidates", () => {
     );
     expect(out.map((c) => c.plantId)).toEqual([2, 1, 3]);
     expect(out[0].score).toBe(0.8);
+  });
+
+  it("gives a never watered plant the same boost as a due one", () => {
+    const out = rerankCandidates(
+      [
+        { plantId: 1, score: 0.82 },
+        { plantId: 2, score: 0.8 },
+      ],
+      (id) => (id === 2 ? "new" : "ok"),
+    );
+    expect(out.map((c) => c.plantId)).toEqual([2, 1]);
   });
 
   it("does not let a due plant overtake a clearly better ok plant", () => {

@@ -4,7 +4,9 @@
       <ion-buttons slot="start">
         <ion-menu-button :aria-label="t('a11y.menu')" />
       </ion-buttons>
-      <ion-title>{{ translateTitle(title) }}</ion-title>
+      <ion-title
+        ><h1 class="toolbar-title">{{ translateTitle(title) }}</h1></ion-title
+      >
       <ion-buttons slot="end">
         <icon-button
           v-if="showToolbarAdd"
@@ -12,7 +14,6 @@
           :label="t('a11y.add')"
           @press="onAddClick"
         />
-        <icon-button :icon="icons.logout" :label="t('a11y.logout')" @press="confirmLogout" />
       </ion-buttons>
     </ion-toolbar>
 
@@ -57,11 +58,10 @@ import {
   IonMenuButton,
 } from "@ionic/vue";
 import { icons } from "@/theme/icons";
-import { mapActions, mapState } from "pinia";
+import { mapState } from "pinia";
 import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
 import IconButton from "@/components/ui/IconButton.vue";
-import { confirmLogout } from "@/utils/confirmLogout";
 
 export default defineComponent({
   name: "OverviewHeader",
@@ -150,12 +150,8 @@ export default defineComponent({
     }
   },
   methods: {
-    ...mapActions(useSessionStore, { logUserOut: "logout" }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback || key);
-    },
-    confirmLogout() {
-      return confirmLogout(() => this.logUserOut());
     },
     handleSegmentChange(event: any) {
       this.onSegmentChange?.(event.detail.value);
@@ -172,19 +168,26 @@ export default defineComponent({
 
 <style scoped>
 .header-toolbar {
-  --background: var(--ion-color-primary);
-  --color: var(--ion-color-primary-contrast);
-  --border-width: 0;
+  --background: var(--chrome-bg);
+  --color: var(--ion-text-color);
+  --border-color: var(--line);
+  --border-width: 0 0 1px;
 }
 
 .header-toolbar ion-title {
-  color: var(--ion-color-primary-contrast);
+  color: var(--ion-text-color);
+}
+
+.toolbar-title {
+  margin: 0;
+  font: inherit;
+  color: inherit;
 }
 
 .header-toolbar ion-menu-button,
 .header-toolbar .icon-button {
-  --color: var(--ion-color-primary-contrast);
-  color: var(--ion-color-primary-contrast);
+  --color: var(--ion-color-primary);
+  color: var(--ion-color-primary);
 }
 
 .segment-toolbar {
@@ -219,5 +222,23 @@ export default defineComponent({
 
 .add-button {
   flex-shrink: 0;
+}
+
+@media (min-width: 992px) {
+  .segment-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  .segment {
+    grid-column: 2;
+    width: 360px;
+    max-width: 100%;
+  }
+
+  .add-button {
+    grid-column: 3;
+    justify-self: end;
+  }
 }
 </style>

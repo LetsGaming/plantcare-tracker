@@ -136,6 +136,14 @@ export default defineComponent({
   white-space: nowrap;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-image,
+  .skeleton-line {
+    animation: none;
+    background: var(--surface-sunken);
+  }
+}
+
 @keyframes shimmer {
   from {
     background-position: 200% 0;

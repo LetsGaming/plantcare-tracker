@@ -23,16 +23,22 @@ import { parseOrThrow } from '../../../core/validation';
 
 export const CreatePlantSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
-  species: z.string().min(1, 'Species is required').max(100),
-  substrateId: z.number().int().positive('substrateId must be a positive integer'),
+  species: z.string().max(100).nullable().optional(),
+  substrateId: z
+    .number()
+    .int()
+    .positive('substrateId must be a positive integer')
+    .nullable()
+    .optional(),
   isPublic: z.boolean().default(false),
 });
 
+/** An empty or null species and a null substrateId clear the field. */
 export const UpdatePlantSchema = z
   .object({
     name: z.string().min(1).max(100).optional(),
-    species: z.string().min(1).max(100).optional(),
-    substrateId: z.number().int().positive().optional(),
+    species: z.string().max(100).nullable().optional(),
+    substrateId: z.number().int().positive().nullable().optional(),
     isPublic: z.boolean().optional(),
   })
   .refine(
@@ -43,6 +49,21 @@ export const UpdatePlantSchema = z
       data.isPublic !== undefined,
     { message: 'At least one field must be provided for update' },
   );
+
+/**
+ * A missing substrate and another user's private one answer the same 404,
+ * so a caller cannot probe which ids exist.
+ */
+const assertSubstrateUsable = async (
+  repo: PlantRepository,
+  substrateId: number | null | undefined,
+  userId: number,
+): Promise<void> => {
+  if (substrateId === null || substrateId === undefined) return;
+  if (!(await repo.isSubstrateUsableBy(substrateId, userId))) {
+    throw new NotFoundError('Substrate');
+  }
+};
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
@@ -81,6 +102,7 @@ export class CreatePlantUseCase {
 
   async execute(input: unknown, userId: number): Promise<Plant> {
     const data = parseOrThrow(CreatePlantSchema, input, 'Invalid plant data');
+    await assertSubstrateUsable(this.repo, data.substrateId, userId);
 
     const plantId = await this.repo.create({ ...data, userId });
 
@@ -101,6 +123,13 @@ export class UpdatePlantUseCase {
 
   async execute(id: number, userId: number, input: unknown): Promise<Plant> {
     const data = parseOrThrow(UpdatePlantSchema, input, 'Invalid update data');
+
+    const current = await this.repo.findById(id);
+    if (!current || current.userId !== userId) throw new NotFoundError('Plant');
+    // A plant may keep a substrate whose owner made it private since; only a move is checked.
+    if (data.substrateId !== current.substrate?.substrate_id) {
+      await assertSubstrateUsable(this.repo, data.substrateId, userId);
+    }
 
     const updated = await this.repo.update(id, userId, data);
     if (!updated) throw new NotFoundError('Plant');

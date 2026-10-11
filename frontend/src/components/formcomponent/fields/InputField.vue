@@ -34,7 +34,9 @@ import FieldShell from "@/components/formcomponent/FieldShell.vue";
 import {
   fieldErrorProp,
   focusControlRef,
+  nativeInputHost,
   nextFieldId,
+  syncNativeInvalid,
 } from "@/components/formcomponent/fieldShared";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -77,7 +79,18 @@ export default defineComponent({
       return this.error || this.translatedHint ? this.messageId : undefined;
     },
   },
+  watch: {
+    error() {
+      this.syncInvalid();
+    },
+  },
+  mounted() {
+    this.syncInvalid();
+  },
   methods: {
+    syncInvalid() {
+      void syncNativeInvalid(nativeInputHost(this.$refs.control), !!this.error);
+    },
     focusControl() {
       focusControlRef(this.$refs.control);
     },

@@ -6,7 +6,7 @@
         <span class="sr-only">{{ t("login2.checking", "Checking your session") }}</span>
       </div>
 
-      <main v-else class="login-shell">
+      <div v-else class="login-shell">
         <header class="brand">
           <PlantPlaceholder kind="plant" seed="welcome" class="brand-art" />
           <h1 class="brand-name">{{ t("login2.app_name", "PlantCare") }}</h1>
@@ -21,12 +21,14 @@
           <p v-if="notice" class="form-notice" role="status">{{ notice }}</p>
 
           <InputField
+            ref="usernameInput"
             v-model="username"
             :field="usernameField"
             :error="errors.username"
             @blur="validateUsername"
           />
           <PasswordField
+            ref="passwordInput"
             v-model="password"
             :field="passwordField"
             :error="errors.password"
@@ -34,6 +36,7 @@
           />
           <PasswordField
             v-if="isRegisterMode"
+            ref="confirmInput"
             v-model="confirmPassword"
             :field="confirmField"
             :error="errors.confirmPassword"
@@ -68,7 +71,7 @@
             {{ t("auth.continue_as_guest") }}
           </ion-button>
         </form>
-      </main>
+      </div>
     </ion-content>
   </ion-page>
 </template>
@@ -90,6 +93,7 @@ import {
   withoutErrorToasts,
 } from "@/utils/requestFeedback";
 import { safeRedirectPath } from "@/utils/formState";
+import { focusFieldHost } from "@/components/formcomponent/fieldShared";
 
 const emptyErrors = () => ({ username: "", password: "", confirmPassword: "" });
 
@@ -212,9 +216,23 @@ export default defineComponent({
       if (this.loading) return;
       this.formError = "";
       this.notice = "";
-      if (!this.validateAll()) return;
+      if (!this.validateAll()) {
+        this.$nextTick(() => this.focusFirstError());
+        return;
+      }
       if (this.isRegisterMode) await this.handleRegister();
       else await this.handleLogin();
+    },
+
+    focusField(ref: "usernameInput" | "passwordInput" | "confirmInput") {
+      const field = this.$refs[ref] as { $el?: HTMLElement } | undefined;
+      focusFieldHost(field?.$el ?? null);
+    },
+
+    focusFirstError() {
+      if (this.errors.username) this.focusField("usernameInput");
+      else if (this.errors.password) this.focusField("passwordInput");
+      else if (this.errors.confirmPassword) this.focusField("confirmInput");
     },
 
     reportFailure(error: unknown, actionKey: string) {
@@ -232,6 +250,7 @@ export default defineComponent({
         const kind = classifyFailure(error);
         if (kind === "unauthorized" || kind === "fixable") {
           this.formError = this.t("login2.invalid_credentials");
+          this.$nextTick(() => this.focusField("passwordInput"));
         } else {
           this.reportFailure(error, "auth.login_failed");
         }

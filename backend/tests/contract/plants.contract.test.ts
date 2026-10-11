@@ -92,6 +92,72 @@ describe('POST /plants', () => {
     expect(Object.keys(res.body.error.fields).sort()).toEqual(['name', 'species', 'substrateId']);
   });
 
+  it('creates a plant from a name alone, without species or substrate', async () => {
+    const { owner } = await setup();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'First plant' },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({
+      plant_name: 'First plant',
+      plant_species: null,
+      substrate: null,
+    });
+  });
+
+  it('treats an empty species and a null substrateId as not set', async () => {
+    const { owner } = await setup();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Blank', species: '', substrateId: null },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ plant_species: null, substrate: null });
+  });
+
+  it('answers a plant with an unknown substrate with 404', async () => {
+    const { owner } = await setup();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Orphan', substrateId: 987654 },
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Substrate not found');
+  });
+
+  it('lists and reads back a plant without species or substrate', async () => {
+    const { owner } = await setup();
+    const created = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Bare' },
+    });
+    const id = created.body.data.plant_id;
+    const one = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${id}`,
+      headers: owner.auth,
+    });
+    expect(one.status).toBe(200);
+    expect(one.body.data).toMatchObject({ plant_species: null, substrate: null });
+    const all = await app.client.request({
+      method: 'get',
+      url: `${API}/plants`,
+      headers: owner.auth,
+    });
+    expect(all.status).toBe(200);
+    const listed = all.body.data.find((p: { plant_id: number }) => p.plant_id === id);
+    expect(listed).toMatchObject({ plant_species: null, substrate: null });
+  });
+
   it('answers 401 without a token and 403 for a guest', async () => {
     const anon = await app.client.request({ method: 'post', url: `${API}/plants`, json: {} });
     expect(anon.status).toBe(401);
@@ -233,6 +299,57 @@ describe('PATCH /plants/:id', () => {
     });
   });
 
+  it('clears the substrate with substrateId null', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { substrateId: null },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.substrate).toBeNull();
+    expect(res.body.data.plant_species).toBe('Monstera deliciosa');
+  });
+
+  it('clears the species with an empty string or null', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const empty = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { species: '' },
+    });
+    expect(empty.status).toBe(200);
+    expect(empty.body.data.plant_species).toBeNull();
+    expect(empty.body.data.substrate).not.toBeNull();
+
+    const other = await createPlant(app, owner.auth, substrate.substrate_id);
+    const cleared = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${other.plant_id}`,
+      headers: owner.auth,
+      json: { species: null },
+    });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data.plant_species).toBeNull();
+  });
+
+  it('keeps the length and positive checks on update', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { species: 'x'.repeat(101), substrateId: 0 },
+    });
+    expect(res.status).toBe(400);
+    expect(Object.keys(res.body.error.fields).sort()).toEqual(['species', 'substrateId']);
+  });
+
   it('rejects an empty update with 400', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);
@@ -310,8 +427,74 @@ describe('DELETE /plants/:id', () => {
   });
 });
 
-describe('constraint errors and deletion', () => {
-  it('answers a plant update with an unknown substrate with 400', async () => {
+describe('substrate access', () => {
+  const countPlants = (userId: number) =>
+    app.db.query<{ n: number }>('SELECT COUNT(*) AS n FROM plants WHERE user_id = ?', [userId])[0]
+      .n;
+
+  const plantOnSubstrateTurnedPrivate = async () => {
+    const owner = await app.signIn('user');
+    const stranger = await app.signIn('user');
+    const shared = await createSubstrate(app, stranger.auth, { isPublic: true });
+    const plant = await createPlant(app, owner.auth, shared.substrate_id);
+    const hide = await app.client.request({
+      method: 'patch',
+      url: `${API}/substrates/${shared.substrate_id}`,
+      headers: stranger.auth,
+      json: { isPublic: false },
+    });
+    expect(hide.status).toBe(200);
+    return { owner, stranger, shared, plant };
+  };
+
+  it('keeps a substrate that turned private when the plant is saved with the same id', async () => {
+    const { owner, shared, plant } = await plantOnSubstrateTurnedPrivate();
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { name: 'renamed', substrateId: shared.substrate_id },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.plant_name).toBe('renamed');
+    expect(res.body.data.substrate.substrate_id).toBe(shared.substrate_id);
+  });
+
+  it('still refuses moving that plant to a different foreign private substrate', async () => {
+    const { owner, stranger, shared, plant } = await plantOnSubstrateTurnedPrivate();
+    const other = await createSubstrate(app, stranger.auth, { isPublic: false });
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { name: 'renamed', substrateId: other.substrate_id },
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Substrate not found');
+    const after = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(after.body.data.plant_name).toBe('Monstera');
+    expect(after.body.data.substrate.substrate_id).toBe(shared.substrate_id);
+  });
+
+  it("answers 404 Plant for someone else's plant before checking the substrate", async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const intruder = await app.signIn('user');
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: intruder.auth,
+      json: { substrateId: 987654 },
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Plant not found');
+  });
+
+  it('answers a plant update with an unknown substrate with 404', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);
     const res = await app.client.request({
@@ -320,9 +503,82 @@ describe('constraint errors and deletion', () => {
       headers: owner.auth,
       json: { substrateId: 987654 },
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Substrate not found');
   });
 
+  it("refuses to create a plant on another user's private substrate", async () => {
+    const owner = await app.signIn('user');
+    const stranger = await app.signIn('user');
+    const foreign = await createSubstrate(app, stranger.auth, { isPublic: false });
+    const before = countPlants(owner.user.id);
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Borrowed', substrateId: foreign.substrate_id },
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Substrate not found');
+    expect(countPlants(owner.user.id)).toBe(before);
+  });
+
+  it("refuses to move a plant onto another user's private substrate", async () => {
+    const { owner, substrate } = await setup();
+    const stranger = await app.signIn('user');
+    const foreign = await createSubstrate(app, stranger.auth, { isPublic: false });
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id);
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { substrateId: foreign.substrate_id, name: 'Moved' },
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Substrate not found');
+    const after = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(after.body.data.plant_name).toBe('Monstera');
+    expect(after.body.data.substrate.substrate_id).toBe(substrate.substrate_id);
+  });
+
+  it("accepts another user's public substrate and the caller's own private one", async () => {
+    const { owner, substrate } = await setup();
+    const stranger = await app.signIn('user');
+    const shared = await createSubstrate(app, stranger.auth, { isPublic: true });
+    const created = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Shared', substrateId: shared.substrate_id },
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data.substrate.substrate_id).toBe(shared.substrate_id);
+
+    const moved = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${created.body.data.plant_id}`,
+      headers: owner.auth,
+      json: { substrateId: substrate.substrate_id },
+    });
+    expect(moved.status).toBe(200);
+    expect(moved.body.data.substrate.substrate_id).toBe(substrate.substrate_id);
+
+    const cleared = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${created.body.data.plant_id}`,
+      headers: owner.auth,
+      json: { substrateId: null },
+    });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data.substrate).toBeNull();
+  });
+});
+
+describe('deletion', () => {
   it('removes the images of a deleted plant, rows and files', async () => {
     const { owner, substrate } = await setup();
     const plant = await createPlant(app, owner.auth, substrate.substrate_id);

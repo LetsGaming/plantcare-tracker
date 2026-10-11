@@ -32,6 +32,18 @@ colors:
   water-wash-dark-mode: "#12353a"
   clay-wash: "#f6e4da"
   clay-wash-dark-mode: "#3a2418"
+  feed-organic: "#7a4a12"
+  feed-organic-dark-mode: "#e0b46a"
+  feed-mineral: "#6b4f8a"
+  feed-mineral-dark-mode: "#b79ad6"
+  control-border: "#839185"
+  control-border-dark-mode: "#74877a"
+  danger-wash: "#fbe3e1"
+  danger-wash-dark-mode: "#3d1a18"
+  warning-wash: "#fdf0cc"
+  warning-wash-dark-mode: "#3a2f10"
+  chrome-bg: "#ffffff"
+  chrome-bg-dark-mode: "#14221a"
 typography:
   display:
     fontFamily: "Bricolage Grotesque Variable, Figtree Variable, system-ui, sans-serif"
@@ -136,14 +148,14 @@ components:
 
 **Creative North Star: "The Potting Bench Logbook"**
 
-An Ionic Vue app restyled so that watering is the hero and every plant wears a painted tag. Leaf green carries brand and primary actions on a sage-white ground (not cream); fired clay marks fertilizer, "new" and overdue; water teal marks watering. Dark mode is a moss-black counterpart, not an inversion. Headings are set in Bricolage Grotesque, body in Figtree. The look is warm and botanical, calm and legible one-handed next to a plant.
+An Ionic Vue app restyled so that watering is the hero and every plant wears a painted tag. Leaf green carries brand and primary actions on a sage-white ground (not cream); fired clay marks overdue and nothing else; water teal marks watering. Headers and the tab bar sit on the raised surface, not on a green slab. Dark mode is a moss-black counterpart, not an inversion. Headings are set in Bricolage Grotesque, body in Figtree. The look is warm and botanical, calm and legible one-handed next to a plant.
 
 Density is moderate: tag cards two per row on a phone, generous 44px touch targets, a single content column capped at 960px on detail screens. Depth is soft and low, as if tags and cards rest on a bench. Ionic components are kept; they are remapped through tokens, never restyled screen by screen.
 
 The build confirms the direction contract with one divergence: the contract names a "punched hole" tag as the motif, and it lands in two forms, a side hole on the detail header tag and a top-center hole with a dashed perforation on list cards.
 
 **Key Characteristics:**
-- Role colors are semantic: green acts, teal waters, clay flags fertilizer, new and overdue.
+- Role colors are semantic: green acts, teal waters, clay flags overdue, brown and violet tell organic from mineral fertilizer (solid versus dashed ring), sun yellow marks new, a danger wash marks errors, a leaf wash marks ok and neutral sunken grey marks offline.
 - Every plant has an identity: a tag, and when no photo exists an authored leaf silhouette on a tint keyed to the plant.
 - One primary action per screen region, 44px minimum targets, 52px for Water now.
 - Light and dark both first-class, switched only by the `ion-palette-dark` class.
@@ -156,7 +168,7 @@ A leaf-and-clay palette on a sage-white ground, with water teal as the one cool 
 - **Leaf Green** (frontmatter `leaf-green`): brand, primary buttons, selected tab and nav item, caret, text selection tint, focus of the primary path, the browser theme-color in light mode. Dark mode lifts it to a light mint for contrast on moss black.
 
 ### Secondary
-- **Fired Clay** (`fired-clay`): fertilizer, the "new" pill on cards, the overdue status chip, placeholder accent stroke. Clay wash (`clay-wash`) is its tint surface.
+- **Fired Clay** (`fired-clay`): the overdue status chip, its status text (`--overdue-ink`, the clay shade) and the placeholder accent stroke. Clay wash (`clay-wash`) is its tint surface. Clay means overdue and nothing else.
 
 ### Tertiary
 - **Watering Can Teal** (`watering-can-teal`): everything about water: the Water now button, due chip, the watering status band wash (`water-wash`), the public chip, and the keyboard focus ring (`--focus-ring`).
@@ -168,12 +180,18 @@ A leaf-and-clay palette on a sage-white ground, with water teal as the one cool 
 - **Line** (`line`): 1px to 1.5px borders, dashed tag perforation, dividers.
 - **Leaf Wash** (`leaf-wash`): plant tag header surface and active side-menu item.
 - Status colors **New Growth** (success), **Sun on a Sill** (warning, with dark ink text) and **Brick** (danger, invalid field border) complete the Ionic roles.
-- Placeholder tints `--tint-1` to `--tint-5` (mint, peach, aqua, lime, lilac, each with a dark variant) and chart colors `--chart-1` to `--chart-6` are defined in `variables.css`; they are reached only through those variables.
+- Fertilizer has its own roles: **Feed Organic** (`feed-organic`, bark brown) and **Feed Mineral** (`feed-mineral`, violet), each with a `-contrast` ink for text on a filled chip. The "new" pill is **Sun on a Sill** (`--new`) with `--new-ink`. Errors use **Brick** on `--danger-wash`, a healthy admin source uses a quiet `--leaf-wash` badge with a check icon, and offline is the neutral `--offline-bg` (sunken surface) with a cloud icon.
+- Semantic helpers: `--danger-wash` (tint surface for error banners), `--offline-bg` (offline banner), `--chrome-bg` (toolbar, header and tab bar surface; also read for the browser `theme-color`), `--nav-idle` (idle tab and nav item ink), `--control-border` (3:1 border of inputs and switches, stronger than `--line`), `--series-1` to `--series-5` (non-role chart series that meet 4.3:1 on `surface-raised`).
+- Placeholder tints `--tint-1` to `--tint-5` (mint, peach, aqua, lime, lilac, each with a dark variant) are defined in `variables.css`; they are reached only through those variables.
 
 ### Named Rules
-**The Role Color Rule.** Green means act, teal means water, clay means fertilizer, new or overdue. Never swap them to decorate.
+**The Role Color Rule.** Green means act, teal means water, clay means overdue, brown and violet mean organic and mineral fertilizer, sun yellow means new. Never swap them to decorate.
 
 **The Never-Only-Color Rule.** Status is always color plus text or icon (chip label, status line); chart series differ in lightness and hue and are never the only code.
+
+**The Contrast Rule.** Text meets 4.5:1 and UI parts (control edges, focus ring, marker rings, chart series) meet 3:1 in both themes; `themeTokens.test.ts` measures the semantic pairs.
+
+**The Render-Time Rule.** Colors the user picks for calendar categories are stored as picked and corrected when drawn (`resolveCategoryColors`): the background is lifted to 3:1 against the page and the ink is derived; an empty color falls back to the role token (water teal, feed organic, feed mineral).
 
 **The Tokens-Only Rule.** Components read variables; no hex colors or inline style attributes in components (the placeholder tint binds through `var(--tint-n)`).
 
@@ -202,8 +220,8 @@ Mobile first. Spacing uses a 4/8/12/16/24/32/48 scale (`space-1` to `space-7`); 
 
 - Plants list: two tag cards per row below 640px (12px gap); from 640px an auto-fill grid with 240px minimum columns and 16px gap.
 - Detail screens (plant): tag header, then the watering status band with Water now above the fold, then the photo. Other details use the hero (photo capped at `min(40vh, 360px)` with the tag overlapping its bottom edge by 24px).
-- Tab bar: bottom tabs (Plants, Substrates, Components, Sales with a count badge, Debug in development only) below 992px; hidden from 992px.
-- Side menu: 320px wide overlay (max 88vw) with a leaf-green header toolbar below 992px; from 992px a persistent split pane that also shows the navigation section. Active item sits on leaf wash at weight 600.
+- Tab bar: bottom tabs (Plants, Substrates, Components ("Zutaten" in German), Sales with a count badge, Debug in development only) below 992px; hidden from 992px. The watering round is not a tab: a leaf-green "Gießrunde" button above the list in the private Plants segment opens it (hidden for guests and in the public segment).
+- Side menu: 320px wide overlay (max 88vw) with a raised header toolbar below 992px; from 992px a persistent split pane that also shows the navigation section. Active item sits on leaf wash at weight 600.
 - Safe areas: the tab bar pads by `env(safe-area-inset-bottom)`.
 
 ## Elevation & Depth
@@ -229,14 +247,14 @@ The plant tag silhouette is asymmetric: 14px on the top-left and bottom-right co
 - **Shape:** 14px radius, 44px minimum height, weight 650, no uppercase, no shadow.
 - **Primary:** leaf green fill with white text (dark text on mint in dark mode).
 - **Water now:** teal fill, 52px minimum height, grows to fill the row (`flex: 1 1 200px`); beside it a clear "add details" text button.
-- **Hover / Focus:** Ionic state layers; keyboard focus draws a 3px teal ring, inset on buttons, tabs and segments, offset 2px elsewhere.
+- **Hover / Focus:** Ionic state layers; keyboard focus draws a 3px teal ring offset 2px on `:focus-visible` and on Ionic's `.ion-focused` controls (buttons, tabs, segments, selects, back and menu buttons, fab buttons), with a 2px page-colored inner shadow on solid buttons so the ring reads on a teal fill.
 
 ### Icon buttons
 Always the `IconButton` component: a clear Ionic button with a required accessible label (also its title), 44px square, 24px outline icon. Icons come from one outline family (`theme/icons.ts`); filled glyphs mark only a selected tab.
 
 ### Plant tag cards (list)
 - **Anatomy:** raised surface, 14px radius, card shadow; 4:3 photo or tinted placeholder; 2px dashed perforation with a centered 12px hole; name in the display face (16px, 650, two lines clamped); species or sub line (13px, soft ink, one line); status row.
-- **Status:** a "due" chip (teal fill) or "overdue" chip (clay fill) with matching colored status text; a clay "new" pill sits on the photo top-left.
+- **Status:** a "due" chip (teal fill) or "overdue" chip (clay fill) with matching colored status text; a sun-yellow "new" pill sits on the photo top-left.
 - **States:** on pointer devices hover lifts 3px with the lift shadow; press scales to 0.985; transitions run 0.25s on the ease-out curve.
 
 ### Plant tag header (detail)
@@ -258,7 +276,7 @@ One `StateBlock` serves loading, empty, error and not-found, centered at 520px. 
 - **Segments:** sunken track, raised indicator, checked label in leaf green, 44px tall, 14px radius.
 
 ### Navigation
-See Layout for the tab bar and side menu. Tab bar: raised surface, 1px line top border, selected tab in leaf green with a filled icon, unselected with outline icon, weight 600; Sales badge uses 6px side padding at weight 700. Toolbars: raised surface, centered display-face title, line border. The side menu header is solid leaf green with contrast text.
+See Layout for the tab bar and side menu. Tab bar: raised surface, 1px line top border, selected tab in leaf green with a filled icon, unselected with outline icon, weight 600; Sales badge uses 6px side padding at weight 700. Toolbars: raised surface, centered display-face title, line border. The side menu header sits on the raised chrome surface like the toolbars.
 
 ### Placeholder art
 `PlantPlaceholder` draws authored line silhouettes (three plant shapes, plus one each for substrate and component) with 3px round strokes in leaf green with soft green or clay fills, on one of five hue-family tints chosen by a seed from the item name, so the same plant always gets the same tint. Used for missing and failed images; a broken-image glyph never shows.
@@ -284,6 +302,7 @@ Body text and role colors meet WCAG AA in both themes; 44px minimum touch target
 ### Don't:
 - **Don't** reintroduce the stock Ionic starter look: anonymous white cards, grey headings, broken-image glyphs.
 - **Don't** use clay or teal for decoration; they carry meaning.
+- **Don't** persist a toast for undo; the global toast queue would block (10 second undo toast plus an in-page last-round row instead).
 - **Don't** switch dark mode with a media query; the class is the only source.
 - **Don't** use the display face for body copy, buttons or form labels.
 - **Don't** use uppercase letter-spaced labels, colored offset shadows, or filled icons for anything other than selected tabs.

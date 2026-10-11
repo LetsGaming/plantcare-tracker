@@ -23,6 +23,7 @@ type StreamHandlers = {
 const stream = vi.hoisted(() => ({
   endpoints: [] as string[],
   script: (_h: StreamHandlers): void => {},
+  cleanup: vi.fn(),
 }));
 
 vi.mock("@/utils/apiUtils", () => ({
@@ -38,7 +39,7 @@ vi.mock("@/utils/apiUtils", () => ({
       ) => {
         stream.endpoints.push(endpoint);
         queueMicrotask(() => stream.script({ onMessage, onError, onDone }));
-        return () => {};
+        return stream.cleanup;
       },
     ),
   },
@@ -53,6 +54,8 @@ const messages =
     h.onDone?.({ status: "completed" });
   };
 
+type StoredGuides = { data: Record<string, unknown> };
+
 const newStore = async () => {
   await createInstalledPinia();
   return useMoreInfoStore();
@@ -61,6 +64,7 @@ const newStore = async () => {
 beforeEach(() => {
   resetStore();
   stream.endpoints.length = 0;
+  stream.cleanup.mockClear();
 });
 
 afterEach(() => {
@@ -96,7 +100,7 @@ describe("ensureInfo streaming", () => {
 
     expect(store.byKey["en:Aloe"]).toBeUndefined();
     expect(store.streaming["en:Aloe"]).toBe(true);
-    expect(store.infoFor("Aloe")[0].ai).toContain('<h2 class="info-header">Light</h2>');
+    expect(store.infoFor("Aloe")[0].ai).toContain('<h3 class="info-header">Light</h3>');
 
     finish();
     await pending;
@@ -219,5 +223,154 @@ describe("persistence", () => {
     await store.ensureInfo("Aloe");
     expect(stream.endpoints).toHaveLength(0);
     expect(store.infoFor("Aloe")[0].ai).toBe("<div>cached</div>");
+  });
+});
+
+describe("stopInfo", () => {
+  const startOpenStream = () => {
+    const live: StreamHandlers[] = [];
+    stream.script = (h) => {
+      live.push(h);
+      h.onMessage({ data: { type: "ai_chunk", value: "partial text" } });
+    };
+    return live;
+  };
+
+  it("closes the stream through the cleanup the stream returned", async () => {
+    startOpenStream();
+    const store = await newStore();
+    const pending = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(store.infoFor("Aloe")[0]?.ai).toContain("partial text"));
+
+    store.stopInfo("Aloe");
+    await pending;
+    expect(stream.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles every coalesced caller, keeps the draft and caches nothing", async () => {
+    startOpenStream();
+    const store = await newStore();
+    const first = store.ensureInfo("Aloe");
+    const second = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(store.infoFor("Aloe")[0]?.ai).toContain("partial text"));
+    expect(stream.endpoints).toHaveLength(1);
+
+    store.stopInfo("Aloe");
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+
+    expect(store.streaming["en:Aloe"]).toBe(false);
+    expect(store.infoFor("Aloe")[0].ai).toContain("partial text");
+    expect(store.drafts["en:Aloe"]).toBeDefined();
+    expect(store.byKey["en:Aloe"]).toBeUndefined();
+    expect(store.fetchedAtByKey["en:Aloe"]).toBeUndefined();
+  });
+
+  it("does not persist a stopped run", async () => {
+    vi.useFakeTimers();
+    startOpenStream();
+    const store = await newStore();
+    const pending = store.ensureInfo("Aloe");
+    await vi.advanceTimersByTimeAsync(10);
+    store.stopInfo("Aloe");
+    await pending;
+    await vi.advanceTimersByTimeAsync(500);
+    const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
+    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+  });
+
+  it("stops a load that is still hydrating without ever opening a stream", async () => {
+    vi.useFakeTimers();
+    startOpenStream();
+    const store = await newStore();
+    let release!: () => void;
+    vi.spyOn(store, "$hydrate").mockImplementation(
+      () => new Promise<boolean>((resolve) => (release = () => resolve(false))),
+    );
+    const pending = store.ensureInfo("Aloe");
+    await vi.advanceTimersByTimeAsync(0);
+
+    store.stopInfo("Aloe");
+    release();
+    await expect(pending).resolves.toBeUndefined();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(stream.endpoints).toHaveLength(0);
+    expect(store.streaming["en:Aloe"]).toBeFalsy();
+    expect(store.byKey["en:Aloe"]).toBeUndefined();
+    expect(store.fetchedAtByKey["en:Aloe"]).toBeUndefined();
+    const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
+    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+  });
+
+  it("does not let an earlier stop cancel a later forced load", async () => {
+    const store = await newStore();
+    store.stopInfo("Aloe");
+    stream.script = messages({ type: "ai_chunk", value: "whole guide" });
+    await store.ensureInfo("Aloe", { force: true });
+    expect(stream.endpoints).toHaveLength(1);
+    expect(store.byKey["en:Aloe"][0].ai).toContain("whole guide");
+  });
+
+  it("clears a stop request when the stopped load settles", async () => {
+    let release!: () => void;
+    const store = await newStore();
+    vi.spyOn(store, "$hydrate").mockImplementationOnce(
+      () => new Promise<boolean>((resolve) => (release = () => resolve(false))),
+    );
+    const pending = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    store.stopInfo("Aloe");
+    release();
+    await pending;
+
+    stream.script = messages({ type: "ai_chunk", value: "whole guide" });
+    await store.ensureInfo("Aloe", { force: true });
+    expect(stream.endpoints).toHaveLength(1);
+    expect(store.byKey["en:Aloe"][0].ai).toContain("whole guide");
+  });
+
+  it("ignores messages, errors and completion arriving after the stop", async () => {
+    const live = startOpenStream();
+    const store = await newStore();
+    const pending = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(live).toHaveLength(1));
+    await vi.waitFor(() => expect(store.infoFor("Aloe")[0]?.ai).toContain("partial text"));
+
+    store.stopInfo("Aloe");
+    await pending;
+    const before = JSON.stringify(store.infoFor("Aloe"));
+
+    live[0].onMessage({ data: { type: "ai_chunk", value: " late words" } });
+    live[0].onMessage({ data: { type: "link", value: "https://late.example" } });
+    live[0].onError?.({ message: "late failure" });
+    live[0].onDone?.({ status: "completed" });
+
+    expect(JSON.stringify(store.infoFor("Aloe"))).toBe(before);
+    expect(store.byKey["en:Aloe"]).toBeUndefined();
+    expect(store.streaming["en:Aloe"]).toBe(false);
+  });
+
+  it("does nothing when no stream runs for that plant", async () => {
+    const store = await newStore();
+    expect(() => store.stopInfo("Aloe")).not.toThrow();
+    expect(stream.cleanup).not.toHaveBeenCalled();
+  });
+
+  it("starts a clean stream and clears the old draft on a forced load afterwards", async () => {
+    const live = startOpenStream();
+    const store = await newStore();
+    const pending = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(store.infoFor("Aloe")[0]?.ai).toContain("partial text"));
+    store.stopInfo("Aloe");
+    await pending;
+
+    stream.script = messages({ type: "ai_chunk", value: "whole guide" });
+    await store.ensureInfo("Aloe", { force: true });
+
+    expect(stream.endpoints).toHaveLength(2);
+    expect(live).toHaveLength(1);
+    expect(store.drafts["en:Aloe"]).toBeUndefined();
+    expect(store.byKey["en:Aloe"][0].ai).toContain("whole guide");
+    expect(store.byKey["en:Aloe"][0].ai).not.toContain("partial text");
   });
 });

@@ -39,7 +39,7 @@
           <ion-badge
             v-if="dest.tab === 'sales' && salesCount > 0"
             slot="end"
-            color="secondary"
+            class="sales-badge"
             :aria-label="t('tabs.sales_new', { count: salesCount })"
           >
             {{ salesCount }}
@@ -91,9 +91,17 @@
         </ion-item>
       </ion-list>
 
-      <div v-if="!rail" class="section calendar">
-        <menu-calendar :show-settings-button="true" @settings-click="showDateSettings = true" />
-      </div>
+      <ion-list lines="none" class="section">
+        <ion-item
+          button
+          :aria-label="rail ? t('shell.reminders') : undefined"
+          :title="rail ? t('shell.reminders') : undefined"
+          @click="openReminders"
+        >
+          <ion-icon slot="start" :icon="calendarIcon" aria-hidden="true" />
+          <ion-label>{{ t("shell.reminders") }}</ion-label>
+        </ion-item>
+      </ion-list>
 
       <ion-list v-if="!rail" lines="none" class="section">
         <h2 class="section-title">{{ t("shell.section_preferences") }}</h2>
@@ -101,6 +109,8 @@
           <ion-select
             :label="t('shell.language')"
             label-placement="start"
+            :cancel-text="t('common.cancel')"
+            :ok-text="t('copy2.select.ok')"
             :value="selectedLocale"
             @ionChange="changeLocale"
           >
@@ -155,6 +165,20 @@
     </ion-footer>
   </ion-menu>
 
+  <ion-modal
+    v-if="remindersMounted"
+    :is-open="showReminders"
+    :aria-label="t('shell.reminders')"
+    @didDismiss="onRemindersDismiss"
+  >
+    <modal-header :header-title="t('shell.reminders')" @close="showReminders = false" />
+    <ion-content>
+      <div class="reminders-body">
+        <menu-calendar :show-settings-button="true" @settings-click="openDateSettings" />
+      </div>
+    </ion-content>
+  </ion-modal>
+
   <calendar-settings-modal
     :is-open="showDateSettings"
     :first-day-of-week="firstDayOfWeek"
@@ -173,7 +197,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, ref } from "vue";
 import {
   IonMenu,
   IonHeader,
@@ -191,6 +215,7 @@ import {
   IonLabel,
   IonToggle,
   IonFooter,
+  IonModal,
   menuController,
 } from "@ionic/vue";
 import { icons, navIcons, type NavDestination } from "@/theme/icons";
@@ -198,6 +223,8 @@ import { icons, navIcons, type NavDestination } from "@/theme/icons";
 import MenuCalendar from "./calendar/MenuCalendar.vue";
 import CalendarSettingsModal from "./calendar/CalendarSettingsModal.vue";
 import IconButton from "@/components/ui/IconButton.vue";
+import ModalHeader from "@/components/modal/ModalHeader.vue";
+import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 
 import { isDarkMode, setDarkMode } from "@/theme/darkMode";
 import localizationService from "@/services/general/LocalizationService";
@@ -243,8 +270,16 @@ export default defineComponent({
     IonLabel,
     IonToggle,
     IonFooter,
+    IonModal,
+    ModalHeader,
     MenuCalendar,
     CalendarSettingsModal,
+  },
+
+  setup() {
+    const showReminders = ref(false);
+    const { mounted, release } = useMountWhileOpen(() => showReminders.value);
+    return { showReminders, remindersMounted: mounted, releaseReminders: release };
   },
 
   data() {
@@ -256,6 +291,7 @@ export default defineComponent({
       expandIcon: icons.chevronForward,
       personIcon: icons.profile,
       logOutIcon: icons.logout,
+      calendarIcon: icons.calendar,
       settingsIcon: icons.settings,
       pulseIcon: icons.pulse,
       showDateSettings: false,
@@ -280,7 +316,6 @@ export default defineComponent({
     destinations(): Array<{ tab: NavDestination; label: string }> {
       const list: Array<{ tab: NavDestination; label: string }> = [
         { tab: "plants", label: "tabs.plants" },
-        { tab: "water", label: "tabs.water" },
         { tab: "substrates", label: "tabs.substrates" },
         { tab: "components", label: "tabs.components" },
         { tab: "sales", label: "tabs.sales" },
@@ -369,6 +404,20 @@ export default defineComponent({
       this.setKeepPhoto(e.detail.checked);
     },
 
+    /* ---------- Reminders ---------- */
+    async openReminders() {
+      await menuController.close();
+      this.showReminders = true;
+    },
+    onRemindersDismiss() {
+      this.showReminders = false;
+      this.releaseReminders();
+    },
+    openDateSettings() {
+      this.showReminders = false;
+      this.showDateSettings = true;
+    },
+
     /* ---------- Calendar logic ---------- */
     updateFirstDayOfWeek(value: number) {
       this.saveFirstDayOfWeek(value);
@@ -409,15 +458,19 @@ ion-content {
 }
 
 ion-toolbar {
-  --background: var(--ion-color-primary);
-  --color: var(--ion-color-primary-contrast);
-  --border-width: 0;
+  --background: var(--chrome-bg);
+  --color: var(--ion-text-color);
+  --border-color: var(--line);
+  --border-width: 0 0 1px;
 }
 
-ion-header ion-title,
+ion-header ion-title {
+  color: var(--ion-text-color);
+}
+
 ion-header :deep(.icon-button) {
-  color: var(--ion-color-primary-contrast);
-  --color: var(--ion-color-primary-contrast);
+  color: var(--ion-color-primary);
+  --color: var(--ion-color-primary);
 }
 
 ion-footer ion-toolbar {
@@ -443,13 +496,17 @@ ion-item {
   font-size: var(--text-md);
 }
 
+ion-item:not(.active) ion-icon[slot="start"] {
+  color: var(--nav-idle);
+}
+
 ion-item.active {
   --background: var(--leaf-wash);
   font-weight: 600;
 }
 
-.calendar {
-  padding-inline: var(--space-3);
+.reminders-body {
+  padding: var(--space-3);
 }
 
 /* Collapsed to icons: labels go, badges shrink to a dot on the icon. */
@@ -464,6 +521,11 @@ ion-item.active {
 
 .rail ion-item ion-icon[slot="start"] {
   margin-inline-end: 0;
+}
+
+.sales-badge {
+  --background: var(--new);
+  --color: var(--new-ink);
 }
 
 .rail ion-item ion-badge {

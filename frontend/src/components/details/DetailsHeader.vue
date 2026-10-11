@@ -87,9 +87,10 @@ export default defineComponent({
 
 <style scoped>
 .header-toolbar {
-  --background: var(--ion-color-primary);
-  --color: var(--ion-color-primary-contrast);
-  --border-width: 0;
+  --background: var(--chrome-bg);
+  --color: var(--ion-text-color);
+  --border-color: var(--line);
+  --border-width: 0 0 1px;
 }
 
 .header-toolbar ion-back-button {
@@ -99,7 +100,7 @@ export default defineComponent({
 
 .header-toolbar ion-back-button,
 .header-toolbar :deep(.icon-button) {
-  --color: var(--ion-color-primary-contrast);
-  color: var(--ion-color-primary-contrast);
+  --color: var(--ion-color-primary);
+  color: var(--ion-color-primary);
 }
 </style>

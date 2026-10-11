@@ -49,7 +49,7 @@ export default defineComponent({
       editPlantData: {
         name: "",
         species: "",
-        substrateId: undefined,
+        substrateId: null,
         isPublic: false,
       } as EditPlant,
     };
@@ -83,7 +83,6 @@ export default defineComponent({
           type: "input",
           modelKey: "species",
           label: "plant.field.species",
-          required: true,
           autocapitalize: "words",
           enterkeyhint: "next",
         },
@@ -92,11 +91,13 @@ export default defineComponent({
           modelKey: "substrateId",
           label: "plant.field.substrate",
           placeholder: "plant.field.substrate_placeholder",
-          options: this.substrates.map((s) => ({
-            value: s.id,
-            label: s.name,
-          })),
-          required: true,
+          options: [
+            { value: null, label: "plant.field.substrate_none" },
+            ...this.substrates.map((s) => ({
+              value: s.id,
+              label: s.name,
+            })),
+          ],
         },
         {
           type: "radio",
@@ -128,8 +129,8 @@ export default defineComponent({
     resetFromPlant() {
       this.editPlantData = {
         name: this.plant.name,
-        species: this.plant.species,
-        substrateId: this.plant.substrate?.id,
+        species: this.plant.species ?? "",
+        substrateId: this.plant.substrate?.id ?? null,
         isPublic: this.plant.isPublic,
       };
     },

@@ -10,22 +10,12 @@ import { defineStore } from "pinia";
 import type { PersistEntry } from "./persistence";
 
 const DEFAULT_WATERING_CATEGORIES: Category[] = [
-  {
-    name: "watering.category.no_fertilizer",
-    textColor: "#ffffff",
-    backgroundColor: "#1E90FF",
-  },
-  {
-    name: "watering.category.organic",
-    textColor: "#ffffff",
-    backgroundColor: "#8B4513",
-  },
-  {
-    name: "watering.category.mineral",
-    textColor: "#ffffff",
-    backgroundColor: "#228B22",
-  },
-];
+  "watering.category.no_fertilizer",
+  "watering.category.organic",
+  "watering.category.mineral",
+].map((name) => ({ name, textColor: "", backgroundColor: "" }));
+
+const LEGACY_DEFAULT_COLORS = new Set(["#1e90ff", "#8b4513", "#228b22"]);
 
 const defaultWateringCategories = (): Category[] =>
   DEFAULT_WATERING_CATEGORIES.map((category) => ({ ...category }));
@@ -64,7 +54,12 @@ export const useCalendarStore = defineStore("calendar", {
         ...setting("watering_categories", "wateringCategories"),
         // An empty stored list means "never customized": keep the defaults.
         apply: (state, data: Category[]) => {
-          if (data.length > 0) state.wateringCategories = data;
+          if (data.length === 0) return;
+          state.wateringCategories = data.map((category) =>
+            LEGACY_DEFAULT_COLORS.has(category.backgroundColor?.toLowerCase() ?? "")
+              ? { ...category, backgroundColor: "", textColor: "" }
+              : category,
+          );
         },
       },
       setting("reminder_dates", "dates"),

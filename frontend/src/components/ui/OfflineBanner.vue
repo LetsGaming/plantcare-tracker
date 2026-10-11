@@ -1,19 +1,29 @@
 <template>
   <div class="offline-region" role="status" aria-live="polite">
-    <p v-if="message" :key="mode" class="offline-banner" :class="`is-${mode}`">{{ message }}</p>
+    <p v-if="message" :key="mode" ref="banner" class="offline-banner" :class="`is-${mode}`">
+      <ion-icon
+        :icon="mode === 'offline' ? icons.cloudOffline : icons.cloudDone"
+        aria-hidden="true"
+      />
+      <span>{{ message }}</span>
+    </p>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { IonIcon } from "@ionic/vue";
+import { icons } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 import { networkState, watchConnectivity } from "@/utils/network";
 
 const CONFIRMATION_MS = 3000;
+const OFFSET_PROPERTY = "--offline-h";
 
 /** Slim status line shown while the device is offline, with a short confirmation on reconnect. */
 export default defineComponent({
   name: "OfflineBanner",
+  components: { IonIcon },
   props: {
     confirmationMs: { type: Number, default: CONFIRMATION_MS },
   },
@@ -22,6 +32,7 @@ export default defineComponent({
       showRecovered: false,
       timer: null as ReturnType<typeof setTimeout> | null,
       stopWatching: null as (() => void) | null,
+      icons,
     };
   },
   computed: {
@@ -39,6 +50,9 @@ export default defineComponent({
     },
   },
   watch: {
+    message() {
+      void this.$nextTick(() => this.measure());
+    },
     online(value: boolean, previous: boolean) {
       this.clearTimer();
       if (value && !previous) {
@@ -54,12 +68,25 @@ export default defineComponent({
   },
   mounted() {
     this.stopWatching = watchConnectivity();
+    window.addEventListener("resize", this.measure);
+    void this.$nextTick(() => this.measure());
   },
   beforeUnmount() {
     this.stopWatching?.();
     this.clearTimer();
+    window.removeEventListener("resize", this.measure);
+    document.documentElement.style.removeProperty(OFFSET_PROPERTY);
   },
   methods: {
+    measure() {
+      if (!(this.$el as Element).isConnected) return;
+      const banner = this.$refs.banner as HTMLElement | undefined;
+      if (!this.message || !banner) {
+        document.documentElement.style.removeProperty(OFFSET_PROPERTY);
+        return;
+      }
+      document.documentElement.style.setProperty(OFFSET_PROPERTY, `${banner.offsetHeight}px`);
+    },
     clearTimer() {
       if (this.timer !== null) {
         clearTimeout(this.timer);
@@ -72,24 +99,42 @@ export default defineComponent({
 
 <style scoped>
 .offline-region {
-  width: 100%;
+  position: fixed;
+  top: 0;
+  inset-inline: 0;
+  z-index: var(--z-banner);
 }
 
 .offline-banner {
   margin: 0;
-  padding: var(--space-2) var(--space-4);
+  padding: calc(var(--space-2) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   font-size: var(--text-sm);
   text-align: center;
   color: var(--ion-text-color);
   animation: offline-in 0.2s var(--ease-out);
 }
 
+.offline-banner ion-icon {
+  flex: none;
+  font-size: var(--text-base);
+}
+
 .offline-banner.is-offline {
-  background: var(--clay-wash);
+  background: var(--offline-bg);
 }
 
 .offline-banner.is-online {
   background: var(--leaf-wash);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offline-banner {
+    animation: none;
+  }
 }
 
 @keyframes offline-in {

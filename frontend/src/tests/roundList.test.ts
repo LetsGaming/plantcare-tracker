@@ -10,9 +10,10 @@ vi.mock("@/services/general/LocalizationService", () => ({
 }));
 
 import RoundList from "@/components/water/RoundList.vue";
+import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
 
 describe("RoundList", () => {
-  it("names the fertilizer options in the app language", () => {
+  it("names the fertilizer options in the app language", async () => {
     const wrapper = shallowMount(RoundList, {
       props: {
         rows: [
@@ -32,8 +33,111 @@ describe("RoundList", () => {
       },
       global: { renderStubDefaultSlot: true },
     });
+    await wrapper.find(".override-edit").trigger("click");
     const options = wrapper.findAll("ion-select-option-stub").map((o) => o.text());
     expect(options).toContain("copy2.fertilizer.organic");
     expect(options).toContain("copy2.fertilizer.synthetic");
+  });
+
+  it("labels a never watered row with its own chip", () => {
+    const wrapper = shallowMount(RoundList, {
+      props: {
+        rows: [
+          {
+            plantId: 1,
+            name: "Fresh",
+            checked: true,
+            tone: "new",
+            rank: -8.5,
+            fertilizerTypeId: undefined,
+          },
+        ],
+        fertilizerTypes: [],
+      },
+      global: { renderStubDefaultSlot: true },
+    });
+    const chip = wrapper.find(".tone-chip");
+    expect(chip.text()).toBe("plantlist.new");
+    expect(chip.classes()).toContain("tone-new");
+  });
+});
+
+const row = (over: Record<string, unknown> = {}) => ({
+  plantId: 7,
+  name: "Monty",
+  checked: false,
+  tone: "ok",
+  rank: 0,
+  fertilizerTypeId: undefined,
+  ...over,
+});
+const types = [
+  { id: 1, name: "organic" },
+  { id: 2, name: "synthetic" },
+];
+const mountList = (rows: unknown[]) =>
+  shallowMount(RoundList, {
+    props: { rows: rows as never, fertilizerTypes: types as never },
+    global: { renderStubDefaultSlot: true },
+  });
+
+describe("RoundList row details", () => {
+  it("keeps the fertilizer select closed until the edit button is pressed", async () => {
+    const wrapper = mountList([row()]);
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
+    const edit = wrapper.find(".override-edit");
+    expect(edit.attributes("aria-label")).toBe("water.override_edit");
+    expect(edit.attributes("fill")).toBe("clear");
+    await edit.trigger("click");
+    expect(wrapper.find("ion-select-stub").exists()).toBe(true);
+    await wrapper.find(".override-edit").trigger("click");
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
+  });
+
+  it("shows only the chip, inside the text column, while an override is set and the editor is closed", () => {
+    const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
+    const chip = wrapper.find(".override-chip");
+    expect(chip.text()).toBe("copy2.fertilizer.organic");
+    expect(chip.element.parentElement?.classList.contains("text")).toBe(true);
+  });
+
+  it("swaps the chip for the select when the editor opens and back when it closes", async () => {
+    const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    await wrapper.find(".override-edit").trigger("click");
+    expect(wrapper.find("ion-select-stub").exists()).toBe(true);
+    expect(wrapper.find(".override-chip").exists()).toBe(false);
+    await wrapper.find(".override-edit").trigger("click");
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
+    expect(wrapper.find(".override-chip").exists()).toBe(true);
+  });
+
+  it("names an explicit no fertilizer override in the chip", () => {
+    const wrapper = mountList([row({ fertilizerTypeId: null })]);
+    expect(wrapper.find(".override-chip").text()).toBe("water.fertilizer_none");
+  });
+
+  it("shows no chip while the row follows the round", () => {
+    expect(mountList([row()]).find(".override-chip").exists()).toBe(false);
+  });
+
+  it("emits the new override and closes the editor when the select changes", async () => {
+    const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    await wrapper.find(".override-edit").trigger("click");
+    wrapper.findComponent({ name: "IonSelect" }).vm.$emit("ionChange", {
+      detail: { value: "default" },
+    });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted("set-fertilizer")?.[0]).toEqual([7, undefined]);
+    expect(wrapper.find("ion-select-stub").exists()).toBe(false);
+  });
+
+  it("tints the placeholder per plant when there is no photo", () => {
+    const wrapper = mountList([row({ plantId: 7 }), row({ plantId: 8, imageUrl: "/a.jpg" })]);
+    const placeholders = wrapper.findAllComponents(PlantPlaceholder);
+    expect(placeholders).toHaveLength(1);
+    expect(placeholders[0].props("seed")).toBe("7");
+    expect(placeholders[0].props("kind")).toBe("plant");
+    expect(wrapper.findAll("img")).toHaveLength(1);
   });
 });

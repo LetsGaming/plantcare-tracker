@@ -52,6 +52,14 @@ describe("ToastService", () => {
     expect(buttons[1].role).toBe("cancel");
   });
 
+  it("adds no close button to a toast that dismisses itself", async () => {
+    ToastService.showToastWithAction("Logged", "Undo", vi.fn(), 10000);
+    await flush();
+    expect(created[0].duration).toBe(10000);
+    const buttons = created[0].buttons as Array<{ text: string }>;
+    expect(buttons.map((b) => b.text)).toEqual(["Undo"]);
+  });
+
   it("scales the duration with the message length within bounds", () => {
     expect(toastDurationFor("ok")).toBe(3000);
     expect(toastDurationFor("x".repeat(60))).toBeGreaterThan(toastDurationFor("x".repeat(20)));

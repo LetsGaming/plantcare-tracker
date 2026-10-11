@@ -5,8 +5,11 @@ import {
   chevronForwardOutline,
   bug,
   bugOutline,
+  calendarOutline,
   cameraOutline,
   closeOutline,
+  cloudDoneOutline,
+  cloudOfflineOutline,
   cloudUploadOutline,
   createOutline,
   cube,
@@ -16,21 +19,27 @@ import {
   gridOutline,
   leaf,
   leafOutline,
+  lockClosedOutline,
   logOutOutline,
+  optionsOutline,
   peopleOutline,
   personOutline,
   pricetag,
   pricetagOutline,
   pulseOutline,
+  removeCircleOutline,
+  scanOutline,
   settingsOutline,
+  checkmarkCircleOutline,
   swapVerticalOutline,
-  water,
+  trendingDownOutline,
   waterOutline,
 } from "ionicons/icons";
 
 /** One outline family for the whole app. Filled glyphs only mark a selected state. */
 export const icons = {
   add: addCircleOutline,
+  calendar: calendarOutline,
   camera: cameraOutline,
   plant: leafOutline,
   chevronBack: chevronBackOutline,
@@ -39,8 +48,11 @@ export const icons = {
   close: closeOutline,
   edit: createOutline,
   filter: filterOutline,
+  cloudDone: cloudDoneOutline,
+  cloudOffline: cloudOfflineOutline,
   upload: cloudUploadOutline,
   water: waterOutline,
+  lock: lockClosedOutline,
   logout: logOutOutline,
   profile: personOutline,
   settings: settingsOutline,
@@ -48,13 +60,18 @@ export const icons = {
   pulse: pulseOutline,
   segmentPublic: peopleOutline,
   segmentPrivate: personOutline,
+  discount: trendingDownOutline,
+  statusOk: checkmarkCircleOutline,
+  tune: optionsOutline,
+  zoomIn: addCircleOutline,
+  zoomOut: removeCircleOutline,
+  zoomReset: scanOutline,
 } as const;
 
-export type NavDestination = "plants" | "water" | "substrates" | "components" | "sales" | "debug";
+export type NavDestination = "plants" | "substrates" | "components" | "sales" | "debug";
 
 export const navIcons: Record<NavDestination, { idle: string; selected: string }> = {
   plants: { idle: leafOutline, selected: leaf },
-  water: { idle: waterOutline, selected: water },
   substrates: { idle: cubeOutline, selected: cube },
   components: { idle: gridOutline, selected: grid },
   sales: { idle: pricetagOutline, selected: pricetag },

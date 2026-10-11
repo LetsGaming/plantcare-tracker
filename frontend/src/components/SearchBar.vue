@@ -83,7 +83,7 @@ export default defineComponent({
 .search-bar {
   --background: var(--surface-raised);
   --border-radius: var(--radius-md);
-  --box-shadow: inset 0 0 0 1px var(--line);
+  --box-shadow: inset 0 0 0 1px var(--control-border);
   --color: var(--ion-text-color);
   --placeholder-color: var(--ink-soft);
   --placeholder-opacity: 1;

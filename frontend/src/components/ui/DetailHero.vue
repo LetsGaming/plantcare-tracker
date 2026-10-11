@@ -83,7 +83,7 @@ export default defineComponent({
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--surface-sunken);
+  background: var(--ion-background-color);
   box-shadow: inset 0 0 0 1.5px var(--line);
 }
 
@@ -111,7 +111,7 @@ export default defineComponent({
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-xs);
   font-weight: 650;
 }
@@ -122,14 +122,14 @@ export default defineComponent({
 }
 
 .chip-public {
-  background: var(--water-wash);
-  color: var(--ion-text-color);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
 }
 
 .chip-private {
   background: var(--surface-raised);
   color: var(--ink-soft);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--control-border);
 }
 
 .meta > :deep(* + *)::before {

@@ -24,6 +24,8 @@ vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import { useCalendarStore } from "@/stores/calendar";
 import { useAdminHealthStore } from "@/stores/adminHealth";
+// Loaded while collecting so the first test does not pay for importing @ionic/vue.
+import "@/stores/pinia";
 
 const category = (name: string): Category => ({
   name,
@@ -84,6 +86,49 @@ describe("calendar store", () => {
     const store = useCalendarStore();
     await store.ensureLoaded();
     expect(store.wateringCategories).toHaveLength(3);
+  });
+
+  it("migrates the legacy default watering colors to the role tokens", async () => {
+    memoryStore.set("watering_categories", {
+      data: [
+        {
+          name: "watering.category.no_fertilizer",
+          textColor: "#ffffff",
+          backgroundColor: "#1e90ff",
+        },
+        { name: "watering.category.organic", textColor: "#ffffff", backgroundColor: "#8B4513" },
+        { name: "watering.category.mineral", textColor: "#ffffff", backgroundColor: "#ff00aa" },
+      ],
+      timestamp: Date.now(),
+    });
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    await store.ensureLoaded();
+    expect(store.wateringCategories.map((c) => c.backgroundColor)).toEqual(["", "", "#ff00aa"]);
+  });
+
+  it("loads stored watering categories that lack a background color", async () => {
+    memoryStore.set("watering_categories", {
+      data: [
+        { name: "watering.category.no_fertilizer", textColor: "" },
+        { name: "watering.category.organic", textColor: "", backgroundColor: "#1E90FF" },
+      ],
+      timestamp: Date.now(),
+    });
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    await store.ensureLoaded();
+    expect(store.wateringCategories.map((c) => c.name)).toEqual([
+      "watering.category.no_fertilizer",
+      "watering.category.organic",
+    ]);
+    expect(store.wateringCategories[1].backgroundColor).toBe("");
+  });
+
+  it("defaults watering categories to empty colors", async () => {
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    expect(store.wateringCategories.every((c) => c.backgroundColor === "")).toBe(true);
   });
 
   it("saves settings as persistent entries and only the ones that changed", async () => {

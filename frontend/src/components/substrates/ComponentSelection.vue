@@ -177,7 +177,7 @@ export default defineComponent({
   padding: 0;
   overflow: hidden;
   list-style: none;
-  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border: 1.5px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
 }
@@ -230,7 +230,7 @@ export default defineComponent({
 
 .part-input ion-input {
   min-height: calc(var(--tap-min) - 4px);
-  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border: 1.5px solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   --padding-start: var(--space-3);

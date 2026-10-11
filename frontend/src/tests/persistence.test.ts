@@ -10,6 +10,9 @@ vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
 );
 
+// Loaded while collecting so the first test does not pay for importing @ionic/vue.
+import "@/stores/pinia";
+
 const useDemoStore = defineStore("demo", {
   state: () => ({ items: [] as number[], status: "idle", fetchedAt: null as number | null }),
   persist: {
@@ -125,6 +128,21 @@ describe("l2Persistence", () => {
     store.fetchedAt = 5;
     store.$cancelPersist();
     await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.has("demo_items")).toBe(false);
+  });
+});
+
+describe("test isolation", () => {
+  it("leaves a write pending on real timers when the test ends", async () => {
+    await createInstalledPinia();
+    const store = useDemoStore();
+    store.items = [1];
+    store.fetchedAt = 1;
+    expect(memoryStore.has("demo_items")).toBe(false);
+  });
+
+  it("never sees the write left pending by the previous test", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
     expect(memoryStore.has("demo_items")).toBe(false);
   });
 });

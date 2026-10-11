@@ -2,6 +2,7 @@
   <IonModal
     v-if="mounted"
     :is-open="isOpen"
+    :aria-label="t(title)"
     :can-dismiss="canDismissModal"
     @didPresent="captureBaseline"
     @didDismiss="onDidDismiss"

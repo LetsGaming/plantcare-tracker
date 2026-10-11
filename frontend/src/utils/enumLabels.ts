@@ -23,6 +23,10 @@ const labelFor = (keys: Record<string, string>, name: string | undefined | null)
 export const fertilizerLabel = (name: string | undefined | null): string =>
   labelFor(FERTILIZER_KEYS, name);
 
+/** Color role of a fertilizer type: the server's "synthetic" is shown as mineral. */
+export const fertilizerKind = (name: string | undefined | null): "organic" | "mineral" =>
+  name?.trim().toLowerCase() === "synthetic" ? "mineral" : "organic";
+
 /** Localized component fineness level; unknown names pass through unchanged. */
 export const finenessLabel = (name: string | undefined | null): string =>
   labelFor(FINENESS_KEYS, name);

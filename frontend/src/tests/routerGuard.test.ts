@@ -12,6 +12,7 @@ const session = vi.hoisted(() => ({
 }));
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+import { modalController } from "@ionic/vue";
 import Utils from "@/utils/utils";
 import ToastService from "@/services/general/ToastService";
 import router from "@/router";
@@ -102,5 +103,31 @@ describe("global guard", () => {
     session.ensureAuthenticated.mockRejectedValue(new Error("storage unavailable"));
     await router.push("/tabs/plants");
     expect(router.currentRoute.value.name).toBe("login");
+  });
+
+  it("still navigates when dismissing an open modal throws", async () => {
+    vi.mocked(Utils.closeAllOpenModals).mockRestore();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(modalController, "getTop").mockResolvedValue({} as HTMLIonModalElement);
+    vi.spyOn(modalController, "dismiss").mockRejectedValue(
+      new TypeError("Cannot read properties of null (reading 'insertBefore')"),
+    );
+    await router.push("/tabs/plants/details/13/0").catch(() => undefined);
+    await router.push("/tabs/plants");
+    expect(router.currentRoute.value.name).toBe("plant-overview");
+  });
+});
+
+describe("watering round route", () => {
+  it("lives under the plants tab", () => {
+    const route = router.getRoutes().find((r) => r.name === "water-round");
+    expect(route?.path).toBe("/tabs/plants/water");
+    expect(route?.meta.titleKey).toBe("water.title");
+  });
+
+  it.each(["/tabs/water", "/water"])("redirects %s to the round", async (legacy) => {
+    await router.push(legacy);
+    expect(router.currentRoute.value.path).toBe("/tabs/plants/water");
+    expect(router.currentRoute.value.name).toBe("water-round");
   });
 });

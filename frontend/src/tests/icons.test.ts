@@ -6,8 +6,11 @@ import {
   chevronForwardOutline,
   bug,
   bugOutline,
+  calendarOutline,
   cameraOutline,
   closeOutline,
+  cloudDoneOutline,
+  cloudOfflineOutline,
   cloudUploadOutline,
   createOutline,
   cube,
@@ -17,15 +20,20 @@ import {
   gridOutline,
   leaf,
   leafOutline,
+  lockClosedOutline,
   logOutOutline,
+  optionsOutline,
   peopleOutline,
   personOutline,
   pricetag,
   pricetagOutline,
   pulseOutline,
+  removeCircleOutline,
+  scanOutline,
   settingsOutline,
+  checkmarkCircleOutline,
   swapVerticalOutline,
-  water,
+  trendingDownOutline,
   waterOutline,
 } from "ionicons/icons";
 import { icons, navIcons } from "@/theme/icons";
@@ -34,6 +42,7 @@ describe("icon family", () => {
   it("uses outline glyphs for every semantic action", () => {
     expect(icons).toEqual({
       add: addCircleOutline,
+      calendar: calendarOutline,
       camera: cameraOutline,
       plant: leafOutline,
       chevronBack: chevronBackOutline,
@@ -42,8 +51,11 @@ describe("icon family", () => {
       close: closeOutline,
       edit: createOutline,
       filter: filterOutline,
+      cloudDone: cloudDoneOutline,
+      cloudOffline: cloudOfflineOutline,
       upload: cloudUploadOutline,
       water: waterOutline,
+      lock: lockClosedOutline,
       logout: logOutOutline,
       profile: personOutline,
       settings: settingsOutline,
@@ -51,13 +63,18 @@ describe("icon family", () => {
       pulse: pulseOutline,
       segmentPublic: peopleOutline,
       segmentPrivate: personOutline,
+      discount: trendingDownOutline,
+      statusOk: checkmarkCircleOutline,
+      tune: optionsOutline,
+      zoomIn: addCircleOutline,
+      zoomOut: removeCircleOutline,
+      zoomReset: scanOutline,
     });
   });
 
   it("pairs each navigation destination with an outline idle and filled selected glyph", () => {
     expect(navIcons).toEqual({
       plants: { idle: leafOutline, selected: leaf },
-      water: { idle: waterOutline, selected: water },
       substrates: { idle: cubeOutline, selected: cube },
       components: { idle: gridOutline, selected: grid },
       sales: { idle: pricetagOutline, selected: pricetag },

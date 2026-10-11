@@ -188,7 +188,7 @@ export default defineComponent({
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2);
-  border: 1.5px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line));
+  border: 1.5px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
 }
