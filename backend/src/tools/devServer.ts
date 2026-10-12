@@ -14,6 +14,7 @@ import { logger } from '../core/logging';
 import { createMockMoreInfo, createMockRecognition, createMockSalesSources } from './devMocks';
 
 const { port } = getConfig();
+const DEV_SALES_WARM_DELAY_MS = 1000;
 let app: Awaited<ReturnType<typeof buildApp>> | undefined;
 
 const shutdown = (): void => {
@@ -30,7 +31,7 @@ const start = async (): Promise<void> => {
   authLimits.MAX_PER_IP = 10_000;
   await initDatabase();
   app = await buildApp({
-    sales: { createSources: createMockSalesSources },
+    sales: { createSources: createMockSalesSources, warmDelayMs: DEV_SALES_WARM_DELAY_MS },
     moreInfo: createMockMoreInfo(),
     recognition: createMockRecognition(),
   });

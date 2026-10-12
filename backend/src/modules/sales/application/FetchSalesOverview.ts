@@ -15,38 +15,9 @@ import type { SalesSource } from '../domain/SalesSource';
 import { Sale } from '../domain/Sale';
 import type { SaleData } from '../domain/Sale';
 import { createModuleLogger } from '../../../core/logging';
+import { CHROMIUM_CONCURRENCY, HTTP_CONCURRENCY, createLimiter } from './limiter';
 
 const log = createModuleLogger('FetchSalesOverview');
-
-// ── Concurrency limiter (was in concurrency.js in V1) ────────────────────────
-
-type Task<T> = () => Promise<T>;
-
-const createLimiter = (max: number) => {
-  let active = 0;
-  const queue: Array<() => void> = [];
-
-  const next = () => {
-    if (active >= max) return;
-    const start = queue.shift();
-    if (!start) return;
-    active++;
-    start();
-  };
-
-  return <T>(fn: Task<T>): Promise<T> =>
-    new Promise<T>((resolve, reject) => {
-      queue.push(() => {
-        void fn()
-          .then(resolve, reject)
-          .finally(() => {
-            active--;
-            next();
-          });
-      });
-      next();
-    });
-};
 
 // ── Use case ──────────────────────────────────────────────────────────────────
 
@@ -58,8 +29,8 @@ export interface FetchSalesOptions {
 }
 
 export class FetchSalesOverview {
-  private readonly chromiumLimit = createLimiter(2);
-  private readonly axiosLimit = createLimiter(8);
+  private readonly chromiumLimit = createLimiter(CHROMIUM_CONCURRENCY);
+  private readonly axiosLimit = createLimiter(HTTP_CONCURRENCY);
 
   constructor(private readonly sources: SalesSource[]) {}
 
