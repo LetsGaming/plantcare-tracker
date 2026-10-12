@@ -773,3 +773,80 @@ describe('createSemaphore', () => {
     await expect(semaphore.run(async () => 'ok')).resolves.toBe('ok');
   });
 });
+
+// ── capture date field ────────────────────────────────────────────────────────
+
+describe('capture date field', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('upload: an explicit date (epoch ms) wins over the file date and is stored in seconds', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+
+    const result = await new UploadImageUseCase(repo, storage, policy).execute({
+      actor,
+      entityType: 'plant',
+      entityId: 4,
+      file,
+      date: '1600000000123',
+    });
+
+    expect(asMock(repo.create).mock.calls[0]?.[3]).toBe(1600000000);
+    expect(result.capturedAt.getTime()).toBe(1600000000123);
+  });
+
+  it('upload: without a date the processed file date is used', async () => {
+    const repo = makeMockRepo();
+    const { policy } = makeAllowAll();
+    await new UploadImageUseCase(repo, makeMockStorage(), policy).execute({
+      actor,
+      entityType: 'plant',
+      entityId: 4,
+      file,
+    });
+    expect(asMock(repo.create).mock.calls[0]?.[3]).toBe(1717236000);
+  });
+
+  it.each([
+    ['a non-integer', '1.5'],
+    ['an ISO string', '2024-06-01T10:00:00.000Z'],
+    ['a negative value', '-5'],
+    ['a value before 2000', String(Date.UTC(1999, 11, 31))],
+    ['a value two days ahead', String(Date.now() + 2 * DAY)],
+    ['an empty string', ''],
+  ])('upload and update reject %s with a date field error before any work', async (_n, date) => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+    asMock(repo.findById).mockResolvedValue(makeImage());
+
+    const upload = new UploadImageUseCase(repo, storage, policy).execute({
+      actor,
+      entityType: 'plant',
+      entityId: 4,
+      file,
+      date,
+    });
+    await expect(upload).rejects.toThrow(ValidationError);
+    await expect(upload).rejects.toMatchObject({ fields: { date: expect.any(String) } });
+
+    await expect(
+      new UpdateImageUseCase(repo, storage, policy).execute({ actor, imageId: 10, date }),
+    ).rejects.toMatchObject({ fields: { date: expect.any(String) } });
+
+    expect(storage.processUpload).not.toHaveBeenCalled();
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('accepts the boundaries 2000-01-01 and now plus one day', async () => {
+    const { parseCaptureDate } =
+      await import('../../../src/modules/images/application/captureDate');
+    const now = Date.UTC(2026, 9, 12);
+    expect(parseCaptureDate(String(Date.UTC(2000, 0, 1)), now)).toBe(Date.UTC(2000, 0, 1));
+    expect(parseCaptureDate(now + DAY, now)).toBe(now + DAY);
+    expect(() => parseCaptureDate(now + DAY + 1, now)).toThrow(ValidationError);
+    expect(() => parseCaptureDate(Date.UTC(2000, 0, 1) - 1, now)).toThrow(ValidationError);
+  });
+});

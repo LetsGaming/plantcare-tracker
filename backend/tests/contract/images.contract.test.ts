@@ -127,7 +127,9 @@ describe('POST /images/:entityType/:entityId', () => {
       contentType: 'image/gif',
     });
     expect(res.status).toBe(400);
-    expect(res.body.error.message).toBe('Invalid file type. Only png, jpeg, and jpg are allowed.');
+    expect(res.body.error.message).toBe(
+      'Invalid file type. Only png, jpeg, jpg, and webp are allowed.',
+    );
   });
 
   it('rejects a file over 10 MB with 400', async () => {
@@ -238,7 +240,7 @@ describe('PATCH rate limit', () => {
         method: 'patch',
         url: `${API}/images/${id}`,
         headers: owner.auth,
-        multipart: [{ field: 'date', data: '2024-06-01T10:00:00.000Z' }],
+        multipart: [{ field: 'date', data: '1717236000000' }],
       });
     for (let i = 0; i < 29; i += 1) {
       expect((await patch()).status, String(i)).toBe(200);
@@ -263,7 +265,7 @@ describe('PATCH /images/:id', () => {
       method: 'patch',
       url: `${API}/images/${id}`,
       headers: owner.auth,
-      multipart: [{ field: 'date', data: '2024-06-01T10:00:00.000Z' }],
+      multipart: [{ field: 'date', data: '1717236000000' }],
     });
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ id, date: 1717236000, entityType: 'plant' });
@@ -615,5 +617,150 @@ describe('remaining gaps', () => {
     const up = await upload(owner.auth, 'plant', plant.plant_id);
     const anon = await app.client.request({ method: 'get', url: pathOf(up.body.data.path) });
     expect(anon.status).toBe(200);
+  });
+});
+
+describe('webp uploads and the date field', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const post = (
+    auth: Record<string, string>,
+    plantId: number,
+    parts: { contentType?: string; data?: Buffer | string; date?: string } = {},
+  ) =>
+    app.client.request({
+      method: 'post',
+      url: `${API}/images/plant/${plantId}`,
+      headers: auth,
+      multipart: [
+        {
+          field: 'image',
+          filename: 'photo.webp',
+          contentType: parts.contentType ?? 'image/webp',
+          data: parts.data ?? png,
+        },
+        ...(parts.date === undefined ? [] : [{ field: 'date', data: parts.date }]),
+      ],
+    });
+
+  const storedDate = async (auth: Record<string, string>, plantId: number) => {
+    const res = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant?entityId=${plantId}`,
+      headers: auth,
+    });
+    return res.body.data.at(-1).date as number;
+  };
+
+  it('accepts a webp upload and writes the variants', async () => {
+    const { owner, plant } = await setup();
+    const webp = await sharp(png).webp().toBuffer();
+    const res = await post(owner.auth, plant.plant_id, { data: webp });
+    expect(res.status).toBe(201);
+    variantFiles('plant', res.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(true),
+    );
+  });
+
+  it('rejects a text file declared as image/webp with 400', async () => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { data: 'not an image at all' });
+    expect(res.status).toBe(400);
+  });
+
+  it('still rejects gif', async () => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { contentType: 'image/gif' });
+    expect(res.status).toBe(400);
+  });
+
+  it('stores the date field (epoch ms) as seconds', async () => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { date: '1717236000999' });
+    expect(res.status).toBe(201);
+    expect(await storedDate(owner.auth, plant.plant_id)).toBe(1717236000);
+  });
+
+  it('prefers the date field over the EXIF date of the file', async () => {
+    const { owner, plant } = await setup();
+    const jpeg = await sharp(png)
+      .jpeg()
+      .withExif({ IFD2: { DateTimeOriginal: '2020:01:02 03:04:05' } })
+      .toBuffer();
+    const withExifOnly = await post(owner.auth, plant.plant_id, {
+      contentType: 'image/jpeg',
+      data: jpeg,
+    });
+    expect(withExifOnly.status).toBe(201);
+    const exifDate = await storedDate(owner.auth, plant.plant_id);
+    expect(new Date(exifDate * 1000).getFullYear()).toBe(2020);
+
+    const explicit = await post(owner.auth, plant.plant_id, {
+      contentType: 'image/jpeg',
+      data: jpeg,
+      date: '1717236000000',
+    });
+    expect(explicit.status).toBe(201);
+    expect(await storedDate(owner.auth, plant.plant_id)).toBe(1717236000);
+  });
+
+  it('keeps the current date fallback when no date is sent', async () => {
+    const { owner, plant } = await setup();
+    const before = Math.floor(Date.now() / 1000) - 5;
+    await post(owner.auth, plant.plant_id);
+    expect(await storedDate(owner.auth, plant.plant_id)).toBeGreaterThanOrEqual(before);
+  });
+
+  it.each([
+    ['non-integer', () => '1.5'],
+    ['negative', () => '-1000'],
+    ['before 2000', () => String(Date.UTC(1999, 11, 31))],
+    ['two days ahead', () => String(Date.now() + 2 * DAY)],
+  ])('rejects a %s date on POST and PATCH with fields.date', async (_name, make) => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { date: make() });
+    expect(res.status).toBe(400);
+    expect(res.body.error.fields).toHaveProperty('date');
+
+    await post(owner.auth, plant.plant_id);
+    const id = (
+      await app.client.request({
+        method: 'get',
+        url: `${API}/images/plant?entityId=${plant.plant_id}`,
+        headers: owner.auth,
+      })
+    ).body.data[0].id;
+    const patch = await app.client.request({
+      method: 'patch',
+      url: `${API}/images/${id}`,
+      headers: owner.auth,
+      multipart: [{ field: 'date', data: make() }],
+    });
+    expect(patch.status).toBe(400);
+    expect(patch.body.error.fields).toHaveProperty('date');
+  });
+
+  it('PATCH accepts a webp replacement together with a date', async () => {
+    const { owner, plant } = await setup();
+    await post(owner.auth, plant.plant_id);
+    const id = (
+      await app.client.request({
+        method: 'get',
+        url: `${API}/images/plant?entityId=${plant.plant_id}`,
+        headers: owner.auth,
+      })
+    ).body.data[0].id;
+    const webp = await sharp(png).webp().toBuffer();
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/images/${id}`,
+      headers: owner.auth,
+      multipart: [
+        { field: 'image', filename: 'n.webp', contentType: 'image/webp', data: webp },
+        { field: 'date', data: '1717236000000' },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.date).toBe(1717236000);
   });
 });

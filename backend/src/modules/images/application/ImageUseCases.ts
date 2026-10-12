@@ -26,6 +26,7 @@ import type {
   UploadedFile,
 } from '../domain/Image';
 import type { ImageAccessPolicy } from './ImageAccessPolicy';
+import { parseCaptureDate } from './captureDate';
 import { NotFoundError, ValidationError } from '../../../core/errors';
 import { toPublicImageUrl, toStoredImagePath } from '../../../core/config';
 
@@ -68,6 +69,8 @@ export interface UploadImageInput {
   entityType: EntityType;
   entityId: number;
   file: UploadedFile;
+  /** Explicit capture time (epoch ms); wins over the file's EXIF date. */
+  date?: string | number;
 }
 
 /** Emitted after a new image file is committed, so other modules can react. */
@@ -98,8 +101,10 @@ export class UploadImageUseCase {
   async execute(input: UploadImageInput): Promise<UploadImageResult> {
     await this.access.assertCanModify(input.entityType, input.entityId, input.actor);
 
+    const explicitMs = input.date === undefined ? undefined : parseCaptureDate(input.date);
+
     const processed = await this.storage.processUpload(input.file, input.entityType);
-    const { capturedAt } = processed;
+    const capturedAt = explicitMs === undefined ? processed.capturedAt : new Date(explicitMs);
 
     const stored = toStoredImagePath(input.entityType, processed.filename);
     let imageId: number;
@@ -147,7 +152,7 @@ export interface UpdateImageInput {
   imageId: number;
   /** New file, when the client replaced the image. */
   file?: UploadedFile;
-  /** New capture date — any Date-parsable value from the form. */
+  /** New capture date (epoch ms) from the form. */
   date?: string | number;
 }
 
@@ -170,13 +175,7 @@ export class UpdateImageUseCase {
 
     let uploadDate: number | undefined;
     if (input.date !== undefined) {
-      const parsed = new Date(input.date).getTime();
-      if (!Number.isFinite(parsed)) {
-        throw new ValidationError('Invalid date value', {
-          date: 'date must be a valid ISO string or Unix timestamp',
-        });
-      }
-      uploadDate = Math.floor(parsed / 1000);
+      uploadDate = Math.floor(parseCaptureDate(input.date) / 1000);
     }
 
     let newUrl: string | undefined;

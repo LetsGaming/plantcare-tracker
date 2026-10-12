@@ -82,7 +82,7 @@ export const createImageController = (
     uploadImage: async (req: FastifyRequest, reply: FastifyReply) => {
       const entityType = entityTypeParam(req);
       const entityId = numericParam(req, 'entityId');
-      const { file } = await readUpload(req);
+      const { file, fields } = await readUpload(req);
       if (!file) throw new ValidationError('No image file provided.');
 
       const { url, capturedAt } = await upload.execute({
@@ -90,6 +90,7 @@ export const createImageController = (
         entityType,
         entityId,
         file,
+        date: fields['date'],
       });
 
       const body: UploadImageResponse = {
