@@ -39,6 +39,11 @@ describe('toImageDto', () => {
     expect(toImageDto({ ...row, variants: 0 }).srcset).toBeNull();
   });
 
+  it('omits srcset for non-webp urls and urls with a query string even when variants exist', () => {
+    expect(toImageDto({ ...row, url: '/uploads/plant/a.png' }).srcset).toBeNull();
+    expect(toImageDto({ ...row, url: '/uploads/plant/a.webp?v=1' }).srcset).toBeNull();
+  });
+
   it('passes null dimensions and placeholder through', () => {
     const dto = toImageDto({ ...row, variants: 0, width: null, height: null, placeholder: null });
     expect([dto.width, dto.height, dto.placeholder]).toEqual([null, null, null]);

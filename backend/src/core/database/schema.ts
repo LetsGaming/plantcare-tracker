@@ -60,9 +60,9 @@ export interface ImagesTable {
   entity_type: 'plant' | 'substrate' | 'component';
   entity_id: number;
   upload_date: Generated<number>;
-  width: Generated<number | null>;
-  height: Generated<number | null>;
-  placeholder: Generated<string | null>;
+  width: number | null;
+  height: number | null;
+  placeholder: string | null;
   variants: Generated<number>;
 }
 

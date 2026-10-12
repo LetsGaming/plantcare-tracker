@@ -8,7 +8,9 @@ const STATEMENTS = [
 ];
 
 export const up = async (db: Kysely<unknown>): Promise<void> => {
-  for (const statement of STATEMENTS) {
-    await sql.raw(statement).execute(db);
-  }
+  await db.transaction().execute(async (trx) => {
+    for (const statement of STATEMENTS) {
+      await sql.raw(statement).execute(trx);
+    }
+  });
 };

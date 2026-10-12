@@ -153,6 +153,65 @@ describe('variant, sales and session migrations', () => {
     );
     await db.destroy();
   });
+
+  const latest = async () => {
+    const { sqlite, db } = open();
+    sqlite.pragma('foreign_keys = ON');
+    await applyMigrations(db);
+    return { sqlite, db };
+  };
+
+  it('creates the sales indexes with their partial predicates and a rowid-less price table', async () => {
+    const { sqlite, db } = await latest();
+    const master = sqlite
+      .prepare(
+        "SELECT name, sql FROM sqlite_master WHERE tbl_name IN ('sales_items', 'sales_price_points')",
+      )
+      .all() as { name: string; sql: string | null }[];
+    const sqlOf = (name: string) => master.find((r) => r.name === name)?.sql ?? '';
+
+    expect(sqlOf('idx_sales_active_first_seen')).toMatch(
+      /\(first_seen_at DESC, sale_id DESC\) WHERE active = 1/,
+    );
+    expect(sqlOf('idx_sales_inactive_seen')).toMatch(/WHERE active = 0/);
+    expect(sqlOf('idx_sales_source')).toContain('(source_key, active)');
+    expect(sqlOf('sales_price_points')).toMatch(/WITHOUT ROWID/);
+    await db.destroy();
+  });
+
+  it('serves the active sales page from the partial index without a temp b-tree', async () => {
+    const { sqlite, db } = await latest();
+    const plan = (
+      sqlite
+        .prepare(
+          'EXPLAIN QUERY PLAN SELECT sale_id FROM sales_items WHERE active = 1 ORDER BY first_seen_at DESC, sale_id DESC LIMIT 100',
+        )
+        .all() as { detail: string }[]
+    )
+      .map((r) => r.detail)
+      .join('\n');
+    expect(plan).toMatch(/USING (COVERING )?INDEX idx_sales_active_first_seen/);
+    expect(plan).not.toContain('USE TEMP B-TREE');
+    await db.destroy();
+  });
+
+  it('cascades user deletes to sessions and sales item deletes to price points', async () => {
+    const { sqlite, db } = await latest();
+    sqlite.exec(`
+      INSERT INTO users (id, username, password) VALUES (9, 'u', 'h');
+      INSERT INTO sessions (sid, user_id, expires_at, created_at) VALUES ('s1', 9, 2000000000, 1700000000);
+      INSERT INTO sales_items (sale_id, source_key, seller, name, link, new_price, first_seen_at, last_seen_at, scraped_at)
+        VALUES ('i1', 'k', 'seller', 'n', 'https://x.test', 5, 1, 1, 1);
+      INSERT INTO sales_price_points (sale_id, observed_at, price) VALUES ('i1', 1, 5), ('i1', 2, 4);
+    `);
+
+    sqlite.exec('DELETE FROM users WHERE id = 9');
+    expect(sqlite.prepare('SELECT COUNT(*) AS n FROM sessions').get()).toEqual({ n: 0 });
+
+    sqlite.exec("DELETE FROM sales_items WHERE sale_id = 'i1'");
+    expect(sqlite.prepare('SELECT COUNT(*) AS n FROM sales_price_points').get()).toEqual({ n: 0 });
+    await db.destroy();
+  });
 });
 
 describe('image data migrations', () => {

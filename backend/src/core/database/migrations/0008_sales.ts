@@ -16,7 +16,7 @@ const STATEMENTS = [
     scraped_at INTEGER NOT NULL,
     active INTEGER NOT NULL DEFAULT 1
   )`,
-  `CREATE INDEX idx_sales_active_first_seen ON sales_items(first_seen_at DESC, sale_id) WHERE active = 1`,
+  `CREATE INDEX idx_sales_active_first_seen ON sales_items(first_seen_at DESC, sale_id DESC) WHERE active = 1`,
   `CREATE INDEX idx_sales_source ON sales_items(source_key, active)`,
   `CREATE INDEX idx_sales_inactive_seen ON sales_items(last_seen_at) WHERE active = 0`,
   `CREATE TABLE sales_price_points (
@@ -35,7 +35,9 @@ const STATEMENTS = [
 ];
 
 export const up = async (db: Kysely<unknown>): Promise<void> => {
-  for (const statement of STATEMENTS) {
-    await sql.raw(statement).execute(db);
-  }
+  await db.transaction().execute(async (trx) => {
+    for (const statement of STATEMENTS) {
+      await sql.raw(statement).execute(trx);
+    }
+  });
 };
