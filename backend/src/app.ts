@@ -10,7 +10,9 @@
 import fs from 'fs';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
+import compress from '@fastify/compress';
 import cors from '@fastify/cors';
+import etag from '@fastify/etag';
 import fastifyStatic from '@fastify/static';
 
 import { getSqlite } from './core/database/db';
@@ -55,14 +57,20 @@ export interface AppDeps {
 }
 
 const JSON_BODY_LIMIT_BYTES = 100 * 1024;
+const COMPRESS_THRESHOLD_BYTES = 1024;
+const CORS_PREFLIGHT_MAX_AGE_S = 600;
+/** Upload file names are unique per content, so a URL never changes meaning. */
+const UPLOADS_MAX_AGE = '365d';
 
 export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => {
-  const { isProduction, allowedOrigins } = getConfig();
+  const { isProduction, allowedOrigins, trustProxyHops } = getConfig();
 
   const app = Fastify({
-    // Trust exactly one upstream proxy (e.g. nginx): `true` would trust all
-    // hops and let clients spoof X-Forwarded-For, bypassing IP rate limits.
-    trustProxy: (_address, hop) => hop < 1,
+    // Trust exactly the configured number of upstream proxies: `true` would
+    // trust all hops and let clients spoof X-Forwarded-For, bypassing IP rate
+    // limits. A plain number is not used because Fastify treats it as "trust
+    // nothing".
+    trustProxy: trustProxyHops > 0 ? (_address, hop) => hop < trustProxyHops : false,
     genReqId: generateRequestId,
     // The router is case- and trailing-slash-insensitive, like Express was.
     routerOptions: { caseSensitive: false, ignoreTrailingSlash: true },
@@ -98,6 +106,16 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
     },
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    maxAge: CORS_PREFLIGHT_MAX_AGE_S,
+  });
+  // etag must hash the uncompressed body, so its onSend hook is registered
+  // before compress. SSE replies are hijacked and never pass onSend; the
+  // default compressible types also exclude text/event-stream.
+  await app.register(etag, { weak: true });
+  await app.register(compress, {
+    global: true,
+    encodings: ['br', 'gzip'],
+    threshold: COMPRESS_THRESHOLD_BYTES,
   });
   await app.register(cookie);
   await registerRateLimit(app);
@@ -110,6 +128,9 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
     root: getUploadsDirectory(),
     prefix: `${STATIC_UPLOADS_ROUTE}/`,
     decorateReply: false,
+    cacheControl: true,
+    maxAge: UPLOADS_MAX_AGE,
+    immutable: true,
   });
 
   // API version prefix (/api/vX) resolved once in core/config: the auth

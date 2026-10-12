@@ -57,6 +57,17 @@ export const USER_RATE_LIMIT = {
   MAX_AI_STREAMS: 20,
 } as const;
 
+// ── List endpoints (keyset pagination) ────────────────────────────────────────
+
+export const LIST = {
+  DEFAULT_LIMIT: 30,
+  MAX_LIMIT: 100,
+  /** Longest accepted search term after trimming. */
+  MAX_QUERY_LENGTH: 100,
+  /** Longest accepted encoded cursor; real cursors are far shorter. */
+  MAX_CURSOR_LENGTH: 512,
+} as const;
+
 // ── Server-Sent Events ─────────────────────────────────────────────────────────
 
 export const SSE = {
