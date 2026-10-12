@@ -139,8 +139,18 @@ endpoints.
 
 | Index | Table | Columns |
 |-------|-------|---------|
-| `idx_plants_list` | `plants` | `is_public, user_id` |
-| `idx_images_lookup` | `images` | `entity_type, entity_id` |
+| `idx_images_lookup` | `images` | `entity_type, entity_id, upload_date, id`; newest image of an entity without sorting |
+| `idx_plants_user_created` | `plants` | `user_id, created_at DESC, id DESC`; own plants, newest first, keyset paging |
+| `idx_plants_user_name` | `plants` | `user_id, name COLLATE NOCASE, id`; own plants by name |
+| `idx_plants_public_created` | `plants` | `created_at DESC, id DESC` where `is_public = 1`; public plants, newest first |
+| `idx_plants_public_name` | `plants` | `name COLLATE NOCASE, id` where `is_public = 1`; public plants by name |
+| `idx_plants_substrate` | `plants` | `substrate_id` where `substrate_id IS NOT NULL`; plants using a substrate |
+| `idx_substrates_user_created` | `substrates` | `user_id, created_at DESC, id DESC`; own substrates, newest first |
+| `idx_substrates_user_name` | `substrates` | `user_id, name COLLATE NOCASE, id`; own substrates by name |
+| `idx_substrates_public_created` | `substrates` | `created_at DESC, id DESC` where `is_public = 1`; public substrates, newest first |
+| `idx_substrates_public_name` | `substrates` | `name COLLATE NOCASE, id` where `is_public = 1`; public substrates by name |
+| `idx_substrate_components_component` | `substrate_components` | `component_id`; substrates using a component |
+| `idx_components_name` | `components` | `name COLLATE NOCASE, id`; components by name |
 | `idx_watering_history` | `watering_records` | `plant_id, date DESC` |
 
 ## Reading related rows
