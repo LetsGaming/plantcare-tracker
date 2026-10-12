@@ -505,7 +505,7 @@ describe('authorization', () => {
       headers: admin.auth,
       json: { name: 'Perlite', fineness: 1 },
     });
-    const componentId = created.body.data.component_id;
+    const componentId = created.body.data.id;
     const user = await app.signIn('user');
     expect((await upload(user.auth, 'component', componentId)).status).toBe(403);
     expect((await upload(admin.auth, 'component', componentId)).status).toBe(201);
@@ -558,7 +558,7 @@ describe('stored paths', () => {
       url: `${API}/plants/${plant.plant_id}`,
       headers: owner.auth,
     });
-    expect(pathOf(fetched.body.data.image_url)).toBe(row.image_url);
+    expect(pathOf(fetched.body.data.cover.url)).toBe(row.image_url);
   });
 });
 
@@ -586,7 +586,7 @@ describe('cleanup on entity deletion', () => {
       headers: admin.auth,
       json: { name: 'Cleanup grit', fineness: 1 },
     });
-    const id = created.body.data.component_id;
+    const id = created.body.data.id;
     await upload(admin.auth, 'component', id);
     await app.client.request({
       method: 'delete',

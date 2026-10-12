@@ -165,7 +165,7 @@ describe('lookup query plans', () => {
         'SELECT id, date FROM watering_records WHERE plant_id = ? ORDER BY date DESC, id DESC LIMIT 51',
         1,
       );
-      expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history/);
+      expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history\b/);
       noTempBTree(detail);
     });
 
@@ -176,7 +176,7 @@ describe('lookup query plans', () => {
         1_700_000_000,
         50,
       );
-      expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history/);
+      expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history\b/);
       noTempBTree(detail);
     });
 
@@ -186,7 +186,7 @@ describe('lookup query plans', () => {
           `SELECT ${aggregate}(date) FROM watering_records WHERE plant_id = ?`,
           1,
         );
-        expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history/);
+        expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history\b/);
         noTempBTree(detail);
       }
     });

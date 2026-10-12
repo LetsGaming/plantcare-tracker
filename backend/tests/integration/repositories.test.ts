@@ -118,8 +118,8 @@ describe('SQLitePlantRepository', () => {
       userId,
     });
 
-    const a = await plants.findById(first);
-    const b = await plants.findById(second);
+    const a = await plants.findById(first, userId, 0);
+    const b = await plants.findById(second, userId, 0);
     expect(a).toMatchObject({ name: 'Monty', species: 'Monstera deliciosa' });
     expect(b?.species).toBe('Monstera deliciosa');
     expect(a?.substrate).toMatchObject({ substrate_id: substrateId, substrate_name: 'Mix' });
@@ -144,10 +144,10 @@ describe('SQLitePlantRepository', () => {
       userId,
     });
 
-    expect((await plants.findAllByUser(userId)).map((p) => p.id).sort()).toEqual(
-      [priv, pub].sort(),
-    );
-    const publicIds = (await plants.findAllPublic()).map((p) => p.id);
+    const query = { limit: 100, cursor: null, q: null, sort: 'created' as const };
+    const mine = await plants.listMine(userId, query, 0);
+    expect(mine.items.map((p) => p.plant_id).sort()).toEqual([priv, pub].sort());
+    const publicIds = (await plants.listPublic(query)).items.map((p) => p.plant_id);
     expect(publicIds).toContain(pub);
     expect(publicIds).not.toContain(priv);
   });
@@ -166,7 +166,7 @@ describe('SQLitePlantRepository', () => {
     expect(await plants.update(id, userId, { name: 'renamed', isPublic: true })).toBe(true);
     expect(await plants.update(id, userId + 999, { name: 'x' })).toBe(false);
     expect(await plants.update(id, userId, {})).toBe(false);
-    expect((await plants.findById(id))?.isPublic).toBe(true);
+    expect((await plants.findById(id, userId, 0))?.isPublic).toBe(true);
   });
 
   it('deletes only for the owner', async () => {
@@ -181,7 +181,7 @@ describe('SQLitePlantRepository', () => {
     });
     expect(await plants.delete(id, userId + 999)).toBe(false);
     expect(await plants.delete(id, userId)).toBe(true);
-    expect(await plants.findById(id)).toBeNull();
+    expect(await plants.findById(id, userId, 0)).toBeNull();
   });
 
   it('returns images oldest first with absolute urls built from stored paths', async () => {
@@ -198,13 +198,13 @@ describe('SQLitePlantRepository', () => {
     await images.create('plant', id, '/uploads/plant/old.webp', 100);
     await images.create('plant', id, 'https://cdn.example/legacy.webp', 300);
 
-    const plant = await plants.findById(id);
+    const plant = await plants.findById(id, userId, 0);
     expect(plant?.images.map((i) => i.url)).toEqual([
       'http://localhost:5000/uploads/plant/old.webp',
       'http://localhost:5000/uploads/plant/new.webp',
       'https://cdn.example/legacy.webp',
     ]);
-    expect(plant?.imageUrl).toBe('https://cdn.example/legacy.webp');
+    expect(plant?.cover?.url).toBe('https://cdn.example/legacy.webp');
   });
 
   it('does not leave a species behind when the plant insert fails', async () => {
@@ -243,16 +243,16 @@ describe('SQLiteWateringRepository', () => {
 
   it('creates records only for plants the user owns', async () => {
     const { userId, plantId } = await setup();
-    const id = await watering.create(
+    const row = await watering.create(
       { plantId, date: 1_700_000_000, usedFertilizer: true, fertilizerTypeId: 1 },
       userId,
     );
-    expect(id).toBeGreaterThan(0);
+    expect(row?.id).toBeGreaterThan(0);
     const foreign = await watering.create(
       { plantId, date: 1_700_000_000, usedFertilizer: false, fertilizerTypeId: null },
       userId + 999,
     );
-    expect(foreign).toBe(0);
+    expect(foreign).toBeNull();
   });
 
   it('maps fertilizer data and booleans', async () => {
@@ -261,29 +261,45 @@ describe('SQLiteWateringRepository', () => {
       { plantId, date: 1_700_000_000, usedFertilizer: true, fertilizerTypeId: 2 },
       userId,
     );
-    const [record] = await watering.findByPlant(plantId, userId);
-    expect(record).toMatchObject({
-      used_fertilizer: true,
-      fertilizer_type: 'synthetic',
-      watering_date: 1_700_000_000,
-      owner_id: userId,
+    const history = await watering.findHistory(plantId, userId, {
+      limit: 10,
+      cursor: null,
+      withTotal: true,
     });
-    expect(await watering.findById(record.record_id, userId + 999)).toBeNull();
+    const [record] = history!.rows;
+    expect(history?.total).toBe(1);
+    expect(record).toMatchObject({
+      plant_id: plantId,
+      used_fertilizer: true,
+      fertilizer_type_id: 2,
+      date: 1_700_000_000,
+    });
+    expect(await watering.findById(record.id, userId + 999)).toBeNull();
+    expect(
+      await watering.findHistory(plantId, userId + 999, {
+        limit: 10,
+        cursor: null,
+        withTotal: false,
+      }),
+    ).toBeNull();
   });
 
   it('updates fields, allows clearing the fertilizer type, and scopes by owner', async () => {
     const { userId, plantId } = await setup();
-    const id = await watering.create(
+    const created = await watering.create(
       { plantId, date: 1_700_000_000, usedFertilizer: true, fertilizerTypeId: 1 },
       userId,
     );
-    expect(
-      await watering.update(id, userId, { usedFertilizer: false, fertilizerTypeId: null }),
-    ).toBe(true);
+    const id = created!.id;
+    const updated = await watering.update(id, userId, {
+      usedFertilizer: false,
+      fertilizerTypeId: null,
+    });
+    expect(updated).toMatchObject({ id, used_fertilizer: false, fertilizer_type_id: null });
     expect((await watering.findById(id, userId))?.fertilizer_type_id).toBeNull();
-    expect(await watering.update(id, userId + 999, { date: 5 })).toBe(false);
-    expect(await watering.delete(id, userId + 999)).toBe(false);
-    expect(await watering.delete(id, userId)).toBe(true);
+    expect(await watering.update(id, userId + 999, { date: 5 })).toBeNull();
+    expect(await watering.delete(id, userId + 999)).toBeNull();
+    expect(await watering.delete(id, userId)).toBe(plantId);
   });
 });
 
@@ -324,16 +340,19 @@ describe('SQLiteSubstrateRepository', () => {
     expect((await substrates.findById(substrateId))?.components).toHaveLength(1);
   });
 
-  it('upserts and deletes components', async () => {
+  it('replaces the mix and deletes components', async () => {
     const userId = await newUser();
     const substrateId = await substrates.create('Mix', userId, false);
     const a = await components.create('A', 1);
     const b = await components.create('B', 1);
-    await substrates.upsertComponents(substrateId, [{ componentId: a, parts: 1 }]);
-    await substrates.upsertComponents(substrateId, [
-      { componentId: a, parts: 4 },
-      { componentId: b, parts: 2 },
-    ]);
+    await substrates.addComponents(substrateId, [{ componentId: a, parts: 1 }]);
+    expect(
+      await substrates.replaceComponents(substrateId, userId, [
+        { componentId: a, parts: 4 },
+        { componentId: b, parts: 2 },
+      ]),
+    ).toBe(true);
+    expect(await substrates.replaceComponents(substrateId, userId + 999, [])).toBe(false);
     let substrate = await substrates.findById(substrateId);
     expect(substrate?.components.find((c) => c.component_id === a)?.component_parts).toBe(4);
 

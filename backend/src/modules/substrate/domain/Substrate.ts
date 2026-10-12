@@ -86,7 +86,6 @@ export interface SubstrateRepository {
   /** One transaction; false (nothing written) when the substrate is not owned by `userId`. */
   update(id: number, userId: number, fields: SubstrateUpdateFields): Promise<boolean>;
   addComponents(substrateId: number, components: ComponentInput[]): Promise<void>;
-  upsertComponents(substrateId: number, components: ComponentInput[]): Promise<void>;
   /** Replaces the whole mix atomically; false when the substrate is not owned by `userId`. */
   replaceComponents(
     substrateId: number,

@@ -131,7 +131,7 @@ describe('SQLiteEmbeddingRepository', () => {
           compiled.parameters as never,
         )
         .map((r) => r.detail);
-      expect(plan[0]).toMatch(/\bplants\b/);
+      expect(plan[0]).toMatch(/^SEARCH p /);
       expect(plan[0]).toMatch(/idx_plants_user/);
       expect(plan.join(' | ')).toMatch(/idx_images_lookup/);
       expect(plan.some((d) => /SCAN (i|images)\b/.test(d))).toBe(false);

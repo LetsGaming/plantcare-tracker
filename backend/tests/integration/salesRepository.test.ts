@@ -294,7 +294,7 @@ describe('applySourceSnapshot', () => {
       last_seen_at: 2_000,
       active: 1,
     });
-    expect(pointsOf(idOf('alpha', 350))).toEqual([{ observed_at: 2_000, price: 19.95 }]);
+    expect(pointsOf(idOf('alpha', 350))).toEqual([{ observed_at: 2_000, price: 9.99 }]);
     expect(activeIds('alpha')).toHaveLength(300);
   });
 

@@ -42,7 +42,6 @@ const makeMockRepo = (): SubstrateRepository => ({
   create: vi.fn().mockResolvedValue(1),
   update: vi.fn().mockResolvedValue(true),
   addComponents: vi.fn().mockResolvedValue(undefined),
-  upsertComponents: vi.fn().mockResolvedValue(undefined),
   replaceComponents: vi.fn().mockResolvedValue(true),
   deleteComponents: vi.fn().mockResolvedValue(undefined),
   delete: vi.fn().mockResolvedValue(true),
@@ -136,7 +135,7 @@ describe('CreateSubstrateUseCase', () => {
     );
 
     expect(substrate.substrate_id).toBe(5);
-    expect(repo.create).toHaveBeenCalledWith('Cactus Mix', 2, true);
+    expect(repo.create).toHaveBeenCalledWith('Cactus Mix', 2, true, undefined);
   });
 
   it('creates the substrate and its mix in one repository call', async () => {

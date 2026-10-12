@@ -5,9 +5,9 @@ import { createComponent, createSubstrate } from './support';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 let app: ContractApp;
-let componentA: { component_id: number; component_name: string };
-let componentB: { component_id: number; component_name: string };
-let componentC: { component_id: number; component_name: string };
+let componentA: { id: number; name: string };
+let componentB: { id: number; name: string };
+let componentC: { id: number; name: string };
 
 beforeAll(async () => {
   app = await createContractApp();
@@ -51,8 +51,8 @@ describe('POST /substrates', () => {
       json: {
         name: 'Mixed',
         components: [
-          { componentId: componentA.component_id, parts: 2 },
-          { componentId: componentB.component_id, parts: 1.234 },
+          { componentId: componentA.id, parts: 2 },
+          { componentId: componentB.id, parts: 1.234 },
         ],
       },
     });
@@ -62,8 +62,8 @@ describe('POST /substrates', () => {
       c.component_parts,
     ];
     expect(res.body.data.components.map(mix)).toEqual([
-      [componentA.component_id, 2],
-      [componentB.component_id, 1.23],
+      [componentA.id, 2],
+      [componentB.id, 1.23],
     ]);
     const read = await app.client.request({
       method: 'get',
@@ -82,8 +82,8 @@ describe('POST /substrates', () => {
       json: {
         name: 'Atomic',
         components: [
-          { componentId: componentA.component_id, parts: 1 },
-          { componentId: componentA.component_id, parts: 2 },
+          { componentId: componentA.id, parts: 1 },
+          { componentId: componentA.id, parts: 2 },
         ],
       },
     });
@@ -187,7 +187,7 @@ describe('GET /substrates', () => {
         headers: owner.auth,
         json: {
           name,
-          components: name === 'page-c' ? [{ componentId: componentC.component_id, parts: 1 }] : [],
+          components: name === 'page-c' ? [{ componentId: componentC.id, parts: 1 }] : [],
         },
       });
       created.push(res.body.data.substrate_id);
@@ -213,7 +213,7 @@ describe('GET /substrates', () => {
 
     const used = await app.client.request({
       method: 'get',
-      url: `${API}/substrates?component_id=${componentC.component_id}`,
+      url: `${API}/substrates?component_id=${componentC.id}`,
       headers: owner.auth,
     });
     expect(used.body.data.items.map((s: { id: number }) => s.id)).toEqual([created[2]]);
@@ -230,13 +230,13 @@ describe('GET /substrates', () => {
       json: {
         name: 'secret mix',
         isPublic: false,
-        components: [{ componentId: componentB.component_id, parts: 1 }],
+        components: [{ componentId: componentB.id, parts: 1 }],
       },
     });
     for (const scope of ['mine', 'public']) {
       const res = await app.client.request({
         method: 'get',
-        url: `${API}/substrates?scope=${scope}&component_id=${componentB.component_id}&q=secret`,
+        url: `${API}/substrates?scope=${scope}&component_id=${componentB.id}&q=secret`,
         headers: viewer.auth,
       });
       expect(res.body.data.items).toEqual([]);
@@ -294,13 +294,13 @@ describe('component composition', () => {
       method: 'post',
       url: `${API}/substrates/${substrate.substrate_id}/components`,
       headers: owner.auth,
-      json: { components: [{ componentId: componentA.component_id, parts: 2.456 }] },
+      json: { components: [{ componentId: componentA.id, parts: 2.456 }] },
     });
     expect(res.status).toBe(201);
     expect(res.headers.location).toBe(`/substrates/${substrate.substrate_id}`);
     expect(res.body.data.components).toEqual([
       {
-        component_id: componentA.component_id,
+        component_id: componentA.id,
         component_name: 'Perlite',
         component_fineness: 'coarse',
         component_parts: 2.46,
@@ -317,8 +317,8 @@ describe('component composition', () => {
       headers: owner.auth,
       json: {
         components: {
-          0: { componentId: componentA.component_id, parts: 1 },
-          1: { componentId: componentB.component_id, parts: 2 },
+          0: { componentId: componentA.id, parts: 1 },
+          1: { componentId: componentB.id, parts: 2 },
         },
       },
     });
@@ -333,7 +333,7 @@ describe('component composition', () => {
       method: 'post',
       url: `${API}/substrates/${substrate.substrate_id}/components`,
       headers: owner.auth,
-      json: { components: { componentId: componentA.component_id, parts: 1 } },
+      json: { components: { componentId: componentA.id, parts: 1 } },
     });
     expect(res.status).toBe(400);
   });
@@ -346,7 +346,7 @@ describe('component composition', () => {
       method: 'patch',
       url,
       headers: owner.auth,
-      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+      json: { components: [{ componentId: componentA.id, parts: 1 }] },
     });
     const res = await app.client.request({
       method: 'patch',
@@ -354,8 +354,8 @@ describe('component composition', () => {
       headers: owner.auth,
       json: {
         components: [
-          { componentId: componentA.component_id, parts: 3 },
-          { componentId: componentB.component_id, parts: 1 },
+          { componentId: componentA.id, parts: 3 },
+          { componentId: componentB.id, parts: 1 },
         ],
       },
     });
@@ -366,7 +366,7 @@ describe('component composition', () => {
         c.component_parts,
       ]),
     );
-    expect(parts).toEqual({ [componentA.component_id]: 3, [componentB.component_id]: 1 });
+    expect(parts).toEqual({ [componentA.id]: 3, [componentB.id]: 1 });
   });
 
   it('removes an unticked component when PATCH sends the shorter list', async () => {
@@ -379,7 +379,7 @@ describe('component composition', () => {
       headers: owner.auth,
       json: {
         components: [componentA, componentB, componentC].map((c) => ({
-          componentId: c.component_id,
+          componentId: c.id,
           parts: 1,
         })),
       },
@@ -390,8 +390,8 @@ describe('component composition', () => {
       headers: owner.auth,
       json: {
         components: [
-          { componentId: componentA.component_id, parts: 2 },
-          { componentId: componentC.component_id, parts: 1 },
+          { componentId: componentA.id, parts: 2 },
+          { componentId: componentC.id, parts: 1 },
         ],
       },
     });
@@ -406,8 +406,8 @@ describe('component composition', () => {
     );
     expect(mix).toHaveLength(2);
     expect(Object.fromEntries(mix)).toEqual({
-      [componentA.component_id]: 2,
-      [componentC.component_id]: 1,
+      [componentA.id]: 2,
+      [componentC.id]: 1,
     });
   });
 
@@ -419,7 +419,7 @@ describe('component composition', () => {
       method: 'post',
       url,
       headers: owner.auth,
-      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+      json: { components: [{ componentId: componentA.id, parts: 1 }] },
     });
     const res = await app.client.request({
       method: 'patch',
@@ -439,7 +439,7 @@ describe('component composition', () => {
       method: 'post',
       url,
       headers: owner.auth,
-      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+      json: { components: [{ componentId: componentA.id, parts: 1 }] },
     });
     const missing = await app.client.request({
       method: 'patch',
@@ -454,8 +454,8 @@ describe('component composition', () => {
       headers: owner.auth,
       json: {
         components: [
-          { componentId: componentA.component_id, parts: 1 },
-          { componentId: componentA.component_id, parts: 2 },
+          { componentId: componentA.id, parts: 1 },
+          { componentId: componentA.id, parts: 2 },
         ],
       },
     });
@@ -476,7 +476,7 @@ describe('component composition', () => {
       method: 'post',
       url,
       headers: owner.auth,
-      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+      json: { components: [{ componentId: componentA.id, parts: 1 }] },
     });
     const intruder = await app.signIn('user');
     const res = await app.client.request({
@@ -563,7 +563,7 @@ describe('component composition', () => {
       method: 'post',
       url: `${API}/substrates/${substrate.substrate_id}/components`,
       headers: intruder.auth,
-      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+      json: { components: [{ componentId: componentA.id, parts: 1 }] },
     });
     expect(res.status).toBe(404);
     expect(res.body.error.message).toBe('Substrate not found');
@@ -614,8 +614,8 @@ describe('PATCH /substrates/:id', () => {
       headers: owner.auth,
       json: {
         components: [
-          { componentId: componentA.component_id, parts: 1 },
-          { componentId: componentB.component_id, parts: 2 },
+          { componentId: componentA.id, parts: 1 },
+          { componentId: componentB.id, parts: 2 },
         ],
       },
     });
@@ -623,12 +623,12 @@ describe('PATCH /substrates/:id', () => {
       method: 'patch',
       url: `${API}/substrates/${substrate.substrate_id}`,
       headers: owner.auth,
-      json: { name: 'Updated', isPublic: true, removedComponents: [componentA.component_id] },
+      json: { name: 'Updated', isPublic: true, removedComponents: [componentA.id] },
     });
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ substrate_name: 'Updated', is_public: true });
     expect(res.body.data.components.map((c: { component_id: number }) => c.component_id)).toEqual([
-      componentB.component_id,
+      componentB.id,
     ]);
   });
 
@@ -641,7 +641,7 @@ describe('PATCH /substrates/:id', () => {
       headers: owner.auth,
       json: {
         components: [componentA, componentB, componentC].map((c) => ({
-          componentId: c.component_id,
+          componentId: c.id,
           parts: 1,
         })),
       },
@@ -653,8 +653,8 @@ describe('PATCH /substrates/:id', () => {
       json: {
         name: 'One request',
         components: [
-          { componentId: componentA.component_id, parts: 3 },
-          { componentId: componentC.component_id, parts: 1 },
+          { componentId: componentA.id, parts: 3 },
+          { componentId: componentC.id, parts: 1 },
         ],
       },
     });
@@ -667,7 +667,7 @@ describe('PATCH /substrates/:id', () => {
           c.component_parts,
         ]),
       ),
-    ).toEqual({ [componentA.component_id]: 3, [componentC.component_id]: 1 });
+    ).toEqual({ [componentA.id]: 3, [componentC.id]: 1 });
   });
 
   it('answers an unknown component with 400 and keeps the name and the previous mix', async () => {
@@ -677,7 +677,7 @@ describe('PATCH /substrates/:id', () => {
       method: 'post',
       url: `${API}/substrates/${substrate.substrate_id}/components`,
       headers: owner.auth,
-      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+      json: { components: [{ componentId: componentA.id, parts: 1 }] },
     });
     for (const [method, url, json] of [
       [
@@ -701,7 +701,7 @@ describe('PATCH /substrates/:id', () => {
     });
     expect(read.body.data.substrate_name).toBe('Before');
     expect(read.body.data.components.map((c: { component_id: number }) => c.component_id)).toEqual([
-      componentA.component_id,
+      componentA.id,
     ]);
   });
 
@@ -715,8 +715,8 @@ describe('PATCH /substrates/:id', () => {
       headers: owner.auth,
       json: {
         components: [
-          { componentId: componentA.component_id, parts: 1 },
-          { componentId: componentA.component_id, parts: 2 },
+          { componentId: componentA.id, parts: 1 },
+          { componentId: componentA.id, parts: 2 },
         ],
       },
     });
@@ -725,7 +725,7 @@ describe('PATCH /substrates/:id', () => {
       method: 'patch',
       url,
       headers: owner.auth,
-      json: { components: [], removedComponents: [componentA.component_id] },
+      json: { components: [], removedComponents: [componentA.id] },
     });
     expect(both.status).toBe(400);
   });
@@ -799,7 +799,7 @@ describe('constraint errors', () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
     const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    const body = { components: [{ componentId: componentA.component_id, parts: 1 }] };
+    const body = { components: [{ componentId: componentA.id, parts: 1 }] };
     await app.client.request({ method: 'post', url, headers: owner.auth, json: body });
     const res = await app.client.request({ method: 'post', url, headers: owner.auth, json: body });
     expect(res.status).toBe(409);

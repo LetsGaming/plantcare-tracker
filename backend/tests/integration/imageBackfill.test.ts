@@ -234,9 +234,11 @@ describe('runVariantBackfill', () => {
   });
 
   it('counts a row with an unexpected entity type as failed and leaves it pending', async () => {
+    getSqlite().pragma('ignore_check_constraints = ON');
     getSqlite()
       .prepare("INSERT INTO images (image_url, entity_type, entity_id) VALUES (?, '../x', 1)")
       .run('/uploads/plant/a.webp');
+    getSqlite().pragma('ignore_check_constraints = OFF');
 
     const result = await runVariantBackfill({ uploadsDir });
 

@@ -69,7 +69,7 @@ const wateringRecords = async (auth: Auth, plantId: number) =>
       url: `${API}/watering/plant/${plantId}`,
       headers: auth,
     })
-  ).body.data ?? [];
+  ).body.data?.items ?? [];
 
 const listImages = async (auth: Auth, plantId: number) =>
   (

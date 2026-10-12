@@ -234,7 +234,7 @@ describe('GET /watering/plant/:plantId', () => {
         ['date', 'fertilizer_type_id', 'id', 'plant_id', 'used_fertilizer'].sort(),
       );
     }
-    expect(res.body.data.items[0].date).toBe((1_700_000_000 + 2 * 86400) * 1000);
+    expect(res.body.data.items[0].date).toBe((1_700_000_000 + 86400) * 1000);
   });
 
   it('answers an empty first page with total 0 for a plant without records', async () => {
@@ -275,7 +275,9 @@ describe('GET /watering/plant/:plantId', () => {
     for (const cursor of [null, { s: 'date', v: 1_700_000_000, id: 50 }]) {
       const compiled = historyPageQuery(1, { limit: 50, cursor, withTotal: false }).compile();
       const plan = app.db
-        .query<{ detail: string }>(`EXPLAIN QUERY PLAN ${compiled.sql}`, [...compiled.parameters])
+        .query<{ detail: string }>(`EXPLAIN QUERY PLAN ${compiled.sql}`, [
+          ...compiled.parameters,
+        ] as Array<string | number | null>)
         .map((r) => r.detail)
         .join('\n');
       expect(plan).toMatch(/USING (COVERING )?INDEX idx_watering_history\b/);

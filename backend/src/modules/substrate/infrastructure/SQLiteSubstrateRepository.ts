@@ -281,12 +281,6 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       });
   }
 
-  async upsertComponents(substrateId: number, components: ComponentInput[]): Promise<void> {
-    await getKysely()
-      .transaction()
-      .execute((trx) => insertMix(trx, substrateId, components));
-  }
-
   async replaceComponents(
     substrateId: number,
     userId: number,

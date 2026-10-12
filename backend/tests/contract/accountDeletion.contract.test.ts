@@ -91,7 +91,7 @@ describe('DELETE /auth/me for a substrate owner', () => {
     expect(fs.existsSync(foreignFile)).toBe(true);
   });
 
-  it('answers 404 for an unknown user and leaves other accounts untouched', async () => {
+  it('answers 401 for a token whose user is gone and leaves other accounts untouched', async () => {
     const bystander = await app.signIn('user');
     const substrate = await createSubstrate(app, bystander.auth);
 
@@ -103,7 +103,7 @@ describe('DELETE /auth/me for a substrate owner', () => {
       headers: gone.auth,
     });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
     expect(count('substrates', 'id = ?', substrate.substrate_id)).toBe(1);
   });
 });

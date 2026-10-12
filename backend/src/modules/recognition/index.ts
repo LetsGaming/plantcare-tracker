@@ -17,7 +17,7 @@ export interface RecognitionDeps {
 export interface Recognition {
   readonly embedder: Embedder | null;
   onImageStored(event: StoredImageEvent): void;
-  onImageRemoved?: ImageRemovedListener;
+  onImageRemoved: ImageRemovedListener;
 }
 
 export interface RecognitionContext extends Recognition {
