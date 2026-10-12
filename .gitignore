@@ -14,3 +14,7 @@ scratch-*.png
 # Design tooling state (briefs, critiques, screenshots, caches)
 .impeccable/
 frontend/.impeccable/
+
+# Performance harness output (scripts/perf)
+scripts/perf/results/
+dist-perf/
