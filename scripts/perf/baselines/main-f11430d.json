@@ -1,0 +1,1931 @@
+{
+  "metadata": {
+    "commit": "f11430d",
+    "date": "2026-10-12T05:40:07.256Z",
+    "node": "v24.14.1",
+    "browser": "Microsoft Edge 155.0.4283.45 (playwright msedge channel, headless)",
+    "platform": "win32",
+    "throttling": {
+      "cpuRate": 4,
+      "network": {
+        "latencyMs": 150,
+        "downloadBytesPerSec": 209715,
+        "uploadBytesPerSec": 96000
+      },
+      "viewport": "390x844 DPR3 mobile touch"
+    },
+    "dataset": {
+      "plants": 197,
+      "publicPlants": 8,
+      "wateringRecords": 21699,
+      "plantImageRows": 374,
+      "substrates": 97,
+      "components": 49,
+      "injectedSales": {
+        "sales-entry": [
+          300,
+          2000
+        ],
+        "mark-all-seen": 1000,
+        "tabs, search": 300,
+        "plants-cold": 0
+      },
+      "salesInjectMode": "idb",
+      "pricePointsPerSale": 12
+    },
+    "runs": 5,
+    "medians": true,
+    "notes": [
+      "Measured on the original code (worktree at f11430d) with scripts/perf copied in unchanged apart from the harness fixes.",
+      "apitime runs 7 samples per endpoint."
+    ]
+  },
+  "navbench": {
+    "salesEntry300": {
+      "label": "main-f11430d-sales300",
+      "url": "http://127.0.0.1:64146",
+      "scenarios": [
+        "sales-entry"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-12T04:58:02.057Z",
+      "steps": {
+        "sales-entry/first-entry": {
+          "longTasks": 2,
+          "blockedMs": 1048,
+          "longestMs": 589,
+          "domNodes": 13228,
+          "heapMb": 52.86106872558594,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/warm-reentry": {
+          "longTasks": 1,
+          "blockedMs": 529,
+          "longestMs": 579,
+          "domNodes": 13228,
+          "heapMb": 52.899993896484375,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/substrates-with-sales-mounted": {
+          "longTasks": 4,
+          "blockedMs": 239,
+          "longestMs": 134,
+          "domNodes": 15352,
+          "heapMb": 55.18691635131836,
+          "apiRequests": 2,
+          "uploadRequests": 2,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {
+            "/api/v2/components": 1,
+            "/api/v2/substrates": 1,
+            "/uploads/*": 2
+          }
+        }
+      },
+      "perRun": [
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 1048,
+            "longestMs": 577,
+            "domNodes": 13228,
+            "heapMb": 52.896236419677734,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 1,
+            "blockedMs": 529,
+            "longestMs": 579,
+            "domNodes": 13228,
+            "heapMb": 52.93739700317383,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 4,
+            "blockedMs": 239,
+            "longestMs": 137,
+            "domNodes": 15352,
+            "heapMb": 55.22248458862305,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 1028,
+            "longestMs": 589,
+            "domNodes": 13228,
+            "heapMb": 52.830509185791016,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 1,
+            "blockedMs": 542,
+            "longestMs": 592,
+            "domNodes": 13228,
+            "heapMb": 52.87190246582031,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 4,
+            "blockedMs": 251,
+            "longestMs": 147,
+            "domNodes": 15352,
+            "heapMb": 55.15632629394531,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 1051,
+            "longestMs": 592,
+            "domNodes": 13228,
+            "heapMb": 52.86106872558594,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 1,
+            "blockedMs": 532,
+            "longestMs": 582,
+            "domNodes": 13228,
+            "heapMb": 52.899993896484375,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 4,
+            "blockedMs": 243,
+            "longestMs": 134,
+            "domNodes": 15352,
+            "heapMb": 55.18691635131836,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 1044,
+            "longestMs": 604,
+            "domNodes": 13228,
+            "heapMb": 52.818363189697266,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 2,
+            "blockedMs": 517,
+            "longestMs": 555,
+            "domNodes": 13228,
+            "heapMb": 52.860008239746094,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 4,
+            "blockedMs": 224,
+            "longestMs": 125,
+            "domNodes": 15352,
+            "heapMb": 55.144737243652344,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 1049,
+            "longestMs": 580,
+            "domNodes": 13228,
+            "heapMb": 52.875125885009766,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 1,
+            "blockedMs": 517,
+            "longestMs": 567,
+            "domNodes": 13228,
+            "heapMb": 52.91624069213867,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 4,
+            "blockedMs": 218,
+            "longestMs": 130,
+            "domNodes": 15352,
+            "heapMb": 55.20214080810547,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          }
+        }
+      ]
+    },
+    "salesEntry2000": {
+      "label": "main-f11430d-sales2000",
+      "url": "http://127.0.0.1:64146",
+      "scenarios": [
+        "sales-entry"
+      ],
+      "runs": 5,
+      "n": 2000,
+      "date": "2026-10-12T05:01:41.641Z",
+      "steps": {
+        "sales-entry/first-entry": {
+          "longTasks": 2,
+          "blockedMs": 6812,
+          "longestMs": 3812,
+          "domNodes": 74072,
+          "heapMb": 104.91999816894531,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/warm-reentry": {
+          "longTasks": 2,
+          "blockedMs": 3630,
+          "longestMs": 3577,
+          "domNodes": 74072,
+          "heapMb": 104.98017120361328,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/substrates-with-sales-mounted": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 74135,
+          "heapMb": 105.31367492675781,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        }
+      },
+      "perRun": [
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 6992,
+            "longestMs": 3921,
+            "domNodes": 74072,
+            "heapMb": 103.93620300292969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 2,
+            "blockedMs": 3584,
+            "longestMs": 3541,
+            "domNodes": 74072,
+            "heapMb": 103.99735641479492,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 74135,
+            "heapMb": 104.32916259765625,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 6812,
+            "longestMs": 3812,
+            "domNodes": 74072,
+            "heapMb": 104.9208984375,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 2,
+            "blockedMs": 3597,
+            "longestMs": 3550,
+            "domNodes": 74072,
+            "heapMb": 104.98017120361328,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 74135,
+            "heapMb": 105.31432342529297,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 7446,
+            "longestMs": 3825,
+            "domNodes": 74072,
+            "heapMb": 104.91999816894531,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 2,
+            "blockedMs": 3637,
+            "longestMs": 3596,
+            "domNodes": 74072,
+            "heapMb": 104.98209381103516,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 74135,
+            "heapMb": 105.31367492675781,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 6742,
+            "longestMs": 3606,
+            "domNodes": 74072,
+            "heapMb": 105.22889709472656,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 2,
+            "blockedMs": 3716,
+            "longestMs": 3648,
+            "domNodes": 74072,
+            "heapMb": 105.28878784179688,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 74135,
+            "heapMb": 105.6339340209961,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "longTasks": 2,
+            "blockedMs": 6727,
+            "longestMs": 3643,
+            "domNodes": 74072,
+            "heapMb": 104.91899871826172,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "longTasks": 2,
+            "blockedMs": 3630,
+            "longestMs": 3577,
+            "domNodes": 74072,
+            "heapMb": 104.978271484375,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 74135,
+            "heapMb": 105.31231307983398,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        }
+      ]
+    },
+    "tabsPlantsColdSearch": {
+      "label": "main-f11430d-misc",
+      "url": "http://127.0.0.1:64146",
+      "scenarios": [
+        "plants-cold",
+        "tabs",
+        "search"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-12T05:09:53.899Z",
+      "steps": {
+        "plants-cold/cold-load": {
+          "longTasks": 8,
+          "blockedMs": 5826,
+          "longestMs": 1912,
+          "domNodes": 2505,
+          "heapMb": 38.81061553955078,
+          "apiRequests": 0,
+          "uploadRequests": 28,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {
+            "/uploads/*": 28
+          }
+        },
+        "tabs/01-substrates": {
+          "longTasks": 4,
+          "blockedMs": 87,
+          "longestMs": 101,
+          "domNodes": 4634,
+          "heapMb": 48.3450813293457,
+          "apiRequests": 2,
+          "uploadRequests": 2,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {
+            "/api/v2/components": 1,
+            "/api/v2/substrates": 1,
+            "/uploads/*": 2
+          }
+        },
+        "tabs/02-components": {
+          "longTasks": 2,
+          "blockedMs": 73,
+          "longestMs": 89,
+          "domNodes": 5727,
+          "heapMb": 49.28252029418945,
+          "apiRequests": 1,
+          "uploadRequests": 4,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {
+            "/api/v2/components/fineness-levels": 1,
+            "/uploads/*": 4
+          }
+        },
+        "tabs/03-sales": {
+          "longTasks": 2,
+          "blockedMs": 1053,
+          "longestMs": 609,
+          "domNodes": 16445,
+          "heapMb": 56.024662017822266,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "tabs/04-plants": {
+          "longTasks": 2,
+          "blockedMs": 213,
+          "longestMs": 258,
+          "domNodes": 16445,
+          "heapMb": 56.044071197509766,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "tabs/05-substrates": {
+          "longTasks": 1,
+          "blockedMs": 80,
+          "longestMs": 130,
+          "domNodes": 16445,
+          "heapMb": 56.066612243652344,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "tabs/06-components": {
+          "longTasks": 1,
+          "blockedMs": 72,
+          "longestMs": 122,
+          "domNodes": 16445,
+          "heapMb": 56.09745788574219,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "tabs/07-sales": {
+          "longTasks": 1,
+          "blockedMs": 510,
+          "longestMs": 560,
+          "domNodes": 16445,
+          "heapMb": 56.15559387207031,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "tabs/08-plants": {
+          "longTasks": 2,
+          "blockedMs": 204,
+          "longestMs": 251,
+          "domNodes": 16445,
+          "heapMb": 56.17498016357422,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "search/type-r": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 13228,
+          "heapMb": 52.86232376098633,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "search/type-ro": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 10988,
+          "heapMb": 50.55206298828125,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "search/type-ros": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 10940,
+          "heapMb": 50.51958084106445,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        },
+        "search/clear": {
+          "longTasks": 1,
+          "blockedMs": 100,
+          "longestMs": 150,
+          "domNodes": 13228,
+          "heapMb": 52.926570892333984,
+          "apiRequests": 0,
+          "uploadRequests": 28,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {
+            "/uploads/*": 28
+          }
+        }
+      },
+      "perRun": [
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 7,
+            "blockedMs": 5911,
+            "longestMs": 1995,
+            "domNodes": 2505,
+            "heapMb": 38.81061553955078,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          },
+          "tabs/01-substrates": {
+            "longTasks": 4,
+            "blockedMs": 87,
+            "longestMs": 105,
+            "domNodes": 4634,
+            "heapMb": 48.35108947753906,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          },
+          "tabs/02-components": {
+            "longTasks": 2,
+            "blockedMs": 92,
+            "longestMs": 103,
+            "domNodes": 5727,
+            "heapMb": 49.28787612915039,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 4,
+              "/api/v2/components/fineness-levels": 1
+            }
+          },
+          "tabs/03-sales": {
+            "longTasks": 2,
+            "blockedMs": 1087,
+            "longestMs": 606,
+            "domNodes": 16445,
+            "heapMb": 56.024662017822266,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "longTasks": 1,
+            "blockedMs": 175,
+            "longestMs": 225,
+            "domNodes": 16445,
+            "heapMb": 56.045013427734375,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "longTasks": 2,
+            "blockedMs": 81,
+            "longestMs": 130,
+            "domNodes": 16445,
+            "heapMb": 56.06745147705078,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "longTasks": 2,
+            "blockedMs": 60,
+            "longestMs": 108,
+            "domNodes": 16445,
+            "heapMb": 56.09745788574219,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "longTasks": 1,
+            "blockedMs": 510,
+            "longestMs": 560,
+            "domNodes": 16445,
+            "heapMb": 56.15559387207031,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "longTasks": 2,
+            "blockedMs": 204,
+            "longestMs": 251,
+            "domNodes": 16445,
+            "heapMb": 56.21409606933594,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-r": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 13228,
+            "heapMb": 52.86845016479492,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ro": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10988,
+            "heapMb": 50.55834197998047,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ros": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10940,
+            "heapMb": 50.52589416503906,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/clear": {
+            "longTasks": 1,
+            "blockedMs": 99,
+            "longestMs": 149,
+            "domNodes": 13228,
+            "heapMb": 52.93321990966797,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 8,
+            "blockedMs": 5826,
+            "longestMs": 1912,
+            "domNodes": 2505,
+            "heapMb": 38.81168746948242,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          },
+          "tabs/01-substrates": {
+            "longTasks": 4,
+            "blockedMs": 107,
+            "longestMs": 124,
+            "domNodes": 4634,
+            "heapMb": 48.3450813293457,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          },
+          "tabs/02-components": {
+            "longTasks": 2,
+            "blockedMs": 73,
+            "longestMs": 88,
+            "domNodes": 5727,
+            "heapMb": 49.28252029418945,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 4,
+              "/api/v2/components/fineness-levels": 1
+            }
+          },
+          "tabs/03-sales": {
+            "longTasks": 2,
+            "blockedMs": 1053,
+            "longestMs": 626,
+            "domNodes": 16445,
+            "heapMb": 56.021629333496094,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "longTasks": 2,
+            "blockedMs": 255,
+            "longestMs": 287,
+            "domNodes": 16445,
+            "heapMb": 56.0421028137207,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "longTasks": 1,
+            "blockedMs": 73,
+            "longestMs": 123,
+            "domNodes": 16445,
+            "heapMb": 56.0645637512207,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "longTasks": 1,
+            "blockedMs": 43,
+            "longestMs": 93,
+            "domNodes": 16445,
+            "heapMb": 56.09400939941406,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "longTasks": 2,
+            "blockedMs": 576,
+            "longestMs": 623,
+            "domNodes": 16445,
+            "heapMb": 56.15260314941406,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "longTasks": 2,
+            "blockedMs": 239,
+            "longestMs": 286,
+            "domNodes": 16445,
+            "heapMb": 56.170833587646484,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-r": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 13228,
+            "heapMb": 52.80217361450195,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ro": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10988,
+            "heapMb": 50.49188232421875,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ros": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10940,
+            "heapMb": 50.459434509277344,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/clear": {
+            "longTasks": 1,
+            "blockedMs": 100,
+            "longestMs": 150,
+            "domNodes": 13228,
+            "heapMb": 52.86649703979492,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 8,
+            "blockedMs": 5954,
+            "longestMs": 1875,
+            "domNodes": 2505,
+            "heapMb": 38.812904357910156,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          },
+          "tabs/01-substrates": {
+            "longTasks": 4,
+            "blockedMs": 94,
+            "longestMs": 101,
+            "domNodes": 4634,
+            "heapMb": 48.338565826416016,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          },
+          "tabs/02-components": {
+            "longTasks": 2,
+            "blockedMs": 76,
+            "longestMs": 89,
+            "domNodes": 5727,
+            "heapMb": 49.27537536621094,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 4,
+              "/api/v2/components/fineness-levels": 1
+            }
+          },
+          "tabs/03-sales": {
+            "longTasks": 2,
+            "blockedMs": 1082,
+            "longestMs": 597,
+            "domNodes": 16445,
+            "heapMb": 56.02644348144531,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "longTasks": 2,
+            "blockedMs": 222,
+            "longestMs": 263,
+            "domNodes": 16445,
+            "heapMb": 56.044071197509766,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "longTasks": 2,
+            "blockedMs": 107,
+            "longestMs": 150,
+            "domNodes": 16445,
+            "heapMb": 56.066612243652344,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "longTasks": 2,
+            "blockedMs": 86,
+            "longestMs": 131,
+            "domNodes": 16445,
+            "heapMb": 56.10270690917969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "longTasks": 2,
+            "blockedMs": 649,
+            "longestMs": 683,
+            "domNodes": 16445,
+            "heapMb": 56.16128921508789,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "longTasks": 2,
+            "blockedMs": 322,
+            "longestMs": 327,
+            "domNodes": 16445,
+            "heapMb": 56.219791412353516,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-r": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 13228,
+            "heapMb": 52.86232376098633,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ro": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10988,
+            "heapMb": 50.55206298828125,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ros": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10940,
+            "heapMb": 50.51958084106445,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/clear": {
+            "longTasks": 1,
+            "blockedMs": 100,
+            "longestMs": 150,
+            "domNodes": 13228,
+            "heapMb": 52.926570892333984,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 9,
+            "blockedMs": 5826,
+            "longestMs": 1918,
+            "domNodes": 2505,
+            "heapMb": 38.80390548706055,
+            "apiRequests": 0,
+            "uploadRequests": 29,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 29
+            }
+          },
+          "tabs/01-substrates": {
+            "longTasks": 4,
+            "blockedMs": 84,
+            "longestMs": 101,
+            "domNodes": 4634,
+            "heapMb": 48.35084915161133,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          },
+          "tabs/02-components": {
+            "longTasks": 2,
+            "blockedMs": 71,
+            "longestMs": 86,
+            "domNodes": 5727,
+            "heapMb": 49.28857421875,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 4,
+              "/api/v2/components/fineness-levels": 1
+            }
+          },
+          "tabs/03-sales": {
+            "longTasks": 2,
+            "blockedMs": 1047,
+            "longestMs": 616,
+            "domNodes": 16445,
+            "heapMb": 56.0260009765625,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "longTasks": 2,
+            "blockedMs": 213,
+            "longestMs": 258,
+            "domNodes": 16445,
+            "heapMb": 56.04634094238281,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "longTasks": 1,
+            "blockedMs": 76,
+            "longestMs": 126,
+            "domNodes": 16445,
+            "heapMb": 56.068790435791016,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "longTasks": 1,
+            "blockedMs": 72,
+            "longestMs": 122,
+            "domNodes": 16445,
+            "heapMb": 56.09824752807617,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "longTasks": 1,
+            "blockedMs": 490,
+            "longestMs": 540,
+            "domNodes": 16445,
+            "heapMb": 56.156795501708984,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "longTasks": 1,
+            "blockedMs": 181,
+            "longestMs": 231,
+            "domNodes": 16445,
+            "heapMb": 56.17498016357422,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-r": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 13228,
+            "heapMb": 52.86787414550781,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ro": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10988,
+            "heapMb": 50.55765914916992,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ros": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10940,
+            "heapMb": 50.525211334228516,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/clear": {
+            "longTasks": 1,
+            "blockedMs": 97,
+            "longestMs": 147,
+            "domNodes": 13228,
+            "heapMb": 52.931636810302734,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 7,
+            "blockedMs": 5660,
+            "longestMs": 1839,
+            "domNodes": 2505,
+            "heapMb": 38.7868766784668,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          },
+          "tabs/01-substrates": {
+            "longTasks": 4,
+            "blockedMs": 77,
+            "longestMs": 101,
+            "domNodes": 4634,
+            "heapMb": 48.3449592590332,
+            "apiRequests": 2,
+            "uploadRequests": 2,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/api/v2/components": 1,
+              "/uploads/*": 2
+            }
+          },
+          "tabs/02-components": {
+            "longTasks": 2,
+            "blockedMs": 68,
+            "longestMs": 90,
+            "domNodes": 5727,
+            "heapMb": 49.28252029418945,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 4,
+              "/api/v2/components/fineness-levels": 1
+            }
+          },
+          "tabs/03-sales": {
+            "longTasks": 2,
+            "blockedMs": 1045,
+            "longestMs": 609,
+            "domNodes": 16445,
+            "heapMb": 56.02244186401367,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "longTasks": 2,
+            "blockedMs": 190,
+            "longestMs": 239,
+            "domNodes": 16445,
+            "heapMb": 56.04281997680664,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "longTasks": 1,
+            "blockedMs": 80,
+            "longestMs": 130,
+            "domNodes": 16445,
+            "heapMb": 56.06528091430664,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "longTasks": 1,
+            "blockedMs": 75,
+            "longestMs": 125,
+            "domNodes": 16445,
+            "heapMb": 56.0947265625,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "longTasks": 1,
+            "blockedMs": 479,
+            "longestMs": 529,
+            "domNodes": 16445,
+            "heapMb": 56.15327453613281,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "longTasks": 1,
+            "blockedMs": 188,
+            "longestMs": 238,
+            "domNodes": 16445,
+            "heapMb": 56.171470642089844,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-r": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 13228,
+            "heapMb": 52.80210494995117,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ro": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10988,
+            "heapMb": 50.49185562133789,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/type-ros": {
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 10940,
+            "heapMb": 50.459407806396484,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          },
+          "search/clear": {
+            "longTasks": 1,
+            "blockedMs": 108,
+            "longestMs": 158,
+            "domNodes": 13228,
+            "heapMb": 52.866817474365234,
+            "apiRequests": 0,
+            "uploadRequests": 28,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/uploads/*": 28
+            }
+          }
+        }
+      ]
+    },
+    "markAllSeen1000": {
+      "label": "main-f11430d-markall",
+      "url": "http://127.0.0.1:64146",
+      "scenarios": [
+        "mark-all-seen"
+      ],
+      "runs": 5,
+      "n": 1000,
+      "date": "2026-10-12T05:31:46.556Z",
+      "steps": {
+        "mark-all-seen/mark-all": {
+          "longTasks": 1,
+          "blockedMs": 231464,
+          "longestMs": 231444,
+          "domNodes": 38160,
+          "heapMb": 74.06896209716797,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "requestsByPath": {}
+        }
+      },
+      "perRun": [
+        {
+          "mark-all-seen/mark-all": {
+            "longTasks": 1,
+            "blockedMs": 227282,
+            "longestMs": 227332,
+            "domNodes": 38160,
+            "heapMb": 73.92203903198242,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "longTasks": 2,
+            "blockedMs": 231464,
+            "longestMs": 231444,
+            "domNodes": 38160,
+            "heapMb": 74.06803131103516,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "longTasks": 1,
+            "blockedMs": 230860,
+            "longestMs": 230910,
+            "domNodes": 38160,
+            "heapMb": 74.08209609985352,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "longTasks": 2,
+            "blockedMs": 232650,
+            "longestMs": 232621,
+            "domNodes": 38160,
+            "heapMb": 74.06896209716797,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "longTasks": 1,
+            "blockedMs": 234413,
+            "longestMs": 234463,
+            "domNodes": 38160,
+            "heapMb": 74.07339096069336,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {}
+          }
+        }
+      ]
+    }
+  },
+  "apitime": {
+    "label": "main-f11430d",
+    "session": "perfbase",
+    "user": "grower",
+    "runs": 7,
+    "timestamp": "2026-10-12T04:54:25.911Z",
+    "endpoints": [
+      {
+        "endpoint": "/plants",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 1.37,
+          "p95": 2.06
+        },
+        "totalMs": {
+          "median": 1.54,
+          "p95": 2.31
+        },
+        "bytes": {
+          "raw": 102643,
+          "gzip": {
+            "served": 102643,
+            "servedEncoding": "identity",
+            "wouldBe": 6074,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 102643,
+            "servedEncoding": "identity",
+            "wouldBe": 3465,
+            "serverCompressed": false
+          }
+        },
+        "etag": null,
+        "cacheControl": null,
+        "conditional": null
+      },
+      {
+        "endpoint": "/substrates",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 1.34,
+          "p95": 2.54
+        },
+        "totalMs": {
+          "median": 1.42,
+          "p95": 2.67
+        },
+        "bytes": {
+          "raw": 47816,
+          "gzip": {
+            "served": 47816,
+            "servedEncoding": "identity",
+            "wouldBe": 2117,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 47816,
+            "servedEncoding": "identity",
+            "wouldBe": 1203,
+            "serverCompressed": false
+          }
+        },
+        "etag": null,
+        "cacheControl": null,
+        "conditional": null
+      },
+      {
+        "endpoint": "/components",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.69,
+          "p95": 1.43
+        },
+        "totalMs": {
+          "median": 0.76,
+          "p95": 1.52
+        },
+        "bytes": {
+          "raw": 6734,
+          "gzip": {
+            "served": 6734,
+            "servedEncoding": "identity",
+            "wouldBe": 643,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 6734,
+            "servedEncoding": "identity",
+            "wouldBe": 489,
+            "serverCompressed": false
+          }
+        },
+        "etag": null,
+        "cacheControl": null,
+        "conditional": null
+      },
+      {
+        "endpoint": "/watering/plant/5",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.57,
+          "p95": 1.02
+        },
+        "totalMs": {
+          "median": 0.67,
+          "p95": 1.09
+        },
+        "bytes": {
+          "raw": 3438,
+          "gzip": {
+            "served": 3438,
+            "servedEncoding": "identity",
+            "wouldBe": 335,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 3438,
+            "servedEncoding": "identity",
+            "wouldBe": 265,
+            "serverCompressed": false
+          }
+        },
+        "etag": null,
+        "cacheControl": null,
+        "conditional": null
+      },
+      {
+        "endpoint": "/watering/fertilizer-types",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.48,
+          "p95": 0.74
+        },
+        "totalMs": {
+          "median": 0.57,
+          "p95": 0.81
+        },
+        "bytes": {
+          "raw": 108,
+          "gzip": {
+            "served": 108,
+            "servedEncoding": "identity",
+            "wouldBe": 83,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 108,
+            "servedEncoding": "identity",
+            "wouldBe": 69,
+            "serverCompressed": false
+          }
+        },
+        "etag": null,
+        "cacheControl": null,
+        "conditional": null
+      }
+    ]
+  },
+  "explain": {
+    "passed": 0,
+    "total": 12,
+    "expectedOnOriginalSchema": "FAIL",
+    "queries": [
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "plants mine by created: missing index idx_plants_user_created, uses a temp b-tree",
+        "plan": [
+          "SCAN p USING INDEX idx_plants_list",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "plants mine by name: missing index idx_plants_user_name, uses a temp b-tree",
+        "plan": [
+          "SCAN p USING INDEX idx_plants_list",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "plants public by created: missing index idx_plants_public_created, uses a temp b-tree",
+        "plan": [
+          "SEARCH p USING INDEX idx_plants_list (is_public=?)",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "plants public by name: missing index idx_plants_public_name, uses a temp b-tree",
+        "plan": [
+          "SEARCH p USING INDEX idx_plants_list (is_public=?)",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "substrates mine by created: missing index idx_substrates_user_created, uses a temp b-tree",
+        "plan": [
+          "SCAN s",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "substrates mine by name: missing index idx_substrates_user_name, uses a temp b-tree",
+        "plan": [
+          "SCAN s",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "substrates public by created: missing index idx_substrates_public_created, uses a temp b-tree",
+        "plan": [
+          "SCAN s",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "substrates public by name: missing index idx_substrates_public_name, uses a temp b-tree",
+        "plan": [
+          "SCAN s",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "components by name: missing index idx_components_name, uses a temp b-tree",
+        "plan": [
+          "SCAN c",
+          "USE TEMP B-TREE FOR ORDER BY"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "substrate_components by component_id: missing index idx_substrate_components_component",
+        "plan": [
+          "SCAN sc"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "plants by substrate_id: missing index idx_plants_substrate",
+        "plan": [
+          "SCAN p"
+        ]
+      },
+      {
+        "status": "FAIL",
+        "phase": "A",
+        "detail": "newest plant image: uses a temp b-tree",
+        "plan": [
+          "SEARCH i USING INDEX idx_images_lookup (entity_type=? AND entity_id=?)",
+          "USE TEMP B-TREE FOR ORDER BY",
+          "0/12 passed"
+        ]
+      }
+    ]
+  }
+}
