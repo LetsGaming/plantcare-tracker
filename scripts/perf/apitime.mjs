@@ -61,7 +61,7 @@ const unwrap = (buffer) => {
 
 const firstPlantId = (payload) => {
   const list = Array.isArray(payload) ? payload : (payload?.items ?? payload?.plants ?? []);
-  return list[0]?.id ?? null;
+  return list[0]?.id ?? list[0]?.plant_id ?? null;
 };
 
 const encodedSize = (buffer, headers) => {

@@ -18,7 +18,8 @@ if (flags.help) {
 try {
   const session = loadSession(requireId(flags));
   const frontendDir = path.join(repoRoot, "frontend");
-  const viteBin = createRequire(path.join(frontendDir, "package.json")).resolve("vite/bin/vite.js");
+  const vitePackage = createRequire(path.join(frontendDir, "package.json")).resolve("vite/package.json");
+  const viteBin = path.join(path.dirname(vitePackage), "bin", "vite.js");
   const result = spawnSync(process.execPath, [viteBin, "build", "--outDir", "dist-perf", "--emptyOutDir"], {
     cwd: frontendDir,
     stdio: "inherit",
