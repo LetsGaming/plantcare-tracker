@@ -446,28 +446,43 @@ The component catalogue is global, so all mutations are admin-only (`403` otherw
 |--------|------|:----:|-------------|
 | POST | `/:entityType/:entityId` | JWT | Upload image |
 | GET | `/:entityType` | JWT | List images for entity (`?entityId=<id>`) |
-| GET | `/:entityType/:entityId` | JWT | Serve primary image file (`?size=<px>`) |
 | PATCH | `/:id` | JWT | Replace file and/or update date |
 | DELETE | `/:id` | JWT | Delete single image by image id |
 | DELETE | `/:entityType/:entityId` | JWT | Delete all images for an entity |
 
 `entityType` must be one of: `plant`, `substrate`, `component`. Every route checks the caller against the entity the image belongs to:
 
-| Entity | Read (list, serve) | Write (upload, update, delete) |
+| Entity | Read (list) | Write (upload, update, delete) |
 |--------|--------------------|--------------------------------|
 | plant, substrate | owner, or anyone when public | owner only |
 | component | any signed-in user | admin only |
 
 Image URLs in responses are absolute. The database stores only the path (`/uploads/plant/<file>.webp`); the origin comes from `PUBLIC_BASE_URL` when set, otherwise from the request's own origin. Deleting a plant, substrate or component also deletes its image rows and files.
 
-A private entity the caller does not own, and an unknown entity, answer `404`. A write to a public entity owned by someone else answers `403`. Mutations answer `403` for guests. Uploads with an unsupported MIME type or larger than **10 MB** answer `400`.
+A private entity the caller does not own, and an unknown entity, answer `404`. A write to a public entity owned by someone else answers `403`. Mutations answer `403` for guests. Uploads with an unsupported MIME type, larger than **10 MB**, corrupt, or above the pixel cap answer `400`.
+
+**Rate limit:** uploads (`POST`) and `PATCH` requests share one bucket of **30 per 10 minutes per user**; date-only PATCHes count. The 31st request answers `429` with the standard error envelope (`type: TooManyRequestsError`).
+
+**Variants:** every stored image has three webp files: `<name>.webp` (max 1024 px wide, the `url`), `<name>-480.webp` and `<name>-160.webp`. Images are never upscaled, so a smaller source gives variants no wider than itself. Variants are encoded from one decode of the upload; EXIF orientation is applied and metadata is stripped.
+
+Image objects in the list and PATCH responses carry these fields:
+
+| Field | Meaning |
+|-------|---------|
+| `url` | Absolute URL of the 1024 px file |
+| `srcset` | `"<160 url> 160w, <480 url> 480w, <url> 1024w"`, or `null` for legacy images stored before variants existed (only the single file exists) |
+| `width`, `height` | Pixel size of the 1024 px file after rotation; `null` for legacy images |
+| `placeholder` | Dominant colour as `#rrggbb`, usable as a loading background; `null` for legacy images |
+| `date` | Capture date in epoch seconds |
+
+Static files are served immutable, so a replaced image always gets a new file name.
 
 ### POST `/:entityType/:entityId`
 
 Request: `multipart/form-data` with field `image` (JPEG or PNG).
 
 ```json
-// Response 201  (Location: /images/plant/1)
+// Response 201  (Location: /images/plant?entityId=1)
 {
   "data": {
     "path": "http://localhost:5000/uploads/plant/monstera-a1b2.webp",
@@ -479,35 +494,33 @@ Request: `multipart/form-data` with field `image` (JPEG or PNG).
 **Processing pipeline:**
 1. EXIF date extracted (`DateTimeOriginal`, `CreateDate`, `ModifyDate`, `GPSDateStamp`), fallback: upload time
 2. Filename anonymized (strips PII keywords like `iphone`, `admin`, `desktop`)
-3. Resized to max 1024px width (no upscaling)
-4. Converted to WebP at quality 70, near-lossless
-5. Saved to `NAS_PATH/<entityType>/<filename>-<random hex>.webp`
+3. Decoded once, rotated by EXIF orientation, limited to 1024px width (no upscaling)
+4. Encoded to three WebP variants (160, 480 and 1024px wide) at quality 78
+5. Saved to `NAS_PATH/<entityType>/<timestamp>-<name>-<random hex>.webp` plus the `-160` and `-480` files; the placeholder colour is taken from the 160px variant
 
-### GET `/:entityType/:entityId`
-
-Serves the entity's primary (oldest) image. Optional `?size=<px>` resizes on-the-fly.
-
-```
-GET /api/v2/images/plant/1?size=400
-→ image/webp (400px wide, Cache-Control: public, max-age=86400)
-```
+If any variant cannot be written, all files of the upload are removed and the request fails. Unreadable images answer `400`; storage errors (for example a full disk) answer `500`.
 
 ### PATCH `/:id`
 
-`multipart/form-data`; provide a new `image` file and/or a `date` field (at least one required — `400` otherwise, `400` for an unparsable date).
+All fields optional (at least one required). Only the owner can update. `"species": ""` or `"species": null` clears the species, `"substrateId": null` clears the substrate. A new `substrateId` follows the same rule as on create.
 
 ```json
+// Request
+{ "name": "Monstera", "isPublic": true }
+
 // Response 200
-{ "data": { "id": 3, "url": "http://...", "date": 1719388800, "entityType": "plant" } }
+{ "data": { "plant_id": 7, "...": "full updated Plant Object" } }
 ```
 
-When a new file is uploaded, the previous file is deleted from disk only after the database points at the new one.
+Errors: `400`, `401`, `403` (guest), `404`
 
-### DELETE `/:id` and DELETE `/:entityType/:entityId`
+### DELETE `/:id`
 
 ```
 // Response 204 — no body
 ```
+
+Errors: `401`, `403` (guest), `404`
 
 ---
 
