@@ -86,6 +86,75 @@ describe('Sale.fromRaw', () => {
     expect(json.sale_old_price).toBe(10);
     expect(json.sale_new_price).toBe(5);
   });
+
+  it('stamps the given fetch time instead of the call time', () => {
+    const fetchedAt = 1_700_000_000_000;
+    const sale = Sale.fromRaw({ link: 'https://shop.com/p', newPrice: 5 }, seller, fetchedAt)!;
+    expect(sale.sale_scraped_at).toBe(fetchedAt);
+    expect(sale.toJSON().sale_scraped_at).toBe('2023-11-14T22:13:20.000Z');
+  });
+
+  it('keeps the legacy toJSON shape', () => {
+    const sale = Sale.fromRaw(
+      { link: 'https://shop.com/p', newPrice: 5, oldPrice: 10, name: 'Fern' },
+      seller,
+      1_000,
+    )!;
+    expect(Object.keys(sale.toJSON()).sort()).toEqual([
+      'sale_id',
+      'sale_image_url',
+      'sale_link',
+      'sale_name',
+      'sale_new_price',
+      'sale_old_price',
+      'sale_scraped_at',
+      'sale_seller',
+    ]);
+  });
+
+  it('computes an integer discount percent, null without an old price', () => {
+    const pct = (newPrice: number, oldPrice?: number | null) =>
+      Sale.fromRaw({ link: 'https://shop.com/p', newPrice, oldPrice }, seller, 1)!
+        .sale_discount_pct;
+    expect(pct(9.99, 19.99)).toBe(50);
+    expect(pct(7, 10)).toBe(30);
+    expect(pct(5)).toBeNull();
+    expect(pct(5, null)).toBeNull();
+    expect(pct(12, 10)).toBe(0);
+  });
+});
+
+describe('Sale.toDto', () => {
+  it('maps a stored row to the API shape in epoch milliseconds', () => {
+    expect(
+      Sale.toDto({
+        sale_id: 'abc',
+        source_key: 'shop',
+        seller: 'Shop',
+        name: 'Fern',
+        link: 'https://shop.com/fern',
+        image_url: null,
+        old_price: 10,
+        new_price: 7,
+        discount_pct: 30,
+        first_seen_at: 1_000,
+        last_seen_at: 3_000,
+        scraped_at: 2_500,
+        active: 1,
+      }),
+    ).toEqual({
+      sale_id: 'abc',
+      sale_name: 'Fern',
+      sale_seller: 'Shop',
+      sale_link: 'https://shop.com/fern',
+      sale_image_url: null,
+      sale_old_price: 10,
+      sale_new_price: 7,
+      sale_discount_pct: 30,
+      sale_first_seen_at: 1_000,
+      sale_scraped_at: 2_500,
+    });
+  });
 });
 
 // ── parsePrice ────────────────────────────────────────────────────────────────
