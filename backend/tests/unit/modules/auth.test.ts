@@ -7,6 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import bcrypt from 'bcryptjs';
 import type { UserRepository } from '../../../src/modules/auth/domain/User';
+import type { RemovedImageFile } from '../../../src/modules/auth/application/AuthUseCases';
 import {
   RegisterUseCase,
   LoginUseCase,
@@ -231,17 +232,33 @@ describe('UpdateProfileUseCase', () => {
 // ── DeleteProfileUseCase ──────────────────────────────────────────────────────
 
 describe('DeleteProfileUseCase', () => {
-  it('deletes user and clears sessions', async () => {
+  const makeDeleter = (result: RemovedImageFile[] | null) => ({
+    deleteAccount: vi.fn().mockResolvedValue(result),
+  });
+  const makeRemover = () => ({ removeFiles: vi.fn().mockResolvedValue(undefined) });
+
+  it('deletes the account and clears sessions', async () => {
     sessionStore.create(77);
-    const repo = makeMockRepo();
-    await new DeleteProfileUseCase(repo).execute(77);
-    expect(repo.delete).toHaveBeenCalledWith(77);
+    const repo = makeDeleter([]);
+    await new DeleteProfileUseCase(repo, makeRemover()).execute(77);
+    expect(repo.deleteAccount).toHaveBeenCalledWith(77);
     expect(sessionStore.count(77)).toBe(0);
   });
 
-  it('throws NotFoundError when delete returns false', async () => {
-    const repo = makeMockRepo();
-    (repo.delete as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-    await expect(new DeleteProfileUseCase(repo).execute(999)).rejects.toThrow(NotFoundError);
+  it('throws NotFoundError when the account does not exist', async () => {
+    const repo = makeDeleter(null);
+    const files = makeRemover();
+    await expect(new DeleteProfileUseCase(repo, files).execute(999)).rejects.toThrow(NotFoundError);
+    expect(files.removeFiles).not.toHaveBeenCalled();
+  });
+
+  it('passes the removed image files to the cleanup service', async () => {
+    const images: RemovedImageFile[] = [
+      { entityType: 'plant', url: '/uploads/plants/a.webp' },
+      { entityType: 'substrate', url: '/uploads/substrates/b.webp' },
+    ];
+    const files = makeRemover();
+    await new DeleteProfileUseCase(makeDeleter(images), files).execute(78);
+    expect(files.removeFiles).toHaveBeenCalledWith(images);
   });
 });
