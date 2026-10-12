@@ -9,11 +9,22 @@
 import { sql, type RawBuilder, type SqlBool } from 'kysely';
 import { ValidationError } from '../errors';
 import { LIST } from '../config/constants';
-import { decodeCursor, type Cursor } from './cursor';
+import { decodeCursor, type Cursor, type CursorTypes } from './cursor';
+import type { SortDirection } from './keyset';
+
+/** Per-sort metadata; `direction` is informational for the caller's applyKeyset. */
+export interface SortSpec extends CursorTypes {
+  direction?: SortDirection;
+}
 
 export interface ListQueryOptions<S extends string, Sc extends string> {
-  sorts: readonly S[];
+  /** Allowed sort keys, optionally with the cursor value types they issue. */
+  sorts: readonly S[] | Readonly<Record<S, SortSpec>>;
   defaultSort: S;
+  /** Query parameter carrying the cursor. */
+  cursorParam?: string;
+  /** Limit when the request gives none; still clamped to LIST.MAX_LIMIT. */
+  defaultLimit?: number;
   scopes?: readonly Sc[];
   defaultScope?: Sc;
 }
@@ -31,14 +42,15 @@ export interface ListQuery<S extends string, Sc extends string> {
 const single = (query: Record<string, unknown>, key: string): string | undefined => {
   const value = query[key];
   if (value === undefined) return undefined;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   if (typeof value !== 'string') {
     throw new ValidationError(`Query parameter "${key}" must be given once.`, { [key]: 'invalid' });
   }
   return value;
 };
 
-const parseLimit = (raw: string | undefined): number => {
-  if (raw === undefined || raw.trim() === '') return LIST.DEFAULT_LIMIT;
+const parseLimit = (raw: string | undefined, fallback: number): number => {
+  if (raw === undefined || raw.trim() === '') return Math.min(fallback, LIST.MAX_LIMIT);
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1) {
     throw new ValidationError('limit must be a positive integer.', { limit: 'invalid' });
@@ -77,7 +89,13 @@ export const parseListQuery = <S extends string, Sc extends string = never>(
   options: ListQueryOptions<S, Sc>,
 ): ListQuery<S, Sc> => {
   const record = (query ?? {}) as Record<string, unknown>;
-  const sort = pick(single(record, 'sort'), options.sorts, options.defaultSort, 'sort');
+  const sortKeys = (
+    Array.isArray(options.sorts) ? options.sorts : Object.keys(options.sorts)
+  ) as readonly S[];
+  const sort = pick(single(record, 'sort'), sortKeys, options.defaultSort, 'sort');
+  const spec: SortSpec = Array.isArray(options.sorts)
+    ? {}
+    : (options.sorts as Readonly<Record<S, SortSpec>>)[sort];
 
   let scope: Sc | null = null;
   if (options.scopes?.length) {
@@ -85,10 +103,12 @@ export const parseListQuery = <S extends string, Sc extends string = never>(
     scope = pick(single(record, 'scope'), options.scopes, fallback, 'scope');
   }
 
-  const rawCursor = single(record, 'cursor');
+  const rawCursor = single(record, options.cursorParam ?? 'cursor');
   return {
-    limit: parseLimit(single(record, 'limit')),
-    cursor: rawCursor ? decodeCursor(rawCursor, sort) : null,
+    limit: parseLimit(single(record, 'limit'), options.defaultLimit ?? LIST.DEFAULT_LIMIT),
+    cursor: rawCursor
+      ? decodeCursor(rawCursor, sort, { valueType: spec.valueType, idType: spec.idType })
+      : null,
     q: parseQ(single(record, 'q')),
     sort,
     scope,

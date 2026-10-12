@@ -11,6 +11,15 @@ import { LIST } from '../config/constants';
 
 export type CursorValue = string | number;
 
+export type CursorValueType = 'string' | 'number';
+
+export interface CursorTypes {
+  /** Required type of the sort column value; any when omitted. */
+  valueType?: CursorValueType;
+  /** Required type of the id; any when omitted. */
+  idType?: CursorValueType;
+}
+
 export interface Cursor {
   /** Sort key the cursor was issued for. */
   s: string;
@@ -30,7 +39,7 @@ export const encodeCursor = (cursor: Cursor): string =>
     'base64url',
   );
 
-export const decodeCursor = (raw: string, sort: string): Cursor => {
+export const decodeCursor = (raw: string, sort: string, types: CursorTypes = {}): Cursor => {
   if (!raw || raw.length > LIST.MAX_CURSOR_LENGTH || !/^[A-Za-z0-9_-]+$/.test(raw)) {
     throw invalid();
   }
@@ -45,6 +54,12 @@ export const decodeCursor = (raw: string, sort: string): Cursor => {
   if (typeof s !== 'string' || !isCursorValue(v) || !isCursorValue(id)) throw invalid();
   if (s !== sort) {
     throw new ValidationError('Cursor was issued for a different sort.', { cursor: 'sort' });
+  }
+  if (
+    (types.valueType && typeof v !== types.valueType) ||
+    (types.idType && typeof id !== types.idType)
+  ) {
+    throw new ValidationError('Cursor does not match the sort.', { cursor: 'type' });
   }
   return { s, v, id };
 };

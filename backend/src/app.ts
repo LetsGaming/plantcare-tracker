@@ -59,7 +59,7 @@ export interface AppDeps {
 const JSON_BODY_LIMIT_BYTES = 100 * 1024;
 const COMPRESS_THRESHOLD_BYTES = 1024;
 const CORS_PREFLIGHT_MAX_AGE_S = 600;
-/** Upload file names are unique per content, so a URL never changes meaning. */
+/** A stored upload is never rewritten under the same file name, so a URL never changes meaning. */
 const UPLOADS_MAX_AGE = '365d';
 
 export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => {
@@ -116,6 +116,7 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
     global: true,
     encodings: ['br', 'gzip'],
     threshold: COMPRESS_THRESHOLD_BYTES,
+    globalDecompression: false,
   });
   await app.register(cookie);
   await registerRateLimit(app);

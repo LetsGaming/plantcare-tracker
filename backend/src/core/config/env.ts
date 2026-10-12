@@ -65,12 +65,20 @@ const resolveDbPath = (configured: string | undefined): string => {
     : path.resolve(process.cwd(), 'data', 'plantcare.db');
 };
 
-const readInt = (env: NodeJS.ProcessEnv, key: string, fallback: number, min: number): number => {
+const readInt = (
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number => {
   const raw = env[key]?.trim();
   if (!raw) return fallback;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < min) {
-    throw new Error(`Environment variable ${key} must be an integer >= ${min}, got "${raw}".`);
+  const value = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw new Error(
+      `Environment variable ${key} must be a plain integer between ${min} and ${max}, got "${raw}".`,
+    );
   }
   return value;
 };
@@ -80,7 +88,7 @@ const readBool = (env: NodeJS.ProcessEnv, key: string, fallback: boolean): boole
   if (!raw) return fallback;
   if (raw === 'true' || raw === '1') return true;
   if (raw === 'false' || raw === '0') return false;
-  throw new Error(`Environment variable ${key} must be true or false, got "${env[key]}".`);
+  throw new Error(`Environment variable ${key} must be true, false, 1 or 0, got "${env[key]}".`);
 };
 
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
@@ -114,16 +122,16 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
     openAiApiKey: env.OPENAI_API_KEY || null,
     recognitionModelPath: env.RECOGNITION_MODEL_PATH || null,
     headlessBrowser: env.headless_browser === 'true' || isProduction,
-    trustProxyHops: readInt(env, 'TRUST_PROXY_HOPS', 1, 0),
+    trustProxyHops: readInt(env, 'TRUST_PROXY_HOPS', 1, 0, 10),
     sales: {
       refreshEnabled: readBool(env, 'SALES_REFRESH_ENABLED', true),
-      refreshIntervalMin: readInt(env, 'SALES_REFRESH_INTERVAL_MIN', 120, 1),
-      refreshWarmDelayMs: readInt(env, 'SALES_REFRESH_WARM_DELAY_MS', 5000, 0),
-      retentionDays: readInt(env, 'SALES_RETENTION_DAYS', 30, 1),
-      pricePointsMax: readInt(env, 'SALES_PRICE_POINTS_MAX', 30, 1),
+      refreshIntervalMin: readInt(env, 'SALES_REFRESH_INTERVAL_MIN', 120, 1, 10_080),
+      refreshWarmDelayMs: readInt(env, 'SALES_REFRESH_WARM_DELAY_MS', 5000, 0, 600_000),
+      retentionDays: readInt(env, 'SALES_RETENTION_DAYS', 30, 1, 3650),
+      pricePointsMax: readInt(env, 'SALES_PRICE_POINTS_MAX', 30, 1, 1000),
     },
     imageBackfillOnStart: readBool(env, 'IMAGE_BACKFILL_ON_START', false),
-    uploadMaxPixels: readInt(env, 'UPLOAD_MAX_PIXELS', 40_000_000, 1),
+    uploadMaxPixels: readInt(env, 'UPLOAD_MAX_PIXELS', 40_000_000, 1, 400_000_000),
   };
 };
 
