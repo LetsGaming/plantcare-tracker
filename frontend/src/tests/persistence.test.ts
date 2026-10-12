@@ -522,6 +522,65 @@ describe("l2Persistence", () => {
   });
 });
 
+const useRoutedStore = defineStore("routed", {
+  state: () => ({ account: [] as unknown[], setting: 0, fetchedAt: null as number | null }),
+  persist: {
+    entries: [
+      {
+        key: "routed_account",
+        pick: (state) => state.account,
+        timestamp: (state) => state.fetchedAt,
+        apply: (state, data: unknown[]) => {
+          state.account = data;
+        },
+      },
+      {
+        key: "routed_setting",
+        keepOnClear: true,
+        pick: (state) => state.setting,
+        apply: (state, data: number) => {
+          state.setting = data;
+        },
+      },
+    ],
+  },
+  actions: {
+    setAccount(items: unknown[]) {
+      this.account = items;
+      this.fetchedAt = 1;
+    },
+    setSetting(value: number) {
+      this.setting = value;
+    },
+  },
+});
+
+describe("storage area routing", () => {
+  it("writes keepOnClear entries to kv and account data to the cache", async () => {
+    vi.useFakeTimers();
+    await createInstalledPinia();
+    const store = useRoutedStore();
+    await store.$hydrate();
+    store.setAccount([1]);
+    store.setSetting(3);
+    await vi.advanceTimersByTimeAsync(500);
+    const areaOfWrite = (key: string) =>
+      vi.mocked(storageService.set).mock.calls.find(([written]) => written === key)?.[2];
+    expect(areaOfWrite("routed_account")).toBe("cache");
+    expect(areaOfWrite("routed_setting")).toBe("kv");
+  });
+
+  it("reads each entry from the area it was written to", async () => {
+    await createInstalledPinia();
+    const store = useRoutedStore();
+    await store.$hydrate();
+    const areaOfRead = (key: string) =>
+      vi.mocked(storageService.get).mock.calls.find(([read]) => read === key)?.[1];
+    expect(areaOfRead("routed_account")).toBe("cache");
+    expect(areaOfRead("routed_setting")).toBe("kv");
+  });
+});
+
 describe("test isolation", () => {
   it("leaves a write pending on real timers when the test ends", async () => {
     await createInstalledPinia();

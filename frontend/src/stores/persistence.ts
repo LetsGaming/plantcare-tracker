@@ -1,6 +1,6 @@
 import { toRaw } from "vue";
 import type { PiniaPluginContext, StateTree } from "pinia";
-import storageService from "@/services/general/StorageService";
+import storageService, { type StorageArea } from "@/services/general/StorageService";
 import Utils from "@/utils/utils";
 
 /**
@@ -63,6 +63,8 @@ declare module "pinia" {
 type Entry = PersistEntry<StateTree>;
 
 const DEFAULT_DEBOUNCE_MS = 250;
+
+const areaOf = (entry: Entry): StorageArea => (entry.keepOnClear ? "kv" : "cache");
 
 const flushers = new Set<() => void>();
 let listeningForUnload = false;
@@ -163,7 +165,7 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
     dirty.delete(entry);
     if (entry.version) tokens.set(entry, token);
     storageService
-      .set(entry.key, { data, keepOnClear: entry.keepOnClear ?? false, timestamp })
+      .set(entry.key, { data, keepOnClear: entry.keepOnClear ?? false, timestamp }, areaOf(entry))
       .catch((error: unknown) => {
         console.error(`Could not persist ${entry.key}`, error);
         if (entry.version && Object.is(tokens.get(entry), token)) tokens.delete(entry);
@@ -218,7 +220,10 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
     const stored = await Promise.all(
       requested.map(async (entry) => ({
         entry,
-        value: await storageService.get<{ data: unknown; timestamp: number }>(entry.key),
+        value: await storageService.get<{ data: unknown; timestamp: number }>(
+          entry.key,
+          areaOf(entry),
+        ),
       })),
     );
     if (started !== generation) return false;
