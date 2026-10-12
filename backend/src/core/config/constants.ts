@@ -30,8 +30,6 @@ export const AUTH = {
   MAX_GUEST_SESSIONS: 1000,
   /** Lifetime of a one-time SSE ticket. */
   SSE_TICKET_TTL_MS: 60_000,
-  /** bcrypt cost factor for password hashing. */
-  BCRYPT_SALT_ROUNDS: 10,
   /** Cookie name used on the wire, shared with the frontend contract. */
   REFRESH_TOKEN_COOKIE: 'refreshToken',
   /** Refresh cookie lifetime for a full login (mirrors JWT_REFRESH_EXPIRATION default). */

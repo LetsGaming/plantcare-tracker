@@ -23,8 +23,15 @@ const PREFIX = 'scrypt';
 const LEGACY_BCRYPT_PREFIX = '$2';
 
 /** Bounds for parameters read back from storage; anything outside is rejected. */
-const LIMITS = { maxN: 2 ** 20, maxR: 32, maxP: 16, minKeyLength: 16, maxKeyLength: 128 };
-const MAX_MEMORY_BYTES = 256 * 1024 * 1024;
+const LIMITS = {
+  maxN: 2 ** 20,
+  maxR: 32,
+  maxP: 4,
+  maxWork: 4 * 16384 * 8,
+  minKeyLength: 16,
+  maxKeyLength: 128,
+};
+const MAX_MEMORY_BYTES = 64 * 1024 * 1024;
 
 export interface PasswordCheck {
   ok: boolean;
@@ -60,6 +67,7 @@ const parseScrypt = (
   const [N, r, p] = parts.slice(1, 4).map((part) => (/^\d+$/.test(part) ? Number(part) : NaN));
   if (!isPowerOfTwo(N) || N > LIMITS.maxN) return null;
   if (!(r >= 1 && r <= LIMITS.maxR) || !(p >= 1 && p <= LIMITS.maxP)) return null;
+  if (N * r * p > LIMITS.maxWork) return null;
   const salt = Buffer.from(parts[4], 'base64');
   const key = Buffer.from(parts[5], 'base64');
   if (!salt.length || key.length < LIMITS.minKeyLength || key.length > LIMITS.maxKeyLength) {
@@ -78,8 +86,11 @@ const REJECTED: PasswordCheck = { ok: false, needsRehash: false };
 
 export const verifyPassword = async (plain: string, stored: string): Promise<PasswordCheck> => {
   if (stored.startsWith(LEGACY_BCRYPT_PREFIX)) {
-    const ok = await bcrypt.compare(plain, stored);
-    return { ok, needsRehash: true };
+    try {
+      return { ok: await bcrypt.compare(plain, stored), needsRehash: true };
+    } catch {
+      return REJECTED;
+    }
   }
 
   const parsed = parseScrypt(stored);

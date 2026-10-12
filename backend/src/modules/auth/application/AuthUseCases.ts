@@ -35,6 +35,8 @@ const USERNAME_MAX = 64;
 const PASSWORD_MIN = 8;
 /** Matches the input limit of legacy bcrypt hashes, which ignore everything past 72 bytes. */
 const PASSWORD_MAX_BYTES = 72;
+/** A longer login input may only share a 72 byte prefix with a legacy password, so it is never rehashed. */
+const BCRYPT_INPUT_MAX_BYTES = 72;
 const LOGIN_PASSWORD_MAX = 1024;
 
 const usernameRule = z
@@ -99,15 +101,20 @@ export class LoginUseCase {
     const user = await this.repo.findByUsername(username);
     const check = user ? await verifyPassword(password, user.password) : null;
     if (!user || !check?.ok) throw new UnauthorizedError('Invalid credentials');
-    if (check.needsRehash) await this.upgradeHash(user.id, password);
+    if (check.needsRehash && Buffer.byteLength(password, 'utf8') <= BCRYPT_INPUT_MAX_BYTES) {
+      await this.upgradeHash(user.id, user.password, password);
+    }
 
     return issueSession({ id: user.id, username: user.username, role: user.role });
   }
 
-  /** Best effort: a failed upgrade keeps the old hash, which still verifies. */
-  private async upgradeHash(userId: number, password: string): Promise<void> {
+  /**
+   * Best effort: a failed upgrade keeps the old hash, which still verifies, and a
+   * concurrent password change makes the compare-and-swap a no-op.
+   */
+  private async upgradeHash(userId: number, oldHash: string, password: string): Promise<void> {
     try {
-      await this.repo.updatePasswordHash(userId, await hashPassword(password));
+      await this.repo.updatePasswordHash(userId, oldHash, await hashPassword(password));
     } catch (err: unknown) {
       log.warn(`Could not upgrade the password hash of user ${userId}`, { err });
     }

@@ -62,6 +62,42 @@ describe('verifyPassword', () => {
     });
   });
 
+  it('rejects a malformed legacy bcrypt hash instead of throwing', async () => {
+    for (const stored of ['$2', '$2b$10$broken', '$2a$99$' + 'x'.repeat(53)]) {
+      expect(await verifyPassword('x', stored), stored).toEqual({ ok: false, needsRehash: false });
+    }
+  });
+
+  it('verifies a legacy hash of a password longer than 72 bytes by its prefix', async () => {
+    const stored = await bcrypt.hash('a'.repeat(72), 4);
+    expect(await verifyPassword('a'.repeat(80), stored)).toEqual({ ok: true, needsRehash: true });
+  });
+
+  it('rejects costly parameters without computing them', async () => {
+    const spy = vi.spyOn(crypto, 'scrypt');
+    const salt = crypto.randomBytes(16).toString('base64');
+    const key = crypto.randomBytes(64).toString('base64');
+    for (const [N, r, p] of [
+      [2 ** 20, 2, 16],
+      [2 ** 20, 1, 1],
+      [2 ** 15, 8, 3],
+      [16384, 8, 5],
+    ]) {
+      const stored = ['scrypt', N, r, p, salt, key].join('$');
+      expect(await verifyPassword('x', stored), stored).toEqual({ ok: false, needsRehash: false });
+    }
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('accepts parameters at the work cap', async () => {
+    const salt = crypto.randomBytes(16);
+    const key = crypto.scryptSync('edge', salt, 64, { N: 2 ** 15, r: 8, p: 1 });
+    const stored = ['scrypt', 2 ** 15, 8, 1, salt.toString('base64'), key.toString('base64')].join(
+      '$',
+    );
+    expect(await verifyPassword('edge', stored)).toEqual({ ok: true, needsRehash: true });
+  });
+
   it('rejects malformed and unknown hashes', async () => {
     const valid = await hashPassword('x');
     const [, , r, p, salt, key] = valid.split('$');

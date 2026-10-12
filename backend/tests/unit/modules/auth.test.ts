@@ -12,6 +12,7 @@ vi.hoisted(() => {
 });
 import type { UserRepository } from '../../../src/modules/auth/domain/User';
 import type { RemovedImageFile } from '../../../src/modules/auth/domain/User';
+import { SQLiteUserRepository } from '../../../src/modules/auth/infrastructure/SQLiteUserRepository';
 import {
   RegisterUseCase,
   LoginUseCase,
@@ -41,7 +42,7 @@ const makeMockRepo = (): UserRepository => ({
   findByUsername: vi.fn().mockResolvedValue(null),
   create: vi.fn().mockResolvedValue({ id: 1, username: 'newuser' }),
   update: vi.fn().mockResolvedValue(true),
-  updatePasswordHash: vi.fn().mockResolvedValue(undefined),
+  updatePasswordHash: vi.fn().mockResolvedValue(true),
   delete: vi.fn().mockResolvedValue(true),
 });
 
@@ -165,11 +166,86 @@ describe('LoginUseCase', () => {
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ id: 5, password: await bcrypt.hash('legacypass', 4) }),
     );
+    const legacy = (await repo.findByUsername('alice'))!.password;
     await new LoginUseCase(repo).execute({ username: 'alice', password: 'legacypass' });
-    const [userId, hash] = (repo.updatePasswordHash as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [userId, oldHash, hash] = (repo.updatePasswordHash as ReturnType<typeof vi.fn>).mock
+      .calls[0];
     expect(userId).toBe(5);
+    expect(oldHash).toBe(legacy);
     expect(hash).toMatch(/^scrypt\$/);
     expect(await verifyPassword('legacypass', hash)).toEqual({ ok: true, needsRehash: false });
+  });
+
+  it('rehashes a legacy login of exactly 72 bytes', async () => {
+    const password = 'a'.repeat(72);
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await bcrypt.hash(password, 4) }),
+    );
+    await new LoginUseCase(repo).execute({ username: 'alice', password });
+    expect(repo.updatePasswordHash).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs in with a 73 byte input matching a legacy 72 byte prefix but never rehashes it', async () => {
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await bcrypt.hash('a'.repeat(72), 4) }),
+    );
+    const { accessToken } = await new LoginUseCase(repo).execute({
+      username: 'alice',
+      password: 'a'.repeat(73),
+    });
+    expect(accessToken).toBeTruthy();
+    expect(repo.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it('counts bytes, not characters, for the rehash limit', async () => {
+    const password = 'ä'.repeat(37);
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await bcrypt.hash(password, 4) }),
+    );
+    await new LoginUseCase(repo).execute({ username: 'alice', password });
+    expect(repo.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it('gives a 401 for a malformed legacy hash', async () => {
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: '$2b$10$broken' }),
+    );
+    await expect(
+      new LoginUseCase(repo).execute({ username: 'alice', password: 'whatever1' }),
+    ).rejects.toThrow(UnauthorizedError);
+    expect(repo.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it('still logs in when the compare and swap finds a changed password', async () => {
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await bcrypt.hash('legacypass', 4) }),
+    );
+    (repo.updatePasswordHash as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    const { accessToken } = await new LoginUseCase(repo).execute({
+      username: 'alice',
+      password: 'legacypass',
+    });
+    expect(accessToken).toBeTruthy();
+  });
+
+  it('does not overwrite a password that changed between verify and update', async () => {
+    const repo = new SQLiteUserRepository();
+    const row = getSqlite().prepare('SELECT password FROM users WHERE id = 50').get() as {
+      password: string;
+    };
+    const stale = row.password;
+    getSqlite().prepare('UPDATE users SET password = ? WHERE id = 50').run('changed-by-user');
+
+    expect(await repo.updatePasswordHash(50, stale, 'scrypt$stale-rehash')).toBe(false);
+    expect((await repo.findByUsername('session-user-50'))!.password).toBe('changed-by-user');
+
+    expect(await repo.updatePasswordHash(50, 'changed-by-user', 'scrypt$fresh')).toBe(true);
+    expect((await repo.findByUsername('session-user-50'))!.password).toBe('scrypt$fresh');
   });
 
   it('keeps a current scrypt hash and never rehashes on a failed login', async () => {
