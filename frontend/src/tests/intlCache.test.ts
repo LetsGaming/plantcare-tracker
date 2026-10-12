@@ -75,7 +75,7 @@ describe("intlCache", () => {
       expect(formatLongDate(date, locale)).toBe(
         new Intl.DateTimeFormat(locale, { dateStyle: "long" })
           .format(date)
-          .replace(/^(\d{1,2}\.?) /, "$1 "),
+          .replace(/^(\d{1,2}\.?) /, "$1\u00a0"),
       );
       expect(relativeDaysText(0, locale)).toBe(relative.format(-0, "day"));
       expect(relativeDaysText(3, locale)).toBe(relative.format(-3, "day"));
