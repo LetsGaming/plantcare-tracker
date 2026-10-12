@@ -11,7 +11,11 @@ const sourcesOutsideStores = import.meta.glob(
   { query: "?raw", import: "default", eager: true },
 );
 
-const DIRECT_STORE_WRITES = [/use\w+Store\(\)\.\w+\s*=[^=]/, /this\.\w+Store\.\w+\s*=[^=]/];
+const DIRECT_STORE_WRITES = [
+  /use\w+Store\([^)]*\)(\.\w+|\[[^\]]+\])+\s*([-+*/]?=[^=]|\+\+|--)/,
+  /this\.\w+Store(\.\w+)+\s*([-+*/]?=[^=]|\+\+|--)/,
+  /use\w+Store\([^)]*\)(\.\w+)+\.(push|splice|pop|shift|unshift|sort|reverse)\(/,
+];
 
 describe("store conventions", () => {
   it("finds the sources it checks", () => {
@@ -23,6 +27,29 @@ describe("store conventions", () => {
       .filter(([, source]) => DIRECT_STORE_WRITES.some((pattern) => pattern.test(source as string)))
       .map(([path]) => path);
     expect(offenders).toEqual([]);
+  });
+
+  it("detects direct writes, compound assignments and mutating calls", () => {
+    const writes = [
+      "usePlantsStore().items = []",
+      "useSalesStore().filters.q = 'x'",
+      "useWateringStore()['byPlant'] = {}",
+      "useCalendarStore().count += 1",
+      "useCalendarStore().count++",
+      "this.plantsStore.items = []",
+      "this.salesStore.filters.q -= 1",
+      "usePlantsStore().items.push(plant)",
+      "usePlantsStore(pinia).items.sort()",
+    ];
+    const reads = [
+      "usePlantsStore().items === []",
+      "this.plantsStore.items !== null",
+      "usePlantsStore().items.slice().sort()",
+      "this.plantsStore.setItems([])",
+    ];
+    const matches = (line: string) => DIRECT_STORE_WRITES.some((pattern) => pattern.test(line));
+    expect(writes.filter((line) => !matches(line))).toEqual([]);
+    expect(reads.filter(matches)).toEqual([]);
   });
 });
 
