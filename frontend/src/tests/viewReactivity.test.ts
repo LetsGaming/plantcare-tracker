@@ -28,7 +28,7 @@ vi.mock("@/services/general/ToastService", () => ({
 }));
 
 vi.mock("@/services/general/LocalizationService", () => ({
-  default: { t: (key: string) => key },
+  default: { t: (key: string) => key, getLocale: () => "en" },
 }));
 
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
@@ -211,9 +211,11 @@ describe("WateringRecords: one tap on a calendar day", () => {
 
 // ── PlantOverview view ───────────────────────────────────────────────────────
 
-const mountOverview = () => {
+const mountOverview = (renderStubDefaultSlot = false) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
-  const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
+  const wrapper = shallowMount(PlantOverview, {
+    global: { plugins: [pinia], renderStubDefaultSlot },
+  });
   return { wrapper, store: usePlantsStore(pinia) };
 };
 
@@ -242,7 +244,7 @@ describe("PlantOverview: store-driven lists", () => {
   });
 
   it("hands the header the same segments array across re-renders", async () => {
-    const { wrapper, store } = mountOverview();
+    const { wrapper, store } = mountOverview(true);
     await flushPromises();
     const header = () => wrapper.findComponent({ name: "OverviewHeader" });
     const first = header().props("segments");
