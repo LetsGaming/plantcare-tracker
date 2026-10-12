@@ -35,7 +35,7 @@ export class SseManager {
     });
 
     this.heartbeat = setInterval(() => {
-      if (!res.writableEnded) {
+      if (!res.writableEnded && !res.destroyed) {
         res.write(': heartbeat\n\n');
       }
     }, SSE.HEARTBEAT_INTERVAL_MS);
@@ -125,16 +125,32 @@ export class SseManager {
     }
   }
 
+  /** Resolves on `drain` or `close`: a disconnected client never drains. */
   private emit(json: string): Promise<void> {
-    return new Promise((resolve) => {
-      const canWrite = this.res.write(`data: ${json}\n\n`);
-      (this.res as ServerResponse & { flush?: () => void }).flush?.();
+    const { res } = this;
+    if (res.destroyed || res.writableEnded) return Promise.resolve();
 
-      if (!canWrite) {
-        this.res.once('drain', resolve);
-      } else {
+    return new Promise((resolve) => {
+      const canWrite = res.write(`data: ${json}
+
+`);
+      (res as ServerResponse & { flush?: () => void }).flush?.();
+
+      if (canWrite) {
         process.nextTick(resolve);
+        return;
       }
+      if (res.destroyed) {
+        resolve();
+        return;
+      }
+      const done = () => {
+        res.off('drain', done);
+        res.off('close', done);
+        resolve();
+      };
+      res.once('drain', done);
+      res.once('close', done);
     });
   }
 }

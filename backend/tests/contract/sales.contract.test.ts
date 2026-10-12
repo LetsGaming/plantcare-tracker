@@ -190,7 +190,7 @@ describe('GET /sales (SSE replay)', () => {
     );
     try {
       const res = await openStream();
-      const streamed = salesIn(res.text).map((s) => s.sale_id);
+      const streamed = salesIn(res.text).map((s) => s.sale_id as string);
       const expected = activeIds();
       expect(streamed).toEqual(expected);
       expect(new Set(streamed).size).toBe(streamed.length);
@@ -265,6 +265,7 @@ describe('GET /sales/:id', () => {
       headers: user.auth,
     });
     expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('private, no-cache');
     expect(res.body.data).toEqual({
       sale_id: id,
       sale_name: expect.any(String),
@@ -384,6 +385,16 @@ describe('POST /sales/health/:key/check', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('answers 502 when the source fails and never recorded a health row', async () => {
+    const admin = await app.signIn('admin');
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/sales/health/broken/check`,
+      headers: admin.auth,
+    });
+    expect(res.status).toBe(502);
   });
 
   it('answers 404 for unknown and search keys', async () => {

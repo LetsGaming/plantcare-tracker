@@ -85,13 +85,14 @@ export const createSalesController = (repo: SalesRepository): SalesController =>
     return body;
   },
 
-  detail: async (request) => {
+  detail: async (request, reply) => {
     const { id } = request.params as { id: string };
     const row = await repo.findById(id);
     if (!row) throw new NotFoundError('Sale');
     const body: SaleDetailResponse = {
       data: { ...Sale.toDto(row), history: await repo.history(id) },
     };
+    privateRevalidate(reply);
     return body;
   },
 });

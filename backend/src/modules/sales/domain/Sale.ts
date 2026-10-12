@@ -94,13 +94,12 @@ export class Sale {
 
   /**
    * Builds a Sale from raw scraper output stamped with the fetch time of its
-   * page. Returns null without a link, without a positive new price, or when
-   * a given price is not a finite non-negative number.
+   * page. Returns null without a link or without a positive finite new price.
+   * An invalid old price is dropped and the item stays.
    */
   static fromRaw(raw: RawSaleItem, seller: string, scrapedAt: number): Sale | null {
     if (!raw.link || !isPrice(raw.newPrice) || raw.newPrice === 0) return null;
-    const oldPrice = raw.oldPrice ?? null;
-    if (oldPrice !== null && !isPrice(oldPrice)) return null;
+    const oldPrice = isPrice(raw.oldPrice) ? raw.oldPrice : null;
 
     return new Sale({
       sale_id: Sale.generateId(seller, raw.link),

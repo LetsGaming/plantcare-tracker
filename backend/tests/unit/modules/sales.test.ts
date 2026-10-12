@@ -106,14 +106,17 @@ describe('Sale.fromRaw', () => {
     expect(sale.sale_scraped_at).toBe(fetchedAt);
   });
 
-  it('rejects prices that are not finite non-negative numbers', () => {
+  it('rejects a new price that is not finite and positive, drops an invalid old price', () => {
     const fromPrices = (newPrice: number, oldPrice?: number | null) =>
       Sale.fromRaw({ link: 'https://shop.com/p', newPrice, oldPrice }, seller, SCRAPED_AT);
     for (const bad of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN, -1, 0]) {
       expect(fromPrices(bad), `new ${bad}`).toBeNull();
     }
     for (const bad of [Number.POSITIVE_INFINITY, Number.NaN, -5]) {
-      expect(fromPrices(5, bad), `old ${bad}`).toBeNull();
+      const sale = fromPrices(5, bad);
+      expect(sale, `old ${bad}`).not.toBeNull();
+      expect(sale!.sale_old_price, `old ${bad}`).toBeNull();
+      expect(sale!.sale_discount_pct, `old ${bad}`).toBeNull();
     }
     expect(fromPrices(5, 0)!.sale_old_price).toBe(0);
     expect(fromPrices(5, null)!.sale_old_price).toBeNull();
@@ -340,9 +343,9 @@ describe('replayActiveSales', () => {
   it('does not send a page that arrives after the client disconnected', async () => {
     const { repo } = pagedRepo([saleRow(1)]);
     let aborted = false;
-    (repo.pageActive as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+    vi.mocked(repo.pageActive).mockImplementationOnce(() => {
       aborted = true;
-      return { items: [saleRow(1)], nextCursor: null };
+      return Promise.resolve({ items: [saleRow(1)], nextCursor: null });
     });
     const sendUnique = vi.fn();
 
