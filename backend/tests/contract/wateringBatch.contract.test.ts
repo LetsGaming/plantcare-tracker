@@ -1,6 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { getKysely } from '../../src/core/database/db';
+import { loadSummaries } from '../../src/modules/watering/infrastructure/wateringSummary';
 import { API, createContractApp, type ContractApp } from './harness';
 import { createPlant, createSubstrate } from './support';
+
+vi.mock('../../src/modules/watering/infrastructure/wateringSummary', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('../../src/modules/watering/infrastructure/wateringSummary')
+    >();
+  return { ...original, loadSummaries: vi.fn(original.loadSummaries) };
+});
 
 let app: ContractApp;
 
@@ -16,7 +26,7 @@ const setup = async () => {
   const substrate = await createSubstrate(app, owner.auth);
   const a = await createPlant(app, owner.auth, substrate.substrate_id);
   const b = await createPlant(app, owner.auth, substrate.substrate_id);
-  return { owner, a, b };
+  return { owner, substrate, a, b };
 };
 
 const recordCount = (plantId: number): number =>
@@ -85,6 +95,39 @@ describe('POST /watering/batch', () => {
     expect(res.body.data.summaries[a.plant_id].last_fertilized_at).toBe(1719388800000);
     expect(recordCount(a.plant_id)).toBe(1);
     expect(recordCount(b.plant_id)).toBe(1);
+  });
+
+  it('answers the records in entry order whatever the plant ids are', async () => {
+    const { owner, substrate, a, b } = await setup();
+    const c = await createPlant(app, owner.auth, substrate.substrate_id);
+    const order = [c.plant_id, a.plant_id, b.plant_id];
+    const res = await batch(owner.auth, {
+      entries: order.map((plantId) => ({ plantId, usedFertilizer: false })),
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data.records.map((r: { plant_id: number }) => r.plant_id)).toEqual(order);
+  });
+
+  it('reads the summaries inside the transaction and rolls back when that read fails', async () => {
+    const { owner, a, b } = await setup();
+    const spy = vi.mocked(loadSummaries);
+    spy.mockClear();
+    let executor: unknown;
+    spy.mockImplementationOnce(async (_ids, _tz, db) => {
+      executor = db;
+      throw new Error('summary read failed');
+    });
+    const res = await batch(owner.auth, {
+      entries: [
+        { plantId: a.plant_id, usedFertilizer: false },
+        { plantId: b.plant_id, usedFertilizer: false },
+      ],
+    });
+    expect(res.status).toBe(500);
+    expect(executor).toBeDefined();
+    expect(executor).not.toBe(getKysely());
+    expect(recordCount(a.plant_id)).toBe(0);
+    expect(recordCount(b.plant_id)).toBe(0);
   });
 
   it('reflects earlier records and tz_offset in the summaries', async () => {
@@ -161,6 +204,24 @@ describe('POST /watering/batch/delete', () => {
     const listed = await listedSummaries(owner.auth);
     expect(res.body.data.summaries[a.plant_id]).toEqual(listed.get(a.plant_id));
     expect(recordCount(a.plant_id)).toBe(1);
+  });
+
+  it('reads the summaries inside the transaction and rolls back when that read fails', async () => {
+    const { owner, a, b } = await setup();
+    const ids = await create(owner, [a.plant_id, b.plant_id], 1719388800);
+    const spy = vi.mocked(loadSummaries);
+    spy.mockClear();
+    let executor: unknown;
+    spy.mockImplementationOnce(async (_ids, _tz, db) => {
+      executor = db;
+      throw new Error('summary read failed');
+    });
+    const res = await batchDelete(owner.auth, { ids });
+    expect(res.status).toBe(500);
+    expect(executor).toBeDefined();
+    expect(executor).not.toBe(getKysely());
+    expect(recordCount(a.plant_id)).toBe(1);
+    expect(recordCount(b.plant_id)).toBe(1);
   });
 
   it('reports an emptied plant with null summary fields', async () => {

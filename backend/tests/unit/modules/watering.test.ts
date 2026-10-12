@@ -49,8 +49,11 @@ const makeMockRepo = (): WateringRepository => ({
   create: vi.fn().mockResolvedValue(makeRow()),
   update: vi.fn().mockResolvedValue(makeRow()),
   delete: vi.fn().mockResolvedValue(1),
-  createMany: vi.fn().mockResolvedValue([makeRow()]),
-  deleteMany: vi.fn().mockResolvedValue([1]),
+  createMany: vi.fn().mockResolvedValue({
+    records: [makeRow()],
+    summaries: new Map([[1, makeSummary()]]),
+  }),
+  deleteMany: vi.fn().mockResolvedValue(new Map([[1, makeSummary()]])),
   summariesFor: vi.fn().mockResolvedValue(new Map([[1, makeSummary()]])),
 });
 
@@ -340,16 +343,13 @@ describe('DeleteWateringRecordUseCase', () => {
 describe('CreateWateringBatchUseCase', () => {
   it('answers the inserted records and a summary per plant', async () => {
     const repo = makeMockRepo();
-    asMock(repo.createMany).mockResolvedValue([
-      makeRow({ id: 1, plant_id: 1 }),
-      makeRow({ id: 2, plant_id: 5 }),
-    ]);
-    asMock(repo.summariesFor).mockResolvedValue(
-      new Map([
+    asMock(repo.createMany).mockResolvedValue({
+      records: [makeRow({ id: 1, plant_id: 1 }), makeRow({ id: 2, plant_id: 5 })],
+      summaries: new Map([
         [1, makeSummary()],
         [5, makeSummary({ last_watered_at: 5 })],
       ]),
-    );
+    });
 
     const result = await new CreateWateringBatchUseCase(repo).execute(2, {
       entries: [
@@ -361,7 +361,8 @@ describe('CreateWateringBatchUseCase', () => {
 
     expect(result.records.map((r) => r.id)).toEqual([1, 2]);
     expect(result.summaries).toEqual({ 1: makeSummary(), 5: makeSummary({ last_watered_at: 5 }) });
-    expect(repo.summariesFor).toHaveBeenCalledWith([1, 5], 60);
+    expect(repo.createMany).toHaveBeenCalledWith(2, expect.any(Array), expect.any(Number), 60);
+    expect(repo.summariesFor).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundError when a plant is foreign (repository inserted nothing)', async () => {
@@ -393,8 +394,7 @@ describe('CreateWateringBatchUseCase', () => {
 describe('DeleteWateringBatchUseCase', () => {
   it('answers the summaries of the plants whose records were deleted', async () => {
     const repo = makeMockRepo();
-    asMock(repo.deleteMany).mockResolvedValue([1, 5]);
-    asMock(repo.summariesFor).mockResolvedValue(
+    asMock(repo.deleteMany).mockResolvedValue(
       new Map([
         [1, makeSummary()],
         [5, makeSummary()],
@@ -403,7 +403,8 @@ describe('DeleteWateringBatchUseCase', () => {
 
     const result = await new DeleteWateringBatchUseCase(repo).execute(2, { ids: [10, 11] });
 
-    expect(repo.deleteMany).toHaveBeenCalledWith(2, [10, 11]);
+    expect(repo.deleteMany).toHaveBeenCalledWith(2, [10, 11], 0);
+    expect(repo.summariesFor).not.toHaveBeenCalled();
     expect(Object.keys(result.summaries)).toEqual(['1', '5']);
   });
 

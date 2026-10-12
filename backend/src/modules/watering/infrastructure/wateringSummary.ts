@@ -1,5 +1,6 @@
-import { sql, type RawBuilder } from 'kysely';
+import { sql, type Kysely, type RawBuilder, type Transaction } from 'kysely';
 import { getKysely } from '../../../core/database/db';
+import type { Database } from '../../../core/database/schema';
 import {
   TZ_OFFSET_MAX,
   TZ_OFFSET_MIN,
@@ -36,7 +37,7 @@ export interface SummaryColumns {
 
 /**
  * Correlated scalar subqueries over `plantIdRef` (e.g. 'p.id'). Each is served
- * by idx_watering_history(plant_id, date DESC): MAX and MIN read one index
+ * by idx_watering_history(plant_id, date DESC, id DESC): MAX and MIN read one index
  * entry, the fertilizer MAX stops at the first fertilized entry, the day count
  * walks only that plant's entries.
  */
@@ -75,16 +76,21 @@ export const summaryFromRow = (row: SummaryRow, tzMinutes: number): WateringSumm
   return toWateringSummary(aggregates, tzMinutes);
 };
 
-/** Summaries for the given plants in one query; ids that do not exist are absent from the map. */
+/**
+ * Summaries for the given plants in one query; ids that do not exist are absent from the map.
+ * Inside a transaction pass it as `db`: the transaction holds the single connection, so
+ * reading through getKysely() there would deadlock.
+ */
 export const loadSummaries = async (
   plantIds: readonly number[],
   tzMinutes: number,
+  db: Kysely<Database> | Transaction<Database> = getKysely(),
 ): Promise<Map<number, WateringSummary>> => {
   assertTzMinutes(tzMinutes);
   const result = new Map<number, WateringSummary>();
   if (plantIds.length === 0) return result;
   const cols = summaryColumns('p.id', tzMinutes);
-  const rows = await getKysely()
+  const rows = await db
     .selectFrom('plants as p')
     .select([
       'p.id as plant_id',

@@ -11,6 +11,7 @@ import type {
   CreateWateringDTO,
   UpdateWateringDTO,
   NewWateringEntry,
+  WateringBatchRows,
 } from '../domain/WateringRecord';
 import { loadSummaries } from './wateringSummary';
 
@@ -132,7 +133,8 @@ export class SQLiteWateringRepository implements WateringRepository {
     userId: number,
     entries: NewWateringEntry[],
     date: number,
-  ): Promise<WateringRecordRow[] | null> {
+    tzMinutes: number,
+  ): Promise<WateringBatchRows | null> {
     return getKysely()
       .transaction()
       .execute(async (trx) => {
@@ -156,11 +158,19 @@ export class SQLiteWateringRepository implements WateringRepository {
           )
           .returning([...RECORD_COLUMNS])
           .execute();
-        return rows.map(mapRow);
+        const position = new Map(entries.map((entry, index) => [entry.plantId, index]));
+        const records = rows
+          .map(mapRow)
+          .sort((x, y) => (position.get(x.plant_id) ?? 0) - (position.get(y.plant_id) ?? 0));
+        return { records, summaries: await loadSummaries(plantIds, tzMinutes, trx) };
       });
   }
 
-  async deleteMany(userId: number, ids: number[]): Promise<number[] | null> {
+  async deleteMany(
+    userId: number,
+    ids: number[],
+    tzMinutes: number,
+  ): Promise<Map<number, WateringSummary> | null> {
     const wanted = new Set(ids).size;
     try {
       return await getKysely()
@@ -177,7 +187,8 @@ export class SQLiteWateringRepository implements WateringRepository {
             .returning('plant_id')
             .execute();
           if (deleted.length !== wanted) throw new OwnershipRollback();
-          return [...new Set(deleted.map((r) => r.plant_id))];
+          const plantIds = [...new Set(deleted.map((r) => r.plant_id))];
+          return await loadSummaries(plantIds, tzMinutes, trx);
         });
     } catch (err) {
       if (err instanceof OwnershipRollback) return null;

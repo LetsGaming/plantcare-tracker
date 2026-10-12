@@ -65,7 +65,7 @@ export interface WateringBatchDeleteResponse {
  * HTTP handlers exposed by the watering module.
  *
  * Explicitly typed so the declaration emit never has to name
- * transitive express types (ParamsDictionary/ParsedQs) — those are
+ * transitive express types (ParamsDictionary/ParsedQs). Those are
  * not reachable by name under pnpm's non-hoisted node_modules
  * layout (TS2883).
  */

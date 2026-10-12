@@ -57,6 +57,11 @@ export interface NewWateringEntry {
 
 export type WateringSummaries = Record<number, WateringSummary>;
 
+export interface WateringBatchRows {
+  records: WateringRecordRow[];
+  summaries: Map<number, WateringSummary>;
+}
+
 export interface WateringHistoryQuery {
   limit: number;
   cursor: Cursor | null;
@@ -88,14 +93,25 @@ export interface WateringRepository {
   ): Promise<WateringRecordRow | null>;
   /** Plant id of the deleted record, or null when it is not the user's. */
   delete(recordId: number, userId: number): Promise<number | null>;
-  /** All-or-nothing; null (nothing inserted) unless every plant is the user's. */
+  /**
+   * All-or-nothing; null (nothing inserted) unless every plant is the user's.
+   * Records come back in entry order, summaries are read inside the same transaction.
+   */
   createMany(
     userId: number,
     entries: NewWateringEntry[],
     date: number,
-  ): Promise<WateringRecordRow[] | null>;
-  /** All-or-nothing; distinct plant ids of the deleted records, or null (nothing deleted). */
-  deleteMany(userId: number, ids: number[]): Promise<number[] | null>;
+    tzMinutes: number,
+  ): Promise<WateringBatchRows | null>;
+  /**
+   * All-or-nothing; summaries of the distinct plants of the deleted records (read inside the
+   * same transaction), or null (nothing deleted).
+   */
+  deleteMany(
+    userId: number,
+    ids: number[],
+    tzMinutes: number,
+  ): Promise<Map<number, WateringSummary> | null>;
   /** Summaries of plants the caller has already authorized. */
   summariesFor(
     plantIds: readonly number[],

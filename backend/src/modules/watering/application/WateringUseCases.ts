@@ -95,15 +95,6 @@ const requireEpochSeconds = (date: string | number): number => {
   return seconds;
 };
 
-const summariesOf = async (
-  repo: WateringRepository,
-  plantIds: readonly number[],
-  tzMinutes: number,
-): Promise<WateringSummaries> => {
-  const found = await repo.summariesFor(plantIds, tzMinutes);
-  return Object.fromEntries(found);
-};
-
 const summaryOf = async (
   repo: WateringRepository,
   plantId: number,
@@ -252,15 +243,11 @@ export class CreateWateringBatchUseCase {
     const data = parseOrThrow(CreateWateringBatchSchema, input, 'Invalid watering batch');
     const tz = parseTzOffset(data.tz_offset);
     const epochSeconds = requireEpochSeconds(data.date ?? Date.now());
-    const rows = await this.repo.createMany(userId, data.entries, epochSeconds);
-    if (!rows) throw new NotFoundError('Plant');
+    const created = await this.repo.createMany(userId, data.entries, epochSeconds, tz);
+    if (!created) throw new NotFoundError('Plant');
     return {
-      records: rows.map(toWateringItem),
-      summaries: await summariesOf(
-        this.repo,
-        data.entries.map((e) => e.plantId),
-        tz,
-      ),
+      records: created.records.map(toWateringItem),
+      summaries: Object.fromEntries(created.summaries),
     };
   }
 }
@@ -271,8 +258,8 @@ export class DeleteWateringBatchUseCase {
   async execute(userId: number, input: unknown): Promise<{ summaries: WateringSummaries }> {
     const data = parseOrThrow(DeleteWateringBatchSchema, input, 'Invalid watering batch');
     const tz = parseTzOffset(data.tz_offset);
-    const plantIds = await this.repo.deleteMany(userId, data.ids);
-    if (!plantIds) throw new NotFoundError('Watering record');
-    return { summaries: await summariesOf(this.repo, plantIds, tz) };
+    const summaries = await this.repo.deleteMany(userId, data.ids, tz);
+    if (!summaries) throw new NotFoundError('Watering record');
+    return { summaries: Object.fromEntries(summaries) };
   }
 }

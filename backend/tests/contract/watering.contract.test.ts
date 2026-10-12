@@ -171,10 +171,10 @@ describe('GET /watering/plant/:plantId', () => {
   const seed = (plantId: number, count: number) => {
     const base = 1_700_000_000;
     for (let i = 0; i < count; i++) {
-      // Pairs of records share a date so every page boundary can fall inside a tie.
+      // Triples share a date, so page sizes that are not multiples of 3 split a tie.
       app.db.execute('INSERT INTO watering_records (plant_id, date) VALUES (?, ?)', [
         plantId,
-        base + Math.floor(i / 2) * 86400,
+        base + Math.floor(i / 3) * 86400,
       ]);
     }
   };
@@ -189,25 +189,38 @@ describe('GET /watering/plant/:plantId', () => {
       )
       .map((r) => r.id);
 
-    const seen: number[] = [];
-    const sizes: number[] = [];
-    let cursor: string | null = null;
-    do {
-      const query: string = cursor ? `?before=${encodeURIComponent(cursor)}` : '';
-      const res = await history(owner.auth, plant.plant_id, query);
-      expect(res.status).toBe(200);
-      expect(res.headers['cache-control']).toBe('private, no-cache');
-      const { items, next_cursor, total } = res.body.data;
-      if (cursor === null) expect(total).toBe(120);
-      else expect(total).toBeUndefined();
-      sizes.push(items.length);
-      seen.push(...items.map((i: { id: number }) => i.id));
-      cursor = next_cursor;
-    } while (cursor);
+    const walk = async (limitQuery: string, maxPages: number) => {
+      const seen: number[] = [];
+      const sizes: number[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        expect(++pages).toBeLessThanOrEqual(maxPages);
+        const query: string = cursor
+          ? `?before=${encodeURIComponent(cursor)}${limitQuery}`
+          : limitQuery.replace('&', '?');
+        const res = await history(owner.auth, plant.plant_id, query);
+        expect(res.status).toBe(200);
+        expect(res.headers['cache-control']).toBe('private, no-cache');
+        const { items, next_cursor, total } = res.body.data;
+        if (cursor === null) expect(total).toBe(120);
+        else expect(total).toBeUndefined();
+        sizes.push(items.length);
+        seen.push(...items.map((i: { id: number }) => i.id));
+        cursor = next_cursor;
+      } while (cursor);
+      return { seen, sizes };
+    };
 
-    expect(sizes).toEqual([50, 50, 20]);
-    expect(seen).toEqual(expected);
-    expect(new Set(seen).size).toBe(120);
+    const byDefault = await walk('', 5);
+    expect(byDefault.sizes).toEqual([50, 50, 20]);
+    expect(byDefault.seen).toEqual(expected);
+    expect(new Set(byDefault.seen).size).toBe(120);
+
+    const bySeven = await walk('&limit=7', 18);
+    expect(bySeven.sizes).toEqual([...Array(17).fill(7), 1]);
+    expect(bySeven.seen).toEqual(expected);
+    expect(new Set(bySeven.seen).size).toBe(120);
   });
 
   it('honours limit and returns items without plant_name or owner_id, dates in ms', async () => {
@@ -266,7 +279,7 @@ describe('GET /watering/plant/:plantId', () => {
         .map((r) => r.detail)
         .join('\n');
       expect(plan).toMatch(/USING (COVERING )?INDEX idx_watering_history\b/);
-      expect(plan).not.toContain('USE TEMP B-TREE FOR ORDER BY');
+      expect(plan).not.toContain('USE TEMP B-TREE');
     }
   });
 });
