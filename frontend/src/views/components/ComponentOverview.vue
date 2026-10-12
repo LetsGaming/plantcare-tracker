@@ -10,6 +10,8 @@
     <items-overview
       :items="mapToOverviewItems"
       kind="component"
+      list-key="components"
+      :active="pageActive"
       :is-loading="isLoadingList"
       :has-error="hasError"
       :empty-title="t('state.empty_components_title')"
@@ -36,7 +38,7 @@ import { IonPage } from "@ionic/vue";
 import { icons } from "@/theme/icons";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
-import ItemsOverview from "@/components/overview/ItemsOverview.vue";
+import ItemsOverview, { type OverviewItem } from "@/components/overview/ItemsOverview.vue";
 import ComponentAddingModal from "@/components/components/ComponentAddingModal.vue";
 
 import { mapActions, mapState } from "pinia";
@@ -45,9 +47,31 @@ import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import { finenessLabel } from "@/utils/enumLabels";
+import ComponentMapper from "@/mapping/ComponentMapping";
+import { pageActive } from "@/utils/pageActive";
+
+const itemCache = new WeakMap<ComponentView, { locale: string; item: OverviewItem }>();
+
+/** One stable overview item per catalogue entry and locale, so unchanged cards keep their props. */
+const overviewItemOf = (component: ComponentView): OverviewItem => {
+  const locale = localizationService.getLocale();
+  const cached = itemCache.get(component);
+  if (cached && cached.locale === locale) return cached.item;
+  const description = finenessLabel(component.fineness);
+  const item = Object.freeze({
+    id: component.id,
+    name: component.name,
+    description,
+    imageUrl: component.cover?.url,
+    searchText: ComponentMapper.searchTextOf(component.name, description),
+  });
+  itemCache.set(component, { locale, item });
+  return item;
+};
 
 export default defineComponent({
   name: "ComponentOverview",
+  mixins: [pageActive],
   components: {
     IonPage,
     OverviewHeader,
@@ -83,13 +107,8 @@ export default defineComponent({
     emptyActionLabel(): string {
       return this.isAdmin ? this.t("shell.empty_components_action") : "";
     },
-    mapToOverviewItems(): OverviewItem[] {
-      return this.components.map((component) => ({
-        id: component.id,
-        name: component.name,
-        description: finenessLabel(component.fineness),
-        imageUrl: component.imageUrl,
-      }));
+    mapToOverviewItems(): readonly OverviewItem[] {
+      return this.components.map(overviewItemOf);
     },
   },
   methods: {

@@ -364,3 +364,18 @@ describe("persisted writes", () => {
     expect(writesOf("substrates_all")).toBe(2);
   });
 });
+
+describe("invalidate", () => {
+  it("marks a loaded list stale so the next load refetches", async () => {
+    api.get.mockResolvedValue([apiSubstrate()]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    await store.ensureLoaded();
+    expect(api.get).toHaveBeenCalledTimes(1);
+
+    store.invalidate();
+    expect(store.isStale).toBe(true);
+    await store.ensureLoaded();
+    expect(api.get).toHaveBeenCalledTimes(2);
+  });
+});

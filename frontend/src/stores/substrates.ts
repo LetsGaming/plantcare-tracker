@@ -94,6 +94,11 @@ export const useSubstratesStore = defineStore("substrates", {
       }
     },
 
+    /** Marks the list stale so the next `ensureLoaded` refetches it. */
+    invalidate(): void {
+      this.fetchedAt = null;
+    },
+
     upsert(substrate: Substrate): void {
       this.items = commitList(upsertItem(this.items, substrate));
     },
