@@ -130,6 +130,9 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
   const hydrating = new Map<string, Promise<boolean>>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let suppressed = false;
+  // Bumped by `$reset`: actions and reads begun for the previous account must
+  // not mark, apply or write anything once they settle.
+  let generation = 0;
 
   const rawState = (): StateTree => toRaw(store.$state);
 
@@ -147,29 +150,36 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
     timer = undefined;
   };
 
+  const write = (entry: Entry, state: StateTree): void => {
+    const timestamp = entry.timestamp ? entry.timestamp(state) : Date.now();
+    if (timestamp == null) return;
+    if (!entry.timestamp && !hydrated.has(entry)) return;
+    const token = entry.version?.(state);
+    if (entry.version && tokens.has(entry) && Object.is(tokens.get(entry), token)) {
+      dirty.delete(entry);
+      return;
+    }
+    const data = rawSnapshot(entry.pick(state));
+    dirty.delete(entry);
+    if (entry.version) tokens.set(entry, token);
+    storageService
+      .set(entry.key, { data, keepOnClear: entry.keepOnClear ?? false, timestamp })
+      .catch((error: unknown) => {
+        console.error(`Could not persist ${entry.key}`, error);
+        if (entry.version && Object.is(tokens.get(entry), token)) tokens.delete(entry);
+      });
+  };
+
   const flush = (): void => {
     cancelTimer();
     if (dirty.size === 0) return;
     const state = rawState();
     for (const entry of [...dirty]) {
-      const timestamp = entry.timestamp ? entry.timestamp(state) : Date.now();
-      if (timestamp == null) continue;
-      if (!entry.timestamp && !hydrated.has(entry)) continue;
-      if (entry.version) {
-        const token = entry.version(state);
-        const unchanged = tokens.has(entry) && Object.is(tokens.get(entry), token);
-        tokens.set(entry, token);
-        if (unchanged) {
-          dirty.delete(entry);
-          continue;
-        }
+      try {
+        write(entry, state);
+      } catch (error) {
+        console.error(`Could not persist ${entry.key}`, error);
       }
-      dirty.delete(entry);
-      void storageService.set(entry.key, {
-        data: rawSnapshot(entry.pick(state)),
-        keepOnClear: entry.keepOnClear ?? false,
-        timestamp,
-      });
     }
   };
 
@@ -189,8 +199,12 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
   };
 
   store.$onAction(({ name, after, onError }) => {
-    after(() => markAfterAction(name));
-    onError(() => markAfterAction(name));
+    const started = generation;
+    const settle = (): void => {
+      if (started === generation) markAfterAction(name);
+    };
+    after(settle);
+    onError(settle);
   }, true);
 
   const patch = store.$patch.bind(store) as (partialOrMutator: unknown) => void;
@@ -200,12 +214,14 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
   }) as typeof store.$patch;
 
   const hydrate = async (requested: Entry[]): Promise<boolean> => {
+    const started = generation;
     const stored = await Promise.all(
       requested.map(async (entry) => ({
         entry,
         value: await storageService.get<{ data: unknown; timestamp: number }>(entry.key),
       })),
     );
+    if (started !== generation) return false;
 
     let applied = false;
     suppressed = true;
@@ -233,11 +249,12 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
       .map((entry) => entry.key)
       .sort()
       .join("\n");
-    let running = hydrating.get(id);
-    if (!running) {
-      running = hydrate(requested).finally(() => hydrating.delete(id));
-      hydrating.set(id, running);
-    }
+    const joined = hydrating.get(id);
+    if (joined) return joined;
+    const running: Promise<boolean> = hydrate(requested).finally(() => {
+      if (hydrating.get(id) === running) hydrating.delete(id);
+    });
+    hydrating.set(id, running);
     return running;
   };
 
@@ -254,7 +271,9 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
   // afterwards or the next account would find an empty but "fresh" entry.
   const reset = store.$reset.bind(store);
   store.$reset = () => {
+    generation++;
     store.$cancelPersist();
+    hydrating.clear();
     suppressed = true;
     try {
       reset();

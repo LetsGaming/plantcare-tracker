@@ -41,8 +41,26 @@ const useDemoStore = defineStore("demo", {
     setStatus(status: string) {
       this.status = status;
     },
+    async setItemsLater(pending: Promise<unknown[]>, fetchedAt: number) {
+      const items = await pending;
+      this.items = items;
+      this.fetchedAt = fetchedAt;
+    },
+    setItemsAndFail(items: unknown[], fetchedAt: number) {
+      this.items = items;
+      this.fetchedAt = fetchedAt;
+      throw new Error("failed after the change");
+    },
   },
 });
+
+const deferred = <T>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+};
 
 let itemPicks = 0;
 let labelPicks = 0;
@@ -371,6 +389,136 @@ describe("l2Persistence", () => {
     store.setItems([3], 2);
     window.dispatchEvent(new Event("pagehide"));
     expect(memoryStore.get("demo_items")).toMatchObject({ data: [3], timestamp: 2 });
+  });
+
+  it("writes immediately when the document becomes hidden", async () => {
+    vi.useFakeTimers();
+    await createInstalledPinia();
+    const store = useDemoStore();
+    store.setItems([5], 4);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    try {
+      document.dispatchEvent(new Event("visibilitychange"));
+    } finally {
+      Reflect.deleteProperty(document, "visibilityState");
+    }
+    expect(memoryStore.get("demo_items")).toMatchObject({ data: [5], timestamp: 4 });
+  });
+
+  it("persists the changes of an action that throws", async () => {
+    vi.useFakeTimers();
+    await createInstalledPinia();
+    const store = useDemoStore();
+    expect(() => store.setItemsAndFail([4], 6)).toThrow("failed after the change");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.get("demo_items")).toMatchObject({ data: [4], timestamp: 6 });
+  });
+
+  it("writes nothing for an action that settles after $reset, not even on pagehide", async () => {
+    vi.useFakeTimers();
+    await createInstalledPinia();
+    const store = useDemoStore();
+    const response = deferred<unknown[]>();
+    const loading = store.setItemsLater(response.promise, 8);
+    store.$reset();
+    response.resolve(["previous account"]);
+    await loading;
+    await vi.advanceTimersByTimeAsync(500);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(writesOf("demo_items")).toBe(0);
+  });
+
+  it("applies nothing from a read pending across $reset and reads again afterwards", async () => {
+    const stale = deferred<unknown>();
+    const fresh = deferred<unknown>();
+    vi.mocked(storageService.get)
+      .mockImplementationOnce((() => stale.promise) as never)
+      .mockImplementationOnce((() => fresh.promise) as never);
+    await createInstalledPinia();
+    const store = useDemoStore();
+    const beforeReset = store.$hydrate();
+    store.$reset();
+    const afterReset = store.$hydrate();
+    expect(readsOf("demo_items")).toBe(2);
+
+    stale.resolve({ data: ["previous account"], timestamp: Date.now() });
+    expect(await beforeReset).toBe(false);
+    expect(store.items).toEqual([]);
+
+    const joined = store.$hydrate();
+    expect(readsOf("demo_items")).toBe(2);
+    fresh.resolve({ data: ["next account"], timestamp: Date.now() });
+    expect(await afterReset).toBe(true);
+    expect(await joined).toBe(true);
+    expect(store.items).toEqual(["next account"]);
+  });
+
+  it("shares one read between $hydrate() and $hydrate with every key in any order", async () => {
+    memoryStore.set("scoped_items", { data: [9], timestamp: Date.now() });
+    await createInstalledPinia();
+    const store = useScopedStore();
+    await Promise.all([store.$hydrate(), store.$hydrate(["scoped_label", "scoped_items"])]);
+    expect(readsOf("scoped_items")).toBe(1);
+    expect(readsOf("scoped_label")).toBe(1);
+  });
+
+  it("holds back settings again after $reset until hydration was attempted", async () => {
+    vi.useFakeTimers();
+    await createInstalledPinia();
+    const store = useScopedStore();
+    await store.$hydrate();
+    store.$reset();
+    store.setLabel("b");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.has("scoped_label")).toBe(false);
+
+    await store.$hydrate();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.get("scoped_label")).toMatchObject({ data: "b" });
+  });
+
+  it("retries a failed write at the next mark without an unhandled rejection", async () => {
+    vi.useFakeTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(storageService.set).mockRejectedValueOnce(new Error("quota exceeded"));
+    try {
+      await createInstalledPinia();
+      const store = useScopedStore();
+      store.setItems([1]);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(writesOf("scoped_items")).toBe(1);
+      expect(memoryStore.has("scoped_items")).toBe(false);
+      expect(logged).toHaveBeenCalled();
+
+      store.setStatus("ready");
+      await vi.advanceTimersByTimeAsync(500);
+      expect(writesOf("scoped_items")).toBe(2);
+      expect(memoryStore.get("scoped_items")).toMatchObject({ data: [1] });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("keeps an entry that cannot be snapshotted dirty and still writes the others", async () => {
+    vi.useFakeTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await createInstalledPinia();
+      const store = useScopedStore();
+      await store.$hydrate();
+      store.setItems([new Map()] as unknown as number[]);
+      store.setLabel("b");
+      await vi.advanceTimersByTimeAsync(500);
+      expect(logged).toHaveBeenCalled();
+      expect(memoryStore.has("scoped_items")).toBe(false);
+      expect(memoryStore.get("scoped_label")).toMatchObject({ data: "b" });
+
+      store.items = [2];
+      store.$flushPersist();
+      expect(memoryStore.get("scoped_items")).toMatchObject({ data: [2] });
+    } finally {
+      logged.mockRestore();
+    }
   });
 });
 
