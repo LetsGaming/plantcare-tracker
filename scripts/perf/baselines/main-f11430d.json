@@ -38,7 +38,8 @@
     "notes": [
       "Measured on the original code (worktree at f11430d) with scripts/perf copied in unchanged apart from the harness fixes.",
       "apitime runs 7 samples per endpoint."
-    ]
+    ],
+    "plantsColdNote": "plants-cold was re-measured on f11430d after the scenario was fixed to delete all account-data cache entries from IndexedDB before the measured load (the first baseline hydrated from the cache and made 0 API requests). The previous plants-cold entry in navbench.tabsPlantsColdSearch (8 long tasks, 5826 ms blocked, 0 API requests) was replaced by navbench.plantsCold. The settle timeout for this step is 300 s because the request chain plus main-thread work takes about 145 s at 4x CPU."
   },
   "navbench": {
     "salesEntry300": {
@@ -543,7 +544,6 @@
       "label": "main-f11430d-misc",
       "url": "http://127.0.0.1:64146",
       "scenarios": [
-        "plants-cold",
         "tabs",
         "search"
       ],
@@ -551,19 +551,6 @@
       "n": 300,
       "date": "2026-10-12T05:09:53.899Z",
       "steps": {
-        "plants-cold/cold-load": {
-          "longTasks": 8,
-          "blockedMs": 5826,
-          "longestMs": 1912,
-          "domNodes": 2505,
-          "heapMb": 38.81061553955078,
-          "apiRequests": 0,
-          "uploadRequests": 28,
-          "wateringPlantRequests": 0,
-          "requestsByPath": {
-            "/uploads/*": 28
-          }
-        },
         "tabs/01-substrates": {
           "longTasks": 4,
           "blockedMs": 87,
@@ -708,20 +695,6 @@
       },
       "perRun": [
         {
-          "plants-cold/cold-load": {
-            "longTasks": 7,
-            "blockedMs": 5911,
-            "longestMs": 1995,
-            "domNodes": 2505,
-            "heapMb": 38.81061553955078,
-            "apiRequests": 0,
-            "uploadRequests": 28,
-            "wateringPlantRequests": 0,
-            "imageRequestsPerCard": null,
-            "requestsByPath": {
-              "/uploads/*": 28
-            }
-          },
           "tabs/01-substrates": {
             "longTasks": 4,
             "blockedMs": 87,
@@ -877,20 +850,6 @@
           }
         },
         {
-          "plants-cold/cold-load": {
-            "longTasks": 8,
-            "blockedMs": 5826,
-            "longestMs": 1912,
-            "domNodes": 2505,
-            "heapMb": 38.81168746948242,
-            "apiRequests": 0,
-            "uploadRequests": 28,
-            "wateringPlantRequests": 0,
-            "imageRequestsPerCard": null,
-            "requestsByPath": {
-              "/uploads/*": 28
-            }
-          },
           "tabs/01-substrates": {
             "longTasks": 4,
             "blockedMs": 107,
@@ -1046,20 +1005,6 @@
           }
         },
         {
-          "plants-cold/cold-load": {
-            "longTasks": 8,
-            "blockedMs": 5954,
-            "longestMs": 1875,
-            "domNodes": 2505,
-            "heapMb": 38.812904357910156,
-            "apiRequests": 0,
-            "uploadRequests": 28,
-            "wateringPlantRequests": 0,
-            "imageRequestsPerCard": null,
-            "requestsByPath": {
-              "/uploads/*": 28
-            }
-          },
           "tabs/01-substrates": {
             "longTasks": 4,
             "blockedMs": 94,
@@ -1215,20 +1160,6 @@
           }
         },
         {
-          "plants-cold/cold-load": {
-            "longTasks": 9,
-            "blockedMs": 5826,
-            "longestMs": 1918,
-            "domNodes": 2505,
-            "heapMb": 38.80390548706055,
-            "apiRequests": 0,
-            "uploadRequests": 29,
-            "wateringPlantRequests": 0,
-            "imageRequestsPerCard": null,
-            "requestsByPath": {
-              "/uploads/*": 29
-            }
-          },
           "tabs/01-substrates": {
             "longTasks": 4,
             "blockedMs": 84,
@@ -1384,20 +1315,6 @@
           }
         },
         {
-          "plants-cold/cold-load": {
-            "longTasks": 7,
-            "blockedMs": 5660,
-            "longestMs": 1839,
-            "domNodes": 2505,
-            "heapMb": 38.7868766784668,
-            "apiRequests": 0,
-            "uploadRequests": 28,
-            "wateringPlantRequests": 0,
-            "imageRequestsPerCard": null,
-            "requestsByPath": {
-              "/uploads/*": 28
-            }
-          },
           "tabs/01-substrates": {
             "longTasks": 4,
             "blockedMs": 77,
@@ -1645,6 +1562,131 @@
             "wateringPlantRequests": 0,
             "imageRequestsPerCard": null,
             "requestsByPath": {}
+          }
+        }
+      ]
+    },
+    "plantsCold": {
+      "label": "main-f11430d-plants-cold",
+      "url": "http://127.0.0.1:51717",
+      "scenarios": [
+        "plants-cold"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-12T06:16:53.305Z",
+      "steps": {
+        "plants-cold/cold-load": {
+          "longTasks": 189,
+          "blockedMs": 132140,
+          "longestMs": 1470,
+          "domNodes": 2505,
+          "heapMb": 42.2709846496582,
+          "apiRequests": 194,
+          "uploadRequests": 29,
+          "wateringPlantRequests": 193,
+          "lastWateringResponseMs": 146782,
+          "requestsByPath": {
+            "/api/v2/plants": 1,
+            "/api/v2/watering/plant/*": 193,
+            "/uploads/*": 29
+          }
+        }
+      },
+      "perRun": [
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 189,
+            "blockedMs": 129766,
+            "longestMs": 1470,
+            "domNodes": 2505,
+            "heapMb": 43.26155471801758,
+            "apiRequests": 194,
+            "uploadRequests": 29,
+            "wateringPlantRequests": 193,
+            "lastWateringResponseMs": 143816,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 29,
+              "/api/v2/watering/plant/*": 193
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 188,
+            "blockedMs": 132181,
+            "longestMs": 1414,
+            "domNodes": 2505,
+            "heapMb": 42.2709846496582,
+            "apiRequests": 194,
+            "uploadRequests": 29,
+            "wateringPlantRequests": 193,
+            "lastWateringResponseMs": 147760,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 29,
+              "/api/v2/watering/plant/*": 193
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 188,
+            "blockedMs": 132140,
+            "longestMs": 1434,
+            "domNodes": 2505,
+            "heapMb": 42.260406494140625,
+            "apiRequests": 194,
+            "uploadRequests": 29,
+            "wateringPlantRequests": 193,
+            "lastWateringResponseMs": 147562,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 29,
+              "/api/v2/watering/plant/*": 193
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 190,
+            "blockedMs": 132589,
+            "longestMs": 1519,
+            "domNodes": 2505,
+            "heapMb": 43.26115417480469,
+            "apiRequests": 194,
+            "uploadRequests": 29,
+            "wateringPlantRequests": 193,
+            "lastWateringResponseMs": 146782,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 29,
+              "/api/v2/watering/plant/*": 193
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "longTasks": 192,
+            "blockedMs": 130959,
+            "longestMs": 1571,
+            "domNodes": 2505,
+            "heapMb": 42.26360321044922,
+            "apiRequests": 194,
+            "uploadRequests": 29,
+            "wateringPlantRequests": 193,
+            "lastWateringResponseMs": 144979,
+            "imageRequestsPerCard": null,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 29,
+              "/api/v2/watering/plant/*": 193
+            }
           }
         }
       ]
