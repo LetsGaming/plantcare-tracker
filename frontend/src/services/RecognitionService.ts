@@ -1,6 +1,7 @@
 import ApiUtils from "@/utils/apiUtils";
 import { handleRequest, withoutErrorToasts } from "@/utils/requestFeedback";
 import { asApiError } from "@/utils/apiErrorMessage";
+import { SNAP_MAX_WIDTH, downscaleImage } from "@/utils/imageResize";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 
@@ -28,7 +29,7 @@ const RecognitionService = {
 
   async match(photo: File): Promise<MatchResult> {
     const form = new FormData();
-    form.append("image", photo);
+    form.append("image", await downscaleImage(photo, SNAP_MAX_WIDTH));
     try {
       return await withoutErrorToasts(() =>
         ApiUtils.upload<MatchResult>(`${BASE_ENDPOINT}/match`, form),

@@ -1,5 +1,6 @@
 import ApiUtils from "@/utils/apiUtils";
 import { handleRequest } from "@/utils/requestFeedback";
+import { capturedAtOf } from "@/utils/exifDate";
 
 const BASE_ENDPOINT = "/images";
 const RESOURCE_KEY = "image.title"; // Localization key for "Image"
@@ -8,8 +9,9 @@ const ImageService = {
   async uploadImage(image: File, entityType: EntityType, entityId: number, date?: string | Date) {
     const formData = new FormData();
     formData.append("image", image);
-    if (date) {
-      formData.append("date", date.toString());
+    const taken = date || capturedAtOf(image);
+    if (taken) {
+      formData.append("date", taken.toString());
     }
 
     const url = `${BASE_ENDPOINT}/${entityType}/${entityId}`;

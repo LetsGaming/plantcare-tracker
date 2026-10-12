@@ -72,6 +72,7 @@ import {
   checkImageFile,
   formatFileSize,
 } from "@/utils/imageValidation";
+import { UPLOAD_MAX_WIDTH, downscaleImage } from "@/utils/imageResize";
 
 export default defineComponent({
   name: "UploadFieldComponent",
@@ -99,6 +100,7 @@ export default defineComponent({
       buttonTextId: nextFieldId("field-button"),
       localError: "",
       previewUrl: "",
+      pickToken: 0,
     };
   },
   computed: {
@@ -132,6 +134,7 @@ export default defineComponent({
     },
   },
   beforeUnmount() {
+    this.pickToken++;
     this.releasePreview();
   },
   methods: {
@@ -145,7 +148,7 @@ export default defineComponent({
       if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
       this.previewUrl = "";
     },
-    onFileChange(event: Event) {
+    async onFileChange(event: Event) {
       const input = event.target as HTMLInputElement;
       const chosen = input.files?.[0];
       this.localError = "";
@@ -164,9 +167,13 @@ export default defineComponent({
         this.$emit("update:modelValue", undefined);
         return;
       }
-      this.$emit("update:modelValue", chosen);
+      const token = ++this.pickToken;
+      const prepared = await downscaleImage(chosen, UPLOAD_MAX_WIDTH);
+      if (token !== this.pickToken) return;
+      this.$emit("update:modelValue", prepared);
     },
     clearFile() {
+      this.pickToken++;
       this.localError = "";
       this.$emit("update:modelValue", undefined);
     },

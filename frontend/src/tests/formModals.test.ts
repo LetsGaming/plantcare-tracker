@@ -2,8 +2,13 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { defineComponent, h } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 
+const resize = vi.hoisted(() => ({ downscaleImage: vi.fn(async (file: File) => file) }));
+vi.mock("@/utils/imageResize", async (original) => ({
+  ...(await original<typeof import("@/utils/imageResize")>()),
+  downscaleImage: resize.downscaleImage,
+}));
 vi.mock("@/services/general/ToastService", async () => (await import("./helpers")).toastModule());
 vi.mock("@/services/general/LocalizationService", async () =>
   (await import("./helpers")).localizationModule(),
@@ -124,8 +129,63 @@ describe("UploadField", () => {
     const file = new File(["x"], "fern.png", { type: "image/png" });
     Object.defineProperty(input.element, "files", { value: [file], configurable: true });
     await input.trigger("change");
+    await flushPromises();
     expect(wrapper.find(".field-error").exists()).toBe(false);
     expect(wrapper.emitted("update:modelValue")!.at(-1)).toEqual([file]);
+  });
+
+  const pick = async (wrapper: ReturnType<typeof mount>, file: File) => {
+    const input = wrapper.find("input[type=file]");
+    Object.defineProperty(input.element, "files", { value: [file], configurable: true });
+    await input.trigger("change");
+    await flushPromises();
+  };
+
+  it("downscales to the upload width and emits the resized file", async () => {
+    const resized = new File(["y"], "fern.webp", { type: "image/webp" });
+    resize.downscaleImage.mockResolvedValueOnce(resized);
+    const wrapper = mount(UploadField, { props: { field }, global: { stubs } });
+    const original = new File(["x"], "fern.png", { type: "image/png" });
+    await pick(wrapper, original);
+    expect(resize.downscaleImage).toHaveBeenCalledWith(original, 1600);
+    expect(wrapper.emitted("update:modelValue")!.at(-1)).toEqual([resized]);
+  });
+
+  it("drops a result that arrives after the file was removed", async () => {
+    let finish: (file: File) => void = () => {};
+    resize.downscaleImage.mockReturnValueOnce(new Promise<File>((resolve) => (finish = resolve)));
+    const wrapper = mount(UploadField, { props: { field }, global: { stubs } });
+    const original = new File(["x"], "fern.png", { type: "image/png" });
+    const input = wrapper.find("input[type=file]");
+    Object.defineProperty(input.element, "files", { value: [original], configurable: true });
+    await input.trigger("change");
+    (wrapper.vm as unknown as { clearFile: () => void }).clearFile();
+    finish(original);
+    await flushPromises();
+    expect(wrapper.emitted("update:modelValue")!.at(-1)).toEqual([undefined]);
+  });
+
+  it("previews the given file and revokes the object URL on replace and unmount", async () => {
+    const urls = ["blob:one", "blob:two"];
+    const create = vi.fn(() => urls.shift()!);
+    const revoke = vi.fn();
+    const saved = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = revoke;
+    const first = new File(["a"], "a.webp", { type: "image/webp" });
+    const second = new File(["b"], "b.webp", { type: "image/webp" });
+    const wrapper = mount(UploadField, {
+      props: { field, modelValue: first },
+      global: { stubs },
+    });
+    expect(wrapper.find("img").attributes("src")).toBe("blob:one");
+    await wrapper.setProps({ modelValue: second });
+    expect(revoke).toHaveBeenCalledWith("blob:one");
+    expect(wrapper.find("img").attributes("src")).toBe("blob:two");
+    wrapper.unmount();
+    expect(revoke).toHaveBeenCalledWith("blob:two");
+    URL.createObjectURL = saved.create;
+    URL.revokeObjectURL = saved.revoke;
   });
 });
 
