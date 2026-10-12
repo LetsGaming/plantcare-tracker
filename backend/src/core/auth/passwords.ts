@@ -87,7 +87,8 @@ const REJECTED: PasswordCheck = { ok: false, needsRehash: false };
 export const verifyPassword = async (plain: string, stored: string): Promise<PasswordCheck> => {
   if (stored.startsWith(LEGACY_BCRYPT_PREFIX)) {
     try {
-      return { ok: await bcrypt.compare(plain, stored), needsRehash: true };
+      const ok = await bcrypt.compare(plain, stored);
+      return ok ? { ok, needsRehash: true } : REJECTED;
     } catch {
       return REJECTED;
     }

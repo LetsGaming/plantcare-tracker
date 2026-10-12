@@ -91,7 +91,12 @@ describe('verifyPassword', () => {
 
   it('accepts parameters at the work cap', async () => {
     const salt = crypto.randomBytes(16);
-    const key = crypto.scryptSync('edge', salt, 64, { N: 2 ** 15, r: 8, p: 1 });
+    const key = crypto.scryptSync('edge', salt, 64, {
+      N: 2 ** 15,
+      r: 8,
+      p: 1,
+      maxmem: 64 * 1024 * 1024,
+    });
     const stored = ['scrypt', 2 ** 15, 8, 1, salt.toString('base64'), key.toString('base64')].join(
       '$',
     );
