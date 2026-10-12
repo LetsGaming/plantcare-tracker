@@ -22,6 +22,8 @@ const SHOP_PLANTS = [
   'Peperomia Hope',
 ];
 
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 const COLORS = ['#2e7d32', '#558b2f', '#00796b', '#33691e', '#1b5e20'];
 
 const leafImage = (index: number, label: string): string => {
@@ -49,12 +51,19 @@ const catalogue = (seller: string, offset: number, fetches: number): RawSaleItem
     };
   });
 
+/** Milliseconds every mock sales page waits before answering, from DEV_MOCK_SALES_DELAY_MS (default 0). */
+const mockSalesDelayMs = (): number => {
+  const value = Number.parseInt(process.env.DEV_MOCK_SALES_DELAY_MS ?? '', 10);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+};
+
 const source = (
   key: string,
   seller: string,
   tracker: SourceHealthTracker,
   behaviour: 'ok' | 'degraded' | 'failing' | 'partial',
   offset: number,
+  delayMs: number,
 ): SalesSource => {
   let fetches = 0;
   return {
@@ -64,6 +73,7 @@ const source = (
     maxPages: behaviour === 'ok' ? 2 : 1,
     useChromium: false,
     fetchPage: async (page) => {
+      if (delayMs > 0) await pause(delayMs);
       if (behaviour === 'failing') {
         tracker.record({
           key,
@@ -111,12 +121,15 @@ const source = (
 export const createMockSalesSources = (
   _cache: CacheService,
   tracker: SourceHealthTracker,
-): SalesSource[] => [
-  source('mockLeafy', 'Leafy Rarities', tracker, 'ok', 1),
-  source('mockJungle', 'Jungle Corner', tracker, 'degraded', 5),
-  source('mockBroken', 'Broken Botanics', tracker, 'failing', 9),
-  source('mockPatchy', 'Patchy Plants', tracker, 'partial', 13),
-];
+): SalesSource[] => {
+  const delayMs = mockSalesDelayMs();
+  return [
+    source('mockLeafy', 'Leafy Rarities', tracker, 'ok', 1, delayMs),
+    source('mockJungle', 'Jungle Corner', tracker, 'degraded', 5, delayMs),
+    source('mockBroken', 'Broken Botanics', tracker, 'failing', 9, delayMs),
+    source('mockPatchy', 'Patchy Plants', tracker, 'partial', 13, delayMs),
+  ];
+};
 
 const GUIDES: Record<string, string[]> = {
   en: [
@@ -145,7 +158,6 @@ const GUIDES: Record<string, string[]> = {
 };
 
 const STREAM_DELAY_MS = 150;
-const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A plant name containing "fail" ends its stream with an error after the first chunk. */
 const guideStreamer: PlantGuideStreamer = {
