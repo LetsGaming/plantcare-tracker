@@ -16,9 +16,12 @@ const realPhoto = (url: string | null | undefined): string | undefined =>
   url && !url.startsWith(GENERATED_TILE_PREFIX) ? url : undefined;
 
 export default class SaleMapper {
-  /** What a search over sales matches: the full name and the shop, never ids or links. */
+  /**
+   * What a search over sales matches: the full name and the shop, never ids or links.
+   * A newline separates them because a typed query cannot contain one, so no match spans both.
+   */
   static searchKeyOf(nameFull: string, seller: string): string {
-    return `${nameFull} ${seller}`.toLowerCase();
+    return `${nameFull}\n${seller}`.toLowerCase();
   }
 
   /**

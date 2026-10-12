@@ -84,7 +84,12 @@ export default defineComponent({
     ...mapState(useSalesStore, { salesCount: "newCount" }),
   },
   async mounted() {
-    void useSalesStore().$hydrate([SALES_NEW_KEY]);
+    const sales = useSalesStore();
+    // Without stored new ids the list may still carry an older release's flags; restore adopts them.
+    void sales
+      .$hydrate([SALES_NEW_KEY])
+      .then((found) => found || sales.restore())
+      .catch((error: unknown) => console.error("Restoring the new sales failed:", error));
     if (!this.isAdmin) return;
     try {
       await this.loadSourceHealth();

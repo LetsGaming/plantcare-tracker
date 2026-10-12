@@ -71,12 +71,17 @@ const saleList = (sales: Iterable<Sale>): Sale[] => markRaw(Array.from(sales));
 const restoreSale = (stored: StoredSale): Sale => {
   const sale = { ...stored };
   delete sale.isNew;
+  delete sale.searchKey;
   return Object.freeze({
     ...sale,
-    searchKey:
-      sale.searchKey ?? SaleMapper.searchKeyOf(sale.nameFull ?? sale.name ?? "", sale.seller ?? ""),
+    searchKey: SaleMapper.searchKeyOf(sale.nameFull ?? sale.name ?? "", sale.seller ?? ""),
   });
 };
+
+/** A sale as written to storage: the search key is derived again on restore. */
+const storedSale = ({ searchKey: _searchKey, ...sale }: Sale): StoredSale => sale;
+
+const notNew = (): boolean => false;
 
 /**
  * The price history after a snapshot: a point is added where the price
@@ -134,6 +139,13 @@ export const useSalesStore = defineStore("sales", {
     restored: false,
     /** `isNew` flags found in a stored list of an older release, adopted by `restore`. */
     legacyNewIds: null as string[] | null,
+    /**
+     * Replaced by `$reset`: reads and streams begun before a logout check it
+     * and leave the state alone once it changed.
+     */
+    session: markRaw({}) as object,
+    /** Token of the stream allowed to commit; any other stream is stale. */
+    activeRun: null as object | null,
     ...resourceState(),
   }),
 
@@ -156,8 +168,9 @@ export const useSalesStore = defineStore("sales", {
         allowExpired: true,
         dirtyOn: [...STREAM_ACTIONS, "restore"],
         version: (state) => state.items,
-        pick: (state) => state.items,
-        timestamp: (state) => state.fetchedAt,
+        pick: (state) => state.items.map(storedSale),
+        // A running stream's partial list is never stored: the entry stays dirty until it settles.
+        timestamp: (state) => (state.streaming ? null : state.fetchedAt),
         apply: (state, data: StoredSale[], timestamp) => {
           const flagged = data.some((sale) => "isNew" in sale);
           state.legacyNewIds = flagged
@@ -204,9 +217,11 @@ export const useSalesStore = defineStore("sales", {
     },
     /** Sales after the user's filters, in the user's order. */
     filteredSales(): Sale[] {
+      // Reading `isNew` only when the query asks keeps markSeen from rebuilding other orders.
+      const asksNew = this.query.sort === "new" || this.query.onlyNew;
       return applySalesQuery(this.items, this.query, {
         locale: localizationService.getLocale(),
-        isNew: this.isNew,
+        isNew: asksNew ? this.isNew : notNew,
       });
     },
     sellers(): string[] {
@@ -229,10 +244,12 @@ export const useSalesStore = defineStore("sales", {
     /** Loads the stored sales into memory without touching the network; concurrent callers share one read. */
     restore(): Promise<void> {
       if (this.restored) return Promise.resolve();
-      return coalesced(this, "restore", async () => {
+      const session = this.session;
+      return coalesced(session, "restore", async () => {
         // The badge may already be reading the new ids; joining that read keeps it from
         // landing after (and over) the adoption of legacy flags below.
         await Promise.all([this.$hydrate([SALES_NEW_KEY]), this.$hydrate(LIST_KEYS)]);
+        if (this.session !== session) return;
         if (this.legacyNewIds) {
           const listed = indexOf(this.items);
           const adopted = this.legacyNewIds.filter((id) => listed.has(id));
@@ -248,8 +265,10 @@ export const useSalesStore = defineStore("sales", {
     /** Streams the sales unless fresh ones are in memory; concurrent callers share one stream. */
     load({ force = false }: { force?: boolean } = {}): Promise<void> {
       if (!force && this.status === "ready" && !this.isStale) return Promise.resolve();
-      return coalesced(this, "stream", async () => {
+      const session = this.session;
+      return coalesced(session, "stream", async () => {
         await this.restore();
+        if (this.session !== session) return;
         if (!force && this.status === "ready" && !this.isStale) return;
         await handleRequest(this.runStream(), RESOURCE_KEY);
       });
@@ -261,19 +280,10 @@ export const useSalesStore = defineStore("sales", {
       const progressive = before.length === 0;
       let lastPublish = Number.NEGATIVE_INFINITY;
       let pending: ReturnType<typeof setTimeout> | undefined;
+      const run = markRaw({});
+      this.activeRun = run;
       this.streaming = true;
 
-      const publish = () => {
-        pending = undefined;
-        lastPublish = Date.now();
-        this.items = saleList(received.values());
-      };
-      const publishSoon = () => {
-        if (!progressive || pending !== undefined) return;
-        const wait = lastPublish + PROGRESSIVE_COMMIT_MS - Date.now();
-        if (wait <= 0) publish();
-        else pending = setTimeout(publish, wait);
-      };
       const stopPublishing = () => {
         if (pending !== undefined) clearTimeout(pending);
         pending = undefined;
@@ -281,17 +291,52 @@ export const useSalesStore = defineStore("sales", {
 
       return new Promise<void>((resolve, reject) => {
         let stop: (() => void) | null = null;
-        const fail = (error: unknown) => {
+        let settled = false;
+        const cleanup = () => {
           stop?.();
           stopPublishing();
-          this.items = before;
+        };
+        /** Stops a stream that was superseded or reset; true when it may no longer commit. */
+        const superseded = (): boolean => {
+          if (this.activeRun === run) return false;
+          cleanup();
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+          return true;
+        };
+        const finish = () => {
+          settled = true;
+          this.activeRun = null;
           this.streaming = false;
+        };
+
+        const publish = () => {
+          pending = undefined;
+          if (superseded()) return;
+          lastPublish = Date.now();
+          this.items = saleList(received.values());
+        };
+        const publishSoon = () => {
+          if (!progressive || pending !== undefined) return;
+          const wait = lastPublish + PROGRESSIVE_COMMIT_MS - Date.now();
+          if (wait <= 0) publish();
+          else pending = setTimeout(publish, wait);
+        };
+
+        const fail = (error: unknown) => {
+          if (settled || superseded()) return;
+          cleanup();
+          this.items = before;
+          finish();
           reject(error);
         };
 
         void ApiUtils.stream<unknown>(
           ENDPOINT,
           (event) => {
+            if (settled || superseded()) return;
             try {
               let added = false;
               for (const sale of SaleMapper.convertToSales(event.data as APISale[])) {
@@ -306,8 +351,8 @@ export const useSalesStore = defineStore("sales", {
           },
           fail,
           () => {
-            stop?.();
-            stopPublishing();
+            if (settled || superseded()) return;
+            cleanup();
             const items = saleList(received.values());
             const now = Date.now();
             this.priceHistory = nextHistory(this.priceHistory, items, now);
@@ -315,12 +360,14 @@ export const useSalesStore = defineStore("sales", {
             this.items = items;
             this.fetchedAt = now;
             this.status = "ready";
-            this.streaming = false;
+            finish();
             resolve();
           },
         )
-          .then((cleanup) => {
-            stop = cleanup;
+          .then((close) => {
+            stop = close;
+            if (settled) close();
+            else superseded();
           })
           .catch(fail);
       });

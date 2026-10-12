@@ -1,13 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
+import { computed, reactive } from "vue";
 
-vi.mock("@/services/general/LocalizationService", async () =>
-  (await import("./helpers")).localizationModule(),
-);
+vi.mock("@/services/general/LocalizationService", async () => {
+  const { ref } = await import("vue");
+  const locale = ref("en");
+  return {
+    default: {
+      t: (key: string, _vars?: unknown, fallback?: string) => fallback ?? key,
+      getLocale: () => locale.value,
+      setLocale: async (next: string) => {
+        locale.value = next;
+      },
+    },
+  };
+});
 
 import { activeFilterCount, applySalesQuery, defaultSalesQuery } from "@/utils/salesQuery";
 import SaleMapper from "@/mapping/SaleMapping";
 import ItemsOverview, { type OverviewItem } from "@/components/overview/ItemsOverview.vue";
 import SalesOverview from "@/views/sales/SalesOverview.vue";
+import localizationService from "@/services/general/LocalizationService";
+import { formatPrice } from "@/utils/formatPrice";
 
 const sale = (id: string, over: Partial<Sale> = {}): Sale => ({
   id,
@@ -139,7 +152,7 @@ describe("sales search", () => {
   };
 
   it("precomputes a lowercase key from the full name and the shop", () => {
-    expect(mapped.searchKey).toBe("monstera thai constellation leafy rarities");
+    expect(mapped.searchKey).toBe("monstera thai constellation\nleafy rarities");
   });
 
   it("matches the name and the shop", () => {
@@ -152,5 +165,26 @@ describe("sales search", () => {
     expect(search("https")).toHaveLength(0);
     expect(search("cdn.example")).toHaveLength(0);
     expect(search("89")).toHaveLength(0);
+  });
+
+  it("does not match a query spanning the name and the shop", () => {
+    expect(search("constellation leafy")).toHaveLength(0);
+  });
+
+  it("formats the card prices again after a locale switch", async () => {
+    const page = reactive({ sales: [mapped], isNew: () => false });
+    const cards = computed(
+      () => (SalesOverview as any).computed.mappedSales.call(page) as OverviewItem[],
+    );
+    const english = cards.value[0].priceText;
+    expect(english).toBe(formatPrice(89, "en"));
+
+    await localizationService.setLocale("de");
+    try {
+      expect(cards.value[0].priceText).toBe(formatPrice(89, "de"));
+      expect(cards.value[0].priceText).not.toBe(english);
+    } finally {
+      await localizationService.setLocale("en");
+    }
   });
 });

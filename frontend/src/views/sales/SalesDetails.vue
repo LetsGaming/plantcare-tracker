@@ -88,7 +88,7 @@
         :title="t('state.error_title')"
         :message="t('state.error_message')"
         :action-label="t('state.retry')"
-        @action="reload"
+        @action="retry()"
       />
     </ion-content>
   </ion-page>
@@ -133,10 +133,27 @@ export default defineComponent({
     return { openOutline };
   },
   data() {
-    return { phase: "loading" as LoadPhase };
+    return {
+      phase: "loading" as LoadPhase,
+      entering: null as Promise<void> | null,
+      shown: false,
+    };
   },
   async ionViewWillEnter() {
-    await this.reload();
+    this.entering = this.reload();
+    await this.entering;
+  },
+  async ionViewDidEnter() {
+    this.shown = true;
+    await this.entering;
+    // Only once the transition is over: marking it seen re-sorts the list page still mounted below.
+    this.markShownSeen();
+  },
+  ionViewWillLeave() {
+    this.shown = false;
+  },
+  beforeUnmount() {
+    this.shown = false;
   },
   computed: {
     ...mapState(useSalesStore, ["byId", "historyOf"]),
@@ -190,14 +207,16 @@ export default defineComponent({
         return;
       }
       this.phase = this.sale ? "ready" : "not-found";
-      if (this.sale) {
-        const id = this.id;
-        // After the first paint, so the hidden list's recompute never delays this page.
-        requestAnimationFrame(() => this.markSeen(id));
-      }
+    },
+    markShownSeen() {
+      if (this.shown && this.sale) this.markSeen(this.id);
+    },
+    async retry(force = false) {
+      await this.reload(force);
+      this.markShownSeen();
     },
     refresh() {
-      return this.reload(true);
+      return this.retry(true);
     },
     goToList() {
       this.$router.replace({ name: "sales" });
