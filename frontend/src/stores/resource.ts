@@ -65,6 +65,7 @@ export const requestScope = (timeoutMs: number, callerSignal?: AbortSignal): Req
     else source.addEventListener("abort", abort, { once: true });
   }
   const timer = setTimeout(() => {
+    if (controller.signal.aborted) return;
     timedOut = true;
     controller.abort();
   }, timeoutMs);

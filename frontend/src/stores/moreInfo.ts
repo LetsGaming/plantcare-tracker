@@ -21,6 +21,8 @@ import { coalesced, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/more-info";
 const MAX_GUIDES = 30;
+/** The AI can think silently for minutes before its first chunk arrives. */
+const CARE_GUIDE_IDLE_TIMEOUT_MS = 180_000;
 
 /** Monotonic recency counter shared by all guide reads and writes. */
 let useClock = 0;
@@ -205,6 +207,7 @@ export const useMoreInfoStore = defineStore("moreInfo", {
             finish();
             resolve();
           },
+          { idleTimeoutMs: CARE_GUIDE_IDLE_TIMEOUT_MS },
         )
           .then((cleanup) => {
             stop = cleanup;

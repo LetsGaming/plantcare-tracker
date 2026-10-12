@@ -20,7 +20,14 @@ vi.mock("@/stores/pinia", async (importOriginal) => ({
   resetAllStores: vi.fn(),
 }));
 vi.mock("@/utils/apiUtils", () => ({
-  default: { post: vi.fn(), patch: vi.fn(), delete: vi.fn(), get: vi.fn(), configureAuth: vi.fn() },
+  default: {
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    get: vi.fn(),
+    configureAuth: vi.fn(),
+    ensureFresh: vi.fn(async () => undefined),
+  },
 }));
 
 import ApiUtils from "@/utils/apiUtils";
@@ -28,7 +35,8 @@ import TokenUtils from "@/utils/tokenUtils";
 import storageService from "@/services/general/StorageService";
 import { resetAllStores } from "@/stores/pinia";
 import { epoch } from "@/stores/resource";
-import { setLoginRedirect, useSessionStore } from "@/stores/session";
+import { connectSessionToTransport, setLoginRedirect, useSessionStore } from "@/stores/session";
+import type { AuthBridge } from "@/utils/apiUtils";
 
 const redirect = vi.fn(async () => undefined);
 
@@ -141,6 +149,19 @@ describe("logout ordering", () => {
     expect(vi.mocked(resetAllStores).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(storageService.clearAll).mock.invocationCallOrder[0],
     );
+  });
+
+  it("deleteProfile drops the token from memory before the full wipe starts", async () => {
+    await TokenUtils.setToken("jwt-doomed");
+    vi.mocked(ApiUtils.delete).mockResolvedValue(null);
+    const wipe = vi.mocked(storageService.clearAll).getMockImplementation();
+    let tokenAtWipe: string | null | undefined;
+    vi.mocked(storageService.clearAll).mockImplementationOnce(async () => {
+      tokenAtWipe = TokenUtils.getTokenSync();
+      await wipe?.();
+    });
+    await useSessionStore().deleteProfile();
+    expect(tokenAtWipe).toBeNull();
   });
 
   it("keeps the token in memory only after a login until logout", async () => {
@@ -261,6 +282,26 @@ describe("refresh", () => {
     expect(session.token).toBeNull();
   });
 
+  it("never joins a refresh that started in an earlier epoch", async () => {
+    const fetchMock = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const session = useSessionStore();
+    const first = session.refresh(1).catch((e: Error) => e);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    epoch.abortAll();
+    const second = session.refresh(1).catch((e: Error) => e);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    epoch.abortAll();
+    await Promise.all([first, second]);
+  });
+
   it("starts a new request after the previous one has settled", async () => {
     const fetchMock = vi
       .fn()
@@ -270,6 +311,34 @@ describe("refresh", () => {
     await session.refresh();
     await session.refresh();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("transport connection", () => {
+  const connect = (): AuthBridge => {
+    connectSessionToTransport(createPinia());
+    return vi.mocked(ApiUtils.configureAuth).mock.calls.at(-1)![0] as AuthBridge;
+  };
+
+  it("passes the attempt count of the transport through to the refresh", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(500, { error: { message: "down" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(connect().refresh(1)).rejects.toThrow("down");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks the token when the app becomes visible again or comes back online", () => {
+    connect();
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(ApiUtils.ensureFresh).not.toHaveBeenCalled();
+    visibility.mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(ApiUtils.ensureFresh).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event("online"));
+    expect(ApiUtils.ensureFresh).toHaveBeenCalledTimes(2);
+    visibility.mockRestore();
   });
 });
 

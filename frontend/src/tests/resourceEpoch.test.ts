@@ -26,7 +26,7 @@ vi.mock("@/services/general/LocalizationService", async () =>
 import ApiUtils from "@/utils/apiUtils";
 import TokenUtils from "@/utils/tokenUtils";
 import storageService from "@/services/general/StorageService";
-import { coalesced, epoch } from "@/stores/resource";
+import { coalesced, epoch, requestScope } from "@/stores/resource";
 import { useSessionStore } from "@/stores/session";
 
 const deferred = <T>() => {
@@ -240,10 +240,49 @@ describe("token handling in the transport", () => {
   });
 
   it("decodes the expiry once per token", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(200, { data: [] })),
+    );
     const exp = Math.floor(Date.now() / 1000) + 900;
-    await TokenUtils.setToken(fakeJwt({ exp }));
-    expect(TokenUtils.expiresAt()).toBe(exp * 1000);
+    const token = fakeJwt({ exp });
+    const atob = vi.spyOn(globalThis, "atob");
+    await TokenUtils.setToken(token);
+    for (let i = 0; i < 5; i++) {
+      await ApiUtils.get("/plants");
+      expect(TokenUtils.expiresAt()).toBe(exp * 1000);
+    }
+    expect(atob).toHaveBeenCalledTimes(1);
     await TokenUtils.setToken("not-a-jwt");
     expect(TokenUtils.expiresAt()).toBeNull();
+    atob.mockRestore();
+  });
+
+  it("anchors a received token's expiry to the local clock", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.parse("2030-01-01T00:00:00Z"));
+    // The server clock is an hour behind: exp alone would read as long expired.
+    const iat = Math.floor(Date.now() / 1000) - 3600;
+    const token = fakeJwt({ iat, exp: iat + 900 });
+    await TokenUtils.setToken(token);
+    expect(TokenUtils.expiresAt()).toBe(Date.now() + 900_000);
+    TokenUtils.forget();
+    await TokenUtils.load();
+    expect(TokenUtils.expiresAt()).toBe((iat + 900) * 1000);
+    vi.useRealTimers();
+  });
+});
+
+describe("requestScope", () => {
+  it("does not report a timeout when the caller aborted first", async () => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    const scope = requestScope(1_000, caller.signal);
+    caller.abort();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(scope.signal.aborted).toBe(true);
+    expect(scope.timedOut).toBe(false);
+    scope.dispose();
+    vi.useRealTimers();
   });
 });

@@ -27,8 +27,19 @@ import ApiUtils, { isNotModified } from "../utils/apiUtils";
 import { epoch } from "@/stores/resource";
 import TokenUtils from "../utils/tokenUtils";
 import ToastService from "@/services/general/ToastService";
+import { handleRequest } from "@/utils/requestFeedback";
 
 const bridge = { refresh: vi.fn(), onAuthFailure: vi.fn() };
+
+const deferred = <T>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
 
 const lastCall = (fetchMock: ReturnType<typeof vi.fn>, index = -1) => {
   const call = fetchMock.mock.calls.at(index)!;
@@ -106,6 +117,8 @@ describe("requests", () => {
 
 describe("refresh gate", () => {
   beforeEach(() => {
+    // Each test is its own session: one teardown is allowed per epoch.
+    epoch.abortAll();
     vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored");
     vi.mocked(bridge.refresh).mockResolvedValue("fresh" as never);
   });
@@ -161,6 +174,15 @@ describe("refresh gate", () => {
     vi.mocked(bridge.refresh).mockRejectedValue(new Error("expired"));
     await Promise.allSettled([ApiUtils.get("/a"), ApiUtils.get("/b"), ApiUtils.get("/c")]);
     expect(bridge.refresh).toHaveBeenCalledTimes(3);
+  });
+
+  it("tears the session down once when two concurrent 401s both fail to refresh", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(401, { error: { message: "expired" } }));
+    vi.mocked(bridge.refresh).mockRejectedValue(new Error("expired"));
+    const results = await Promise.allSettled([ApiUtils.get("/a"), ApiUtils.get("/b")]);
+    expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+    expect(bridge.onAuthFailure).toHaveBeenCalledTimes(1);
+    expect(ToastService.showError).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -234,6 +256,29 @@ describe("stream", () => {
     expect(source.readyState).toBe(2);
   });
 
+  it("reports a transport error at once even when the browser already closed the source", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onError = vi.fn();
+    await ApiUtils.stream("/sales", vi.fn(), onError);
+    const source = FakeEventSource.instances[0];
+    source.readyState = 2;
+    source.listeners.get("error")?.(new Event("error"));
+    expect(onError).toHaveBeenCalledOnce();
+  });
+
+  it("stays silent after the caller closed the stream", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onError = vi.fn();
+    const onDone = vi.fn();
+    const cleanup = await ApiUtils.stream("/sales", vi.fn(), onError, onDone);
+    const source = FakeEventSource.instances[0];
+    cleanup();
+    source.listeners.get("error")?.(new MessageEvent("error", { data: '{"message":"late"}' }));
+    source.listeners.get("done")?.({ data: "{}" } as MessageEvent);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
   it("reports ticket failures through onError and returns a no-op cleanup", async () => {
     fetchMock.mockImplementation(async () => jsonResponse(500, { error: { message: "boom" } }));
     const onError = vi.fn();
@@ -256,6 +301,23 @@ const hangingFetch = () =>
 
 const ifNoneMatch = (mock: ReturnType<typeof vi.fn>) =>
   (lastCall(mock).init.headers as Record<string, string>)["If-None-Match"];
+
+/** Wall clock for tests that pass the 10 s proactive refresh guard; moved on per test. */
+let clock = Date.parse("2030-01-01T00:00:00Z");
+
+class SilentSource {
+  static last: SilentSource;
+  readyState = 1;
+  CLOSED = 2;
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  constructor() {
+    SilentSource.last = this;
+  }
+  addEventListener() {}
+  close() {
+    this.readyState = 2;
+  }
+}
 
 describe("timeouts", () => {
   beforeEach(() => {
@@ -308,19 +370,6 @@ describe("timeouts", () => {
   });
 
   it("stops a stream that stays silent for 60 s", async () => {
-    class SilentSource {
-      static last: SilentSource;
-      readyState = 1;
-      CLOSED = 2;
-      onmessage: ((e: MessageEvent) => void) | null = null;
-      constructor() {
-        SilentSource.last = this;
-      }
-      addEventListener() {}
-      close() {
-        this.readyState = 2;
-      }
-    }
     vi.stubGlobal("EventSource", SilentSource);
     fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
     const onError = vi.fn();
@@ -334,9 +383,94 @@ describe("timeouts", () => {
     expect(onError.mock.calls[0][0]).toBeInstanceOf(TypeError);
     expect(SilentSource.last.readyState).toBe(2);
   });
-});
 
-let clock = Date.parse("2030-01-01T00:00:00Z");
+  it("honours a longer idle timeout for one stream", async () => {
+    vi.stubGlobal("EventSource", SilentSource);
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onError = vi.fn();
+    await ApiUtils.stream("/more-info", vi.fn(), onError, undefined, { idleTimeoutMs: 180_000 });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onError).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(119_000);
+    expect(onError).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0][0]).toBeInstanceOf(TypeError);
+  });
+
+  it("times out a request whose proactive refresh never settles", async () => {
+    vi.setSystemTime((clock += 60_000));
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored");
+    vi.mocked(TokenUtils.expiresAt).mockReturnValue(Date.now() + 1_000);
+    const hung = deferred<string>();
+    vi.mocked(bridge.refresh).mockReturnValue(hung.promise as never);
+    let settled = false;
+    const result = ApiUtils.get("/plants").catch((e: unknown) => {
+      settled = true;
+      return e;
+    });
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+    const error = await result;
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toBe("No connection. Check your network and try again.");
+    expect(bridge.refresh).toHaveBeenCalledWith(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    hung.reject(new Error("gone"));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it("times out a request whose refresh after a 401 never settles, without a logout", async () => {
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored");
+    const hung = deferred<string>();
+    vi.mocked(bridge.refresh).mockReturnValue(hung.promise as never);
+    fetchMock.mockImplementationOnce(async () => jsonResponse(401, { error: { message: "x" } }));
+    const result = ApiUtils.get("/plants").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(20_001);
+    expect(await result).toBeInstanceOf(TypeError);
+    expect(bridge.onAuthFailure).not.toHaveBeenCalled();
+    hung.reject(new Error("gone"));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it("shows the network toast for a timeout through handleRequest and keeps the session", async () => {
+    vi.stubGlobal("fetch", hangingFetch());
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored");
+    const result = handleRequest(ApiUtils.get("/plants"), "plants.title").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(20_001);
+    expect(await result).toBeInstanceOf(TypeError);
+    expect(ToastService.showError).toHaveBeenCalledOnce();
+    expect(vi.mocked(ToastService.showError).mock.calls[0][0]).toBe(
+      "No connection. Check your network and try again.",
+    );
+    expect(bridge.onAuthFailure).not.toHaveBeenCalled();
+  });
+
+  it("rethrows the caller's abort while the body is being read", async () => {
+    const controller = new AbortController();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => ({
+        status: 200,
+        ok: true,
+        headers: new Headers(),
+        text: () =>
+          new Promise<string>((_resolve, reject) => {
+            const fail = () => reject(new DOMException("aborted", "AbortError"));
+            if (init.signal?.aborted) fail();
+            init.signal?.addEventListener("abort", fail);
+          }),
+      })),
+    );
+    const result = ApiUtils.get("/plants", controller.signal).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort();
+    const error = await result;
+    expect(error).toMatchObject({ name: "AbortError" });
+    expect(ApiUtils.isApiError(error)).toBe(false);
+  });
+});
 
 describe("proactive refresh", () => {
   beforeEach(() => {
@@ -389,6 +523,18 @@ describe("proactive refresh", () => {
     vi.mocked(TokenUtils.expiresAt).mockReturnValue(Date.now() + 1_000);
     await ApiUtils.post("/auth/logout", null);
     expect(bridge.refresh).not.toHaveBeenCalled();
+  });
+
+  it("waits 10 s before another proactive refresh while the token still looks short-lived", async () => {
+    vi.mocked(TokenUtils.expiresAt).mockImplementation(() => Date.now() + 1_000);
+    await ApiUtils.get("/a");
+    expect(bridge.refresh).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.now() + 9_000);
+    await ApiUtils.get("/b");
+    expect(bridge.refresh).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.now() + 1_001);
+    await ApiUtils.get("/c");
+    expect(bridge.refresh).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -451,6 +597,34 @@ describe("logout epoch", () => {
     await vi.waitFor(() => expect(slow).toHaveBeenCalled());
     epoch.abortAll();
     release(jsonResponse(200, { data: ["late"] }));
+    expect(await pending).toMatchObject({ name: "AbortError" });
+  });
+
+  it("shows no error toast for a request cut off by the epoch end", async () => {
+    vi.stubGlobal("fetch", hangingFetch());
+    const pending = handleRequest(ApiUtils.get("/plants"), "plants.title").catch((e: unknown) => e);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    epoch.abortAll();
+    expect(await pending).toMatchObject({ name: "AbortError" });
+    expect(ToastService.showError).not.toHaveBeenCalled();
+  });
+
+  it("drops a 304 that arrives after the epoch ended", async () => {
+    const etagged = jsonResponse(200, { data: [1] });
+    etagged.headers.set("ETag", '"e1"');
+    fetchMock.mockImplementationOnce(async () => etagged);
+    await ApiUtils.get("/etag-late", undefined, { conditional: true });
+    let release: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((resolve) => (release = resolve))),
+    );
+    const pending = ApiUtils.get("/etag-late", undefined, { conditional: true }).catch(
+      (e: unknown) => e,
+    );
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    epoch.abortAll();
+    release(new Response(null, { status: 304 }));
     expect(await pending).toMatchObject({ name: "AbortError" });
   });
 

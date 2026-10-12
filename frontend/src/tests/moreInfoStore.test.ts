@@ -45,6 +45,7 @@ vi.mock("@/utils/apiUtils", () => ({
   },
 }));
 
+import ApiUtils from "@/utils/apiUtils";
 import { useMoreInfoStore } from "@/stores/moreInfo";
 
 const messages =
@@ -84,6 +85,13 @@ describe("ensureInfo streaming", () => {
       htmlFormatting: "false",
       lang: "en",
     });
+  });
+
+  it("gives the care guide stream three minutes of silence before it fails", async () => {
+    stream.script = messages({ type: "link", value: "https://a.example" });
+    const store = await newStore();
+    await store.ensureInfo("Aloe vera");
+    expect(vi.mocked(ApiUtils.stream).mock.calls.at(-1)?.[4]).toEqual({ idleTimeoutMs: 180_000 });
   });
 
   it("accumulates links and AI chunks into a draft while streaming and commits on completion", async () => {

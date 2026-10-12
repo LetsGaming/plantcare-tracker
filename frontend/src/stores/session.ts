@@ -35,8 +35,22 @@ const decodeToken = (token: string | null): AuthToken | null => {
   }
 };
 
-/** One refresh at a time: concurrent callers share the in-flight promise. */
-let inflightRefresh: Promise<string> | null = null;
+/**
+ * One refresh at a time per session epoch: concurrent callers share the
+ * in-flight promise, but a caller of a newer epoch never joins an older one.
+ */
+let inflightRefresh: { promise: Promise<string>; epoch: number } | null = null;
+
+/**
+ * Synchronous first step of every local session end: no request, stream or
+ * token of the old account survives past this call, even before its storage
+ * writes settle.
+ */
+const endSessionLocally = (): Promise<void> => {
+  epoch.abortAll();
+  resetAllStores();
+  return TokenUtils.clearToken();
+};
 
 /** Where to send the user once the local session is gone; set by the app shell. */
 let redirectToLogin: (() => Promise<void>) | null = null;
@@ -126,9 +140,7 @@ export const useSessionStore = defineStore("session", {
 
     /** Drops every trace of the account from memory and storage and leaves the app. */
     async localLogout(): Promise<void> {
-      epoch.abortAll();
-      resetAllStores();
-      await TokenUtils.clearToken();
+      await endSessionLocally();
       await storageService.clear();
       await clearRuntimeCaches();
       this.token = null;
@@ -142,10 +154,13 @@ export const useSessionStore = defineStore("session", {
      * failures are retried.
      */
     refresh(retryCount = 3): Promise<string> {
-      inflightRefresh ??= this.requestNewToken(retryCount).finally(() => {
-        inflightRefresh = null;
+      const current = epoch.current();
+      if (inflightRefresh?.epoch === current) return inflightRefresh.promise;
+      const promise: Promise<string> = this.requestNewToken(retryCount).finally(() => {
+        if (inflightRefresh?.promise === promise) inflightRefresh = null;
       });
-      return inflightRefresh;
+      inflightRefresh = { promise, epoch: current };
+      return promise;
     },
 
     async requestNewToken(retryCount: number): Promise<string> {
@@ -221,10 +236,9 @@ export const useSessionStore = defineStore("session", {
         "profile.delete_failed",
       );
       // Stop and reset everything first so no late action re-persists into the wipe.
-      epoch.abortAll();
-      resetAllStores();
+      const tokenCleared = endSessionLocally();
       // Full wipe including keepOnClear data: the account is gone.
-      await storageService.clearAll();
+      await Promise.all([tokenCleared, storageService.clearAll()]);
       await this.localLogout();
       return response;
     },
@@ -233,19 +247,32 @@ export const useSessionStore = defineStore("session", {
 
 let resumeListenersAttached = false;
 
+const onVisibilityChange = (): void => {
+  if (document.visibilityState === "visible") void ApiUtils.ensureFresh();
+};
+
+const onOnline = (): void => {
+  void ApiUtils.ensureFresh();
+};
+
 /** Lets the transport renew and tear down the session without importing the store. */
 export const connectSessionToTransport = (pinia: Pinia): void => {
   ApiUtils.configureAuth({
-    refresh: () => useSessionStore(pinia).refresh(),
+    refresh: (retryCount?: number) => useSessionStore(pinia).refresh(retryCount),
     onAuthFailure: () => useSessionStore(pinia).localLogout(),
   });
   if (resumeListenersAttached || typeof document === "undefined") return;
   resumeListenersAttached = true;
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void ApiUtils.ensureFresh();
-  });
-  window.addEventListener("online", () => void ApiUtils.ensureFresh());
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("online", onOnline);
 };
+
+import.meta.hot?.dispose(() => {
+  if (!resumeListenersAttached) return;
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  window.removeEventListener("online", onOnline);
+  resumeListenersAttached = false;
+});
 
 /** The signed-in user's id for code that has no component context; -1 when signed out. */
 export const currentUserId = (): number => useSessionStore(appPinia).userId;

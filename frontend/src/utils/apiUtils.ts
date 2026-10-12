@@ -26,7 +26,13 @@ export const isNotModified = (value: unknown): value is NotModified =>
 const NOT_MODIFIED: NotModified = Object.freeze({ notModified: true as const });
 
 export interface GetOptions {
-  /** Sends If-None-Match from the last response for this URL and resolves `NotModified` on 304. */
+  /**
+   * Sends If-None-Match from the last response for this exact URL (path plus
+   * query) and resolves `NotModified` on 304. Opt in only when the caller
+   * keeps its own copy of the last 200 body for that URL: the transport stores
+   * the ETag, never the body. A caller that drops its copy must call
+   * `forgetEtag(url)` so the next request gets a full response.
+   */
   conditional?: boolean;
 }
 
@@ -39,9 +45,33 @@ const rememberEtag = (url: string, etag: string): void => {
   if (etags.size > ETAG_CAPACITY) etags.delete(etags.keys().next().value as string);
 };
 
+/** Drops the stored ETag for `url` (endpoint plus query, as passed to `get`). */
+export const forgetEtag = (url: string): void => {
+  etags.delete(url);
+};
+
 epoch.onAbortAll(() => etags.clear());
 
 const abortError = (): DOMException => new DOMException("The request was aborted.", "AbortError");
+
+/** Settles like `promise`, or rejects with an AbortError as soon as `signal` aborts. */
+const untilAborted = <T>(promise: Promise<T>, signal: AbortSignal): Promise<T> => {
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+};
 
 const timeoutError = (): TypeError =>
   new TypeError(
@@ -110,12 +140,18 @@ const NO_REFRESH_ENDPOINTS = ["/auth/refresh-token", "/auth/login", "/auth/logou
  * Supports both the V2 envelope { success, data } / { error: { type, message } }
  * and the legacy V1 shape { error: string, message: string }.
  */
-const handleResponse = async (response: Response): Promise<any> => {
-  // 204 No Content — no body, just signal success
+const handleResponse = async (response: Response, signal?: AbortSignal): Promise<any> => {
+  // 204 No Content: no body, just signal success
   if (response.status === 204) return null;
 
   // Read the body exactly once to avoid consuming the stream twice
-  const rawText = await response.text().catch(() => "");
+  let rawText: string;
+  try {
+    rawText = await response.text();
+  } catch {
+    if (signal?.aborted) throw signal.reason ?? abortError();
+    rawText = "";
+  }
 
   let responseData: any;
   try {
@@ -128,7 +164,7 @@ const handleResponse = async (response: Response): Promise<any> => {
     );
   }
 
-  // Success path: HTTP 2xx — return .data if present, else the full body.
+  // Success path: HTTP 2xx. Return .data if present, else the full body.
   // Guard against null / primitive JSON bodies before using the `in` operator.
   if (response.ok) {
     if (responseData && typeof responseData === "object" && !Array.isArray(responseData)) {
@@ -171,8 +207,8 @@ const getHeaders = (isFileUpload: boolean = false): Record<string, string> => {
 
 /** What the transport needs from the session; registered once at startup. */
 export interface AuthBridge {
-  /** Gets a new access token; rejects when the session cannot be renewed. */
-  refresh(): Promise<unknown>;
+  /** Gets a new access token in up to `retryCount` attempts; rejects when the session cannot be renewed. */
+  refresh(retryCount?: number): Promise<unknown>;
   /** Tears the local session down after a failed refresh. */
   onAuthFailure(): Promise<void>;
 }
@@ -188,8 +224,9 @@ let freshInflight: Promise<void> | null = null;
 let lastProactiveRefreshAt = 0;
 
 /**
- * Renews the access token when under a minute remains. Concurrent callers
- * share one refresh; a failure is left to the 401 path of the request.
+ * Renews the access token when under a minute remains, in a single attempt.
+ * Concurrent callers share one refresh; a failure is left to the 401 path of
+ * the request.
  */
 const ensureFresh = (): Promise<void> => {
   if (freshInflight) return freshInflight;
@@ -206,7 +243,7 @@ const ensureFresh = (): Promise<void> => {
   }
   lastProactiveRefreshAt = now;
   freshInflight = authBridge
-    .refresh()
+    .refresh(1)
     .then(
       () => undefined,
       () => undefined,
@@ -217,27 +254,34 @@ const ensureFresh = (): Promise<void> => {
   return freshInflight;
 };
 
+/** The epoch whose session was already torn down after a failed refresh. */
+let tornDownEpoch = -1;
+
 const handleNoAuth = async (
   requestFn: () => Promise<Response>,
   scope: RequestScope,
+  startEpoch: number,
 ): Promise<Response> => {
   const bridge = requireAuthBridge();
   try {
-    await bridge.refresh();
+    await untilAborted(bridge.refresh(), scope.signal);
     return await requestFn();
   } catch (error) {
     // A timeout, a caller abort or a logout ended the request: the session is fine.
     if (scope.signal.aborted) throw error;
-    // Local teardown only: the refresh just failed, so the session is
-    // already dead server-side — a POST /logout would be a no-op. The
-    // full logout() here used to clear a token that a parallel login had
-    // just stored and then reloaded the page mid-login.
-    await bridge.onAuthFailure();
     const msg = localizationService.t(
       "auth.session_expired",
       undefined,
       "Session expired. Please log in again.",
     );
+    // Concurrent 401s of one session share a single teardown and toast.
+    if (tornDownEpoch === startEpoch) throw new Error(msg);
+    tornDownEpoch = startEpoch;
+    // Local teardown only: the refresh just failed, so the session is
+    // already dead server-side; a POST /logout would be a no-op. The
+    // full logout() here used to clear a token that a parallel login had
+    // just stored and then reloaded the page mid-login.
+    await bridge.onAuthFailure();
     ToastService.showError(msg);
     throw new Error(msg);
   }
@@ -281,7 +325,7 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
 
   try {
     if (!TokenUtils.isLoaded()) await TokenUtils.load();
-    if (!shouldSkipRefresh) await ensureFresh();
+    if (!shouldSkipRefresh) await untilAborted(ensureFresh(), scope.signal);
 
     let response = await requestFn();
 
@@ -292,13 +336,14 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
       // trigger the token-clearing logout path: it would race and undo a
       // login happening at the same moment.
       if (TokenUtils.getTokenSync()) {
-        response = await handleNoAuth(requestFn, scope);
+        response = await handleNoAuth(requestFn, scope, startEpoch);
       }
     }
 
+    if (epoch.isStale(startEpoch)) throw abortError();
     if (conditional && response.status === 304) return NOT_MODIFIED as T;
 
-    const result = await handleResponse(response);
+    const result = await handleResponse(response, scope.signal);
     if (epoch.isStale(startEpoch)) throw abortError();
 
     if (conditional) {
@@ -308,8 +353,8 @@ const performRequest = async <T>(config: RequestConfig): Promise<T> => {
     return result;
   } catch (error) {
     if (signal?.aborted) throw error;
-    if (scope.timedOut) throw timeoutError();
     if (epoch.isStale(startEpoch)) throw abortError();
+    if (scope.timedOut) throw timeoutError();
     throw error;
   } finally {
     scope.dispose();
@@ -418,14 +463,20 @@ const ApiUtils = {
    * @param onMessage    Called for every default `message` event
    * @param onError      Called on stream errors
    * @param onDone       Called when the server emits the "done" event
+   * @param options      `idleTimeoutMs`: silence after which the stream fails (default 60 s)
    * @returns            A cleanup function that closes the EventSource
+   *
+   * A stream closed by its cleanup function or by the session epoch ending
+   * calls neither `onDone` nor `onError`.
    */
   async stream<T = any>(
     endpoint: string,
     onMessage: (data: { data: T }) => void,
     onError?: (err: any) => void,
     onDone?: (doneData?: { total?: number; status?: string }) => void,
+    options: { idleTimeoutMs?: number } = {},
   ): Promise<() => void> {
+    const idleTimeoutMs = options.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS;
     const startEpoch = epoch.current();
     try {
       // V2: POST /auth/ticket requires no request body
@@ -440,8 +491,10 @@ const ApiUtils = {
       const eventSource = new EventSource(url, { withCredentials: true });
       let idleTimer: ReturnType<typeof setTimeout> | undefined;
       let stopListening: (() => void) | undefined;
+      let closed = false;
 
       const cleanup = () => {
+        closed = true;
         clearTimeout(idleTimer);
         stopListening?.();
         if (eventSource.readyState !== eventSource.CLOSED) {
@@ -456,12 +509,13 @@ const ApiUtils = {
         idleTimer = setTimeout(() => {
           onError?.(timeoutError());
           cleanup();
-        }, STREAM_IDLE_TIMEOUT_MS);
+        }, idleTimeoutMs);
       };
       stopListening = epoch.onAbortAll(cleanup);
       armIdleTimer();
 
       eventSource.onmessage = (e) => {
+        if (closed) return;
         armIdleTimer();
         try {
           if (!e.data) return;
@@ -474,11 +528,12 @@ const ApiUtils = {
 
       // V2 "done" event carries { total: number } (sales) or { status: "completed" } (more-info)
       eventSource.addEventListener("done", (e: MessageEvent) => {
+        if (closed) return;
         let doneData: { total?: number; status?: string } | undefined;
         try {
           doneData = e.data ? JSON.parse(e.data) : undefined;
         } catch {
-          // Non-JSON done payload — ignore
+          // Non-JSON done payload: ignore
         }
         onDone?.(doneData);
         cleanup();
@@ -489,6 +544,7 @@ const ApiUtils = {
       // Using one handler prevents double-invocation since EventSource.onerror
       // and addEventListener("error") both fire for the same connection failure.
       eventSource.addEventListener("error", (e: Event) => {
+        if (closed) return;
         if (e instanceof MessageEvent && e.data) {
           // Server-sent named "error" event carrying a payload
           try {
@@ -497,12 +553,12 @@ const ApiUtils = {
           } catch {
             onError?.(e);
           }
-          cleanup();
-        } else if (eventSource.readyState !== eventSource.CLOSED) {
-          // Connection-level transport error (network drop, server closed)
+        } else {
+          // Connection-level transport error (network drop, server closed),
+          // reported at once whether or not the browser already gave up.
           onError?.(e);
-          cleanup();
         }
+        cleanup();
       });
 
       return cleanup;

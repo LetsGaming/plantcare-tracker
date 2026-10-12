@@ -7,19 +7,29 @@ let expiresAtMs: number | null = null;
 let loaded = false;
 let loading: Promise<string | null> | null = null;
 
-const decodeExpiry = (value: string | null): number | null => {
+/**
+ * A freshly received token is anchored to the local clock (receipt time plus
+ * its lifetime) so a skewed device clock cannot make it look expired or
+ * fresh. A token read back from storage has no receipt time, so its raw `exp`
+ * is used.
+ */
+const decodeExpiry = (value: string | null, receivedNow: boolean): number | null => {
   if (!value) return null;
   try {
     const payload = JSON.parse(atob(value.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+    if (typeof payload.exp !== "number") return null;
+    if (receivedNow && typeof payload.iat === "number") {
+      return Date.now() + (payload.exp - payload.iat) * 1000;
+    }
+    return payload.exp * 1000;
   } catch {
     return null;
   }
 };
 
-const remember = (value: string | null): void => {
+const remember = (value: string | null, receivedNow: boolean): void => {
   token = value;
-  expiresAtMs = decodeExpiry(value);
+  expiresAtMs = decodeExpiry(value, receivedNow);
   loaded = true;
 };
 
@@ -48,7 +58,7 @@ const TokenUtils = {
     loading ??= storageService
       .get<string>(TOKEN_KEY)
       .then((stored) => {
-        if (!loaded) remember(stored);
+        if (!loaded) remember(stored, false);
         return token;
       })
       .finally(() => {
@@ -62,12 +72,12 @@ const TokenUtils = {
   },
 
   async setToken(value: string): Promise<void> {
-    remember(value);
+    remember(value, true);
     await storageService.set(TOKEN_KEY, value);
   },
 
   async clearToken(): Promise<void> {
-    remember(null);
+    remember(null, false);
     await storageService.remove(TOKEN_KEY);
   },
 
