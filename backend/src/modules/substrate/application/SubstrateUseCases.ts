@@ -2,88 +2,83 @@
  * modules/substrate/application/SubstrateUseCases.ts
  *
  * Use cases for substrates and their component composition.
- *
- * Previously the router factory held the zod schemas, the public+own
- * merge-and-dedupe rule, the ownership checks, and the update/refetch
- * orchestration. All of that is business logic and now lives here,
- * matching the reference pattern (plants).
  */
 
 import { z } from 'zod';
 import { isSubstrateVisibleTo } from '../domain/Substrate';
-import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
-import { NotFoundError, ForbiddenError, InternalError } from '../../../core/errors';
+import type {
+  SubstrateData,
+  SubstrateListParams,
+  SubstratePage,
+  SubstrateRepository,
+  SubstrateSort,
+} from '../domain/Substrate';
+import { NotFoundError, InternalError, ValidationError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
+import { parseListQuery } from '../../../core/pagination';
 import type { EntityImageCleanup } from '../../images/domain/Image';
-import { ensureArray, filterDuplicatesById } from '../../../core/utils';
+import { ensureArray } from '../../../core/utils';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
+
+const ComponentItemSchema = z.object({
+  componentId: z.number().int().positive(),
+  parts: z.coerce.number().positive(),
+});
+
+export const ComponentsSchema = z.array(ComponentItemSchema).min(1, 'Components array is required');
+
+export const ReplaceComponentsSchema = z
+  .array(ComponentItemSchema)
+  .refine((list) => new Set(list.map((c) => c.componentId)).size === list.length, {
+    message: 'Duplicate components are not allowed',
+  });
 
 export const CreateSubstrateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   isPublic: z.boolean().default(false),
+  components: ReplaceComponentsSchema.optional(),
 });
 
 export const UpdateSubstrateSchema = z
   .object({
     name: z.string().min(1).max(100).optional(),
     isPublic: z.boolean().optional(),
+    components: ReplaceComponentsSchema.optional(),
     removedComponents: z.array(z.number().int()).optional(),
   })
   .refine(
     (d) =>
       d.name !== undefined ||
       d.isPublic !== undefined ||
+      d.components !== undefined ||
       (d.removedComponents !== undefined && d.removedComponents.length > 0),
     { message: 'At least one field must be provided for update' },
-  );
-
-export const ComponentsSchema = z
-  .array(
-    z.object({
-      componentId: z.number().int().positive(),
-      parts: z.coerce.number().positive(),
-    }),
   )
-  .min(1, 'Components array is required');
-
-export const ReplaceComponentsSchema = z
-  .array(
-    z.object({
-      componentId: z.number().int().positive(),
-      parts: z.coerce.number().positive(),
-    }),
-  )
-  .refine((list) => new Set(list.map((c) => c.componentId)).size === list.length, {
-    message: 'Duplicate components are not allowed',
+  .refine((d) => d.components === undefined || d.removedComponents === undefined, {
+    message: 'Send either components or removedComponents, not both',
   });
 
 export type SubstrateComponentInput = z.infer<typeof ComponentsSchema>[number];
 
-// ── Shared guards ─────────────────────────────────────────────────────────────
+const LIST_SORTS = {
+  created: { valueType: 'number', idType: 'number', direction: 'desc' },
+  name: { valueType: 'string', idType: 'number', direction: 'asc' },
+} as const;
 
-/**
- * Loads the substrate and asserts the caller owns it.
- * 404 when it does not exist, 403 when it belongs to someone else.
- */
-async function loadOwnedSubstrate(
-  repo: SubstrateRepository,
-  substrateId: number,
-  userId: number,
-  action: string,
-): Promise<SubstrateData> {
-  const existing = await repo.findById(substrateId);
-  if (!existing) throw new NotFoundError('Substrate');
-  if (existing.substrate_user_id !== userId) {
-    throw new ForbiddenError(`Unauthorized to ${action} this substrate`);
-  }
-  return existing;
+// ── Input normalisation ───────────────────────────────────────────────────────
+
+/** Clients may send a single object or an index-keyed object instead of an array. */
+function withComponentsArray(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null) return input;
+  const body = input as Record<string, unknown>;
+  if (body.components === undefined || body.components === null) return input;
+  return { ...body, components: ensureArray(body.components) };
 }
 
 /** Extracts and validates the components payload from a request body. */
 function parseComponents(input: unknown): SubstrateComponentInput[] {
   const body = (input ?? {}) as Record<string, unknown>;
-  // Clients may send a single object instead of an array — normalise first.
   const components = ensureArray(body.components);
   return parseOrThrow(ComponentsSchema, components, 'Invalid components data');
 }
@@ -99,19 +94,62 @@ function parseReplacementComponents(input: unknown): SubstrateComponentInput[] {
   return parseOrThrow(ReplaceComponentsSchema, components, 'Invalid components data');
 }
 
+function parseComponentFilter(raw: unknown): number | null {
+  if (raw === undefined || raw === '') return null;
+  const value = typeof raw === 'string' ? Number(raw) : NaN;
+  if (!Number.isInteger(value) || value < 1) {
+    throw new ValidationError('component_id must be a positive integer.', {
+      component_id: 'invalid',
+    });
+  }
+  return value;
+}
+
+// ── Shared guards ─────────────────────────────────────────────────────────────
+
+/** Missing and foreign substrates are both answered as 404. */
+async function loadOwnedSubstrate(
+  repo: SubstrateRepository,
+  substrateId: number,
+  userId: number,
+): Promise<SubstrateData> {
+  const existing = await repo.findById(substrateId);
+  if (!existing || existing.substrate_user_id !== userId) throw new NotFoundError('Substrate');
+  return existing;
+}
+
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
-export class GetAllSubstratesUseCase {
+export interface SubstrateViewer {
+  id: number;
+  isGuest: boolean;
+}
+
+export class ListSubstratesUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
-  async execute(userId: number | null): Promise<SubstrateData[]> {
-    const [publicSubstrates, ownSubstrates] = await Promise.all([
-      this.repo.findAllPublic(),
-      userId !== null ? this.repo.findAllByUser(userId) : Promise.resolve([]),
-    ]);
+  async execute(query: unknown, viewer: SubstrateViewer): Promise<SubstratePage> {
+    const parsed = parseListQuery<SubstrateSort, 'mine' | 'public'>(query, {
+      sorts: LIST_SORTS,
+      defaultSort: 'created',
+      scopes: ['mine', 'public'],
+      defaultScope: viewer.isGuest ? 'public' : 'mine',
+    });
+    const params: SubstrateListParams = {
+      limit: parsed.limit,
+      cursor: parsed.cursor,
+      sort: parsed.sort,
+      q: parsed.q,
+      componentId: parseComponentFilter(
+        (query as Record<string, unknown> | undefined)?.component_id,
+      ),
+    };
 
-    // Public substrates owned by the caller would appear twice — dedupe.
-    return filterDuplicatesById([...publicSubstrates, ...ownSubstrates], 'substrate_id');
+    if (parsed.scope === 'public') return this.repo.listPublic(params);
+    if (viewer.isGuest) {
+      return { items: [], nextCursor: null, ...(params.cursor ? {} : { total: 0 }) };
+    }
+    return this.repo.listMine(viewer.id, params);
   }
 }
 
@@ -131,9 +169,13 @@ export class CreateSubstrateUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
   async execute(input: unknown, userId: number): Promise<SubstrateData> {
-    const data = parseOrThrow(CreateSubstrateSchema, input, 'Invalid substrate data');
+    const data = parseOrThrow(
+      CreateSubstrateSchema,
+      withComponentsArray(input),
+      'Invalid substrate data',
+    );
 
-    const id = await this.repo.create(data.name, userId, data.isPublic);
+    const id = await this.repo.create(data.name, userId, data.isPublic, data.components);
 
     const substrate = await this.repo.findById(id);
     if (!substrate) throw new InternalError('Created substrate could not be read back');
@@ -145,23 +187,18 @@ export class UpdateSubstrateUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
   async execute(id: number, userId: number, input: unknown): Promise<SubstrateData> {
-    const data = parseOrThrow(UpdateSubstrateSchema, input, 'Invalid substrate data');
+    const data = parseOrThrow(
+      UpdateSubstrateSchema,
+      withComponentsArray(input),
+      'Invalid substrate data',
+    );
 
-    await loadOwnedSubstrate(this.repo, id, userId, 'update');
-
-    if (data.name !== undefined || data.isPublic !== undefined) {
-      await this.repo.update(id, userId, {
-        name: data.name,
-        isPublic: data.isPublic,
-      });
-    }
-    if (data.removedComponents?.length) {
-      await this.repo.deleteComponents(id, data.removedComponents);
-    }
-
-    const updated = await this.repo.findById(id);
+    const updated = await this.repo.update(id, userId, data);
     if (!updated) throw new NotFoundError('Substrate');
-    return updated;
+
+    const substrate = await this.repo.findById(id);
+    if (!substrate) throw new NotFoundError('Substrate');
+    return substrate;
   }
 }
 
@@ -169,7 +206,7 @@ export class AddSubstrateComponentsUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
   async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
-    await loadOwnedSubstrate(this.repo, substrateId, userId, 'update');
+    await loadOwnedSubstrate(this.repo, substrateId, userId);
 
     const components = parseComponents(input);
     await this.repo.addComponents(substrateId, components);
@@ -205,8 +242,7 @@ export class DeleteSubstrateUseCase {
 
   async execute(id: number, userId: number): Promise<void> {
     // The repository scopes the DELETE by user_id, so "not found" and
-    // "not yours" both come back as false — answered uniformly as 404
-    // to avoid leaking whether a foreign substrate id exists.
+    // "not yours" both come back as false and are answered uniformly as 404.
     const deleted = await this.repo.delete(id, userId);
     if (!deleted) throw new NotFoundError('Substrate');
     await this.images.removeAll('substrate', id);

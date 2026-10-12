@@ -2,9 +2,9 @@
  * tests/unit/modules/substrate.test.ts
  *
  * Tests for the substrate application layer (SubstrateUseCases).
- * Covers the merge/dedupe read rule, the ownership guard (404 for
- * missing, 403 for foreign), components parsing (single object vs
- * array), and the update orchestration.
+ * Covers list scopes and parameters, the ownership guard (404 for missing
+ * and foreign substrates), components parsing (single object vs array),
+ * and the create/update orchestration.
  */
 
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
@@ -13,7 +13,7 @@ import type {
   SubstrateData,
 } from '../../../src/modules/substrate/domain/Substrate';
 import {
-  GetAllSubstratesUseCase,
+  ListSubstratesUseCase,
   GetSubstrateUseCase,
   CreateSubstrateUseCase,
   UpdateSubstrateUseCase,
@@ -21,12 +21,7 @@ import {
   ReplaceSubstrateComponentsUseCase,
   DeleteSubstrateUseCase,
 } from '../../../src/modules/substrate/application/SubstrateUseCases';
-import {
-  NotFoundError,
-  ForbiddenError,
-  ValidationError,
-  InternalError,
-} from '../../../src/core/errors';
+import { NotFoundError, ValidationError, InternalError } from '../../../src/core/errors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -41,8 +36,8 @@ const makeSubstrate = (overrides: Partial<SubstrateData> = {}): SubstrateData =>
   }) as SubstrateData;
 
 const makeMockRepo = (): SubstrateRepository => ({
-  findAllPublic: vi.fn().mockResolvedValue([]),
-  findAllByUser: vi.fn().mockResolvedValue([]),
+  listMine: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+  listPublic: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
   findById: vi.fn().mockResolvedValue(null),
   create: vi.fn().mockResolvedValue(1),
   update: vi.fn().mockResolvedValue(true),
@@ -55,27 +50,66 @@ const makeMockRepo = (): SubstrateRepository => ({
 
 const asMock = (fn: unknown): ReturnType<typeof vi.fn> => fn as ReturnType<typeof vi.fn>;
 
-// ── GetAllSubstratesUseCase ───────────────────────────────────────────────────
+// ── ListSubstratesUseCase ─────────────────────────────────────────────────────
 
-describe('GetAllSubstratesUseCase', () => {
-  it('merges public and own substrates, deduplicating by substrate_id', async () => {
+describe('ListSubstratesUseCase', () => {
+  const user = { id: 2, isGuest: false };
+  const guest = { id: 9, isGuest: true };
+
+  it('lists the caller own substrates by default with the default sort and limit', async () => {
     const repo = makeMockRepo();
-    const shared = makeSubstrate({ substrate_id: 1 });
-    const own = makeSubstrate({ substrate_id: 2, is_public: false });
-    asMock(repo.findAllPublic).mockResolvedValue([shared]);
-    asMock(repo.findAllByUser).mockResolvedValue([shared, own]);
-
-    const result = await new GetAllSubstratesUseCase(repo).execute(2);
-    expect(result.map((s) => s.substrate_id)).toEqual([1, 2]);
+    await new ListSubstratesUseCase(repo).execute({}, user);
+    expect(repo.listMine).toHaveBeenCalledWith(2, {
+      limit: 30,
+      cursor: null,
+      sort: 'created',
+      q: null,
+      componentId: null,
+    });
+    expect(repo.listPublic).not.toHaveBeenCalled();
   });
 
-  it('skips the user query for anonymous callers', async () => {
+  it('passes scope, q, sort, limit and the used-in component through', async () => {
     const repo = makeMockRepo();
-    asMock(repo.findAllPublic).mockResolvedValue([makeSubstrate()]);
+    await new ListSubstratesUseCase(repo).execute(
+      { scope: 'public', q: ' coir ', sort: 'name', limit: '5', component_id: '7' },
+      user,
+    );
+    expect(repo.listPublic).toHaveBeenCalledWith({
+      limit: 5,
+      cursor: null,
+      sort: 'name',
+      q: 'coir',
+      componentId: 7,
+    });
+    expect(repo.listMine).not.toHaveBeenCalled();
+  });
 
-    const result = await new GetAllSubstratesUseCase(repo).execute(null);
-    expect(result).toHaveLength(1);
-    expect(repo.findAllByUser).not.toHaveBeenCalled();
+  it('answers an empty page for a guest asking for mine and defaults guests to public', async () => {
+    const repo = makeMockRepo();
+    const useCase = new ListSubstratesUseCase(repo);
+    expect(await useCase.execute({ scope: 'mine' }, guest)).toEqual({
+      items: [],
+      nextCursor: null,
+      total: 0,
+    });
+    await useCase.execute({}, guest);
+    expect(repo.listMine).not.toHaveBeenCalled();
+    expect(repo.listPublic).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid scope, sort, cursor and component id with ValidationError', async () => {
+    const useCase = new ListSubstratesUseCase(makeMockRepo());
+    for (const query of [
+      { scope: 'all' },
+      { sort: 'oldest' },
+      { cursor: 'garbage' },
+      { component_id: 'abc' },
+      { component_id: '0' },
+      { q: 'x'.repeat(101) },
+    ]) {
+      await expect(useCase.execute(query, user)).rejects.toThrow(ValidationError);
+    }
   });
 });
 
@@ -105,6 +139,41 @@ describe('CreateSubstrateUseCase', () => {
     expect(repo.create).toHaveBeenCalledWith('Cactus Mix', 2, true);
   });
 
+  it('creates the substrate and its mix in one repository call', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.findById).mockResolvedValue(makeSubstrate({ substrate_id: 5 }));
+    asMock(repo.create).mockResolvedValue(5);
+
+    await new CreateSubstrateUseCase(repo).execute(
+      { name: 'Mix', components: { 0: { componentId: 3, parts: '2' } } },
+      2,
+    );
+
+    expect(repo.create).toHaveBeenCalledWith('Mix', 2, false, [{ componentId: 3, parts: 2 }]);
+    expect(repo.addComponents).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate components and non-positive parts on create', async () => {
+    const repo = makeMockRepo();
+    const useCase = new CreateSubstrateUseCase(repo);
+    await expect(
+      useCase.execute(
+        {
+          name: 'x',
+          components: [
+            { componentId: 3, parts: 1 },
+            { componentId: 3, parts: 2 },
+          ],
+        },
+        2,
+      ),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      useCase.execute({ name: 'x', components: [{ componentId: 3, parts: 0 }] }, 2),
+    ).rejects.toThrow(ValidationError);
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
   it('throws ValidationError for a missing name', async () => {
     const repo = makeMockRepo();
     await expect(new CreateSubstrateUseCase(repo).execute({}, 2)).rejects.toThrow(ValidationError);
@@ -121,19 +190,13 @@ describe('CreateSubstrateUseCase', () => {
 // ── UpdateSubstrateUseCase ────────────────────────────────────────────────────
 
 describe('UpdateSubstrateUseCase', () => {
-  it('throws NotFoundError when the substrate does not exist', async () => {
+  it('throws NotFoundError when the repository reports nothing was updated', async () => {
     const repo = makeMockRepo();
+    asMock(repo.update).mockResolvedValue(false);
     await expect(new UpdateSubstrateUseCase(repo).execute(999, 2, { name: 'x' })).rejects.toThrow(
       NotFoundError,
     );
-  });
-
-  it('throws ForbiddenError when the substrate belongs to someone else', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate({ substrate_user_id: 99 }));
-    await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, { name: 'x' })).rejects.toThrow(
-      ForbiddenError,
-    );
+    expect(repo.findById).not.toHaveBeenCalled();
   });
 
   it('throws ValidationError when no fields are provided', async () => {
@@ -141,26 +204,57 @@ describe('UpdateSubstrateUseCase', () => {
     await expect(new UpdateSubstrateUseCase(repo).execute(1, 2, {})).rejects.toThrow(
       ValidationError,
     );
+    expect(repo.update).not.toHaveBeenCalled();
   });
 
-  it('updates metadata without touching components when none are removed', async () => {
+  it('rejects components together with removedComponents', async () => {
+    const repo = makeMockRepo();
+    await expect(
+      new UpdateSubstrateUseCase(repo).execute(1, 2, { components: [], removedComponents: [3] }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('updates fields and the replacement mix in one repository call', async () => {
     const repo = makeMockRepo();
     asMock(repo.findById).mockResolvedValue(makeSubstrate());
 
-    await new UpdateSubstrateUseCase(repo).execute(1, 2, { name: 'Renamed' });
+    await new UpdateSubstrateUseCase(repo).execute(1, 2, {
+      name: 'Renamed',
+      components: [{ componentId: 3, parts: '1.5' }],
+    });
 
-    expect(repo.update).toHaveBeenCalledWith(1, 2, { name: 'Renamed', isPublic: undefined });
-    expect(repo.deleteComponents).not.toHaveBeenCalled();
+    expect(repo.update).toHaveBeenCalledTimes(1);
+    expect(repo.update).toHaveBeenCalledWith(1, 2, {
+      name: 'Renamed',
+      components: [{ componentId: 3, parts: 1.5 }],
+    });
+    expect(repo.replaceComponents).not.toHaveBeenCalled();
   });
 
-  it('removes components without a metadata update when only removedComponents is set', async () => {
+  it('accepts an empty components list as a clear and rejects a null one', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.findById).mockResolvedValue(makeSubstrate());
+    const useCase = new UpdateSubstrateUseCase(repo);
+    await useCase.execute(1, 2, { components: [] });
+    expect(repo.update).toHaveBeenCalledWith(1, 2, { components: [] });
+    await expect(useCase.execute(1, 2, { components: null })).rejects.toThrow(ValidationError);
+  });
+
+  it.each([0, -1])('rejects parts %s with ValidationError', async (parts) => {
+    const repo = makeMockRepo();
+    await expect(
+      new UpdateSubstrateUseCase(repo).execute(1, 2, { components: [{ componentId: 3, parts }] }),
+    ).rejects.toThrow(ValidationError);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('removes components without a field update when only removedComponents is set', async () => {
     const repo = makeMockRepo();
     asMock(repo.findById).mockResolvedValue(makeSubstrate());
 
     await new UpdateSubstrateUseCase(repo).execute(1, 2, { removedComponents: [3, 4] });
 
-    expect(repo.update).not.toHaveBeenCalled();
-    expect(repo.deleteComponents).toHaveBeenCalledWith(1, [3, 4]);
+    expect(repo.update).toHaveBeenCalledWith(1, 2, { removedComponents: [3, 4] });
   });
 });
 
@@ -188,12 +282,23 @@ describe('AddSubstrateComponentsUseCase', () => {
     ).rejects.toThrow(ValidationError);
   });
 
-  it('enforces ownership before parsing', async () => {
+  it('answers a foreign substrate with NotFoundError before parsing', async () => {
     const repo = makeMockRepo();
     asMock(repo.findById).mockResolvedValue(makeSubstrate({ substrate_user_id: 99 }));
     await expect(
       new AddSubstrateComponentsUseCase(repo).execute(1, 2, { components: [] }),
-    ).rejects.toThrow(ForbiddenError);
+    ).rejects.toThrow(NotFoundError);
+    expect(repo.addComponents).not.toHaveBeenCalled();
+  });
+
+  it.each([0, -1])('rejects parts %s with ValidationError', async (parts) => {
+    const repo = makeMockRepo();
+    asMock(repo.findById).mockResolvedValue(makeSubstrate());
+    await expect(
+      new AddSubstrateComponentsUseCase(repo).execute(1, 2, {
+        components: [{ componentId: 3, parts }],
+      }),
+    ).rejects.toThrow(ValidationError);
   });
 });
 
@@ -215,6 +320,16 @@ describe('ReplaceSubstrateComponentsUseCase', () => {
     asMock(repo.findById).mockResolvedValue(makeSubstrate());
     await new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, { components: [] });
     expect(repo.replaceComponents).toHaveBeenCalledWith(1, 2, []);
+  });
+
+  it.each([0, -1])('rejects parts %s without touching the repository', async (parts) => {
+    const repo = makeMockRepo();
+    await expect(
+      new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, {
+        components: [{ componentId: 3, parts }],
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(repo.replaceComponents).not.toHaveBeenCalled();
   });
 
   it('rejects a missing components field and duplicate ids without touching the repository', async () => {

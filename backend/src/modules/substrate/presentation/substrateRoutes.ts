@@ -16,7 +16,7 @@ export const substrateRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLiteSubstrateRepository();
   const ctrl = createSubstrateController(repo, createImageCleanup());
 
-  app.get('/', { onRequest: authenticateToken }, ctrl.getAllSubstrates);
+  app.get('/', { onRequest: authenticateToken }, ctrl.listSubstrates);
   app.get('/:id', { onRequest: authenticateToken }, ctrl.getSubstrate);
   app.post('/', { onRequest: authenticateToken }, ctrl.addSubstrate);
   app.patch('/:id', { onRequest: authenticateToken }, ctrl.editSubstrate);

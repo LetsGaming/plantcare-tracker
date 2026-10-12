@@ -1,95 +1,256 @@
-import { sql } from 'kysely';
+import { sql, type Kysely, type SqlBool } from 'kysely';
 import { getKysely } from '../../../core/database/db';
+import type { Database } from '../../../core/database/schema';
 import { toPublicImageUrl } from '../../../core/config';
-import type { SubstrateRepository, SubstrateData, ImageRef } from '../domain/Substrate';
+import { applyKeyset, containsLike, toPage } from '../../../core/pagination';
+import { toImageDto, type ImageDTO } from '../../images/presentation/imageDto';
+import type {
+  ComponentInput,
+  ComponentRef,
+  SubstrateData,
+  SubstrateListItem,
+  SubstrateListParams,
+  SubstratePage,
+  SubstrateRepository,
+  SubstrateUpdateFields,
+} from '../domain/Substrate';
 
-interface SubstrateRow {
-  substrate_id: number;
-  substrate_user_id: number;
-  substrate_name: string;
-  is_public: number;
-  substrate_created_at: number;
-  component_id: number | null;
-  component_name: string | null;
-  component_fineness_name: string | null;
-  component_parts: number | null;
-  image_id: number | null;
-  image_url: string | null;
-  upload_date: number | null;
+interface ImageRow {
+  id: number;
+  image_url: string;
+  upload_date: number;
+  width: number | null;
+  height: number | null;
+  placeholder: string | null;
+  variants: number;
 }
 
-const substrateRows = () =>
-  getKysely()
-    .selectFrom('substrates as s')
-    .leftJoin('substrate_components as sc', 's.id', 'sc.substrate_id')
-    .leftJoin('components as c', 'sc.component_id', 'c.id')
-    .leftJoin('fineness_levels as fl', 'c.fineness_id', 'fl.id')
-    .leftJoin('images as img', (join) =>
-      join.onRef('img.entity_id', '=', 's.id').on('img.entity_type', '=', 'substrate'),
-    )
-    .select([
-      's.id as substrate_id',
-      's.user_id as substrate_user_id',
-      's.name as substrate_name',
-      's.is_public',
-      's.created_at as substrate_created_at',
-      'sc.component_id',
-      'c.name as component_name',
-      'fl.name as component_fineness_name',
-      'sc.parts as component_parts',
-      'img.id as image_id',
-      'img.image_url',
-      'img.upload_date',
-    ])
-    .orderBy('img.upload_date')
-    .orderBy('img.id');
+interface BaseRow {
+  id: number;
+  user_id: number;
+  name: string;
+  is_public: number;
+  created_at: number;
+}
+
+const IMAGE_COLUMNS = [
+  'id',
+  'image_url',
+  'upload_date',
+  'width',
+  'height',
+  'placeholder',
+  'variants',
+] as const;
+
+const toDto = (row: ImageRow): ImageDTO =>
+  toImageDto({
+    id: row.id,
+    url: toPublicImageUrl(row.image_url),
+    date: row.upload_date,
+    variants: row.variants,
+    width: row.width,
+    height: row.height,
+    placeholder: row.placeholder,
+  });
 
 const roundParts = (parts: number): number => Math.round(parts * 100) / 100;
 
+type Scope = { kind: 'mine'; userId: number } | { kind: 'public' };
+
+const filteredSubstrates = (scope: Scope, params: SubstrateListParams) => {
+  let qb = getKysely().selectFrom('substrates as s');
+  qb =
+    scope.kind === 'mine'
+      ? qb.where('s.user_id', '=', scope.userId)
+      : qb.where(sql<SqlBool>`s.is_public = 1`);
+  if (params.q) qb = qb.where(containsLike('s.name', params.q));
+  if (params.componentId !== null) {
+    qb = qb.where(
+      sql<SqlBool>`EXISTS (SELECT 1 FROM substrate_components sc WHERE sc.substrate_id = s.id AND sc.component_id = ${params.componentId})`,
+    );
+  }
+  return qb;
+};
+
+const insertMix = async (
+  trx: Kysely<Database>,
+  substrateId: number,
+  components: ComponentInput[],
+): Promise<void> => {
+  for (const { componentId, parts } of components) {
+    await trx
+      .insertInto('substrate_components')
+      .values({ substrate_id: substrateId, component_id: componentId, parts: roundParts(parts) })
+      .onConflict((oc) =>
+        oc.columns(['substrate_id', 'component_id']).doUpdateSet({
+          parts: (eb) => eb.ref('excluded.parts'),
+        }),
+      )
+      .execute();
+  }
+};
+
+const replaceMix = async (
+  trx: Kysely<Database>,
+  substrateId: number,
+  components: ComponentInput[],
+): Promise<void> => {
+  let removal = trx.deleteFrom('substrate_components').where('substrate_id', '=', substrateId);
+  if (components.length) {
+    removal = removal.where(
+      'component_id',
+      'not in',
+      components.map((c) => c.componentId),
+    );
+  }
+  await removal.execute();
+  await insertMix(trx, substrateId, components);
+};
+
+const assemble = (
+  bases: BaseRow[],
+  components: Map<number, ComponentRef[]>,
+  images: Map<number, ImageDTO[]>,
+): SubstrateData[] =>
+  bases.map((base) => {
+    const own = images.get(base.id) ?? [];
+    return {
+      substrate_id: base.id,
+      substrate_user_id: base.user_id,
+      substrate_name: base.name,
+      is_public: base.is_public === 1,
+      substrate_created_at: base.created_at,
+      cover: own.length ? own[own.length - 1] : null,
+      images: own,
+      components: components.get(base.id) ?? [],
+    };
+  });
+
 export class SQLiteSubstrateRepository implements SubstrateRepository {
-  async findAllPublic(): Promise<SubstrateData[]> {
-    return this.groupRows(await substrateRows().where('s.is_public', '=', 1).execute());
+  listMine(userId: number, params: SubstrateListParams): Promise<SubstratePage> {
+    return this.list({ kind: 'mine', userId }, params);
   }
 
-  async findAllByUser(userId: number): Promise<SubstrateData[]> {
-    return this.groupRows(await substrateRows().where('s.user_id', '=', userId).execute());
+  listPublic(params: SubstrateListParams): Promise<SubstratePage> {
+    return this.list({ kind: 'public' }, params);
   }
 
   async findById(id: number): Promise<SubstrateData | null> {
-    const rows = await substrateRows().where('s.id', '=', id).execute();
-    return this.groupRows(rows)[0] ?? null;
-  }
-
-  async create(name: string, userId: number, isPublic: boolean): Promise<number> {
-    const result = await getKysely()
-      .insertInto('substrates')
-      .values({
-        name,
-        user_id: userId,
-        is_public: isPublic ? 1 : 0,
-        created_at: sql<number>`strftime('%s','now')`,
-      })
-      .executeTakeFirstOrThrow();
-    return Number(result.insertId);
-  }
-
-  async update(
-    id: number,
-    userId: number,
-    fields: { name?: string; isPublic?: boolean },
-  ): Promise<boolean> {
-    const changes: { name?: string; is_public?: number } = {};
-    if (fields.name !== undefined) changes.name = fields.name;
-    if (fields.isPublic !== undefined) changes.is_public = fields.isPublic ? 1 : 0;
-    if (!Object.keys(changes).length) return false;
-
-    const result = await getKysely()
-      .updateTable('substrates')
-      .set(changes)
+    const db = getKysely();
+    const base = await db
+      .selectFrom('substrates')
+      .select(['id', 'user_id', 'name', 'is_public', 'created_at'])
       .where('id', '=', id)
-      .where('user_id', '=', userId)
       .executeTakeFirst();
-    return Number(result.numUpdatedRows) > 0;
+    if (!base) return null;
+
+    const componentRows = await db
+      .selectFrom('substrate_components as sc')
+      .innerJoin('components as c', 'c.id', 'sc.component_id')
+      .leftJoin('fineness_levels as fl', 'fl.id', 'c.fineness_id')
+      .select([
+        'sc.substrate_id',
+        'sc.component_id',
+        'c.name as component_name',
+        'fl.name as component_fineness',
+        'sc.parts as component_parts',
+      ])
+      .where('sc.substrate_id', '=', id)
+      .orderBy('sc.component_id')
+      .execute();
+
+    const imageRows = await db
+      .selectFrom('images')
+      .select([...IMAGE_COLUMNS, 'entity_id'])
+      .where('entity_type', '=', 'substrate')
+      .where('entity_id', '=', id)
+      .orderBy('upload_date')
+      .orderBy('id')
+      .execute();
+
+    const components = new Map<number, ComponentRef[]>();
+    for (const row of componentRows) {
+      const list = components.get(row.substrate_id) ?? [];
+      list.push({
+        component_id: row.component_id,
+        component_name: row.component_name,
+        component_fineness: row.component_fineness ?? '',
+        component_parts: row.component_parts,
+      });
+      components.set(row.substrate_id, list);
+    }
+    const images = new Map<number, ImageDTO[]>();
+    for (const row of imageRows) {
+      const list = images.get(row.entity_id) ?? [];
+      list.push(toDto(row));
+      images.set(row.entity_id, list);
+    }
+
+    return assemble([base], components, images)[0];
+  }
+
+  async create(
+    name: string,
+    userId: number,
+    isPublic: boolean,
+    components: ComponentInput[] = [],
+  ): Promise<number> {
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const result = await trx
+          .insertInto('substrates')
+          .values({
+            name,
+            user_id: userId,
+            is_public: isPublic ? 1 : 0,
+            created_at: sql<number>`strftime('%s','now')`,
+          })
+          .executeTakeFirstOrThrow();
+        const id = Number(result.insertId);
+        await insertMix(trx, id, components);
+        return id;
+      });
+  }
+
+  async update(id: number, userId: number, fields: SubstrateUpdateFields): Promise<boolean> {
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const changes: { name?: string; is_public?: number } = {};
+        if (fields.name !== undefined) changes.name = fields.name;
+        if (fields.isPublic !== undefined) changes.is_public = fields.isPublic ? 1 : 0;
+
+        if (Object.keys(changes).length) {
+          const result = await trx
+            .updateTable('substrates')
+            .set(changes)
+            .where('id', '=', id)
+            .where('user_id', '=', userId)
+            .executeTakeFirst();
+          if (Number(result.numUpdatedRows) === 0) return false;
+        } else {
+          const owned = await trx
+            .selectFrom('substrates')
+            .select('id')
+            .where('id', '=', id)
+            .where('user_id', '=', userId)
+            .executeTakeFirst();
+          if (!owned) return false;
+        }
+
+        if (fields.components) {
+          await replaceMix(trx, id, fields.components);
+        } else if (fields.removedComponents?.length) {
+          await trx
+            .deleteFrom('substrate_components')
+            .where('substrate_id', '=', id)
+            .where('component_id', 'in', fields.removedComponents)
+            .execute();
+        }
+        return true;
+      });
   }
 
   async delete(id: number, userId: number): Promise<boolean> {
@@ -101,10 +262,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
     return Number(result.numDeletedRows) > 0;
   }
 
-  async addComponents(
-    substrateId: number,
-    components: { componentId: number; parts: number }[],
-  ): Promise<void> {
+  async addComponents(substrateId: number, components: ComponentInput[]): Promise<void> {
     await getKysely()
       .transaction()
       .execute(async (trx) => {
@@ -121,31 +279,16 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       });
   }
 
-  async upsertComponents(
-    substrateId: number,
-    components: { componentId: number; parts: number }[],
-  ): Promise<void> {
+  async upsertComponents(substrateId: number, components: ComponentInput[]): Promise<void> {
     await getKysely()
       .transaction()
-      .execute(async (trx) => {
-        for (const { componentId, parts } of components) {
-          await trx
-            .insertInto('substrate_components')
-            .orReplace()
-            .values({
-              substrate_id: substrateId,
-              component_id: componentId,
-              parts: roundParts(parts),
-            })
-            .execute();
-        }
-      });
+      .execute((trx) => insertMix(trx, substrateId, components));
   }
 
   async replaceComponents(
     substrateId: number,
     userId: number,
-    components: { componentId: number; parts: number }[],
+    components: ComponentInput[],
   ): Promise<boolean> {
     return getKysely()
       .transaction()
@@ -157,29 +300,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
           .where('user_id', '=', userId)
           .executeTakeFirst();
         if (!owned) return false;
-
-        const keepIds = components.map((c) => c.componentId);
-        let removal = trx
-          .deleteFrom('substrate_components')
-          .where('substrate_id', '=', substrateId);
-        if (keepIds.length) removal = removal.where('component_id', 'not in', keepIds);
-        await removal.execute();
-
-        for (const { componentId, parts } of components) {
-          await trx
-            .insertInto('substrate_components')
-            .values({
-              substrate_id: substrateId,
-              component_id: componentId,
-              parts: roundParts(parts),
-            })
-            .onConflict((oc) =>
-              oc.columns(['substrate_id', 'component_id']).doUpdateSet({
-                parts: (eb) => eb.ref('excluded.parts'),
-              }),
-            )
-            .execute();
-        }
+        await replaceMix(trx, substrateId, components);
         return true;
       });
   }
@@ -193,45 +314,64 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       .execute();
   }
 
-  private groupRows(rows: SubstrateRow[]): SubstrateData[] {
-    const map = new Map<number, SubstrateData>();
+  private async list(scope: Scope, params: SubstrateListParams): Promise<SubstratePage> {
+    const byName = params.sort === 'name';
+    const rows = await applyKeyset(
+      filteredSubstrates(scope, params)
+        .select(['s.id', 's.name', 's.user_id', 's.is_public', 's.created_at'])
+        .select(
+          sql<number>`(SELECT COUNT(*) FROM substrate_components sc WHERE sc.substrate_id = s.id)`.as(
+            'component_count',
+          ),
+        )
+        .select(
+          sql<
+            number | null
+          >`(SELECT img.id FROM images img WHERE img.entity_type = 'substrate' AND img.entity_id = s.id ORDER BY img.upload_date DESC, img.id DESC LIMIT 1)`.as(
+            'cover_id',
+          ),
+        ),
+      {
+        column: byName ? 's.name' : 's.created_at',
+        idColumn: 's.id',
+        direction: byName ? 'asc' : 'desc',
+        cursor: params.cursor,
+        limit: params.limit,
+        collateNoCase: byName,
+      },
+    ).execute();
 
-    for (const row of rows) {
-      if (!map.has(row.substrate_id)) {
-        map.set(row.substrate_id, {
-          substrate_id: row.substrate_id,
-          substrate_user_id: row.substrate_user_id,
-          substrate_name: row.substrate_name,
-          is_public: Boolean(row.is_public),
-          substrate_created_at: row.substrate_created_at,
-          image_url: null,
-          images: [],
-          components: [],
-        });
-      }
+    const page = toPage(rows, {
+      limit: params.limit,
+      sort: params.sort,
+      key: (row) => ({ v: byName ? row.name : row.created_at, id: row.id }),
+    });
 
-      const s = map.get(row.substrate_id)!;
-
-      if (row.component_id && !s.components.find((c) => c.component_id === row.component_id)) {
-        s.components.push({
-          component_id: row.component_id,
-          component_name: row.component_name ?? '',
-          component_fineness: row.component_fineness_name ?? '',
-          component_parts: row.component_parts ?? 0,
-        });
-      }
-
-      if (row.image_id && !s.images.find((i) => i.id === row.image_id)) {
-        const imageRef: ImageRef = {
-          id: row.image_id,
-          url: row.image_url ? toPublicImageUrl(row.image_url) : '',
-          date: row.upload_date ?? 0,
-        };
-        s.images.push(imageRef);
-        s.image_url = imageRef.url;
-      }
+    const coverIds = page.items.flatMap((row) => (row.cover_id === null ? [] : [row.cover_id]));
+    const covers = new Map<number, ImageDTO>();
+    if (coverIds.length) {
+      const images = await getKysely()
+        .selectFrom('images')
+        .select([...IMAGE_COLUMNS])
+        .where('id', 'in', coverIds)
+        .execute();
+      for (const image of images) covers.set(image.id, toDto(image));
     }
 
-    return Array.from(map.values());
+    const items = page.items.map((row): SubstrateListItem => ({
+      id: row.id,
+      name: row.name,
+      user_id: row.user_id,
+      is_public: row.is_public === 1,
+      created_at: row.created_at,
+      cover: row.cover_id === null ? null : (covers.get(row.cover_id) ?? null),
+      component_count: row.component_count,
+    }));
+
+    if (params.cursor) return { items, nextCursor: page.nextCursor };
+    const counted = await filteredSubstrates(scope, params)
+      .select(sql<number>`COUNT(*)`.as('total'))
+      .executeTakeFirstOrThrow();
+    return { items, nextCursor: page.nextCursor, total: counted.total };
   }
 }
