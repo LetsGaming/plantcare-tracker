@@ -76,6 +76,7 @@ const COLUMNS = [
   ["apiRequests", "API req"],
   ["uploadRequests", "uploads req"],
   ["wateringPlantRequests", "watering/plant req"],
+  ["lastWateringResponseMs", "last watering resp ms"],
   ["imageRequestsPerCard", "img req/card"],
 ];
 

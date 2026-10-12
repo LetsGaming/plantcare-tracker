@@ -31,6 +31,19 @@ const STEP_TIMEOUT_MS = 120000;
 const SETUP_TIMEOUT_MS = 120000;
 const POLL_MS = 100;
 const NO_THROTTLE_NETWORK = { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 };
+const COLD_QUIET_MS = 2000;
+const COLD_TIMEOUT_MS = 300000;
+const ACCOUNT_CACHE_KEYS = [
+  "plants_all",
+  "substrates_all",
+  "components_all",
+  "components_fineness_levels",
+  "watering_records_data",
+  "fertilizer_types_data",
+  "more_info_data",
+  "sales_data",
+  "sales_price_history",
+];
 const SCENARIOS = ["tabs", "sales-entry", "plants-cold", "mark-all-seen", "search"];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,6 +73,7 @@ class Bench {
     this.imageUrls = imageUrls;
     this.headed = headed;
     this.requestLog = [];
+    this.wateringResponses = [];
     this.lastRequestAt = Date.now();
   }
 
@@ -71,6 +85,9 @@ class Bench {
     page.on("request", (request) => {
       this.requestLog.push(request.url());
       this.lastRequestAt = Date.now();
+    });
+    page.on("response", (response) => {
+      if (/\/watering\/plant\//.test(response.url())) this.wateringResponses.push(Date.now());
     });
     await client.send("Performance.enable");
     await client.send("HeapProfiler.enable");
@@ -99,13 +116,13 @@ class Bench {
     await page.waitForSelector("ion-tab-button", { timeout: SETUP_TIMEOUT_MS });
   }
 
-  async settle({ networkQuietMs = 0 } = {}) {
-    const deadline = Date.now() + STEP_TIMEOUT_MS;
+  async settle({ networkQuietMs = 0, domQuietMs = SETTLE_QUIET_MS, timeoutMs = STEP_TIMEOUT_MS } = {}) {
+    const deadline = Date.now() + timeoutMs;
     for (;;) {
       const quiet = await quietForMs(this.page);
       const networkQuiet = Date.now() - this.lastRequestAt;
-      if (quiet >= SETTLE_QUIET_MS && networkQuiet >= networkQuietMs) return;
-      if (Date.now() > deadline) throw new Error("Page did not settle within the step timeout");
+      if (quiet >= domQuietMs && networkQuiet >= networkQuietMs) return;
+      if (Date.now() > deadline) throw new Error(`Page did not settle within the step timeout (dom quiet ${Math.round(quiet)} ms, network quiet ${networkQuiet} ms, ${this.requestLog.length} requests)`);
       await sleep(POLL_MS);
     }
   }
@@ -116,6 +133,31 @@ class Bench {
 
   async removeThrottle() {
     await throttle(this.client, { cpu: 1, network: NO_THROTTLE_NETWORK });
+  }
+
+  /** Removes every account-data cache entry (keeps the auth token and settings keys) and returns the remaining keys. */
+  async clearAccountCache() {
+    return this.page.evaluate(
+      (keys) =>
+        new Promise((resolve, reject) => {
+          const open = indexedDB.open("_ionicstorage");
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const db = open.result;
+            const tx = db.transaction("_ionickv", "readwrite");
+            const store = tx.objectStore("_ionickv");
+            for (const key of keys) store.delete(key);
+            const remaining = store.getAllKeys();
+            tx.oncomplete = () => {
+              db.close();
+              resolve(remaining.result);
+            };
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+          };
+        }),
+      ACCOUNT_CACHE_KEYS,
+    );
   }
 
   async heapMb() {
@@ -135,20 +177,23 @@ class Bench {
   }
 
   /** Runs `action` (a short page.evaluate or navigation), waits for the DOM to settle, returns the step record. */
-  async step(action, { networkQuietMs = 0, reinstallObserver = false } = {}) {
+  async step(action, { networkQuietMs = 0, domQuietMs, timeoutMs, reinstallObserver = false } = {}) {
     const { page } = this;
     const tasksBefore = reinstallObserver ? 0 : await page.evaluate(() => window.__longtasks.length);
     const requestsBefore = this.requestLog.length;
+    const wateringBefore = this.wateringResponses.length;
+    const startedAt = Date.now();
     await action();
     if (reinstallObserver) {
       await page.waitForSelector("ion-tab-button", { timeout: STEP_TIMEOUT_MS });
       await installSettleObserver(page);
     }
-    await this.settle({ networkQuietMs });
+    await this.settle({ networkQuietMs, domQuietMs, timeoutMs });
     const tasks = (await page.evaluate((from) => window.__longtasks.slice(from), tasksBefore)).filter(Boolean);
     const requests = summarizeRequests(this.requestLog.slice(requestsBefore));
     const domNodes = await page.evaluate(() => document.querySelectorAll("*").length);
     const cards = await this.visibleImageCount();
+    const lastWatering = this.wateringResponses.length > wateringBefore ? this.wateringResponses.at(-1) : null;
     return {
       longTasks: tasks.length,
       blockedMs: blockedTime(tasks),
@@ -158,6 +203,7 @@ class Bench {
       apiRequests: requests.api,
       uploadRequests: requests.uploads,
       wateringPlantRequests: requests.wateringPlant,
+      lastWateringResponseMs: lastWatering === null ? null : lastWatering - startedAt,
       imageRequestsPerCard: cards > 0 ? requests.uploads / cards : null,
       requestsByPath: requests.byPath,
     };
@@ -223,13 +269,16 @@ const scenarios = {
       const target = `${bench.url.replace(/#.*$/, "")}#/tabs/plants`;
       const out = {};
       await bench.removeThrottle();
+      const remaining = await bench.clearAccountCache();
+      const leftover = remaining.filter((key) => ACCOUNT_CACHE_KEYS.includes(key));
+      if (leftover.length > 0) throw new Error(`Account cache keys survived: ${leftover.join(", ")}`);
       await bench.page.goto("about:blank");
       await bench.applyThrottle();
       out["plants-cold/cold-load"] = await bench.step(
         async () => {
           await bench.page.goto(target, { waitUntil: "commit" });
         },
-        { networkQuietMs: NETWORK_QUIET_MS, reinstallObserver: true },
+        { networkQuietMs: COLD_QUIET_MS, domQuietMs: COLD_QUIET_MS, timeoutMs: COLD_TIMEOUT_MS, reinstallObserver: true },
       );
       return out;
     } finally {
