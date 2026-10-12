@@ -248,7 +248,11 @@ describe('SalesRefresher runs', () => {
     for (const random of [0, 0.5, 0.999999]) {
       const source = fakeSource('a', [[item(1)]]);
       const { states, repo } = fakeRepository([{ ...state('a', null), consecutive_failures: 4 }]);
-      const local = new SalesRefresher([source], repo, options({ random, now: () => T0 }));
+      const local = new SalesRefresher(
+        [source],
+        repo,
+        options({ random: () => random, now: () => T0 }),
+      );
 
       await local.refreshSource('a');
 

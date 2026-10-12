@@ -131,11 +131,11 @@ describe('SQLiteEmbeddingRepository', () => {
           compiled.parameters as never,
         )
         .map((r) => r.detail);
-      expect(plan[0]).toMatch(/plants/);
+      expect(plan[0]).toMatch(/\bplants\b/);
       expect(plan[0]).toMatch(/idx_plants_user/);
       expect(plan.join(' | ')).toMatch(/idx_images_lookup/);
-      expect(plan.some((d) => /SCAN (i|images)/.test(d))).toBe(false);
-      expect(plan.some((d) => /SCAN (e|image_embeddings)/.test(d))).toBe(false);
+      expect(plan.some((d) => /SCAN (i|images)\b/.test(d))).toBe(false);
+      expect(plan.some((d) => /SCAN (e|image_embeddings)\b/.test(d))).toBe(false);
     });
 
     it('returns only the vectors of the caller', async () => {

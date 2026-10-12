@@ -7,7 +7,7 @@ vi.mock('sharp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('sharp')>();
   const wrapped = (...args: unknown[]) => {
     factory.calls.push(args);
-    return (actual.default as unknown as (...a: unknown[]) => unknown)(...args);
+    return (actual as unknown as { default: (...a: unknown[]) => unknown }).default(...args);
   };
   return { ...actual, default: wrapped };
 });
