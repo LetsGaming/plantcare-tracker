@@ -38,6 +38,66 @@ const chunked = <T>(items: T[]): T[][] =>
     items.slice(i * BATCH_LIMIT, (i + 1) * BATCH_LIMIT),
   );
 
+interface RecordState {
+  byPlantId: Record<number, WateringRecord[]>;
+  loadedAt: Record<number, number>;
+  maxLoadedAt: number;
+}
+
+interface RecordSource {
+  collectRecords(plantId: number, force: boolean): Promise<WateringRecord[] | null>;
+}
+
+const collecting = new WeakMap<object, Map<number, Promise<WateringRecord[] | null>>>();
+
+/**
+ * Stores fetched records with one assignment per field, however many plants. Deliberately not a
+ * store action: persistence marks only the outer action that started in the current session.
+ */
+const commitRecords = (state: RecordState, records: Map<number, WateringRecord[]>): void => {
+  if (records.size === 0) return;
+  const now = Date.now();
+  const byPlantId = { ...toRaw(state.byPlantId) };
+  const loadedAt = { ...toRaw(state.loadedAt) };
+  for (const [plantId, list] of records) {
+    byPlantId[plantId] = list;
+    loadedAt[plantId] = now;
+  }
+  state.byPlantId = byPlantId;
+  state.loadedAt = loadedAt;
+  state.maxLoadedAt = now;
+};
+
+/** Warms many plants, `limit` requests at a time, committing once per `limit` finished plants. */
+const warmRecords = async (
+  store: RecordState & RecordSource,
+  plantIds: number[],
+  limit: number,
+  force: boolean,
+): Promise<void> => {
+  const queue = [...plantIds];
+  let wave = new Map<number, WateringRecord[]>();
+  const commitWave = () => {
+    if (wave.size === 0) return;
+    const finished = wave;
+    wave = new Map();
+    commitRecords(store, finished);
+  };
+  const worker = async () => {
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+      try {
+        const records = await store.collectRecords(id, force);
+        if (records) wave.set(id, records);
+        if (wave.size >= limit) commitWave();
+      } catch {
+        // The list simply shows no watering line for this plant.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, queue.length) }, worker));
+  commitWave();
+};
+
 export const useWateringStore = defineStore("watering", {
   state: () => ({
     /** Records keyed by plant id; a missing key means "not loaded yet". */
@@ -46,6 +106,8 @@ export const useWateringStore = defineStore("watering", {
     loadedAt: {} as Record<number, number>,
     /** The newest `loadedAt` value, kept so persisting never scans the map; 0 when nothing is loaded. */
     maxLoadedAt: 0,
+    /** Whether the stored snapshot was already read this session; it is read at most once. */
+    hydrateAttempted: false,
     fertilizerTypes: [] as FertilizerType[],
     typesFetchedAt: null as number | null,
   }),
@@ -56,12 +118,28 @@ export const useWateringStore = defineStore("watering", {
         key: "watering_records_data",
         pick: (state) => state.byPlantId,
         timestamp: (state) => state.maxLoadedAt || null,
-        dirtyOn: ["commitRecords", "dropPlant", "addRecord", "editRecord", "deleteRecord"],
+        dirtyOn: [
+          "ensureRecords",
+          "ensureRecordsFor",
+          "dropPlant",
+          "addRecord",
+          "editRecord",
+          "deleteRecord",
+          "addBatch",
+          "removeBatch",
+        ],
         version: (state) => state.byPlantId,
         apply: (state, data: Record<number, WateringRecord[]>, timestamp) => {
-          state.byPlantId = data;
-          state.loadedAt = Object.fromEntries(Object.keys(data).map((id) => [id, timestamp]));
-          state.maxLoadedAt = Object.keys(data).length > 0 ? timestamp : 0;
+          // Records already in memory are newer than the snapshot and win.
+          state.byPlantId = { ...data, ...toRaw(state.byPlantId) };
+          state.loadedAt = {
+            ...Object.fromEntries(Object.keys(data).map((id) => [id, timestamp])),
+            ...toRaw(state.loadedAt),
+          };
+          state.maxLoadedAt =
+            Object.keys(data).length > 0
+              ? Math.max(timestamp, state.maxLoadedAt)
+              : state.maxLoadedAt;
         },
       },
       {
@@ -95,7 +173,7 @@ export const useWateringStore = defineStore("watering", {
       if (!force && this.isFresh(plantId)) return Promise.resolve();
       return coalesced(this, `records:${plantId}`, async () => {
         const records = await this.collectRecords(plantId, force);
-        if (records) this.commitRecords(new Map([[plantId, records]]));
+        if (records) commitRecords(this, new Map([[plantId, records]]));
       });
     },
 
@@ -108,52 +186,31 @@ export const useWateringStore = defineStore("watering", {
       limit = 3,
       { force = false }: { force?: boolean } = {},
     ): Promise<void> {
-      const queue = [...plantIds];
-      let wave = new Map<number, WateringRecord[]>();
-      const commitWave = () => {
-        if (wave.size === 0) return;
-        const finished = wave;
-        wave = new Map();
-        this.commitRecords(finished);
-      };
-      const worker = async () => {
-        for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
-          try {
-            const records = await this.collectRecords(id, force);
-            if (records) wave.set(id, records);
-            if (wave.size >= limit) commitWave();
-          } catch {
-            // The list simply shows no watering line for this plant.
-          }
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(limit, queue.length) }, worker));
-      commitWave();
+      await warmRecords(this, plantIds, limit, force);
     },
 
-    /** Reads one plant's records from storage or the API without touching the state; null when already fresh. */
-    async collectRecords(plantId: number, force: boolean): Promise<WateringRecord[] | null> {
+    /**
+     * Reads one plant's records from storage or the API without touching the records; null when
+     * already fresh. Overlapping callers for one plant share a single read.
+     */
+    collectRecords(plantId: number, force: boolean): Promise<WateringRecord[] | null> {
+      let byPlant = collecting.get(this);
+      if (!byPlant) collecting.set(this, (byPlant = new Map()));
+      const running = byPlant.get(plantId);
+      if (running) return running;
+      const promise = this.loadRecords(plantId, force).finally(() => byPlant.delete(plantId));
+      byPlant.set(plantId, promise);
+      return promise;
+    },
+
+    async loadRecords(plantId: number, force: boolean): Promise<WateringRecord[] | null> {
       if (!force && this.isFresh(plantId)) return null;
-      if (!force && this.maxLoadedAt === 0) {
+      if (!force && !this.hydrateAttempted && Object.keys(toRaw(this.byPlantId)).length === 0) {
         await this.$hydrate();
+        this.hydrateAttempted = true;
         if (this.isFresh(plantId)) return null;
       }
       return handleRequest(this.fetchRecords(plantId), RESOURCE_KEY);
-    },
-
-    /** Stores fetched records with one assignment per field, however many plants. */
-    commitRecords(records: Map<number, WateringRecord[]>): void {
-      if (records.size === 0) return;
-      const now = Date.now();
-      const byPlantId = { ...toRaw(this.byPlantId) };
-      const loadedAt = { ...toRaw(this.loadedAt) };
-      for (const [plantId, list] of records) {
-        byPlantId[plantId] = list;
-        loadedAt[plantId] = now;
-      }
-      this.byPlantId = byPlantId;
-      this.loadedAt = loadedAt;
-      this.maxLoadedAt = now;
     },
 
     async fetchRecords(plantId: number): Promise<WateringRecord[]> {
@@ -196,6 +253,7 @@ export const useWateringStore = defineStore("watering", {
       delete loadedAt[plantId];
       this.byPlantId = byPlantId;
       this.loadedAt = loadedAt;
+      if (Object.keys(byPlantId).length === 0) this.maxLoadedAt = 0;
     },
 
     /** Adds a record (optimistic); resolves with the server record. */
@@ -212,26 +270,24 @@ export const useWateringStore = defineStore("watering", {
         fertilizerType: this.fertilizerName(data.fertilizerTypeId),
       };
 
-      try {
-        return await optimisticUpsert(
-          () => this.listFor(plantId),
-          optimistic,
-          async () =>
-            WateringMapper.mapWateringRecord(
-              await handleRequest(
-                ApiUtils.post<AddWateringRecord, APIWateringRecord>(
-                  `${BASE_ENDPOINT}/${plantId}`,
-                  data,
-                ),
-                RESOURCE_KEY,
-                "watering.add",
+      const saved = await optimisticUpsert(
+        () => this.listFor(plantId),
+        optimistic,
+        async () =>
+          WateringMapper.mapWateringRecord(
+            await handleRequest(
+              ApiUtils.post<AddWateringRecord, APIWateringRecord>(
+                `${BASE_ENDPOINT}/${plantId}`,
+                data,
               ),
+              RESOURCE_KEY,
+              "watering.add",
             ),
-          (record) => record,
-        );
-      } finally {
-        this.renewRecords();
-      }
+          ),
+        (record) => record,
+      );
+      this.renewRecords();
+      return saved;
     },
 
     /** Gives the record map a new identity after in-place list edits, which is what persistence compares. */
@@ -259,44 +315,39 @@ export const useWateringStore = defineStore("watering", {
         fertilizerType: this.fertilizerName(data.fertilizerTypeId),
       };
 
-      try {
-        return await optimisticUpsert(
-          () => this.listFor(plantId),
-          optimistic,
-          async () =>
-            WateringMapper.mapWateringRecord(
-              await handleRequest(
-                ApiUtils.patch<EditWateringRecord, APIWateringRecord>(
-                  `${BASE_ENDPOINT}/${recordId}`,
-                  data,
-                ),
-                RESOURCE_KEY,
-                "watering.update",
+      const saved = await optimisticUpsert(
+        () => this.listFor(plantId),
+        optimistic,
+        async () =>
+          WateringMapper.mapWateringRecord(
+            await handleRequest(
+              ApiUtils.patch<EditWateringRecord, APIWateringRecord>(
+                `${BASE_ENDPOINT}/${recordId}`,
+                data,
               ),
+              RESOURCE_KEY,
+              "watering.update",
             ),
-          (record) => record,
-        );
-      } finally {
-        this.renewRecords();
-      }
+          ),
+        (record) => record,
+      );
+      this.renewRecords();
+      return saved;
     },
 
     /** Deletes a record (optimistic); it returns to its position if the request fails. */
     async deleteRecord(plantId: number, recordId: number): Promise<void> {
-      try {
-        await optimisticRemove(
-          () => this.listFor(plantId),
-          recordId,
-          () =>
-            handleRequest(
-              ApiUtils.delete<void>(`${BASE_ENDPOINT}/${recordId}`),
-              RESOURCE_KEY,
-              "watering.delete",
-            ),
-        );
-      } finally {
-        this.renewRecords();
-      }
+      await optimisticRemove(
+        () => this.listFor(plantId),
+        recordId,
+        () =>
+          handleRequest(
+            ApiUtils.delete<void>(`${BASE_ENDPOINT}/${recordId}`),
+            RESOURCE_KEY,
+            "watering.delete",
+          ),
+      );
+      this.renewRecords();
     },
 
     /**
@@ -343,9 +394,7 @@ export const useWateringStore = defineStore("watering", {
 
     /** Refreshes the affected plants; the records already changed, so failures are ignored. */
     async refetchPlants(plantIds: number[]): Promise<void> {
-      await withoutErrorToasts(() =>
-        this.ensureRecordsFor([...new Set(plantIds)], undefined, { force: true }),
-      );
+      await withoutErrorToasts(() => warmRecords(this, [...new Set(plantIds)], 3, true));
     },
 
     /** The mutable list of one plant, created on first use. */

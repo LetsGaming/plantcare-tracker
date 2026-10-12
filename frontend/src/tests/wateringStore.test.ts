@@ -327,11 +327,14 @@ describe("warming many plants", () => {
     ]);
     const store = await newStore();
     let mutations = 0;
-    store.$subscribe(() => (mutations += 1), { detached: true, flush: "sync" });
     const references = new Set<unknown>([toRaw(store.byPlantId)]);
-    store.$onAction(({ name, after }) => {
-      if (name === "commitRecords") after(() => references.add(toRaw(store.byPlantId)));
-    });
+    store.$subscribe(
+      () => {
+        mutations += 1;
+        references.add(toRaw(store.byPlantId));
+      },
+      { detached: true, flush: "sync" },
+    );
 
     const plantIds = Array.from({ length: 200 }, (_, i) => i + 1);
     await store.ensureRecordsFor(plantIds, 3);
@@ -376,6 +379,101 @@ describe("warming many plants", () => {
     await store.addRecord(7, { usedFertilizer: false });
     await vi.advanceTimersByTimeAsync(500);
     expect(recordsWrites()).toHaveLength(2);
+  });
+
+  it("shares one request between ensureRecords and an overlapping warm-up", async () => {
+    api.get.mockResolvedValue([apiRecord({ plant_id: 5 })]);
+    const store = await newStore();
+    await Promise.all([store.ensureRecords(5), store.ensureRecordsFor([5])]);
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(ids(store, 5)).toEqual([1]);
+  });
+
+  it("fetches each plant once when two warm-ups overlap", async () => {
+    api.get.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return [apiRecord()];
+    });
+    const store = await newStore();
+    await Promise.all([store.ensureRecordsFor([1, 2, 3, 4]), store.ensureRecordsFor([2, 3, 4, 5])]);
+    expect(api.get.mock.calls.map((call) => call[0]).sort()).toEqual([
+      "/watering/plant/1",
+      "/watering/plant/2",
+      "/watering/plant/3",
+      "/watering/plant/4",
+      "/watering/plant/5",
+    ]);
+  });
+
+  it("writes once after a warm-up even when the waves are far apart", async () => {
+    vi.useFakeTimers();
+    api.get.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return [apiRecord()];
+    });
+    const store = await newStore();
+    const warming = store.ensureRecordsFor(
+      Array.from({ length: 9 }, (_, i) => i + 1),
+      3,
+    );
+    await vi.advanceTimersByTimeAsync(1300);
+    await warming;
+    expect(recordsWrites()).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recordsWrites()).toHaveLength(1);
+  });
+
+  it("writes nothing when a reset happens in the middle of a warm-up", async () => {
+    vi.useFakeTimers();
+    api.get.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return [apiRecord()];
+    });
+    const store = await newStore();
+    const warming = store.ensureRecordsFor(
+      Array.from({ length: 9 }, (_, i) => i + 1),
+      3,
+    );
+    await vi.advanceTimersByTimeAsync(150);
+    store.$reset();
+    await vi.advanceTimersByTimeAsync(1000);
+    await warming;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recordsWrites()).toHaveLength(0);
+    expect(memoryStore.has("watering_records_data")).toBe(false);
+  });
+
+  it("does not rewrite the records when an add, edit or delete fails", async () => {
+    vi.useFakeTimers();
+    api.get.mockResolvedValue([apiRecord()]);
+    const store = await newStore();
+    await store.ensureRecords(7);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recordsWrites()).toHaveLength(1);
+
+    api.post.mockRejectedValue(new Error("400"));
+    api.patch.mockRejectedValue(new Error("403"));
+    api.delete.mockRejectedValue(new Error("500"));
+    await expect(store.addRecord(7, { usedFertilizer: false })).rejects.toThrow();
+    await expect(store.editRecord(7, 1, { usedFertilizer: true })).rejects.toThrow();
+    await expect(store.deleteRecord(7, 1)).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recordsWrites()).toHaveLength(1);
+  });
+
+  it("never hydrates over records that already exist in memory", async () => {
+    memoryStore.set("watering_records_data", {
+      data: { 8: [{ id: 4, plantId: 8 }] },
+      timestamp: Date.now(),
+    });
+    api.post.mockResolvedValue(apiRecord({ record_id: 9 }));
+    api.get.mockResolvedValue([apiRecord({ record_id: 1 })]);
+    const store = await newStore();
+    await store.addRecord(7, { usedFertilizer: false });
+    await store.ensureRecords(7);
+    await store.ensureRecords(8);
+    expect(ids(store, 7)).toEqual([1]);
+    expect(api.get).toHaveBeenCalledTimes(2);
   });
 });
 
