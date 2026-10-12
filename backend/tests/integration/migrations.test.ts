@@ -21,6 +21,7 @@ describe('baseline migration', () => {
       '0003_relative_image_paths',
       '0004_source_health_issues',
       '0005_image_embeddings',
+      '0006_list_indexes',
     ]);
     const tables = sqlite
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")

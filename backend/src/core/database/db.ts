@@ -42,6 +42,8 @@ const openSqlite = (): SqliteDatabase => {
   db.pragma('cache_size = -64000'); // 64 MB
   db.pragma('temp_store = MEMORY');
   db.pragma('mmap_size = 134217728'); // 128 MB memory-mapped I/O
+  db.pragma('busy_timeout = 5000');
+  db.pragma('journal_size_limit = 67108864'); // 64 MB
 
   logger.debug(`SQLite database opened at ${dbPath}`);
   return db;
@@ -65,11 +67,15 @@ export const applyMigrations = async (db: Kysely<Database>): Promise<string[]> =
 /** Brings the process database up to date; must finish before requests are served. */
 export const initDatabase = async (): Promise<void> => {
   for (const name of await applyMigrations(getKysely())) logger.info(`Applied migration ${name}`);
+  const db = getSqlite();
+  db.pragma('analysis_limit = 1000');
+  db.pragma('optimize = 0x10002');
 };
 
 /** Closes the connection; call during shutdown so the WAL is checkpointed. */
 export const closeDb = async (): Promise<void> => {
   if (!sqlite) return;
+  sqlite.pragma('optimize');
   // Destroying Kysely closes the underlying connection.
   if (kysely) await kysely.destroy();
   else sqlite.close();
