@@ -157,6 +157,41 @@ describe('lookup query plans', () => {
     expect(detail).not.toContain('USE TEMP B-TREE FOR ORDER BY');
   });
 
+  describe('watering history', () => {
+    const noTempBTree = (detail: string) => expect(detail).not.toContain('USE TEMP B-TREE');
+
+    it('pages the first page from idx_watering_history without any sort', () => {
+      const detail = plan(
+        'SELECT id, date FROM watering_records WHERE plant_id = ? ORDER BY date DESC, id DESC LIMIT 51',
+        1,
+      );
+      expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history/);
+      noTempBTree(detail);
+    });
+
+    it('pages the keyset continuation from idx_watering_history without any sort', () => {
+      const detail = plan(
+        'SELECT id, date FROM watering_records WHERE plant_id = ? AND (date, id) < (?, ?) ORDER BY date DESC, id DESC LIMIT 51',
+        1,
+        1_700_000_000,
+        50,
+      );
+      expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history/);
+      noTempBTree(detail);
+    });
+
+    it('reads the MAX and MIN date aggregates from idx_watering_history', () => {
+      for (const aggregate of ['MAX', 'MIN']) {
+        const detail = plan(
+          `SELECT ${aggregate}(date) FROM watering_records WHERE plant_id = ?`,
+          1,
+        );
+        expect(detail).toMatch(/USING (COVERING )?INDEX idx_watering_history/);
+        noTempBTree(detail);
+      }
+    });
+  });
+
   it('no longer carries the old plants list index', () => {
     const names = (
       sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as {

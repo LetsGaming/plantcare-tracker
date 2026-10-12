@@ -151,7 +151,7 @@ endpoints.
 | `idx_substrates_public_name` | `substrates` | `name COLLATE NOCASE, id` where `is_public = 1`; public substrates by name |
 | `idx_substrate_components_component` | `substrate_components` | `component_id`; substrates using a component |
 | `idx_components_name` | `components` | `name COLLATE NOCASE, id`; components by name |
-| `idx_watering_history` | `watering_records` | `plant_id, date DESC` |
+| `idx_watering_history` | `watering_records` | `plant_id, date DESC, id DESC`; history keyset paging and MAX/MIN date per plant without a sort |
 
 ## Reading related rows
 

@@ -8,6 +8,7 @@ import * as listIndexes from './0006_list_indexes';
 import * as imageVariants from './0007_image_variants';
 import * as sales from './0008_sales';
 import * as sessions from './0009_sessions';
+import * as wateringHistoryIdIndex from './0010_watering_history_id_index';
 
 /** Migrations in application order; the key is the history entry name. */
 export const migrations: Record<string, Migration> = {
@@ -20,6 +21,7 @@ export const migrations: Record<string, Migration> = {
   '0007_image_variants': imageVariants,
   '0008_sales': sales,
   '0009_sessions': sessions,
+  '0010_watering_history_id_index': wateringHistoryIdIndex,
 };
 
 export const migrationProvider: MigrationProvider = {

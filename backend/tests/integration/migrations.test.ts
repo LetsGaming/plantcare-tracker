@@ -25,6 +25,7 @@ describe('baseline migration', () => {
       '0007_image_variants',
       '0008_sales',
       '0009_sessions',
+      '0010_watering_history_id_index',
     ]);
     const tables = sqlite
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")

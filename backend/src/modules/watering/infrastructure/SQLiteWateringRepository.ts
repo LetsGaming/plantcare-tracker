@@ -28,9 +28,8 @@ const ownedPlantIds = (userId: number) =>
   getKysely().selectFrom('plants').select('id').where('user_id', '=', userId);
 
 /**
- * Keyset page of one plant's history, newest first. idx_watering_history is
- * (plant_id, date DESC) without the id, so SQLite sorts only within equal dates
- * ("USE TEMP B-TREE FOR LAST TERM OF ORDER BY"), never the whole history.
+ * Keyset page of one plant's history, newest first, read straight from
+ * idx_watering_history(plant_id, date DESC, id DESC) without a sort.
  */
 export const historyPageQuery = (plantId: number, query: WateringHistoryQuery) =>
   applyKeyset(
