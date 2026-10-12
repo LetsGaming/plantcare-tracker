@@ -28,7 +28,9 @@ vi.mock("@/utils/apiUtils", () => ({
 }));
 vi.mock("@/services/ImageService", () => ({ default: { uploadImage: vi.fn(async () => ({})) } }));
 
+import { isProxy } from "vue";
 import ApiUtils from "@/utils/apiUtils";
+import storageService from "@/services/general/StorageService";
 import ImageService from "@/services/ImageService";
 import { useWateringStore } from "@/stores/watering";
 import { useSubstratesStore } from "@/stores/substrates";
@@ -416,5 +418,167 @@ describe("persistence", () => {
     expect(memoryStore.has("plants_all")).toBe(false);
     expect(store.items).toEqual([]);
     expect(store.status).toBe("idle");
+  });
+});
+
+const writesOf = (key: string): number =>
+  vi.mocked(storageService.set).mock.calls.filter(([stored]) => stored === key).length;
+
+describe("copy-on-write list", () => {
+  it("holds frozen items in a raw array that Vue does not wrap", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([
+      apiPlant({ plant_id: 1 }),
+      apiPlant({ plant_id: 2 }),
+    ]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(isProxy(store.items)).toBe(false);
+    expect(store.items.every((plant) => Object.isFrozen(plant))).toBe(true);
+  });
+
+  it("replaces the array on every update and leaves the previous one untouched", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([
+      apiPlant({ plant_id: 1, plant_name: "Old" }),
+      apiPlant({ plant_id: 2 }),
+    ]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    const before = store.items;
+    const untouched = before[1];
+    vi.mocked(ApiUtils.patch).mockResolvedValue(apiPlant({ plant_id: 1, plant_name: "New" }));
+
+    await store.editPlant(1, { name: "New" });
+
+    expect(store.items).not.toBe(before);
+    expect(before).toHaveLength(2);
+    expect(before[0].name).toBe("Old");
+    expect(store.items[0].name).toBe("New");
+    expect(store.items[1]).toBe(untouched);
+    expect(Object.isFrozen(store.items[0])).toBe(true);
+  });
+
+  it("does not edit the previous array when a plant is fetched or created", async () => {
+    vi.mocked(ApiUtils.get).mockImplementation(async (url: string) =>
+      url === "/plants" ? [apiPlant({ plant_id: 1 })] : apiPlant({ plant_id: 5 }),
+    );
+    vi.mocked(ApiUtils.post).mockResolvedValue(apiPlant({ plant_id: 6 }));
+    const store = await newStore();
+    await store.ensureLoaded();
+    const loaded = store.items;
+
+    await store.fetchOne(5);
+    const afterFetch = store.items;
+    await store.addPlant({ name: "Six", species: "S", substrateId: 5 });
+
+    expect(ids(loaded)).toEqual([1]);
+    expect(ids(afterFetch)).toEqual([1, 5]);
+    expect(ids(store.items)).toEqual([1, 5, 6]);
+  });
+
+  it("restores the previous array reference when an edit fails", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1, plant_name: "Old" })]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    const before = store.items;
+    vi.mocked(ApiUtils.patch).mockRejectedValue(new Error("403"));
+    await expect(store.editPlant(1, { name: "Nope" })).rejects.toThrow("403");
+    expect(store.items).toBe(before);
+  });
+
+  it("restores the previous array reference when a create or delete fails", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([
+      apiPlant({ plant_id: 1 }),
+      apiPlant({ plant_id: 2 }),
+    ]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    const before = store.items;
+    vi.mocked(ApiUtils.post).mockRejectedValue(new Error("400"));
+    await expect(store.addPlant({ name: "Bad", species: "S", substrateId: 5 })).rejects.toThrow();
+    expect(store.items).toBe(before);
+
+    vi.mocked(ApiUtils.delete).mockRejectedValue(new Error("404"));
+    await expect(store.deletePlant(2)).rejects.toThrow("404");
+    expect(store.items).toBe(before);
+  });
+
+  it("looks plants up through an id index instead of scanning the list", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue(
+      Array.from({ length: 100 }, (_, i) => apiPlant({ plant_id: i + 1 })),
+    );
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(store.byId(1)?.id).toBe(1);
+
+    const find = vi.spyOn(Array.prototype, "find");
+    const findIndex = vi.spyOn(Array.prototype, "findIndex");
+    try {
+      expect(store.byId(100)?.id).toBe(100);
+      expect(store.byId(55)?.id).toBe(55);
+      expect(store.byId(999)).toBeUndefined();
+      expect(find).not.toHaveBeenCalled();
+      expect(findIndex).not.toHaveBeenCalled();
+    } finally {
+      find.mockRestore();
+      findIndex.mockRestore();
+    }
+  });
+
+  it("finds a plant that was added after the index was built", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1 })]);
+    vi.mocked(ApiUtils.post).mockResolvedValue(apiPlant({ plant_id: 2 }));
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(store.byId(2)).toBeUndefined();
+    await store.addPlant({ name: "Two", species: "S", substrateId: 5 });
+    expect(store.byId(2)?.id).toBe(2);
+  });
+});
+
+describe("persisted writes", () => {
+  it("writes the list once per fetch and not for actions that leave it unchanged", async () => {
+    vi.useFakeTimers();
+    vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1 })]);
+    const store = await newStore();
+
+    await store.ensureLoaded();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("plants_all")).toBe(1);
+
+    await store.ensureLoaded();
+    await store.getPlant(1);
+    vi.mocked(ApiUtils.get).mockRejectedValue(new Error("offline"));
+    await expect(store.ensureLoaded({ force: true })).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("plants_all")).toBe(1);
+  });
+
+  it("writes again after the list was replaced", async () => {
+    vi.useFakeTimers();
+    vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1 })]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    await vi.advanceTimersByTimeAsync(500);
+
+    vi.mocked(ApiUtils.get).mockResolvedValue(apiPlant({ plant_id: 2 }));
+    await store.fetchOne(2);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("plants_all")).toBe(2);
+    const stored = memoryStore.get("plants_all") as { data: Plant[] };
+    expect(ids(stored.data)).toEqual([1, 2]);
+  });
+
+  it("does not write a snapshot it just hydrated", async () => {
+    vi.useFakeTimers();
+    memoryStore.set("plants_all", {
+      data: [{ id: 3, userId: 1, name: "Cached", isPublic: false }],
+      timestamp: Date.now(),
+      keepOnClear: false,
+    });
+    const store = await newStore();
+    await store.ensureLoaded();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("plants_all")).toBe(0);
+    expect(Object.isFrozen(store.items[0])).toBe(true);
   });
 });

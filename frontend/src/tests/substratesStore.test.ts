@@ -3,7 +3,8 @@
  * the pessimistic mutations that upsert the server-confirmed substrate.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { isProxy } from "vue";
 import { createInstalledPinia, fakeJwt, memoryStore, resetStore } from "./helpers";
 
 vi.mock("@/services/general/StorageService", async () =>
@@ -26,6 +27,7 @@ const api = vi.hoisted(() => ({
 vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import ImageService from "@/services/ImageService";
+import storageService from "@/services/general/StorageService";
 import { useSessionStore } from "@/stores/session";
 import { useSubstratesStore } from "@/stores/substrates";
 
@@ -53,6 +55,10 @@ const ids = (list: Substrate[]) => list.map((s) => s.id);
 beforeEach(() => {
   resetStore();
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("reading", () => {
@@ -224,5 +230,98 @@ describe("persistence", () => {
     await store.ensureLoaded();
     expect(api.get).not.toHaveBeenCalled();
     expect(ids(store.items)).toEqual([3]);
+  });
+});
+
+const writesOf = (key: string): number =>
+  vi.mocked(storageService.set).mock.calls.filter(([stored]) => stored === key).length;
+
+describe("copy-on-write list", () => {
+  it("holds frozen items in a raw array and replaces it on upsert and delete", async () => {
+    api.get.mockResolvedValue([
+      apiSubstrate({ substrate_id: 1, substrate_name: "Old" }),
+      apiSubstrate({ substrate_id: 2 }),
+    ]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(isProxy(store.items)).toBe(false);
+    expect(store.items.every((s) => Object.isFrozen(s))).toBe(true);
+
+    const loaded = store.items;
+    const untouched = loaded[1];
+    api.patch.mockResolvedValue(apiSubstrate({ substrate_id: 1, substrate_name: "New" }));
+    await store.editSubstrate(1, { name: "New" } as EditSubstrate);
+    const edited = store.items;
+    expect(edited).not.toBe(loaded);
+    expect(loaded[0].name).toBe("Old");
+    expect(edited[0].name).toBe("New");
+    expect(edited[1]).toBe(untouched);
+
+    api.delete.mockResolvedValue(null);
+    await store.deleteSubstrate(2);
+    expect(ids(edited)).toEqual([1, 2]);
+    expect(ids(store.items)).toEqual([1]);
+  });
+
+  it("looks substrates up through an id index instead of scanning the list", async () => {
+    api.get.mockResolvedValue(
+      Array.from({ length: 100 }, (_, i) => apiSubstrate({ substrate_id: i + 1 })),
+    );
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(store.byId(1)?.id).toBe(1);
+
+    const find = vi.spyOn(Array.prototype, "find");
+    const findIndex = vi.spyOn(Array.prototype, "findIndex");
+    try {
+      expect(store.byId(100)?.id).toBe(100);
+      expect(store.byId(999)).toBeUndefined();
+      expect(find).not.toHaveBeenCalled();
+      expect(findIndex).not.toHaveBeenCalled();
+    } finally {
+      find.mockRestore();
+      findIndex.mockRestore();
+    }
+  });
+
+  it("finds a substrate that was upserted after the index was built", async () => {
+    api.get.mockResolvedValue([apiSubstrate({ substrate_id: 1 })]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(store.byId(2)).toBeUndefined();
+    store.upsert({ id: 2, name: "Two" } as Substrate);
+    expect(store.byId(2)?.name).toBe("Two");
+  });
+});
+
+describe("persisted writes", () => {
+  it("writes the list once per fetch and not for actions that leave it unchanged", async () => {
+    vi.useFakeTimers();
+    api.get.mockResolvedValue([apiSubstrate({ substrate_id: 1 })]);
+    const store = await newStore();
+
+    await store.ensureLoaded();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("substrates_all")).toBe(1);
+
+    await store.ensureLoaded();
+    await store.getSubstrate(1);
+    api.get.mockRejectedValue(new Error("offline"));
+    await expect(store.ensureLoaded({ force: true })).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("substrates_all")).toBe(1);
+  });
+
+  it("writes again after an upsert", async () => {
+    vi.useFakeTimers();
+    api.get.mockResolvedValue([apiSubstrate({ substrate_id: 1 })]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    await vi.advanceTimersByTimeAsync(500);
+
+    api.get.mockResolvedValue(apiSubstrate({ substrate_id: 2 }));
+    await store.fetchOne(2);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("substrates_all")).toBe(2);
   });
 });

@@ -3,7 +3,8 @@
  * admin mutations that upsert the server's version.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { isProxy } from "vue";
 import { createInstalledPinia, memoryStore, resetStore } from "./helpers";
 
 vi.mock("@/services/general/StorageService", async () =>
@@ -26,6 +27,7 @@ const api = vi.hoisted(() => ({
 vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import ImageService from "@/services/ImageService";
+import storageService from "@/services/general/StorageService";
 import { useComponentsStore } from "@/stores/components";
 
 const apiComponent = (overrides: Partial<APIComponent> = {}): APIComponent =>
@@ -49,6 +51,10 @@ const ids = (store: ReturnType<typeof useComponentsStore>) => store.items.map((c
 beforeEach(() => {
   resetStore();
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("reading", () => {
@@ -157,5 +163,90 @@ describe("persistence", () => {
     expect(api.get).not.toHaveBeenCalled();
     expect(ids(store)).toEqual([4]);
     expect(store.finenessLevels).toHaveLength(1);
+  });
+});
+
+const writesOf = (key: string): number =>
+  vi.mocked(storageService.set).mock.calls.filter(([stored]) => stored === key).length;
+
+describe("copy-on-write list", () => {
+  it("holds frozen items in a raw array and replaces it on upsert and delete", async () => {
+    api.get.mockResolvedValue([
+      apiComponent({ component_id: 1, component_name: "Old" }),
+      apiComponent({ component_id: 2 }),
+    ]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(isProxy(store.items)).toBe(false);
+    expect(store.items.every((c) => Object.isFrozen(c))).toBe(true);
+
+    const loaded = store.items;
+    const untouched = loaded[1];
+    api.put.mockResolvedValue(apiComponent({ component_id: 1, component_name: "New" }));
+    await store.editComponent(1, { name: "New" } as EditComponent);
+    const edited = store.items;
+    expect(edited).not.toBe(loaded);
+    expect(loaded[0].name).toBe("Old");
+    expect(edited[0].name).toBe("New");
+    expect(edited[1]).toBe(untouched);
+
+    api.delete.mockResolvedValue(null);
+    await store.deleteComponent(2);
+    expect(edited).toHaveLength(2);
+    expect(ids(store)).toEqual([1]);
+  });
+
+  it("looks components up through an id index instead of scanning the list", async () => {
+    api.get.mockResolvedValue(
+      Array.from({ length: 100 }, (_, i) => apiComponent({ component_id: i + 1 })),
+    );
+    const store = await newStore();
+    await store.ensureLoaded();
+    expect(store.byId(1)?.id).toBe(1);
+
+    const find = vi.spyOn(Array.prototype, "find");
+    const findIndex = vi.spyOn(Array.prototype, "findIndex");
+    try {
+      expect(store.byId(100)?.id).toBe(100);
+      expect(store.byId(999)).toBeUndefined();
+      expect(find).not.toHaveBeenCalled();
+      expect(findIndex).not.toHaveBeenCalled();
+    } finally {
+      find.mockRestore();
+      findIndex.mockRestore();
+    }
+  });
+});
+
+describe("persisted writes", () => {
+  it("writes the catalogue once per fetch and not for actions that leave it unchanged", async () => {
+    vi.useFakeTimers();
+    api.get.mockResolvedValue([apiComponent()]);
+    const store = await newStore();
+
+    await store.ensureLoaded();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("components_all")).toBe(1);
+
+    await store.ensureLoaded();
+    await store.getComponent(1);
+    api.get.mockRejectedValue(new Error("offline"));
+    await expect(store.ensureLoaded({ force: true })).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("components_all")).toBe(1);
+  });
+
+  it("writes the fineness levels once and keeps them apart from the catalogue", async () => {
+    vi.useFakeTimers();
+    api.get.mockImplementation(async (url: string) =>
+      url === "/components" ? [apiComponent()] : [{ fineness_id: 1, fineness_name: "coarse" }],
+    );
+    const store = await newStore();
+    await store.ensureLoaded();
+    await vi.advanceTimersByTimeAsync(500);
+    await store.ensureFinenessLevels();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writesOf("components_all")).toBe(1);
+    expect(writesOf("components_fineness_levels")).toBe(1);
   });
 });

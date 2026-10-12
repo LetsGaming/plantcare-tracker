@@ -23,6 +23,7 @@
  */
 
 import { defineStore } from "pinia";
+import { markRaw } from "vue";
 import ApiUtils from "@/utils/apiUtils";
 import PlantMapper from "@/mapping/PlantMapping";
 import ImageService from "@/services/ImageService";
@@ -31,15 +32,29 @@ import { handleRequest } from "@/utils/requestFeedback";
 import { useSessionStore } from "./session";
 import { useSubstratesStore } from "./substrates";
 import { useWateringStore } from "./watering";
-import { optimisticRemove, optimisticUpsert } from "./optimistic";
+import {
+  commitList,
+  idIndexOf,
+  optimisticRemove,
+  optimisticUpsert,
+  upsertItem,
+  type ListAccess,
+} from "./optimistic";
 import { coalesced, isStale, resourceState } from "./resource";
 
 const BASE_ENDPOINT = "/plants";
 const RESOURCE_KEY = "plants.title";
 
+const listAccess = (store: { items: Plant[] }): ListAccess<Plant> => ({
+  get: () => store.items,
+  set: (next) => {
+    store.items = commitList(next);
+  },
+});
+
 export const usePlantsStore = defineStore("plants", {
   state: () => ({
-    items: [] as Plant[],
+    items: markRaw([]) as Plant[],
     ...resourceState(),
   }),
 
@@ -49,8 +64,10 @@ export const usePlantsStore = defineStore("plants", {
         key: "plants_all",
         pick: (state) => state.items,
         timestamp: (state) => state.fetchedAt,
+        version: (state) => state.items,
+        dirtyOn: ["fetchAll", "fetchOne", "addPlant", "editPlant", "deletePlant"],
         apply: (state, data: Plant[], timestamp) => {
-          state.items = data;
+          state.items = commitList(data);
           state.fetchedAt = timestamp;
           state.status = "ready";
         },
@@ -69,7 +86,7 @@ export const usePlantsStore = defineStore("plants", {
     byId:
       (state) =>
       (id: number): Plant | undefined =>
-        state.items.find((plant) => plant.id === id),
+        idIndexOf(state.items).get(id),
   },
 
   actions: {
@@ -89,7 +106,7 @@ export const usePlantsStore = defineStore("plants", {
       this.status = "loading";
       try {
         const response = await handleRequest(ApiUtils.get<APIPlant[]>(BASE_ENDPOINT), RESOURCE_KEY);
-        this.items = PlantMapper.convertToPlants(response);
+        this.items = commitList(PlantMapper.convertToPlants(response));
         this.fetchedAt = Date.now();
         this.status = "ready";
       } catch (error) {
@@ -105,9 +122,7 @@ export const usePlantsStore = defineStore("plants", {
         RESOURCE_KEY,
       );
       const plant = PlantMapper.mapPlant(response);
-      const index = this.items.findIndex((item) => item.id === plant.id);
-      if (index === -1) this.items.push(plant);
-      else this.items[index] = plant;
+      this.items = commitList(upsertItem(this.items, plant));
       return plant;
     },
 
@@ -159,7 +174,7 @@ export const usePlantsStore = defineStore("plants", {
       };
 
       return optimisticUpsert(
-        () => this.items,
+        listAccess(this),
         optimistic,
         async () =>
           PlantMapper.mapPlant(
@@ -205,7 +220,7 @@ export const usePlantsStore = defineStore("plants", {
       };
 
       return optimisticUpsert(
-        () => this.items,
+        listAccess(this),
         optimistic,
         async () =>
           PlantMapper.mapPlant(
@@ -224,15 +239,12 @@ export const usePlantsStore = defineStore("plants", {
      * fails. Its watering records are dropped once the server confirmed.
      */
     async deletePlant(plantId: number): Promise<void> {
-      await optimisticRemove(
-        () => this.items,
-        plantId,
-        () =>
-          handleRequest(
-            ApiUtils.delete<void>(`${BASE_ENDPOINT}/${plantId}`),
-            RESOURCE_KEY,
-            "error.action_failed",
-          ),
+      await optimisticRemove(listAccess(this), plantId, () =>
+        handleRequest(
+          ApiUtils.delete<void>(`${BASE_ENDPOINT}/${plantId}`),
+          RESOURCE_KEY,
+          "error.action_failed",
+        ),
       );
       useWateringStore().dropPlant(plantId);
     },

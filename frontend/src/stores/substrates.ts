@@ -20,19 +20,21 @@
  */
 
 import { defineStore } from "pinia";
+import { markRaw } from "vue";
 import ApiUtils from "@/utils/apiUtils";
 import SubstrateMapper from "@/mapping/SubstrateMapping";
 import ImageService from "@/services/ImageService";
 import { handleRequest } from "@/utils/requestFeedback";
 import { useSessionStore } from "./session";
 import { coalesced, isStale, resourceState } from "./resource";
+import { commitList, idIndexOf, removeItem, upsertItem } from "./optimistic";
 
 const BASE_ENDPOINT = "/substrates";
 const RESOURCE_KEY = "substrate.title";
 
 export const useSubstratesStore = defineStore("substrates", {
   state: () => ({
-    items: [] as Substrate[],
+    items: markRaw([]) as Substrate[],
     ...resourceState(),
   }),
 
@@ -42,8 +44,10 @@ export const useSubstratesStore = defineStore("substrates", {
         key: "substrates_all",
         pick: (state) => state.items,
         timestamp: (state) => state.fetchedAt,
+        version: (state) => state.items,
+        dirtyOn: ["fetchAll", "upsert", "deleteSubstrate"],
         apply: (state, data: Substrate[], timestamp) => {
-          state.items = data;
+          state.items = commitList(data);
           state.fetchedAt = timestamp;
           state.status = "ready";
         },
@@ -61,7 +65,7 @@ export const useSubstratesStore = defineStore("substrates", {
     byId:
       (state) =>
       (id: number): Substrate | undefined =>
-        state.items.find((s) => s.id === id),
+        idIndexOf(state.items).get(id),
   },
 
   actions: {
@@ -81,7 +85,7 @@ export const useSubstratesStore = defineStore("substrates", {
           ApiUtils.get<APISubstrate[]>(BASE_ENDPOINT),
           RESOURCE_KEY,
         );
-        this.items = SubstrateMapper.convertToSubstrates(response);
+        this.items = commitList(SubstrateMapper.convertToSubstrates(response));
         this.fetchedAt = Date.now();
         this.status = "ready";
       } catch (error) {
@@ -91,9 +95,7 @@ export const useSubstratesStore = defineStore("substrates", {
     },
 
     upsert(substrate: Substrate): void {
-      const index = this.items.findIndex((item) => item.id === substrate.id);
-      if (index === -1) this.items.push(substrate);
-      else this.items[index] = substrate;
+      this.items = commitList(upsertItem(this.items, substrate));
     },
 
     /** Fetches one substrate (GET /substrates/:id) and upserts it. */
@@ -185,7 +187,7 @@ export const useSubstratesStore = defineStore("substrates", {
         RESOURCE_KEY,
         "error.action_failed",
       );
-      this.items = this.items.filter((item) => item.id !== substrateId);
+      this.items = commitList(removeItem(this.items, substrateId));
     },
 
     /** Uploads an image, then refreshes just this substrate so it shows up. */

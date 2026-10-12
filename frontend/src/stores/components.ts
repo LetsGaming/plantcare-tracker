@@ -17,18 +17,20 @@
  */
 
 import { defineStore } from "pinia";
+import { markRaw } from "vue";
 import ApiUtils from "@/utils/apiUtils";
 import ComponentMapper from "@/mapping/ComponentMapping";
 import ImageService from "@/services/ImageService";
 import { handleRequest } from "@/utils/requestFeedback";
 import { coalesced, isStale, resourceState } from "./resource";
+import { commitList, idIndexOf, removeItem, upsertItem } from "./optimistic";
 
 const ENDPOINT = "/components";
 const RESOURCE_NAME = "components.title";
 
 export const useComponentsStore = defineStore("components", {
   state: () => ({
-    items: [] as Component[],
+    items: markRaw([]) as Component[],
     ...resourceState(),
     finenessLevels: [] as APIFinenessLevel[],
     finenessFetchedAt: null as number | null,
@@ -40,8 +42,10 @@ export const useComponentsStore = defineStore("components", {
         key: "components_all",
         pick: (state) => state.items,
         timestamp: (state) => state.fetchedAt,
+        version: (state) => state.items,
+        dirtyOn: ["ensureLoaded", "upsert", "deleteComponent"],
         apply: (state, data: Component[], timestamp) => {
-          state.items = data;
+          state.items = commitList(data);
           state.fetchedAt = timestamp;
           state.status = "ready";
         },
@@ -50,6 +54,8 @@ export const useComponentsStore = defineStore("components", {
         key: "components_fineness_levels",
         pick: (state) => state.finenessLevels,
         timestamp: (state) => state.finenessFetchedAt,
+        version: (state) => state.finenessLevels,
+        dirtyOn: ["ensureFinenessLevels"],
         apply: (state, data: APIFinenessLevel[], timestamp) => {
           state.finenessLevels = data;
           state.finenessFetchedAt = timestamp;
@@ -63,7 +69,7 @@ export const useComponentsStore = defineStore("components", {
     byId:
       (state) =>
       (id: number): Component | undefined =>
-        state.items.find((component) => component.id === id),
+        idIndexOf(state.items).get(id),
   },
 
   actions: {
@@ -78,7 +84,7 @@ export const useComponentsStore = defineStore("components", {
             ApiUtils.get<APIComponent[]>(ENDPOINT),
             RESOURCE_NAME,
           );
-          this.items = ComponentMapper.convertToComponents(response);
+          this.items = commitList(ComponentMapper.convertToComponents(response));
           this.fetchedAt = Date.now();
           this.status = "ready";
         } catch (error) {
@@ -89,9 +95,7 @@ export const useComponentsStore = defineStore("components", {
     },
 
     upsert(component: Component): void {
-      const index = this.items.findIndex((item) => item.id === component.id);
-      if (index === -1) this.items.push(component);
-      else this.items[index] = component;
+      this.items = commitList(upsertItem(this.items, component));
     },
 
     /** Returns a component from the list, fetching it when missing or `force` is set. */
@@ -155,7 +159,7 @@ export const useComponentsStore = defineStore("components", {
         RESOURCE_NAME,
         "error.action_failed",
       );
-      this.items = this.items.filter((item) => item.id !== id);
+      this.items = commitList(removeItem(this.items, id));
     },
 
     /** Uploads an image (admin only), then refreshes just this component. */
