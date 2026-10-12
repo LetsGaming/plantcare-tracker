@@ -2,9 +2,55 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import TokenUtils from "./tokenUtils";
 import Utils from "./utils";
+import { epoch, requestScope, type RequestScope } from "@/stores/resource";
 
 /** Pre-computed API URL to eliminate repeated string concatenation logic */
 const API_BASE_URL = Utils.getApiBaseUrl();
+
+const GET_TIMEOUT_MS = 20_000;
+const WRITE_TIMEOUT_MS = 30_000;
+const UPLOAD_TIMEOUT_MS = 120_000;
+const STREAM_IDLE_TIMEOUT_MS = 60_000;
+const REFRESH_MARGIN_MS = 60_000;
+const PROACTIVE_REFRESH_SPACING_MS = 10_000;
+const ETAG_CAPACITY = 200;
+
+/** Result of a conditional GET whose ETag still matches: keep the data you have. */
+export interface NotModified {
+  readonly notModified: true;
+}
+
+export const isNotModified = (value: unknown): value is NotModified =>
+  typeof value === "object" && value !== null && (value as NotModified).notModified === true;
+
+const NOT_MODIFIED: NotModified = Object.freeze({ notModified: true as const });
+
+export interface GetOptions {
+  /** Sends If-None-Match from the last response for this URL and resolves `NotModified` on 304. */
+  conditional?: boolean;
+}
+
+/** Last ETag per URL, least recently used first. */
+const etags = new Map<string, string>();
+
+const rememberEtag = (url: string, etag: string): void => {
+  etags.delete(url);
+  etags.set(url, etag);
+  if (etags.size > ETAG_CAPACITY) etags.delete(etags.keys().next().value as string);
+};
+
+epoch.onAbortAll(() => etags.clear());
+
+const abortError = (): DOMException => new DOMException("The request was aborted.", "AbortError");
+
+const timeoutError = (): TypeError =>
+  new TypeError(
+    localizationService.t(
+      "toast2.network",
+      undefined,
+      "No connection. Check your network and try again.",
+    ),
+  );
 
 // ── ApiError ──────────────────────────────────────────────────────────────────
 
@@ -106,8 +152,8 @@ const handleResponse = async (response: Response): Promise<any> => {
 
 // ── Headers ───────────────────────────────────────────────────────────────────
 
-const getHeaders = async (isFileUpload: boolean = false): Promise<HeadersInit> => {
-  const token = await TokenUtils.getToken();
+const getHeaders = (isFileUpload: boolean = false): Record<string, string> => {
+  const token = TokenUtils.getTokenSync();
   const headers: Record<string, string> = {};
 
   if (!isFileUpload) {
@@ -138,12 +184,50 @@ const requireAuthBridge = (): AuthBridge => {
   return authBridge;
 };
 
-const handleNoAuth = async (requestFn: () => Promise<Response>): Promise<Response> => {
+let freshInflight: Promise<void> | null = null;
+let lastProactiveRefreshAt = 0;
+
+/**
+ * Renews the access token when under a minute remains. Concurrent callers
+ * share one refresh; a failure is left to the 401 path of the request.
+ */
+const ensureFresh = (): Promise<void> => {
+  if (freshInflight) return freshInflight;
+  const expiresAt = TokenUtils.expiresAt();
+  const now = Date.now();
+  if (
+    !authBridge ||
+    !TokenUtils.getTokenSync() ||
+    expiresAt === null ||
+    expiresAt - now > REFRESH_MARGIN_MS ||
+    now - lastProactiveRefreshAt < PROACTIVE_REFRESH_SPACING_MS
+  ) {
+    return Promise.resolve();
+  }
+  lastProactiveRefreshAt = now;
+  freshInflight = authBridge
+    .refresh()
+    .then(
+      () => undefined,
+      () => undefined,
+    )
+    .finally(() => {
+      freshInflight = null;
+    });
+  return freshInflight;
+};
+
+const handleNoAuth = async (
+  requestFn: () => Promise<Response>,
+  scope: RequestScope,
+): Promise<Response> => {
   const bridge = requireAuthBridge();
   try {
     await bridge.refresh();
     return await requestFn();
-  } catch {
+  } catch (error) {
+    // A timeout, a caller abort or a logout ended the request: the session is fine.
+    if (scope.signal.aborted) throw error;
     // Local teardown only: the refresh just failed, so the session is
     // already dead server-side — a POST /logout would be a no-op. The
     // full logout() here used to clear a token that a parallel login had
@@ -167,44 +251,112 @@ interface RequestConfig {
   data?: any;
   isFileUpload?: boolean;
   signal?: AbortSignal;
+  conditional?: boolean;
 }
 
+const timeoutFor = ({ method, isFileUpload }: RequestConfig): number => {
+  if (isFileUpload) return UPLOAD_TIMEOUT_MS;
+  return method === "GET" ? GET_TIMEOUT_MS : WRITE_TIMEOUT_MS;
+};
+
 const performRequest = async <T>(config: RequestConfig): Promise<T> => {
-  const { method, endpoint, data, isFileUpload, signal } = config;
+  const { method, endpoint, data, isFileUpload, signal, conditional } = config;
+  const startEpoch = epoch.current();
+  const scope = requestScope(timeoutFor(config), signal);
+  const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) => endpoint.startsWith(e));
 
   const requestFn = async (): Promise<Response> => {
-    const headers = await getHeaders(isFileUpload);
-    const url = `${API_BASE_URL}${endpoint}`;
+    const headers = getHeaders(isFileUpload);
+    const knownEtag = conditional ? etags.get(endpoint) : undefined;
+    if (knownEtag) headers["If-None-Match"] = knownEtag;
 
-    return fetch(url, {
+    return fetch(`${API_BASE_URL}${endpoint}`, {
       method,
       headers,
-      signal,
+      signal: scope.signal,
       credentials: "include",
       body: isFileUpload ? data : data !== undefined ? JSON.stringify(data) : undefined,
     });
   };
 
-  let response = await requestFn();
+  try {
+    if (!TokenUtils.isLoaded()) await TokenUtils.load();
+    if (!shouldSkipRefresh) await ensureFresh();
 
-  const shouldSkipRefresh = NO_REFRESH_ENDPOINTS.some((e) => endpoint.startsWith(e));
+    let response = await requestFn();
 
-  if (response.status === 401 && !shouldSkipRefresh) {
-    // Only enter the refresh/teardown cycle if the request was actually
-    // made while signed in. A 401 on an unauthenticated call (anything
-    // fired while the user is still on the login screen) must never
-    // trigger the token-clearing logout path — it would race and undo a
-    // login happening at the same moment.
-    const hadToken = !!(await TokenUtils.getToken());
-    if (hadToken) {
-      response = await handleNoAuth(requestFn);
+    if (response.status === 401 && !shouldSkipRefresh) {
+      // Only enter the refresh/teardown cycle if the request was actually
+      // made while signed in. A 401 on an unauthenticated call (anything
+      // fired while the user is still on the login screen) must never
+      // trigger the token-clearing logout path: it would race and undo a
+      // login happening at the same moment.
+      if (TokenUtils.getTokenSync()) {
+        response = await handleNoAuth(requestFn, scope);
+      }
     }
-  }
 
-  return handleResponse(response);
+    if (conditional && response.status === 304) return NOT_MODIFIED as T;
+
+    const result = await handleResponse(response);
+    if (epoch.isStale(startEpoch)) throw abortError();
+
+    if (conditional) {
+      const etag = response.headers?.get?.("etag");
+      if (etag) rememberEtag(endpoint, etag);
+    }
+    return result;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (scope.timedOut) throw timeoutError();
+    if (epoch.isStale(startEpoch)) throw abortError();
+    throw error;
+  } finally {
+    scope.dispose();
+  }
 };
 
 // ── Public API ────────────────────────────────────────────────────────────────
+
+function get<T>(endpoint: string, signal?: AbortSignal): Promise<T>;
+function get<T>(
+  endpoint: string,
+  signal: AbortSignal | undefined,
+  options: GetOptions & { conditional: true },
+): Promise<T | NotModified>;
+function get<T>(
+  endpoint: string,
+  signal?: AbortSignal,
+  options?: GetOptions,
+): Promise<T | NotModified> {
+  return performRequest<T>({ method: "GET", endpoint, signal, conditional: options?.conditional });
+}
+
+function getWithParams<T extends Record<string, any>, R>(
+  endpoint: string,
+  params: T,
+  signal?: AbortSignal,
+): Promise<R>;
+function getWithParams<T extends Record<string, any>, R>(
+  endpoint: string,
+  params: T,
+  signal: AbortSignal | undefined,
+  options: GetOptions & { conditional: true },
+): Promise<R | NotModified>;
+function getWithParams<T extends Record<string, any>, R>(
+  endpoint: string,
+  params: T,
+  signal?: AbortSignal,
+  options?: GetOptions,
+): Promise<R | NotModified> {
+  const query = new URLSearchParams(params).toString();
+  return performRequest<R>({
+    method: "GET",
+    endpoint: `${endpoint}${query ? `?${query}` : ""}`,
+    signal,
+    conditional: options?.conditional,
+  });
+}
 
 /**
  * Global API Utility Service.
@@ -219,22 +371,9 @@ const ApiUtils = {
     return error instanceof ApiError;
   },
 
-  get<T>(endpoint: string, signal?: AbortSignal): Promise<T> {
-    return performRequest<T>({ method: "GET", endpoint, signal });
-  },
-
-  getWithParams<T extends Record<string, any>, R>(
-    endpoint: string,
-    params: T,
-    signal?: AbortSignal,
-  ): Promise<R> {
-    const query = new URLSearchParams(params).toString();
-    return performRequest<R>({
-      method: "GET",
-      endpoint: `${endpoint}${query ? `?${query}` : ""}`,
-      signal,
-    });
-  },
+  ensureFresh,
+  get,
+  getWithParams,
 
   post<T, R>(endpoint: string, data?: T): Promise<R> {
     return performRequest<R>({ method: "POST", endpoint, data });
@@ -287,24 +426,43 @@ const ApiUtils = {
     onError?: (err: any) => void,
     onDone?: (doneData?: { total?: number; status?: string }) => void,
   ): Promise<() => void> {
+    const startEpoch = epoch.current();
     try {
       // V2: POST /auth/ticket requires no request body
       const { ticket } = await this.post<null, { ticket: string }>("/auth/ticket");
 
       if (!ticket) throw new Error("SSE Ticket Missing");
+      if (epoch.isStale(startEpoch)) return () => {};
 
       const separator = endpoint.includes("?") ? "&" : "?";
       const url = `${API_BASE_URL}${endpoint}${separator}ticket=${encodeURIComponent(ticket)}`;
 
       const eventSource = new EventSource(url, { withCredentials: true });
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      let stopListening: (() => void) | undefined;
 
       const cleanup = () => {
+        clearTimeout(idleTimer);
+        stopListening?.();
         if (eventSource.readyState !== eventSource.CLOSED) {
           eventSource.close();
         }
       };
 
+      // Server heartbeats are comment lines the EventSource never surfaces, so
+      // only real frames count as activity.
+      const armIdleTimer = () => {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          onError?.(timeoutError());
+          cleanup();
+        }, STREAM_IDLE_TIMEOUT_MS);
+      };
+      stopListening = epoch.onAbortAll(cleanup);
+      armIdleTimer();
+
       eventSource.onmessage = (e) => {
+        armIdleTimer();
         try {
           if (!e.data) return;
           onMessage({ data: JSON.parse(e.data) });
@@ -349,6 +507,7 @@ const ApiUtils = {
 
       return cleanup;
     } catch (err) {
+      if (epoch.isStale(startEpoch)) return () => {};
       console.error("SSE Initialization Error:", err);
       onError?.(err);
       return () => {};

@@ -20,8 +20,14 @@ vi.mock("@/services/general/LocalizationService", () => ({
   default: { t: (_k: string, _v?: any, fallback?: string) => fallback ?? _k },
 }));
 vi.mock("../utils/tokenUtils", () => ({
-  default: { getToken: vi.fn().mockResolvedValue(null) },
+  default: {
+    getTokenSync: vi.fn(() => null),
+    isLoaded: vi.fn(() => true),
+    load: vi.fn(async () => null),
+    expiresAt: vi.fn(() => null),
+  },
 }));
+
 vi.mock("../utils/utils", () => ({
   default: { getApiBaseUrl: vi.fn().mockReturnValue("http://test") },
 }));
@@ -264,7 +270,7 @@ describe("auth retry gate", () => {
     // Anything that 401s while the user is not signed in (e.g. a request
     // fired on the login screen) must fail plainly — the refresh/teardown
     // cycle used to clear a token a parallel login had just stored.
-    vi.mocked(TokenUtils.getToken).mockResolvedValue(null);
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue(null);
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(401, {
         error: { type: "UnauthorizedError", message: "No token", statusCode: 401 },
@@ -280,7 +286,7 @@ describe("auth retry gate", () => {
   });
 
   it("refreshes and retries a 401 when a token was stored", async () => {
-    vi.mocked(TokenUtils.getToken).mockResolvedValue("stored-jwt");
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored-jwt");
     vi.mocked(bridge.refresh).mockResolvedValue("new-jwt" as any);
     const fetchMock = vi
       .fn()

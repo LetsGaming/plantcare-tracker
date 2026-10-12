@@ -13,10 +13,18 @@ vi.mock("@/services/general/ToastService", () => ({
 vi.mock("@/services/general/LocalizationService", () => ({
   default: { t: (_k: string, _v?: unknown, fallback?: string) => fallback ?? _k },
 }));
-vi.mock("../utils/tokenUtils", () => ({ default: { getToken: vi.fn() } }));
+vi.mock("../utils/tokenUtils", () => ({
+  default: {
+    getTokenSync: vi.fn(() => null),
+    isLoaded: vi.fn(() => true),
+    load: vi.fn(async () => null),
+    expiresAt: vi.fn(() => null),
+  },
+}));
 vi.mock("../utils/utils", () => ({ default: { getApiBaseUrl: () => "http://test/api/v2" } }));
 
-import ApiUtils from "../utils/apiUtils";
+import ApiUtils, { isNotModified } from "../utils/apiUtils";
+import { epoch } from "@/stores/resource";
 import TokenUtils from "../utils/tokenUtils";
 import ToastService from "@/services/general/ToastService";
 
@@ -32,7 +40,8 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   ApiUtils.configureAuth(bridge);
-  vi.mocked(TokenUtils.getToken).mockResolvedValue(null);
+  vi.mocked(TokenUtils.getTokenSync).mockReturnValue(null);
+  vi.mocked(TokenUtils.expiresAt).mockReturnValue(null);
   fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, { data: { ok: true } }));
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -53,7 +62,7 @@ describe("requests", () => {
   });
 
   it("sends the stored token as a bearer header", async () => {
-    vi.mocked(TokenUtils.getToken).mockResolvedValue("jwt");
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("jwt");
     await ApiUtils.get("/plants");
     expect((lastCall(fetchMock).init.headers as Record<string, string>).Authorization).toBe(
       "Bearer jwt",
@@ -97,7 +106,7 @@ describe("requests", () => {
 
 describe("refresh gate", () => {
   beforeEach(() => {
-    vi.mocked(TokenUtils.getToken).mockResolvedValue("stored");
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored");
     vi.mocked(bridge.refresh).mockResolvedValue("fresh" as never);
   });
 
@@ -179,7 +188,7 @@ describe("stream", () => {
   beforeEach(() => {
     FakeEventSource.instances = [];
     vi.stubGlobal("EventSource", FakeEventSource);
-    vi.mocked(TokenUtils.getToken).mockResolvedValue("jwt");
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("jwt");
   });
 
   it("fetches a one-time ticket and opens the stream with credentials", async () => {
@@ -232,5 +241,239 @@ describe("stream", () => {
     expect(onError).toHaveBeenCalledOnce();
     expect(FakeEventSource.instances).toHaveLength(0);
     expect(() => cleanup()).not.toThrow();
+  });
+});
+
+const hangingFetch = () =>
+  vi.fn().mockImplementation(
+    (_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(new DOMException("aborted", "AbortError")),
+        );
+      }),
+  );
+
+const ifNoneMatch = (mock: ReturnType<typeof vi.fn>) =>
+  (lastCall(mock).init.headers as Record<string, string>)["If-None-Match"];
+
+describe("timeouts", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    ["GET", 20_000, () => ApiUtils.get("/plants")],
+    ["write", 30_000, () => ApiUtils.post("/plants", { a: 1 })],
+    ["upload", 120_000, () => ApiUtils.upload("/images/plant/1", new FormData())],
+  ])("ends a hung %s after %i ms with the network error path", async (_name, ms, call) => {
+    vi.stubGlobal("fetch", hangingFetch());
+    let settled = false;
+    const result = (call() as Promise<unknown>).catch((e: unknown) => {
+      settled = true;
+      return e;
+    });
+    await vi.advanceTimersByTimeAsync(ms - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+    const error = await result;
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toBe("No connection. Check your network and try again.");
+  });
+
+  it("rethrows the caller's own abort untouched", async () => {
+    vi.stubGlobal("fetch", hangingFetch());
+    const controller = new AbortController();
+    const result = ApiUtils.get("/plants", controller.signal).catch((e: unknown) => e);
+    controller.abort();
+    const error = await result;
+    expect(error).toMatchObject({ name: "AbortError" });
+    expect(error).not.toBeInstanceOf(TypeError);
+  });
+
+  it("does not log the user out when the retry after a refresh times out", async () => {
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored");
+    vi.mocked(bridge.refresh).mockResolvedValue("fresh" as never);
+    const hanging = hangingFetch();
+    fetchMock
+      .mockImplementationOnce(async () => jsonResponse(401, { error: { message: "expired" } }))
+      .mockImplementationOnce(hanging);
+    const result = ApiUtils.get("/plants").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(20_001);
+    expect(await result).toBeInstanceOf(TypeError);
+    expect(bridge.onAuthFailure).not.toHaveBeenCalled();
+  });
+
+  it("stops a stream that stays silent for 60 s", async () => {
+    class SilentSource {
+      static last: SilentSource;
+      readyState = 1;
+      CLOSED = 2;
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      constructor() {
+        SilentSource.last = this;
+      }
+      addEventListener() {}
+      close() {
+        this.readyState = 2;
+      }
+    }
+    vi.stubGlobal("EventSource", SilentSource);
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onError = vi.fn();
+    await ApiUtils.stream("/sales", vi.fn(), onError);
+    await vi.advanceTimersByTimeAsync(59_000);
+    SilentSource.last.onmessage?.({ data: "[]" } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(onError).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0][0]).toBeInstanceOf(TypeError);
+    expect(SilentSource.last.readyState).toBe(2);
+  });
+});
+
+let clock = Date.parse("2030-01-01T00:00:00Z");
+
+describe("proactive refresh", () => {
+  beforeEach(() => {
+    clock += 60_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(clock);
+    vi.mocked(TokenUtils.getTokenSync).mockReturnValue("stored");
+    vi.mocked(bridge.refresh).mockResolvedValue("fresh" as never);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("starts one shared refresh for concurrent requests when under 60 s remain", async () => {
+    vi.mocked(TokenUtils.expiresAt).mockReturnValue(Date.now() + 30_000);
+    await Promise.all([ApiUtils.get("/a"), ApiUtils.get("/b"), ApiUtils.post("/c", {})]);
+    expect(bridge.refresh).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("refreshes before the request is sent", async () => {
+    vi.mocked(TokenUtils.expiresAt).mockReturnValue(Date.now() + 1_000);
+    const order: string[] = [];
+    vi.mocked(bridge.refresh).mockImplementation(async () => {
+      order.push("refresh");
+      return "fresh";
+    });
+    fetchMock.mockImplementation(async () => {
+      order.push("fetch");
+      return jsonResponse(200, { data: 1 });
+    });
+    await ApiUtils.get("/a");
+    expect(order).toEqual(["refresh", "fetch"]);
+  });
+
+  it("leaves a token with plenty of time alone", async () => {
+    vi.mocked(TokenUtils.expiresAt).mockReturnValue(Date.now() + 10 * 60_000);
+    await ApiUtils.get("/a");
+    expect(bridge.refresh).not.toHaveBeenCalled();
+  });
+
+  it("still sends the request when the proactive refresh fails", async () => {
+    vi.mocked(TokenUtils.expiresAt).mockReturnValue(Date.now() + 1_000);
+    vi.mocked(bridge.refresh).mockRejectedValue(new Error("offline"));
+    await expect(ApiUtils.get("/a")).resolves.toEqual({ ok: true });
+  });
+
+  it("does not refresh for auth endpoints", async () => {
+    vi.mocked(TokenUtils.expiresAt).mockReturnValue(Date.now() + 1_000);
+    await ApiUtils.post("/auth/logout", null);
+    expect(bridge.refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("conditional requests", () => {
+  const okWithEtag = (etag: string) => {
+    const response = jsonResponse(200, { data: [1] });
+    response.headers.set("ETag", etag);
+    return response;
+  };
+
+  it("sends If-None-Match from the previous response and resolves notModified on 304", async () => {
+    fetchMock
+      .mockImplementationOnce(async () => okWithEtag('"v1"'))
+      .mockImplementationOnce(async () => new Response(null, { status: 304 }));
+    await expect(ApiUtils.get("/etag-a", undefined, { conditional: true })).resolves.toEqual([1]);
+    expect(ifNoneMatch(fetchMock)).toBeUndefined();
+    const second = await ApiUtils.get("/etag-a", undefined, { conditional: true });
+    expect(isNotModified(second)).toBe(true);
+    expect(ifNoneMatch(fetchMock)).toBe('"v1"');
+  });
+
+  it("never sends If-None-Match for a plain GET", async () => {
+    fetchMock.mockImplementation(async () => okWithEtag('"v9"'));
+    await ApiUtils.get("/etag-b", undefined, { conditional: true });
+    await ApiUtils.get("/etag-b");
+    expect(ifNoneMatch(fetchMock)).toBeUndefined();
+  });
+
+  it("forgets every ETag when the session epoch ends", async () => {
+    fetchMock.mockImplementation(async () => okWithEtag('"v2"'));
+    await ApiUtils.get("/etag-c", undefined, { conditional: true });
+    epoch.abortAll();
+    await ApiUtils.get("/etag-c", undefined, { conditional: true });
+    expect(ifNoneMatch(fetchMock)).toBeUndefined();
+  });
+
+  it("keeps at most 200 ETags, dropping the least recently used", async () => {
+    fetchMock.mockImplementation(async () => okWithEtag('"x"'));
+    for (let i = 0; i < 201; i++) {
+      await ApiUtils.get(`/many/${i}`, undefined, { conditional: true });
+    }
+    await ApiUtils.get("/many/0", undefined, { conditional: true });
+    expect(ifNoneMatch(fetchMock)).toBeUndefined();
+    await ApiUtils.get("/many/200", undefined, { conditional: true });
+    expect(ifNoneMatch(fetchMock)).toBe('"x"');
+  });
+});
+
+describe("logout epoch", () => {
+  it("aborts in-flight requests and never delivers a late result", async () => {
+    let release: (r: Response) => void = () => {};
+    const slow = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", slow);
+    const pending = ApiUtils.get("/plants").catch((e: unknown) => e);
+    await vi.waitFor(() => expect(slow).toHaveBeenCalled());
+    epoch.abortAll();
+    release(jsonResponse(200, { data: ["late"] }));
+    expect(await pending).toMatchObject({ name: "AbortError" });
+  });
+
+  it("closes an open stream without reporting an error", async () => {
+    class Source {
+      static last: Source;
+      readyState = 1;
+      CLOSED = 2;
+      onmessage = null;
+      constructor() {
+        Source.last = this;
+      }
+      addEventListener() {}
+      close() {
+        this.readyState = 2;
+      }
+    }
+    vi.stubGlobal("EventSource", Source);
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onError = vi.fn();
+    await ApiUtils.stream("/sales", vi.fn(), onError);
+    epoch.abortAll();
+    expect(Source.last.readyState).toBe(2);
+    expect(onError).not.toHaveBeenCalled();
   });
 });

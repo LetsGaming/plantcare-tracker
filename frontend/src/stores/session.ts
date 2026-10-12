@@ -6,10 +6,12 @@ import storageService from "@/services/general/StorageService";
 import { handleRequest } from "@/utils/requestFeedback";
 import { clearRuntimeCaches } from "@/pwa";
 import { pinia as appPinia, resetAllStores } from "./pinia";
+import { epoch, requestScope } from "./resource";
 
 const BASE_ENDPOINT = "/auth";
 const RESOURCE_KEY = "auth.title";
 const REFRESH_RETRY_DELAY_MS = 1000;
+const REFRESH_TIMEOUT_MS = 20_000;
 
 class RefreshError extends Error {
   constructor(message: string) {
@@ -73,7 +75,7 @@ export const useSessionStore = defineStore("session", {
     /** Loads the persisted token once. */
     async hydrate(): Promise<void> {
       if (this.hydrated) return;
-      this.token = await TokenUtils.getToken();
+      this.token = await TokenUtils.load();
       this.hydrated = true;
     },
 
@@ -124,6 +126,7 @@ export const useSessionStore = defineStore("session", {
 
     /** Drops every trace of the account from memory and storage and leaves the app. */
     async localLogout(): Promise<void> {
+      epoch.abortAll();
       resetAllStores();
       await TokenUtils.clearToken();
       await storageService.clear();
@@ -147,13 +150,16 @@ export const useSessionStore = defineStore("session", {
 
     async requestNewToken(retryCount: number): Promise<string> {
       const url = `${Utils.getApiBaseUrl()}${BASE_ENDPOINT}/refresh-token`;
+      const startEpoch = epoch.current();
 
       for (let attempt = 1; attempt <= retryCount; attempt++) {
+        const scope = requestScope(REFRESH_TIMEOUT_MS);
         try {
           const response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
+            signal: scope.signal,
           });
 
           if (response.status === 401) throw new RefreshError("Refresh token expired");
@@ -176,14 +182,18 @@ export const useSessionStore = defineStore("session", {
           const accessToken = (await response.json()).data?.accessToken;
           if (!accessToken) throw new RefreshError("Invalid response structure");
 
+          if (epoch.isStale(startEpoch))
+            throw new DOMException("Refresh superseded.", "AbortError");
           await this.storeToken(accessToken);
           return accessToken;
         } catch (error) {
           const final =
             attempt === retryCount ||
             (error instanceof RefreshError && error.message.includes("expired"));
-          if (final) throw error;
+          if (final || epoch.isStale(startEpoch)) throw error;
           await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS));
+        } finally {
+          scope.dispose();
         }
       }
       throw new RefreshError("Refresh failed");
@@ -210,6 +220,9 @@ export const useSessionStore = defineStore("session", {
         "profile.title",
         "profile.delete_failed",
       );
+      // Stop and reset everything first so no late action re-persists into the wipe.
+      epoch.abortAll();
+      resetAllStores();
       // Full wipe including keepOnClear data: the account is gone.
       await storageService.clearAll();
       await this.localLogout();
@@ -218,12 +231,20 @@ export const useSessionStore = defineStore("session", {
   },
 });
 
+let resumeListenersAttached = false;
+
 /** Lets the transport renew and tear down the session without importing the store. */
 export const connectSessionToTransport = (pinia: Pinia): void => {
   ApiUtils.configureAuth({
     refresh: () => useSessionStore(pinia).refresh(),
     onAuthFailure: () => useSessionStore(pinia).localLogout(),
   });
+  if (resumeListenersAttached || typeof document === "undefined") return;
+  resumeListenersAttached = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void ApiUtils.ensureFresh();
+  });
+  window.addEventListener("online", () => void ApiUtils.ensureFresh());
 };
 
 /** The signed-in user's id for code that has no component context; -1 when signed out. */
