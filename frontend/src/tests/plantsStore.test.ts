@@ -199,6 +199,28 @@ describe("addPlant (optimistic)", () => {
 
     expect(created.id).toBe(42);
     expect(ids(store.items)).toEqual([1, 42]);
+    expect(store.items.some((plant) => plant.id < 0)).toBe(false);
+  });
+
+  it("keeps a single entry when a refetch loads the server plant while the create is pending", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1 })]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    const gate = deferred<APIPlant>();
+    vi.mocked(ApiUtils.post).mockReturnValue(gate.promise as never);
+
+    const pending = store.addPlant({ name: "New", species: "Ficus", substrateId: 5 });
+    await vi.waitFor(() => expect(store.items).toHaveLength(2));
+    vi.mocked(ApiUtils.get).mockResolvedValue([
+      apiPlant({ plant_id: 1 }),
+      apiPlant({ plant_id: 42, plant_name: "New" }),
+    ]);
+    await store.fetchAll();
+    expect(ids(store.items)).toEqual([1, 42]);
+
+    gate.resolve(apiPlant({ plant_id: 42, plant_name: "New" }));
+    await pending;
+    expect(ids(store.items)).toEqual([1, 42]);
   });
 
   it("posts the payload without the image file", async () => {
@@ -266,6 +288,20 @@ describe("addPlant (optimistic)", () => {
 });
 
 describe("editPlant (optimistic)", () => {
+  it("keeps the list length and the position of the edited plant", async () => {
+    vi.mocked(ApiUtils.get).mockResolvedValue([
+      apiPlant({ plant_id: 1 }),
+      apiPlant({ plant_id: 2 }),
+      apiPlant({ plant_id: 3 }),
+    ]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    vi.mocked(ApiUtils.patch).mockResolvedValue(apiPlant({ plant_id: 2, plant_name: "Server" }));
+    await store.editPlant(2, { name: "Renamed" });
+    expect(ids(store.items)).toEqual([1, 2, 3]);
+    expect(store.items[1].name).toBe("Server");
+  });
+
   it("paints the merged plant immediately and reconciles with the server response", async () => {
     vi.mocked(ApiUtils.get).mockResolvedValue([apiPlant({ plant_id: 1, plant_name: "Old" })]);
     const store = await newStore();

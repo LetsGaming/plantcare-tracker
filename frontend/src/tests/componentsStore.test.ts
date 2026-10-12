@@ -101,6 +101,7 @@ describe("admin mutations", () => {
     const created = await store.addComponent({ name: "Grit", finenessId: 1 } as AddComponent);
     expect(created.id).toBe(2);
     expect(ids(store)).toEqual([1, 2]);
+    expect(ids(store).some((id) => id < 0)).toBe(false);
     expect(api.get).toHaveBeenCalledTimes(1);
   });
 

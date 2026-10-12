@@ -42,15 +42,13 @@ export const idIndexOf = <T extends WithId>(list: readonly T[]): Map<number | st
   return byId;
 };
 
-const positionOf = <T extends WithId>(list: readonly T[], id: number | string): number => {
-  const item = idIndexOf(list).get(id);
-  return item === undefined ? -1 : (toRaw(list) as readonly T[]).indexOf(item);
-};
+const findPosition = <T extends WithId>(list: readonly T[], id: number | string): number =>
+  list.findIndex((item) => item.id === id);
 
 /** A new array with the item with the same id replaced, or appended when missing. */
 export const upsertItem = <T extends WithId>(list: readonly T[], item: T): T[] => {
   const raw = toRaw(list) as readonly T[];
-  const index = positionOf(raw, item.id);
+  const index = findPosition(raw, item.id);
   const next = raw.slice();
   if (index === -1) next.push(item);
   else next[index] = item;
@@ -60,11 +58,30 @@ export const upsertItem = <T extends WithId>(list: readonly T[], item: T): T[] =
 /** A new array without the item with this id; the same array when it is missing. */
 export const removeItem = <T extends WithId>(list: readonly T[], id: number | string): T[] => {
   const raw = toRaw(list) as T[];
-  const index = positionOf(raw, id);
+  const index = findPosition(raw, id);
   if (index === -1) return raw;
   const next = raw.slice();
   next.splice(index, 1);
   return next;
+};
+
+/**
+ * A new array with the entry with `oldId` replaced by `item` (appended when
+ * missing). When the id changed and another entry already carries the new id,
+ * for example a refetch that landed first, that duplicate is dropped.
+ */
+export const replaceItem = <T extends WithId>(
+  list: readonly T[],
+  oldId: number | string,
+  item: T,
+): T[] => {
+  const raw = toRaw(list) as readonly T[];
+  const index = findPosition(raw, oldId);
+  const next = raw.slice();
+  if (index === -1) next.push(item);
+  else next[index] = item;
+  if (item.id === oldId) return next;
+  return next.filter((entry) => entry === item || entry.id !== item.id);
 };
 
 const upsertInPlace = async <T extends WithId, R>(
@@ -113,7 +130,7 @@ const upsertCopyOnWrite = async <T extends WithId, R>(
 
   try {
     const response = await request();
-    list.set(upsertItem(list.get(), reconcile(response)));
+    list.set(replaceItem(list.get(), optimisticItem.id, reconcile(response)));
     return response;
   } catch (error) {
     if (list.get() === painted) {

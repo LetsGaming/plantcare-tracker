@@ -5,6 +5,7 @@ import {
   optimisticRemove,
   optimisticUpsert,
   removeItem,
+  replaceItem,
   upsertItem,
   type ListAccess,
 } from "@/stores/optimistic";
@@ -180,6 +181,56 @@ describe("optimisticUpsert on a copy-on-write list", () => {
     expect(names(list.read())).toEqual(["1:one", "9:server"]);
   });
 
+  it("replaces the temporary item in place instead of appending the server item", async () => {
+    const list = cowList([
+      { id: 1, name: "one" },
+      { id: 2, name: "two" },
+    ]);
+    const gate = deferred<Item>();
+    const pending = optimisticUpsert(
+      list.access,
+      { id: -5, name: "draft" },
+      () => gate.promise,
+      (server) => server,
+    );
+    gate.resolve({ id: 42, name: "server" });
+    await pending;
+    expect(names(list.read())).toEqual(["1:one", "2:two", "42:server"]);
+  });
+
+  it("drops a duplicate server item that a refetch loaded while the request was pending", async () => {
+    const list = cowList([{ id: 1, name: "one" }]);
+    const gate = deferred<Item>();
+    const pending = optimisticUpsert(
+      list.access,
+      { id: -5, name: "draft" },
+      () => gate.promise,
+      (server) => server,
+    );
+    list.access.set([
+      { id: 1, name: "one" },
+      { id: 42, name: "refetched" },
+    ]);
+    gate.resolve({ id: 42, name: "server" });
+    await pending;
+    expect(names(list.read())).toEqual(["1:one", "42:server"]);
+  });
+
+  it("keeps length and position when an edit succeeds", async () => {
+    const list = cowList([
+      { id: 1, name: "a" },
+      { id: 2, name: "b" },
+      { id: 3, name: "c" },
+    ]);
+    await optimisticUpsert(
+      list.access,
+      { id: 2, name: "b (draft)" },
+      async () => ({ id: 2, name: "b (server)" }),
+      (server) => server,
+    );
+    expect(names(list.read())).toEqual(["1:a", "2:b (server)", "3:c"]);
+  });
+
   it("restores the previous array reference when an edit fails", async () => {
     const start: Item[] = [{ id: 1, name: "old" }];
     const list = cowList(start);
@@ -301,6 +352,22 @@ describe("optimisticRemove on a copy-on-write list", () => {
     const list = cowList(start);
     await optimisticRemove(list.access, 99, async () => "done");
     expect(list.read()).toBe(start);
+  });
+});
+
+describe("replaceItem", () => {
+  it("replaces by the old id, appends when missing and never edits the input", () => {
+    const start: Item[] = [
+      { id: -1, name: "temp" },
+      { id: 2, name: "two" },
+    ];
+    expect(names(replaceItem(start, -1, { id: 9, name: "real" }))).toEqual(["9:real", "2:two"]);
+    expect(names(replaceItem(start, -7, { id: 9, name: "real" }))).toEqual([
+      "-1:temp",
+      "2:two",
+      "9:real",
+    ]);
+    expect(names(start)).toEqual(["-1:temp", "2:two"]);
   });
 });
 

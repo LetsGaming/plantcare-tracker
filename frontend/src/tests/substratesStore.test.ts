@@ -113,6 +113,7 @@ describe("mutations", () => {
     api.post.mockResolvedValue(apiSubstrate({ substrate_id: 2, substrate_name: "New" }));
     await store.addSubstrate({ name: "New", isPublic: false } as AddSubstrate);
     expect(ids(store.items)).toEqual([1, 2]);
+    expect(store.items.some((substrate) => substrate.id < 0)).toBe(false);
     expect(api.get).toHaveBeenCalledTimes(1);
   });
 
