@@ -55,7 +55,7 @@ describe('POST /images/:entityType/:entityId', () => {
     const { owner, plant } = await setup();
     const res = await upload(owner.auth, 'plant', plant.plant_id);
     expect(res.status).toBe(201);
-    expect(res.headers.location).toBe(`/images/plant/${plant.plant_id}`);
+    expect(res.headers.location).toBe(`/images/plant?entityId=${plant.plant_id}`);
     expect(res.body.data.path).toMatch(/^http:\/\/[^/]+\/uploads\/plant\/\d+-[a-z0-9-]+\.webp$/);
     expect(res.body.data.date).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   });
@@ -210,7 +210,9 @@ describe('upload rate limit', () => {
     for (let i = 0; i < 30; i += 1) {
       expect((await upload(owner.auth, 'plant', plant.plant_id)).status, String(i)).toBe(201);
     }
-    expect((await upload(owner.auth, 'plant', plant.plant_id)).status).toBe(429);
+    const limited = await upload(owner.auth, 'plant', plant.plant_id);
+    expect(limited.status).toBe(429);
+    expect(limited.body.error).toMatchObject({ type: 'TooManyRequestsError', statusCode: 429 });
     const other = await app.signIn('user');
     const otherPlant = await createPlant(
       app,
@@ -218,6 +220,32 @@ describe('upload rate limit', () => {
       (await createSubstrate(app, other.auth)).substrate_id,
     );
     expect((await upload(other.auth, 'plant', otherPlant.plant_id)).status).toBe(201);
+  });
+});
+
+describe('PATCH rate limit', () => {
+  it('counts date-only PATCHes against the same per-user window', async () => {
+    const { owner, plant } = await setup();
+    await upload(owner.auth, 'plant', plant.plant_id);
+    const list = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant?entityId=${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    const id = list.body.data[0].id;
+    const patch = () =>
+      app.client.request({
+        method: 'patch',
+        url: `${API}/images/${id}`,
+        headers: owner.auth,
+        multipart: [{ field: 'date', data: '2024-06-01T10:00:00.000Z' }],
+      });
+    for (let i = 0; i < 29; i += 1) {
+      expect((await patch()).status, String(i)).toBe(200);
+    }
+    const limited = await patch();
+    expect(limited.status).toBe(429);
+    expect(limited.body.error).toMatchObject({ type: 'TooManyRequestsError', statusCode: 429 });
   });
 });
 

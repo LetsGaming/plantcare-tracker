@@ -187,6 +187,23 @@ describe('UploadImageUseCase', () => {
     );
   });
 
+  it('removes the processed files when the database insert fails', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+    asMock(repo.create).mockRejectedValue(new Error('db down'));
+
+    await expect(
+      new UploadImageUseCase(repo, storage, policy).execute({
+        actor,
+        entityType: 'plant',
+        entityId: 4,
+        file,
+      }),
+    ).rejects.toThrow('db down');
+    expect(storage.remove).toHaveBeenCalledWith('plant', 'new-ef01.webp', 1);
+  });
+
   it('checks modify access before touching storage or the database', async () => {
     const repo = makeMockRepo();
     const storage = makeMockStorage();
@@ -301,6 +318,39 @@ describe('UpdateImageUseCase', () => {
         date: 'garbage',
       }),
     ).rejects.toThrow(ValidationError);
+  });
+
+  it('validates the date before processing the file', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+    asMock(repo.findById).mockResolvedValue(makeImage());
+    await expect(
+      new UpdateImageUseCase(repo, storage, policy).execute({
+        actor,
+        imageId: 10,
+        file,
+        date: 'garbage',
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(storage.processUpload).not.toHaveBeenCalled();
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('removes the new files and keeps the old ones when the database update fails', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+    asMock(repo.findById).mockResolvedValue(makeImage());
+    asMock(repo.update).mockRejectedValue(new Error('db down'));
+    const onStored = vi.fn();
+
+    await expect(
+      new UpdateImageUseCase(repo, storage, policy, onStored).execute({ actor, imageId: 10, file }),
+    ).rejects.toThrow('db down');
+    expect(storage.remove).toHaveBeenCalledTimes(1);
+    expect(storage.remove).toHaveBeenCalledWith('plant', 'new-ef01.webp', 1);
+    expect(onStored).not.toHaveBeenCalled();
   });
 
   it('deletes the old file only AFTER the database points at the new one', async () => {
@@ -430,6 +480,34 @@ describe('DeleteImageUseCase', () => {
     const deleteOrder = asMock(repo.delete).mock.invocationCallOrder[0];
     expect(removeOrder).toBeLessThan(deleteOrder);
   });
+
+  it('notifies the removal listener with the acting owner after file and row are gone', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+    asMock(repo.findById).mockResolvedValue(makeImage());
+    const onRemoved = vi.fn();
+
+    await new DeleteImageUseCase(repo, storage, policy, onRemoved).execute(10, actor);
+
+    expect(onRemoved).toHaveBeenCalledWith({ entityType: 'plant', ownerUserId: actor.id });
+    expect(asMock(repo.delete).mock.invocationCallOrder[0]).toBeLessThan(
+      onRemoved.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('does not notify the removal listener when the delete is refused', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy, assertCanModify } = makeAllowAll();
+    assertCanModify.mockRejectedValue(new ForbiddenError('no'));
+    asMock(repo.findById).mockResolvedValue(makeImage());
+    const onRemoved = vi.fn();
+    await expect(
+      new DeleteImageUseCase(repo, storage, policy, onRemoved).execute(10, actor),
+    ).rejects.toThrow(ForbiddenError);
+    expect(onRemoved).not.toHaveBeenCalled();
+  });
 });
 
 // ── DeleteEntityImagesUseCase ─────────────────────────────────────────────────
@@ -450,6 +528,25 @@ describe('DeleteEntityImagesUseCase', () => {
     expect(storage.remove).toHaveBeenCalledTimes(2);
     expect(storage.remove).toHaveBeenCalledWith('plant', a.url, 1);
     expect(storage.remove).toHaveBeenCalledWith('plant', b.url, 1);
+  });
+
+  it('notifies the removal listener with the acting owner after the files are removed', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+    asMock(repo.deleteByEntity).mockResolvedValue([makeImage()]);
+    const onRemoved = vi.fn();
+
+    await new DeleteEntityImagesUseCase(repo, storage, policy, onRemoved).execute(
+      'plant',
+      4,
+      actor,
+    );
+
+    expect(onRemoved).toHaveBeenCalledWith({ entityType: 'plant', ownerUserId: actor.id });
+    expect(asMock(storage.remove).mock.invocationCallOrder[0]).toBeLessThan(
+      onRemoved.mock.invocationCallOrder[0],
+    );
   });
 
   it('deletes nothing when the caller may not modify the entity', async () => {
@@ -560,6 +657,80 @@ describe('LocalImageStorage.processUpload', () => {
     await expect(
       storage.processUpload({ buffer: Buffer.from('nope'), originalName: 'a.png' }, 'plant'),
     ).rejects.toThrow('The uploaded file is not a valid image.');
+  });
+
+  it('never upscales: a 100 px source yields 100 px variants', async () => {
+    const buffer = await solid(100, 60, '#336699').png().toBuffer();
+    const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+    const result = await storage.processUpload({ buffer, originalName: 'small.png' }, 'plant');
+    const base = result.filename.replace(/\.webp$/, '');
+    for (const name of [`${base}-160.webp`, `${base}-480.webp`, `${base}.webp`]) {
+      expect((await metaOf(name)).width, name).toBe(100);
+    }
+    expect(result).toMatchObject({ width: 100, height: 60 });
+  });
+
+  it('preserves the alpha channel in every variant', async () => {
+    const buffer = await sharp({
+      create: {
+        width: 50,
+        height: 50,
+        channels: 4,
+        background: { r: 10, g: 200, b: 30, alpha: 0.5 },
+      },
+    })
+      .png()
+      .toBuffer();
+    const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+    const result = await storage.processUpload({ buffer, originalName: 'alpha.png' }, 'plant');
+    const base = result.filename.replace(/\.webp$/, '');
+    for (const name of [`${base}-160.webp`, `${base}-480.webp`, `${base}.webp`]) {
+      expect((await metaOf(name)).hasAlpha, name).toBe(true);
+    }
+  });
+
+  describe('when a variant cannot be written', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('waits for the other encodes, removes every file and rethrows the fs error', async () => {
+      const buffer = await solid(2000, 1000, '#336699').jpeg().toBuffer();
+      const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+      const realWrite = fs.writeFile.bind(fs);
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (target, data, options) => {
+        if (/-(160|480)\.webp$/.test(path.basename(String(target)))) {
+          await new Promise((resolve) => setTimeout(resolve, 80));
+          return realWrite(target, data, options);
+        }
+        throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+      });
+
+      const error = await storage
+        .processUpload({ buffer, originalName: 'leaf.jpg' }, 'plant')
+        .catch((err: unknown) => err);
+
+      expect(error).not.toBeInstanceOf(ValidationError);
+      expect((error as NodeJS.ErrnoException).code).toBe('EACCES');
+      expect(await fs.readdir(path.join(dir, 'plant'))).toEqual([]);
+    });
+
+    it('frees the upload slot after the failure', async () => {
+      const buffer = await solid(40, 40, '#336699').png().toBuffer();
+      const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+      const spy = vi
+        .spyOn(fs, 'writeFile')
+        .mockRejectedValue(Object.assign(new Error('disk full'), { code: 'ENOSPC' }));
+      await Promise.all(
+        [1, 2, 3, 4].map((i) =>
+          expect(
+            storage.processUpload({ buffer, originalName: `a${i}.png` }, 'plant'),
+          ).rejects.toMatchObject({ code: 'ENOSPC' }),
+        ),
+      );
+      spy.mockRestore();
+      await expect(
+        storage.processUpload({ buffer, originalName: 'ok.png' }, 'plant'),
+      ).resolves.toMatchObject({ variants: 1 });
+    });
   });
 
   it('gives two uploads of the same file name different stored names', async () => {

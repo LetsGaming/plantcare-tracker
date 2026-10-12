@@ -9,9 +9,9 @@
  * sees only the port.
  *
  * An upload is buffered once by the multipart layer; sharp decodes that
- * buffer a single time and clone()s the pipeline into the 160, 480 and
- * 1024 px webp outputs. A module-level semaphore bounds concurrent
- * encodes.
+ * buffer a single time into a raw intermediate (at most 1024 px wide) and
+ * the 160, 480 and 1024 px webp outputs are encoded from it. A module-level
+ * semaphore bounds concurrent encodes.
  */
 
 import crypto from 'crypto';
@@ -35,6 +35,8 @@ const VARIANT_WIDTHS = { small: 160, medium: 480, main: 1024 } as const;
 const WEBP_QUALITY = 78;
 /** Uploads processed at the same time; further uploads queue. */
 const MAX_CONCURRENT_UPLOADS = 2;
+/** Upper bound for decoding one source image. */
+const SOURCE_TIMEOUT_SECONDS = 30;
 /** libvips worker threads per operation. */
 const SHARP_CONCURRENCY = 2;
 /** Filename tokens that leak device or account context and are dropped. */
@@ -132,8 +134,13 @@ const toHex = (channel: number): string => channel.toString(16).padStart(2, '0')
 const variantFilename = (filename: string, width: number): string =>
   filename.replace(/\.webp$/i, `-${width}.webp`);
 
+const hasErrnoCode = (err: unknown): boolean =>
+  typeof (err as NodeJS.ErrnoException | null)?.code === 'string';
+
 const isPixelLimitError = (err: unknown): boolean =>
   err instanceof Error && /pixel limit/i.test(err.message);
+
+configureSharp();
 
 export interface LocalImageStorageOptions {
   rootDir?: string;
@@ -179,31 +186,51 @@ export class LocalImageStorage implements ImageStorage {
     const capturedAt = extractImageDate(file.buffer);
     const limitInputPixels = this.maxInputPixels ?? getConfig().uploadMaxPixels;
 
-    const encodeTo = (source: sharp.Sharp, width: number, target: string) =>
-      source
-        .clone()
-        .resize({ width, withoutEnlargement: true })
-        .webp({ quality: WEBP_QUALITY })
-        .toFile(target);
+    const writeVariant = async (
+      raw: Buffer,
+      rawInfo: sharp.OutputInfo,
+      width: number | null,
+      target: string,
+    ): Promise<Buffer> => {
+      let pipeline = sharp(raw, {
+        raw: { width: rawInfo.width, height: rawInfo.height, channels: rawInfo.channels },
+      });
+      if (width !== null) pipeline = pipeline.resize({ width, withoutEnlargement: true });
+      const encoded = await pipeline.webp({ quality: WEBP_QUALITY }).toBuffer();
+      await fs.writeFile(target, encoded);
+      return encoded;
+    };
 
     try {
-      const source = sharp(file.buffer, { failOn: 'error', limitInputPixels }).rotate();
-      const [, , main] = await Promise.all([
-        encodeTo(source, VARIANT_WIDTHS.small, smallPath),
-        encodeTo(source, VARIANT_WIDTHS.medium, mediumPath),
-        encodeTo(source, VARIANT_WIDTHS.main, mainPath),
+      const { data, info } = await sharp(file.buffer, { failOn: 'error', limitInputPixels })
+        .timeout({ seconds: SOURCE_TIMEOUT_SECONDS })
+        .rotate()
+        .resize({ width: VARIANT_WIDTHS.main, withoutEnlargement: true })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const settled = await Promise.allSettled([
+        writeVariant(data, info, VARIANT_WIDTHS.small, smallPath).then(
+          async (encoded) => (await sharp(encoded).stats()).dominant,
+        ),
+        writeVariant(data, info, VARIANT_WIDTHS.medium, mediumPath),
+        writeVariant(data, info, null, mainPath),
       ]);
-      const { dominant } = await sharp(smallPath).stats();
+      const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+      if (failed) throw failed.reason;
+      const dominant = (settled[0] as PromiseFulfilledResult<sharp.Stats['dominant']>).value;
       return {
         filename,
         capturedAt,
-        width: main.width,
-        height: main.height,
+        width: info.width,
+        height: info.height,
         placeholder: `#${toHex(dominant.r)}${toHex(dominant.g)}${toHex(dominant.b)}`,
         variants: 1,
       };
     } catch (err) {
       await Promise.all([mainPath, smallPath, mediumPath].map((p) => fs.rm(p, { force: true })));
+      log.debug('Image processing failed', { reason: (err as Error)?.message });
+      if (hasErrnoCode(err)) throw err;
       if (isPixelLimitError(err)) {
         throw new ValidationError(
           'The uploaded image has too many pixels. Please upload a smaller image.',
