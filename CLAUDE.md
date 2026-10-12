@@ -34,10 +34,11 @@ Nothing leaves the machine.
 | Substrates | Four components, seven components (component search), none (`Moss pole filler`), public and private |
 | Components | Admin only; some with photos, three fineness levels |
 | Care guide | Success (any plant), error mid stream (`Failing Fern`), no external link (`Unknown Orchid`) |
-| Sales | Four mock shops (healthy, degraded, failing, partial with half of its items lacking an image), NEW pills, tab badge; prices of every third item drop on each of the first four loads, so open Sales and pull to refresh twice to get price history charts |
+| Sales | The refresher warms on start (1 s) and stores four mock shops (healthy, degraded, failing, partial with half of its items lacking an image); the Sales tab only shows what it stored, so it is empty for the first seconds. A quarter of the items are NEW (pills, tab badge), every third item has a falling price-history chart, pull to refresh replays from the database, the admin recheck in scraper health still scrapes. `DEV_MOCK_SALES_DELAY_MS` delays every mock shop page |
 | Scraper health (admin) | Sales sources ok, degraded, failing, partial (degraded with an `images_missing` issue), plus three link search sources (kind search) ok, degraded, failing |
 | Watering round | /tabs/plants/water (button "Watering round" in the private Plants segment): due, overdue and never-watered plants pre-ticked (Failing Fern, Spike, Sunny Pothos, the long named plant, Unknown Orchid, Blue Echeveria, Windowsill Cutting) |
 | Snap to log | /tabs/plants/water as grower: upload `scripts/dev/.snapshots/Monty.png` (Monty first); Unknown Orchid has no photo, use "Other plant..."; set `RECOGNITION_MODEL_PATH` before dev-up to use the real model |
+| Large data | The seed has fewer than 30 plants and substrates, so paging is not exercised; `scripts/perf/amplify.mjs --id <session>` adds thousands of synthetic rows and `scripts/perf/inject-sales.mjs --mode db --id <session> --n 2000` adds synthetic sales |
 | Local only | Reminders, categories, first weekday, language and dark mode live in the browser; create them in the app |
 
 ## Adding mock data for a new feature
