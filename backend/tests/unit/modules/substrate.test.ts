@@ -7,7 +7,7 @@
  * array), and the update orchestration.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import type {
   SubstrateRepository,
   SubstrateData,
@@ -18,7 +18,7 @@ import {
   CreateSubstrateUseCase,
   UpdateSubstrateUseCase,
   AddSubstrateComponentsUseCase,
-  UpsertSubstrateComponentsUseCase,
+  ReplaceSubstrateComponentsUseCase,
   DeleteSubstrateUseCase,
 } from '../../../src/modules/substrate/application/SubstrateUseCases';
 import {
@@ -48,6 +48,7 @@ const makeMockRepo = (): SubstrateRepository => ({
   update: vi.fn().mockResolvedValue(true),
   addComponents: vi.fn().mockResolvedValue(undefined),
   upsertComponents: vi.fn().mockResolvedValue(undefined),
+  replaceComponents: vi.fn().mockResolvedValue(true),
   deleteComponents: vi.fn().mockResolvedValue(undefined),
   delete: vi.fn().mockResolvedValue(true),
 });
@@ -196,17 +197,125 @@ describe('AddSubstrateComponentsUseCase', () => {
   });
 });
 
-describe('UpsertSubstrateComponentsUseCase', () => {
-  it('upserts parsed components and returns the read-back substrate', async () => {
+describe('ReplaceSubstrateComponentsUseCase', () => {
+  it('replaces with the parsed list and returns the read-back substrate', async () => {
     const repo = makeMockRepo();
     asMock(repo.findById).mockResolvedValue(makeSubstrate());
 
-    const result = await new UpsertSubstrateComponentsUseCase(repo).execute(1, 2, {
+    const result = await new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, {
       components: [{ componentId: 3, parts: 1 }],
     });
 
-    expect(repo.upsertComponents).toHaveBeenCalledWith(1, [{ componentId: 3, parts: 1 }]);
+    expect(repo.replaceComponents).toHaveBeenCalledWith(1, 2, [{ componentId: 3, parts: 1 }]);
     expect(result.substrate_id).toBe(1);
+  });
+
+  it('accepts an empty list to clear the mix', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.findById).mockResolvedValue(makeSubstrate());
+    await new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, { components: [] });
+    expect(repo.replaceComponents).toHaveBeenCalledWith(1, 2, []);
+  });
+
+  it('rejects a missing components field and duplicate ids without touching the repository', async () => {
+    const repo = makeMockRepo();
+    const useCase = new ReplaceSubstrateComponentsUseCase(repo);
+    await expect(useCase.execute(1, 2, {})).rejects.toThrow(ValidationError);
+    await expect(
+      useCase.execute(1, 2, {
+        components: [
+          { componentId: 3, parts: 1 },
+          { componentId: 3, parts: 2 },
+        ],
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(repo.replaceComponents).not.toHaveBeenCalled();
+  });
+
+  it('answers NotFoundError when the repository reports the substrate is not owned', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.replaceComponents).mockResolvedValue(false);
+    await expect(
+      new ReplaceSubstrateComponentsUseCase(repo).execute(1, 9, { components: [] }),
+    ).rejects.toThrow(NotFoundError);
+    expect(repo.findById).not.toHaveBeenCalled();
+  });
+});
+
+describe('SQLiteSubstrateRepository.replaceComponents', () => {
+  type Repo =
+    import('../../../src/modules/substrate/infrastructure/SQLiteSubstrateRepository').SQLiteSubstrateRepository;
+  let repo: Repo;
+  let db: typeof import('../../../src/core/database/db');
+  let ownerId: number;
+  let otherId: number;
+  let compIds: number[];
+
+  beforeAll(async () => {
+    process.env.DB_PATH = ':memory:';
+    db = await import('../../../src/core/database/db');
+    await db.initDatabase();
+    const { SQLiteSubstrateRepository } =
+      await import('../../../src/modules/substrate/infrastructure/SQLiteSubstrateRepository');
+    repo = new SQLiteSubstrateRepository();
+    const { SQLiteUserRepository } =
+      await import('../../../src/modules/auth/infrastructure/SQLiteUserRepository');
+    const { SQLiteComponentRepository } =
+      await import('../../../src/modules/components/infrastructure/SQLiteComponentRepository');
+    const users = new SQLiteUserRepository();
+    const components = new SQLiteComponentRepository();
+    ownerId = (await users.create('replace-owner', 'hash')).id;
+    otherId = (await users.create('replace-other', 'hash')).id;
+    compIds = [];
+    for (const name of ['R-A', 'R-B', 'R-C']) compIds.push(await components.create(name, 1));
+  });
+
+  afterAll(async () => {
+    await db.closeDb();
+  });
+
+  const mix = async (id: number) =>
+    Object.fromEntries(
+      ((await repo.findById(id))?.components ?? []).map((c) => [c.component_id, c.component_parts]),
+    );
+
+  it('deletes rows missing from the list, updates parts and inserts new rows', async () => {
+    const id = await repo.create('Mix', ownerId, false);
+    await repo.addComponents(id, [
+      { componentId: compIds[0], parts: 1 },
+      { componentId: compIds[1], parts: 1 },
+    ]);
+
+    expect(
+      await repo.replaceComponents(id, ownerId, [
+        { componentId: compIds[1], parts: 3 },
+        { componentId: compIds[2], parts: 2 },
+      ]),
+    ).toBe(true);
+    expect(await mix(id)).toEqual({ [compIds[1]]: 3, [compIds[2]]: 2 });
+  });
+
+  it('deletes every row for an empty list', async () => {
+    const id = await repo.create('Mix', ownerId, false);
+    await repo.addComponents(id, [{ componentId: compIds[0], parts: 1 }]);
+    expect(await repo.replaceComponents(id, ownerId, [])).toBe(true);
+    expect(await mix(id)).toEqual({});
+  });
+
+  it('changes nothing and returns false for a substrate owned by someone else', async () => {
+    const id = await repo.create('Mix', ownerId, false);
+    await repo.addComponents(id, [{ componentId: compIds[0], parts: 1 }]);
+    expect(await repo.replaceComponents(id, otherId, [])).toBe(false);
+    expect(await mix(id)).toEqual({ [compIds[0]]: 1 });
+  });
+
+  it('leaves other substrates untouched', async () => {
+    const a = await repo.create('A', ownerId, false);
+    const b = await repo.create('B', ownerId, false);
+    await repo.addComponents(a, [{ componentId: compIds[0], parts: 1 }]);
+    await repo.addComponents(b, [{ componentId: compIds[0], parts: 5 }]);
+    await repo.replaceComponents(a, ownerId, []);
+    expect(await mix(b)).toEqual({ [compIds[0]]: 5 });
   });
 });
 

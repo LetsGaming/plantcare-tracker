@@ -18,7 +18,7 @@ import {
   CreateSubstrateUseCase,
   UpdateSubstrateUseCase,
   AddSubstrateComponentsUseCase,
-  UpsertSubstrateComponentsUseCase,
+  ReplaceSubstrateComponentsUseCase,
   DeleteSubstrateUseCase,
 } from '../application/SubstrateUseCases';
 import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
@@ -61,7 +61,7 @@ export const createSubstrateController = (
   const create = new CreateSubstrateUseCase(repo);
   const update = new UpdateSubstrateUseCase(repo);
   const addComponents = new AddSubstrateComponentsUseCase(repo);
-  const upsertComponents = new UpsertSubstrateComponentsUseCase(repo);
+  const replaceComponents = new ReplaceSubstrateComponentsUseCase(repo);
   const remove = new DeleteSubstrateUseCase(repo, imageCleanup);
 
   return {
@@ -106,7 +106,7 @@ export const createSubstrateController = (
     },
 
     upsertComponents: async (req: FastifyRequest) => {
-      const substrate = await upsertComponents.execute(
+      const substrate = await replaceComponents.execute(
         numericParam(req, 'id'),
         req.user!.id,
         req.body,

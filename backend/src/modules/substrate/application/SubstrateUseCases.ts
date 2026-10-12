@@ -47,6 +47,17 @@ export const ComponentsSchema = z
   )
   .min(1, 'Components array is required');
 
+export const ReplaceComponentsSchema = z
+  .array(
+    z.object({
+      componentId: z.number().int().positive(),
+      parts: z.coerce.number().positive(),
+    }),
+  )
+  .refine((list) => new Set(list.map((c) => c.componentId)).size === list.length, {
+    message: 'Duplicate components are not allowed',
+  });
+
 export type SubstrateComponentInput = z.infer<typeof ComponentsSchema>[number];
 
 // ── Shared guards ─────────────────────────────────────────────────────────────
@@ -75,6 +86,17 @@ function parseComponents(input: unknown): SubstrateComponentInput[] {
   // Clients may send a single object instead of an array — normalise first.
   const components = ensureArray(body.components);
   return parseOrThrow(ComponentsSchema, components, 'Invalid components data');
+}
+
+/**
+ * Like parseComponents, but an empty list is valid (it clears the mix) and a
+ * missing `components` key is rejected so an absent field never wipes the mix.
+ */
+function parseReplacementComponents(input: unknown): SubstrateComponentInput[] {
+  const body = (input ?? {}) as Record<string, unknown>;
+  const raw = body.components;
+  const components = raw === undefined || raw === null ? raw : ensureArray(raw);
+  return parseOrThrow(ReplaceComponentsSchema, components, 'Invalid components data');
 }
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
@@ -158,14 +180,16 @@ export class AddSubstrateComponentsUseCase {
   }
 }
 
-export class UpsertSubstrateComponentsUseCase {
+export class ReplaceSubstrateComponentsUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
   async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
-    await loadOwnedSubstrate(this.repo, substrateId, userId, 'edit');
+    const components = parseReplacementComponents(input);
 
-    const components = parseComponents(input);
-    await this.repo.upsertComponents(substrateId, components);
+    // Ownership is enforced inside the repository transaction; missing and
+    // foreign substrates are both answered as 404.
+    const replaced = await this.repo.replaceComponents(substrateId, userId, components);
+    if (!replaced) throw new NotFoundError('Substrate');
 
     const updated = await this.repo.findById(substrateId);
     if (!updated) throw new NotFoundError('Substrate');

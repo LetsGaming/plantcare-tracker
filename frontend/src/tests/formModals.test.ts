@@ -12,6 +12,7 @@ vi.mock("@/services/general/LocalizationService", async () =>
 import ConfirmDialog from "@/components/modal/ConfirmDialog.vue";
 import UploadField from "@/components/formcomponent/fields/UploadField.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
+import SubstrateFormModal from "@/components/substrates/SubstrateFormModal.vue";
 
 const passthrough = (tag = "div") =>
   defineComponent({
@@ -169,5 +170,50 @@ describe("ComponentSelection", () => {
     });
     await wrapper.find("input").setValue("3");
     expect(wrapper.emitted("update-part")![0]).toEqual([1, "3"]);
+  });
+});
+
+describe("SubstrateFormModal", () => {
+  const substrate = {
+    id: 7,
+    name: "Aroid Mix",
+    isPublic: false,
+    components: [
+      { id: 1, name: "Perlite", fineness: "coarse", parts: 1 },
+      { id: 2, name: "Peat", fineness: "fine", parts: 2 },
+      { id: 3, name: "Bark", fineness: "coarse", parts: 3 },
+    ],
+  } as unknown as Substrate;
+
+  it("saves the full remaining selection with parts after a component is unticked", async () => {
+    const wrapper = mount(SubstrateFormModal, {
+      props: {
+        isOpen: true,
+        title: "Edit",
+        selectionTitle: "Select",
+        availableComponents: substrate.components,
+        substrate,
+      },
+      global: {
+        stubs: {
+          ...stubs,
+          IonContent: passthrough(),
+          IonFooter: passthrough(),
+          ModalHeader: true,
+          ConfirmDialog: true,
+          FormComponent: true,
+          ComponentSelection: true,
+        },
+      },
+    });
+    const vm = wrapper.vm as unknown as { toggleComponent(id: number): void; submit(): void };
+    vm.toggleComponent(2);
+    vm.submit();
+
+    expect(wrapper.emitted("save")).toHaveLength(1);
+    expect(wrapper.emitted("save")![0][0]).toMatchObject({
+      componentIds: [1, 3],
+      parts: { 1: 1, 3: 3 },
+    });
   });
 });

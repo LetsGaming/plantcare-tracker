@@ -12,7 +12,7 @@
  * | POST   | /substrates                | Create a substrate                    |
  * | PATCH  | /substrates/:id            | Update name / isPublic                |
  * | POST   | /substrates/:id/components | Add components                        |
- * | PATCH  | /substrates/:id/components | Replace the component mix             |
+ * | PATCH  | /substrates/:id/components | Replace the component mix (full list) |
  * | DELETE | /substrates/:id            | Delete a substrate                    |
  *
  * Mutations are pessimistic: the server answers with the full substrate, which
@@ -167,7 +167,7 @@ export const useSubstratesStore = defineStore("substrates", {
       return response;
     },
 
-    /** Replaces the component mix ("upsert" semantics on the server). */
+    /** Replaces the whole component mix; entries missing from `components` are removed on the server. */
     async editSubstrateComponents(
       substrateId: number,
       components: EditSubstrateComponent[],

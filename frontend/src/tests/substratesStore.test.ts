@@ -167,6 +167,44 @@ describe("mutations", () => {
     });
   });
 
+  it("sends the full list in one request and drops a removed component from the item", async () => {
+    const component = (id: number, parts: number): APISubstrateComponent => ({
+      component_id: id,
+      component_name: `C${id}`,
+      component_fineness: "coarse",
+      component_parts: parts,
+    });
+    api.get.mockResolvedValue([
+      apiSubstrate({
+        substrate_id: 1,
+        components: [component(1, 1), component(2, 2), component(3, 3)],
+      }),
+    ]);
+    const store = await newStore();
+    await store.ensureLoaded();
+    const before = store.items[0];
+    api.patch.mockResolvedValue(
+      apiSubstrate({ substrate_id: 1, components: [component(1, 1), component(3, 3)] }),
+    );
+
+    await store.editSubstrateComponents(1, [
+      { componentId: 1, parts: 1 },
+      { componentId: 3, parts: 3 },
+    ]);
+
+    expect(api.patch).toHaveBeenCalledTimes(1);
+    expect(api.post).not.toHaveBeenCalled();
+    expect(api.patch).toHaveBeenCalledWith("/substrates/1/components", {
+      components: [
+        { componentId: 1, parts: 1 },
+        { componentId: 3, parts: 3 },
+      ],
+    });
+    expect(store.items[0].components.map((c) => c.id)).toEqual([1, 3]);
+    expect(store.items[0]).not.toBe(before);
+    expect(before.components.map((c) => c.id)).toEqual([1, 2, 3]);
+  });
+
   it("does not touch the list when a mutation fails", async () => {
     api.get.mockResolvedValue([apiSubstrate({ substrate_id: 1 })]);
     const store = await newStore();

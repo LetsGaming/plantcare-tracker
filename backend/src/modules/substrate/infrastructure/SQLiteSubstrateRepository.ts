@@ -142,6 +142,48 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       });
   }
 
+  async replaceComponents(
+    substrateId: number,
+    userId: number,
+    components: { componentId: number; parts: number }[],
+  ): Promise<boolean> {
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const owned = await trx
+          .selectFrom('substrates')
+          .select('id')
+          .where('id', '=', substrateId)
+          .where('user_id', '=', userId)
+          .executeTakeFirst();
+        if (!owned) return false;
+
+        const keepIds = components.map((c) => c.componentId);
+        let removal = trx
+          .deleteFrom('substrate_components')
+          .where('substrate_id', '=', substrateId);
+        if (keepIds.length) removal = removal.where('component_id', 'not in', keepIds);
+        await removal.execute();
+
+        for (const { componentId, parts } of components) {
+          await trx
+            .insertInto('substrate_components')
+            .values({
+              substrate_id: substrateId,
+              component_id: componentId,
+              parts: roundParts(parts),
+            })
+            .onConflict((oc) =>
+              oc.columns(['substrate_id', 'component_id']).doUpdateSet({
+                parts: (eb) => eb.ref('excluded.parts'),
+              }),
+            )
+            .execute();
+        }
+        return true;
+      });
+  }
+
   async deleteComponents(substrateId: number, componentIds: number[]): Promise<void> {
     if (!componentIds.length) return;
     await getKysely()

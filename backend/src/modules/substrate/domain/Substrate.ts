@@ -48,6 +48,12 @@ export interface SubstrateRepository {
     substrateId: number,
     components: { componentId: number; parts: number }[],
   ): Promise<void>;
+  /** Replaces the whole mix atomically; false when the substrate is not owned by `userId`. */
+  replaceComponents(
+    substrateId: number,
+    userId: number,
+    components: { componentId: number; parts: number }[],
+  ): Promise<boolean>;
   deleteComponents(substrateId: number, componentIds: number[]): Promise<void>;
   delete(id: number, userId: number): Promise<boolean>;
 }

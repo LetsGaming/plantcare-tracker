@@ -5,12 +5,14 @@ import { createComponent, createSubstrate } from './support';
 let app: ContractApp;
 let componentA: { component_id: number; component_name: string };
 let componentB: { component_id: number; component_name: string };
+let componentC: { component_id: number; component_name: string };
 
 beforeAll(async () => {
   app = await createContractApp();
   const admin = await app.signIn('admin');
   componentA = await createComponent(app, admin.auth, 'Perlite');
   componentB = await createComponent(app, admin.auth, 'Coco coir');
+  componentC = await createComponent(app, admin.auth, 'Bark');
 });
 afterAll(() => app.close());
 
@@ -180,6 +182,144 @@ describe('component composition', () => {
       ]),
     );
     expect(parts).toEqual({ [componentA.component_id]: 3, [componentB.component_id]: 1 });
+  });
+
+  it('removes an unticked component when PATCH sends the shorter list', async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth);
+    const url = `${API}/substrates/${substrate.substrate_id}/components`;
+    await app.client.request({
+      method: 'post',
+      url,
+      headers: owner.auth,
+      json: {
+        components: [componentA, componentB, componentC].map((c) => ({
+          componentId: c.component_id,
+          parts: 1,
+        })),
+      },
+    });
+    const res = await app.client.request({
+      method: 'patch',
+      url,
+      headers: owner.auth,
+      json: {
+        components: [
+          { componentId: componentA.component_id, parts: 2 },
+          { componentId: componentC.component_id, parts: 1 },
+        ],
+      },
+    });
+    expect(res.status).toBe(200);
+    const read = await app.client.request({
+      method: 'get',
+      url: `${API}/substrates/${substrate.substrate_id}`,
+      headers: owner.auth,
+    });
+    const mix = read.body.data.components.map(
+      (c: { component_id: number; component_parts: number }) => [c.component_id, c.component_parts],
+    );
+    expect(mix).toHaveLength(2);
+    expect(Object.fromEntries(mix)).toEqual({
+      [componentA.component_id]: 2,
+      [componentC.component_id]: 1,
+    });
+  });
+
+  it('clears the whole mix when PATCH sends an empty list', async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth);
+    const url = `${API}/substrates/${substrate.substrate_id}/components`;
+    await app.client.request({
+      method: 'post',
+      url,
+      headers: owner.auth,
+      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+    });
+    const res = await app.client.request({
+      method: 'patch',
+      url,
+      headers: owner.auth,
+      json: { components: [] },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.components).toEqual([]);
+  });
+
+  it('rejects PATCH without a components field or with duplicate components', async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth);
+    const url = `${API}/substrates/${substrate.substrate_id}/components`;
+    await app.client.request({
+      method: 'post',
+      url,
+      headers: owner.auth,
+      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+    });
+    const missing = await app.client.request({
+      method: 'patch',
+      url,
+      headers: owner.auth,
+      json: {},
+    });
+    expect(missing.status).toBe(400);
+    const duplicate = await app.client.request({
+      method: 'patch',
+      url,
+      headers: owner.auth,
+      json: {
+        components: [
+          { componentId: componentA.component_id, parts: 1 },
+          { componentId: componentA.component_id, parts: 2 },
+        ],
+      },
+    });
+    expect(duplicate.status).toBe(400);
+    const read = await app.client.request({
+      method: 'get',
+      url: `${API}/substrates/${substrate.substrate_id}`,
+      headers: owner.auth,
+    });
+    expect(read.body.data.components).toHaveLength(1);
+  });
+
+  it("answers 404 and leaves the mix untouched when replacing someone else's components", async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth);
+    const url = `${API}/substrates/${substrate.substrate_id}/components`;
+    await app.client.request({
+      method: 'post',
+      url,
+      headers: owner.auth,
+      json: { components: [{ componentId: componentA.component_id, parts: 1 }] },
+    });
+    const intruder = await app.signIn('user');
+    const res = await app.client.request({
+      method: 'patch',
+      url,
+      headers: intruder.auth,
+      json: { components: [] },
+    });
+    expect(res.status).toBe(404);
+    const read = await app.client.request({
+      method: 'get',
+      url: `${API}/substrates/${substrate.substrate_id}`,
+      headers: owner.auth,
+    });
+    expect(read.body.data.components).toHaveLength(1);
+  });
+
+  it('answers 403 for a guest replacing components', async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth);
+    const guest = await app.signIn('guest');
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/substrates/${substrate.substrate_id}/components`,
+      headers: guest.auth,
+      json: { components: [] },
+    });
+    expect(res.status).toBe(403);
   });
 
   it('rejects an empty or invalid components payload with 400', async () => {
