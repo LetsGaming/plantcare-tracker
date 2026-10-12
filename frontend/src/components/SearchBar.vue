@@ -75,6 +75,10 @@ export default defineComponent({
     onInput(event: CustomEvent) {
       this.searchQuery = (event.detail.value ?? "").toString().slice(0, SEARCH_MAX_LENGTH);
       this.cancelPending();
+      if (this.searchQuery === "") {
+        this.emitSearch();
+        return;
+      }
       this.timer = setTimeout(() => {
         this.timer = null;
         this.emitSearch();

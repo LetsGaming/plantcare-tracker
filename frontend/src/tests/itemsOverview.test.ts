@@ -147,6 +147,54 @@ describe("ItemsOverview window", () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
+  it("clamps the window when the items shrink and does not regrow it", async () => {
+    const wrapper = mountOverview({ items: plants(300) });
+    await fireInfinite(wrapper);
+    await fireInfinite(wrapper);
+    expect(cards(wrapper)).toHaveLength(120);
+
+    await wrapper.setProps({ items: plants(50) });
+    expect(cards(wrapper)).toHaveLength(50);
+
+    await wrapper.setProps({ items: plants(300) });
+    expect(cards(wrapper)).toHaveLength(80);
+  });
+
+  it("resets the window to 40 cards when listKey changes", async () => {
+    const wrapper = mountOverview({ items: plants(200), listKey: "mine" });
+    await fireInfinite(wrapper);
+    expect(cards(wrapper)).toHaveLength(80);
+
+    await wrapper.setProps({ listKey: "public" });
+    expect(cards(wrapper)).toHaveLength(40);
+  });
+
+  it("windows a presorted list in the parent's order", async () => {
+    const reversed = [...plants(100)].reverse();
+    const wrapper = mountOverview({ items: reversed, presorted: true });
+    expect(cards(wrapper)).toHaveLength(40);
+    expect(names(wrapper)[0]).toBe("Plant 0100");
+    expect(names(wrapper)[39]).toBe("Plant 0061");
+  });
+
+  it("emits load-more at the window end in server mode", async () => {
+    const wrapper = mountOverview({ items: plants(40), serverSearch: true, hasMore: true });
+    await fireInfinite(wrapper);
+    expect(cards(wrapper)).toHaveLength(40);
+    expect(wrapper.emitted("load-more")).toHaveLength(1);
+  });
+
+  it("completes the spinner on the next tick when the parent never reports loadingMore", async () => {
+    const wrapper = mountOverview({ items: plants(30), hasMore: true });
+    const complete = vi.fn();
+    wrapper.findComponent(InfiniteStub).vm.$emit("ionInfinite", { target: { complete } });
+    expect(complete).not.toHaveBeenCalled();
+    await nextTick();
+    await nextTick();
+    expect(wrapper.emitted("load-more")).toHaveLength(1);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
   it("does not emit load-more at the end without hasMore", async () => {
     const wrapper = mountOverview({ items: plants(50) });
     await fireInfinite(wrapper);
@@ -298,6 +346,23 @@ describe("ItemsOverview search", () => {
   });
 });
 
+describe("ItemsOverview client-mode empty state", () => {
+  it("shows the parent's empty state when the parent empties the list during a query", async () => {
+    const wrapper = mountOverview({ items: plants(3) });
+    await search(wrapper, "plant");
+    await wrapper.setProps({ items: [] });
+
+    expect(wrapper.find(".state-block").attributes("title")).toBe("overview.no_entries");
+  });
+
+  it("still shows the no-results state for a client query that filters everything", async () => {
+    const wrapper = mountOverview({ items: plants(3) });
+    await search(wrapper, "zzz");
+
+    expect(wrapper.find(".state-block").attributes("title")).toBe("state.no_results_title");
+  });
+});
+
 describe("ItemsOverview inactive page", () => {
   it("does not recompute while inactive and catches up when active again", async () => {
     let reads = 0;
@@ -335,6 +400,16 @@ describe("SearchBar", () => {
     await wrapper.find("input").setValue("x".repeat(120));
     vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
     expect(wrapper.emitted("search")).toEqual([["x".repeat(100)]]);
+  });
+
+  it("emits an emptied input at once without waiting for the debounce", async () => {
+    const wrapper = mount(SearchBar, { global: { stubs } });
+    await wrapper.find("input").setValue("aloe");
+    await wrapper.find("input").setValue("");
+    expect(wrapper.emitted("search")).toEqual([[""]]);
+
+    vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    expect(wrapper.emitted("search")).toEqual([[""]]);
   });
 
   it("emits a cleared query at once and drops the pending one", async () => {

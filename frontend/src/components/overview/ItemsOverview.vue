@@ -73,7 +73,7 @@
       />
 
       <state-block
-        v-else-if="!sourceItems.length && !trimmedQuery"
+        v-else-if="!sourceItems.length && !(serverSearch && trimmedQuery)"
         kind="empty"
         :placeholder-kind="kind"
         :title="emptyTitle || t('overview.no_entries')"
@@ -247,6 +247,11 @@ export default defineComponent({
       type: Number as PropType<number | null>,
       default: null,
     },
+    /** A change (for example a segment switch) resets the window to its first step. */
+    listKey: {
+      type: [String, Number],
+      default: "",
+    },
     /** False while the page is hidden: the list keeps its last result and recomputes on return. */
     active: {
       type: Boolean,
@@ -320,7 +325,17 @@ export default defineComponent({
     },
   },
   watch: {
-    items() {
+    items(newItems: readonly OverviewItem[]) {
+      if (this.windowSize > WINDOW_STEP && newItems.length < this.windowSize) {
+        this.windowSize = Math.max(
+          WINDOW_STEP,
+          Math.ceil(newItems.length / WINDOW_STEP) * WINDOW_STEP,
+        );
+      }
+      this.completeInfinite();
+    },
+    listKey() {
+      this.windowSize = WINDOW_STEP;
       this.completeInfinite();
     },
     hasMore() {
