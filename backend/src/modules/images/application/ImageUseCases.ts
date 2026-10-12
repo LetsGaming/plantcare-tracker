@@ -20,6 +20,7 @@ import type {
   ImageStorage,
   ImageRecord,
   ImageVariantMeta,
+  ProcessedUpload,
   StoredImage,
   EntityType,
   UploadedFile,
@@ -78,6 +79,9 @@ export interface StoredImageEvent {
 
 export type ImageStoredListener = (event: StoredImageEvent) => void;
 
+/** Emitted after image files and rows are removed; the owner is the acting user. */
+export type ImageRemovedListener = (event: { entityType: EntityType; ownerUserId: number }) => void;
+
 export interface UploadImageResult {
   url: string;
   capturedAt: Date;
@@ -98,13 +102,19 @@ export class UploadImageUseCase {
     const { capturedAt } = processed;
 
     const stored = toStoredImagePath(input.entityType, processed.filename);
-    const imageId = await this.repo.create(
-      input.entityType,
-      input.entityId,
-      stored,
-      toEpochSeconds(capturedAt),
-      pickVariantMeta(processed),
-    );
+    let imageId: number;
+    try {
+      imageId = await this.repo.create(
+        input.entityType,
+        input.entityId,
+        stored,
+        toEpochSeconds(capturedAt),
+        pickVariantMeta(processed),
+      );
+    } catch (err) {
+      await this.storage.remove(input.entityType, processed.filename, processed.variants);
+      throw err;
+    }
     this.onStored?.({ imageId, entityType: input.entityType, imageUrl: stored });
 
     return { url: toPublicImageUrl(stored), capturedAt };
@@ -158,14 +168,6 @@ export class UpdateImageUseCase {
     if (!existing) throw new NotFoundError('Image');
     await this.access.assertCanModify(existing.entityType, existing.entityId, input.actor);
 
-    let newUrl: string | undefined;
-    let newMeta: ImageVariantMeta | undefined;
-    if (input.file) {
-      const processed = await this.storage.processUpload(input.file, existing.entityType);
-      newUrl = toStoredImagePath(existing.entityType, processed.filename);
-      newMeta = pickVariantMeta(processed);
-    }
-
     let uploadDate: number | undefined;
     if (input.date !== undefined) {
       const parsed = new Date(input.date).getTime();
@@ -177,7 +179,23 @@ export class UpdateImageUseCase {
       uploadDate = Math.floor(parsed / 1000);
     }
 
-    await this.repo.update(input.imageId, { imageUrl: newUrl, uploadDate, ...newMeta });
+    let newUrl: string | undefined;
+    let newMeta: ImageVariantMeta | undefined;
+    let processed: ProcessedUpload | undefined;
+    if (input.file) {
+      processed = await this.storage.processUpload(input.file, existing.entityType);
+      newUrl = toStoredImagePath(existing.entityType, processed.filename);
+      newMeta = pickVariantMeta(processed);
+    }
+
+    try {
+      await this.repo.update(input.imageId, { imageUrl: newUrl, uploadDate, ...newMeta });
+    } catch (err) {
+      if (processed) {
+        await this.storage.remove(existing.entityType, processed.filename, processed.variants);
+      }
+      throw err;
+    }
 
     // The new file is committed to the database — only now is it safe
     // to drop the old one.
@@ -201,6 +219,7 @@ export class DeleteImageUseCase {
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
     private readonly access: ImageAccessPolicy,
+    private readonly onRemoved?: ImageRemovedListener,
   ) {}
 
   async execute(imageId: number, actor: ImageActor): Promise<void> {
@@ -210,6 +229,7 @@ export class DeleteImageUseCase {
 
     await this.storage.remove(image.entityType, image.url, image.variants);
     await this.repo.delete(imageId);
+    this.onRemoved?.({ entityType: image.entityType, ownerUserId: actor.id });
   }
 }
 
@@ -218,11 +238,13 @@ export class DeleteEntityImagesUseCase {
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
     private readonly access: ImageAccessPolicy,
+    private readonly onRemoved?: ImageRemovedListener,
   ) {}
 
   async execute(entityType: EntityType, entityId: number, actor: ImageActor): Promise<void> {
     await this.access.assertCanModify(entityType, entityId, actor);
     const images = await this.repo.deleteByEntity(entityType, entityId);
     await Promise.all(images.map((img) => this.storage.remove(entityType, img.url, img.variants)));
+    this.onRemoved?.({ entityType, ownerUserId: actor.id });
   }
 }

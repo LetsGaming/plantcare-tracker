@@ -150,9 +150,15 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
   await app.register(wateringRoutes, { prefix: `${V}/watering` });
   await app.register(substrateRoutes, { prefix: `${V}/substrates` });
   await app.register(componentRoutes, { prefix: `${V}/components` });
-  await app.register(imageRoutes({ onImageStored: recognition.onImageStored }), {
-    prefix: `${V}/images`,
-  });
+  await app.register(
+    imageRoutes({
+      onImageStored: recognition.onImageStored,
+      onImageRemoved: recognition.onImageRemoved,
+    }),
+    {
+      prefix: `${V}/images`,
+    },
+  );
   await app.register(moreInfoRoutes(deps.moreInfo), { prefix: `${V}/more-info` });
   await app.register(recognitionRoutes(recognition), { prefix: `${V}/recognition` });
 

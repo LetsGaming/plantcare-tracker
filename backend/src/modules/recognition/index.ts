@@ -1,9 +1,10 @@
 import { getConfig, getUploadsDirectory } from '../../core/config';
-import type { StoredImageEvent } from '../images/application/ImageUseCases';
+import type { ImageRemovedListener, StoredImageEvent } from '../images/application/ImageUseCases';
 import { EmbedImagesService } from './application/EmbedImages';
 import type { Embedder, EmbeddingRepository, RecognitionLogger } from './domain/Recognition';
 import { loadOnnxEmbedder } from './infrastructure/OnnxEmbedder';
 import { SQLiteEmbeddingRepository } from './infrastructure/SQLiteEmbeddingRepository';
+import { invalidateVectors } from './infrastructure/vectorCache';
 
 export { recognitionRoutes } from './presentation/recognitionRoutes';
 export { clearVectorCache, invalidateVectors } from './infrastructure/vectorCache';
@@ -16,6 +17,7 @@ export interface RecognitionDeps {
 export interface Recognition {
   readonly embedder: Embedder | null;
   onImageStored(event: StoredImageEvent): void;
+  onImageRemoved?: ImageRemovedListener;
 }
 
 export interface RecognitionContext extends Recognition {
@@ -47,6 +49,9 @@ export const createRecognition = async (
       if (embedImages && event.entityType === 'plant') {
         embedImages.enqueue(event.imageId, event.imageUrl);
       }
+    },
+    onImageRemoved: (event) => {
+      if (event.entityType === 'plant') invalidateVectors(event.ownerUserId);
     },
   };
 };

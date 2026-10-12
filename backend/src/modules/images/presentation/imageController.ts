@@ -14,6 +14,7 @@ import {
   UpdateImageUseCase,
   DeleteImageUseCase,
   DeleteEntityImagesUseCase,
+  type ImageRemovedListener,
   type ImageStoredListener,
 } from '../application/ImageUseCases';
 import type { ImageAccessPolicy } from '../application/ImageAccessPolicy';
@@ -69,12 +70,13 @@ export const createImageController = (
   storage: ImageStorage,
   access: ImageAccessPolicy,
   onStored?: ImageStoredListener,
+  onRemoved?: ImageRemovedListener,
 ): ImageController => {
   const upload = new UploadImageUseCase(repo, storage, access, onStored);
   const list = new ListEntityImagesUseCase(repo, access);
   const update = new UpdateImageUseCase(repo, storage, access, onStored);
-  const remove = new DeleteImageUseCase(repo, storage, access);
-  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access);
+  const remove = new DeleteImageUseCase(repo, storage, access, onRemoved);
+  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access, onRemoved);
 
   return {
     uploadImage: async (req: FastifyRequest, reply: FastifyReply) => {
@@ -95,7 +97,7 @@ export const createImageController = (
       };
       return reply
         .code(HTTP_STATUS.CREATED)
-        .header('Location', `/images/${entityType}/${entityId}`)
+        .header('Location', `/images/${entityType}?entityId=${entityId}`)
         .send(body);
     },
 

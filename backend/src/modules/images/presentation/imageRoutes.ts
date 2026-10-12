@@ -13,7 +13,7 @@ import multipart from '@fastify/multipart';
 import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteImageRepository } from '../infrastructure/SQLiteImageRepository';
 import { LocalImageStorage, configureSharp } from '../infrastructure/LocalImageStorage';
-import type { ImageStoredListener } from '../application/ImageUseCases';
+import type { ImageRemovedListener, ImageStoredListener } from '../application/ImageUseCases';
 import { createImageController } from './imageController';
 import { SQLiteImageEntityLookup } from '../infrastructure/SQLiteImageEntityLookup';
 import { ImageAccessPolicy } from '../application/ImageAccessPolicy';
@@ -42,6 +42,8 @@ const validateEntityType: Hook = async (request) => {
 export interface ImageRouterDeps {
   /** Called after a new image file is stored (upload or replacement). */
   onImageStored?: ImageStoredListener;
+  /** Called after images are deleted, with the user who owned them. */
+  onImageRemoved?: ImageRemovedListener;
 }
 
 export const imageRoutes =
@@ -56,7 +58,13 @@ export const imageRoutes =
     const repo = new SQLiteImageRepository();
     const storage = new LocalImageStorage();
     const access = new ImageAccessPolicy(new SQLiteImageEntityLookup());
-    const ctrl = createImageController(repo, storage, access, deps.onImageStored);
+    const ctrl = createImageController(
+      repo,
+      storage,
+      access,
+      deps.onImageStored,
+      deps.onImageRemoved,
+    );
 
     // Parts are buffered and attached to the body so handlers read them like
     // any other input; the size cap bounds memory per upload.
