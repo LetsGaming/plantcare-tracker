@@ -1,0 +1,98 @@
+[
+  {
+    "name": "plants mine by created",
+    "phase": "A",
+    "sql": "SELECT p.id FROM plants p WHERE p.user_id = ? ORDER BY p.created_at DESC, p.id DESC LIMIT 50",
+    "params": [1],
+    "expectIndex": "idx_plants_user_created",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "plants mine by name",
+    "phase": "A",
+    "sql": "SELECT p.id FROM plants p WHERE p.user_id = ? ORDER BY p.name COLLATE NOCASE, p.id LIMIT 50",
+    "params": [1],
+    "expectIndex": "idx_plants_user_name",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "plants public by created",
+    "phase": "A",
+    "sql": "SELECT p.id FROM plants p WHERE p.is_public = 1 ORDER BY p.created_at DESC, p.id DESC LIMIT 50",
+    "params": [],
+    "expectIndex": "idx_plants_public_created",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "plants public by name",
+    "phase": "A",
+    "sql": "SELECT p.id FROM plants p WHERE p.is_public = 1 ORDER BY p.name COLLATE NOCASE, p.id LIMIT 50",
+    "params": [],
+    "expectIndex": "idx_plants_public_name",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "substrates mine by created",
+    "phase": "A",
+    "sql": "SELECT s.id FROM substrates s WHERE s.user_id = ? ORDER BY s.created_at DESC, s.id DESC LIMIT 50",
+    "params": [1],
+    "expectIndex": "idx_substrates_user_created",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "substrates mine by name",
+    "phase": "A",
+    "sql": "SELECT s.id FROM substrates s WHERE s.user_id = ? ORDER BY s.name COLLATE NOCASE, s.id LIMIT 50",
+    "params": [1],
+    "expectIndex": "idx_substrates_user_name",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "substrates public by created",
+    "phase": "A",
+    "sql": "SELECT s.id FROM substrates s WHERE s.is_public = 1 ORDER BY s.created_at DESC, s.id DESC LIMIT 50",
+    "params": [],
+    "expectIndex": "idx_substrates_public_created",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "substrates public by name",
+    "phase": "A",
+    "sql": "SELECT s.id FROM substrates s WHERE s.is_public = 1 ORDER BY s.name COLLATE NOCASE, s.id LIMIT 50",
+    "params": [],
+    "expectIndex": "idx_substrates_public_name",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "components by name",
+    "phase": "A",
+    "sql": "SELECT c.id FROM components c ORDER BY c.name COLLATE NOCASE, c.id LIMIT 50",
+    "params": [],
+    "expectIndex": "idx_components_name",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "substrate_components by component_id",
+    "phase": "A",
+    "sql": "SELECT sc.substrate_id FROM substrate_components sc WHERE sc.component_id = ?",
+    "params": [1],
+    "expectIndex": "idx_substrate_components_component",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "plants by substrate_id",
+    "phase": "A",
+    "sql": "SELECT p.id FROM plants p WHERE p.substrate_id = ?",
+    "params": [1],
+    "expectIndex": "idx_plants_substrate",
+    "forbidTempBtree": true
+  },
+  {
+    "name": "newest plant image",
+    "phase": "A",
+    "sql": "SELECT i.image_url FROM images i WHERE i.entity_type = 'plant' AND i.entity_id = ? ORDER BY i.upload_date DESC, i.id DESC LIMIT 1",
+    "params": [1],
+    "expectIndex": "idx_images_lookup",
+    "forbidTempBtree": true
+  }
+]
