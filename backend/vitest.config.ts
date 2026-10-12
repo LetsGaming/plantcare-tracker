@@ -54,6 +54,10 @@ export default defineConfig({
     // Timeout per test (ms) — generous for bcrypt operations
     testTimeout: 10_000,
 
+    // beforeAll builds the whole app, whose module graph takes 3-4 s to import
+    // on an idle machine and several times that under a parallel suite run
+    hookTimeout: 30_000,
+
     // Sequential execution for integration tests that share state
     // (session store is in-memory and global)
     pool: 'forks',
