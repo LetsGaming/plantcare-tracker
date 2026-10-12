@@ -476,6 +476,35 @@ describe('query plans and speed', () => {
     },
   );
 
+  it.each([
+    { scope: 'public', q: null, joins: false, index: /USING COVERING INDEX idx_plants_public_/ },
+    {
+      scope: 'public',
+      q: 'Plant 1',
+      joins: false,
+      index: /USING COVERING INDEX idx_plants_public_/,
+    },
+    { scope: 'mine', q: null, joins: false, index: /USING COVERING INDEX idx_plants_user_/ },
+    { scope: 'mine', q: 'Plant 1', joins: true, index: /USING (COVERING )?INDEX idx_plants_user_/ },
+  ] as const)(
+    'counts $scope totals (q: $q) joining species only when it is searched',
+    async ({ scope, q, joins, index }) => {
+      const statements = await capture(() =>
+        scope === 'mine'
+          ? plants.listMine(perfUser, query({ q }), 0)
+          : plants.listPublic(query({ q })),
+      );
+      const count = statements.find(
+        (s) => s.sql.includes('COUNT(*)') && !s.sql.includes('"plant_id"'),
+      )!;
+      expect(/join "species"/i.test(count.sql)).toBe(joins);
+      if (scope === 'public') expect(count.sql).toContain('p.is_public = 1');
+      const plan = planOf(count);
+      expect(plan).toMatch(index);
+      expect(plan).not.toMatch(/SCAN p\b(?! USING)/);
+    },
+  );
+
   it('reads the watering aggregates through idx_watering_history only', async () => {
     const statements = await capture(() => loadSummaries([2, 4, 6], 0));
     expect(statements).toHaveLength(1);

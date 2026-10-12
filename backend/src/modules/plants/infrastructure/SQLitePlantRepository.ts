@@ -111,13 +111,15 @@ const newestImageId = sql<
 >`(SELECT i.id FROM images i WHERE i.entity_type = 'plant' AND i.entity_id = p.id ORDER BY i.upload_date DESC, i.id DESC LIMIT 1)`;
 const imageCount = sql<number>`(SELECT COUNT(*) FROM images i WHERE i.entity_type = 'plant' AND i.entity_id = p.id)`;
 
+const scopePredicate = (scope: ListScope) =>
+  scope.kind === 'mine' ? sql<SqlBool>`p.user_id = ${scope.userId}` : sql<SqlBool>`p.is_public = 1`;
+
 /** Plants with their species, filtered by scope and search. The public predicate is a literal so the partial indexes apply. */
 const filteredPlants = (scope: ListScope, q: string | null) => {
-  let qb = getKysely().selectFrom('plants as p').leftJoin('species', 'p.species_id', 'species.id');
-  qb =
-    scope.kind === 'mine'
-      ? qb.where('p.user_id', '=', scope.userId)
-      : qb.where(sql<SqlBool>`p.is_public = 1`);
+  let qb = getKysely()
+    .selectFrom('plants as p')
+    .leftJoin('species', 'p.species_id', 'species.id')
+    .where(scopePredicate(scope));
   if (q) {
     qb = qb.where((eb) =>
       scope.kind === 'mine'
@@ -126,6 +128,21 @@ const filteredPlants = (scope: ListScope, q: string | null) => {
     );
   }
   return qb;
+};
+
+/** The total joins species only when the species name is searched (mine with q). */
+const countPlants = (scope: ListScope, q: string | null) => {
+  const base = getKysely().selectFrom('plants as p');
+  if (q && scope.kind === 'mine') {
+    return base
+      .leftJoin('species', 'p.species_id', 'species.id')
+      .where(scopePredicate(scope))
+      .where((eb) => eb.or([containsLike('p.name', q), containsLike('species.name', q)]))
+      .select(sql<number>`COUNT(*)`.as('n'));
+  }
+  let qb = base.where(scopePredicate(scope));
+  if (q) qb = qb.where(containsLike('p.name', q));
+  return qb.select(sql<number>`COUNT(*)`.as('n'));
 };
 
 // ── Repository ───────────────────────────────────────────────────────────────
@@ -205,9 +222,7 @@ export class SQLitePlantRepository implements PlantRepository {
 
     const result: PlantListPage = { items, nextCursor: page.nextCursor };
     if (query.cursor === null) {
-      const counted = await filteredPlants(scope, query.q)
-        .select(sql<number>`COUNT(*)`.as('n'))
-        .executeTakeFirstOrThrow();
+      const counted = await countPlants(scope, query.q).executeTakeFirstOrThrow();
       result.total = counted.n;
     }
     return result;
