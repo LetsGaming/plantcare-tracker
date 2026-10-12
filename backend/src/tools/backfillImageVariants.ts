@@ -14,7 +14,10 @@ import path from 'path';
 import { getKysely, initDatabase, closeDb } from '../core/database/db';
 import { createModuleLogger } from '../core/logging';
 import { getUploadsDirectory } from '../core/config';
-import { createVariantsFromFile } from '../modules/images/infrastructure/LocalImageStorage';
+import {
+  createVariantsFromFile,
+  variantFilename,
+} from '../modules/images/infrastructure/LocalImageStorage';
 
 const log = createModuleLogger('backfillImageVariants');
 
@@ -22,6 +25,7 @@ const DEFAULT_BATCH_SIZE = 50;
 const VARIANTS_PENDING = 0;
 const VARIANTS_PRESENT = 1;
 const VARIANTS_NONE = -1;
+const VARIANT_WIDTHS = [160, 480];
 
 export interface BackfillOptions {
   batchSize?: number;
@@ -42,14 +46,23 @@ export interface BackfillResult {
 
 const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
+const ENTITY_TYPE_PATTERN = /^[a-z_]+$/;
+const MAX_BATCH_SIZE = 1000;
+const USAGE = 'Usage: images:backfill [--dry-run] [--batch <1-1000>]';
+
+/** Only a definitely absent file counts as missing; other errors are transient and rethrown. */
 const exists = async (file: string): Promise<boolean> => {
   try {
     await fs.access(file);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return false;
+    throw err;
   }
 };
+
+const removeQuietly = (file: string): Promise<void> => fs.rm(file, { force: true });
 
 export const runVariantBackfill = async (
   options: BackfillOptions = {},
@@ -88,27 +101,39 @@ export const runVariantBackfill = async (
       lastId = row.id;
       const filename = path.basename(row.image_url);
 
-      if (!/\.webp$/i.test(filename)) {
+      if (!ENTITY_TYPE_PATTERN.test(row.entity_type)) {
+        log.warn('Unexpected entity type', { id: row.id, entityType: row.entity_type });
+        result.failed += 1;
+      } else if (!/\.webp$/i.test(filename)) {
         log.info('Skipping non-webp image', { id: row.id, filename });
         result.nonWebp += 1;
         await markUnavailable(row.id);
-      } else if (!(await exists(path.join(rootDir, row.entity_type, filename)))) {
-        log.warn('Source file missing', { id: row.id, filename });
-        result.missing += 1;
-        await markUnavailable(row.id);
-      } else if (dryRun) {
-        result.processed += 1;
       } else {
         try {
-          const meta = await createVariantsFromFile(row.entity_type, filename, { rootDir });
-          await db
-            .updateTable('images')
-            .set({ ...meta, variants: VARIANTS_PRESENT })
-            .where('id', '=', row.id)
-            .execute();
-          result.processed += 1;
+          const mainPath = path.join(rootDir, row.entity_type, filename);
+          if (!(await exists(mainPath))) {
+            log.warn('Source file missing', { id: row.id, filename });
+            result.missing += 1;
+            await markUnavailable(row.id);
+          } else if (dryRun) {
+            result.processed += 1;
+          } else {
+            const meta = await createVariantsFromFile(row.entity_type, filename, { rootDir });
+            const update = await db
+              .updateTable('images')
+              .set({ ...meta, variants: VARIANTS_PRESENT })
+              .where('id', '=', row.id)
+              .executeTakeFirst();
+            if (Number(update.numUpdatedRows) === 0) {
+              await Promise.all(
+                VARIANT_WIDTHS.map((width) => removeQuietly(variantFilename(mainPath, width))),
+              );
+            } else {
+              result.processed += 1;
+            }
+          }
         } catch (err) {
-          log.warn('Variant creation failed', { id: row.id, reason: (err as Error).message });
+          log.warn('Image backfill failed for row', { id: row.id, reason: (err as Error).message });
           result.failed += 1;
         }
       }
@@ -118,21 +143,31 @@ export const runVariantBackfill = async (
   return result;
 };
 
-const parseBatchSize = (argv: string[]): number => {
-  const index = argv.indexOf('--batch');
-  if (index === -1) return DEFAULT_BATCH_SIZE;
-  const value = Number(argv[index + 1]);
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error('--batch needs a positive integer');
+export const parseArgs = (argv: string[]): { dryRun: boolean; batchSize: number } => {
+  let dryRun = false;
+  let batchSize = DEFAULT_BATCH_SIZE;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--dry-run') {
+      dryRun = true;
+    } else if (arg === '--batch') {
+      const raw = argv[i + 1];
+      i += 1;
+      const value = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : NaN;
+      if (!Number.isInteger(value) || value < 1 || value > MAX_BATCH_SIZE) {
+        throw new Error(`--batch needs an integer from 1 to ${MAX_BATCH_SIZE}\n${USAGE}`);
+      }
+      batchSize = value;
+    } else {
+      throw new Error(`Unknown argument: ${arg}\n${USAGE}`);
+    }
   }
-  return value;
+  return { dryRun, batchSize };
 };
 
 const main = async (): Promise<void> => {
   dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-  const argv = process.argv.slice(2);
-  const dryRun = argv.includes('--dry-run');
-  const batchSize = parseBatchSize(argv);
+  const { dryRun, batchSize } = parseArgs(process.argv.slice(2));
 
   await initDatabase();
   try {

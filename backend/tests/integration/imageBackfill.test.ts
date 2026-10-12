@@ -3,7 +3,7 @@
  * uploads directory.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -12,7 +12,7 @@ import sharp from 'sharp';
 process.env.DB_PATH = ':memory:';
 
 import { initDatabase, closeDb, getSqlite } from '../../src/core/database/db';
-import { runVariantBackfill } from '../../src/tools/backfillImageVariants';
+import { runVariantBackfill, parseArgs } from '../../src/tools/backfillImageVariants';
 import { variantFilename } from '../../src/modules/images/infrastructure/LocalImageStorage';
 
 interface Row {
@@ -67,6 +67,11 @@ beforeEach(async () => {
   getSqlite().prepare('DELETE FROM images').run();
   uploadsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'backfill-'));
   await fs.mkdir(dirOf(), { recursive: true });
+});
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await fs.rm(uploadsDir, { recursive: true, force: true, maxRetries: 3 });
 });
 
 describe('runVariantBackfill', () => {
@@ -189,4 +194,81 @@ describe('runVariantBackfill', () => {
     expect(result.processed).toBe(0);
     expect(rows()[0]?.variants).toBe(0);
   });
+
+  it('stops after the current row when aborted mid-run', async () => {
+    for (const name of ['a', 'b', 'c']) await addImage(name);
+    const controller = new AbortController();
+    const realAccess = fs.access.bind(fs);
+    vi.spyOn(fs, 'access').mockImplementation(async (file, mode) => {
+      controller.abort();
+      return realAccess(file, mode);
+    });
+
+    const result = await runVariantBackfill({ uploadsDir, signal: controller.signal });
+
+    expect(result.processed).toBe(1);
+    expect(rows().map((r) => r.variants)).toEqual([1, 0, 0]);
+  });
+
+  it.each(['EACCES', 'EMFILE', 'EBUSY'])(
+    'keeps a row pending and counts it failed on a transient %s error',
+    async (code) => {
+      await addImage('a');
+      vi.spyOn(fs, 'access').mockRejectedValue(Object.assign(new Error(code), { code }));
+
+      const result = await runVariantBackfill({ uploadsDir });
+
+      expect(result).toEqual({ processed: 0, missing: 0, nonWebp: 0, failed: 1 });
+      expect(rows()[0]?.variants).toBe(0);
+    },
+  );
+
+  it.each(['ENOENT', 'ENOTDIR'])('marks a row as variants -1 on %s', async (code) => {
+    await addImage('a');
+    vi.spyOn(fs, 'access').mockRejectedValue(Object.assign(new Error(code), { code }));
+
+    const result = await runVariantBackfill({ uploadsDir });
+
+    expect(result.missing).toBe(1);
+    expect(rows()[0]?.variants).toBe(-1);
+  });
+
+  it('counts a row with an unexpected entity type as failed and leaves it pending', async () => {
+    getSqlite()
+      .prepare("INSERT INTO images (image_url, entity_type, entity_id) VALUES (?, '../x', 1)")
+      .run('/uploads/plant/a.webp');
+
+    const result = await runVariantBackfill({ uploadsDir });
+
+    expect(result).toEqual({ processed: 0, missing: 0, nonWebp: 0, failed: 1 });
+    expect(rows()[0]?.variants).toBe(0);
+  });
+
+  it('removes the written variant files when the row vanished during the pass', async () => {
+    const image = await addImage('gone');
+    const realAccess = fs.access.bind(fs);
+    vi.spyOn(fs, 'access').mockImplementation(async (file, mode) => {
+      getSqlite().prepare('DELETE FROM images').run();
+      return realAccess(file, mode);
+    });
+
+    const result = await runVariantBackfill({ uploadsDir });
+
+    expect(result.processed).toBe(0);
+    expect(await listFiles()).toEqual([path.basename(image.file)]);
+  });
+});
+
+describe('parseArgs', () => {
+  it('accepts the documented flags', () => {
+    expect(parseArgs([])).toEqual({ dryRun: false, batchSize: 50 });
+    expect(parseArgs(['--dry-run', '--batch', '1000'])).toEqual({ dryRun: true, batchSize: 1000 });
+  });
+
+  it.each([['--dryrun'], ['--batch'], ['--batch', '0'], ['--batch', '1001'], ['--batch', '2.5']])(
+    'rejects %s',
+    (...argv) => {
+      expect(() => parseArgs(argv)).toThrow(/Usage/);
+    },
+  );
 });
