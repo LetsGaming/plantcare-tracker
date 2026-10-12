@@ -5,6 +5,7 @@
 import { sql } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import type { UserRepository, UserData } from '../domain/User';
+import type { RemovedImageFile } from '../application/AuthUseCases';
 
 /** The shared guest account is never edited or removed through the API. */
 const notGuest = sql<boolean>`role_id <> COALESCE((SELECT id FROM roles WHERE name = 'guest' COLLATE NOCASE), -1)`;
@@ -66,11 +67,59 @@ export class SQLiteUserRepository implements UserRepository {
   }
 
   async delete(userId: number): Promise<boolean> {
-    const result = await getKysely()
-      .deleteFrom('users')
-      .where('id', '=', userId)
-      .where(notGuest)
-      .executeTakeFirst();
-    return Number(result.numDeletedRows) > 0;
+    return (await this.deleteAccount(userId)) !== null;
+  }
+
+  /**
+   * substrates.user_id has no ON DELETE action, so the user's substrates are
+   * removed explicitly (other users' plants fall back to substrate_id NULL,
+   * junction rows cascade). Image rows are polymorphic and have no foreign key.
+   */
+  async deleteAccount(userId: number): Promise<RemovedImageFile[] | null> {
+    return getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        const target = await trx
+          .selectFrom('users')
+          .select('id')
+          .where('id', '=', userId)
+          .where(notGuest)
+          .executeTakeFirst();
+        if (!target) return null;
+
+        const removed = await trx
+          .deleteFrom('images')
+          .where((eb) =>
+            eb.or([
+              eb.and([
+                eb('entity_type', '=', 'plant'),
+                eb(
+                  'entity_id',
+                  'in',
+                  eb.selectFrom('plants').select('id').where('user_id', '=', userId),
+                ),
+              ]),
+              eb.and([
+                eb('entity_type', '=', 'substrate'),
+                eb(
+                  'entity_id',
+                  'in',
+                  eb.selectFrom('substrates').select('id').where('user_id', '=', userId),
+                ),
+              ]),
+            ]),
+          )
+          .returning(['entity_type', 'image_url'])
+          .execute();
+
+        await trx.deleteFrom('substrates').where('user_id', '=', userId).execute();
+        await trx.deleteFrom('users').where('id', '=', userId).execute();
+
+        return removed.flatMap((row) =>
+          row.entity_type === 'component'
+            ? []
+            : [{ entityType: row.entity_type, url: row.image_url }],
+        );
+      });
   }
 }

@@ -27,4 +27,13 @@ export class ImageCleanupService implements EntityImageCleanup {
       log.error(`Could not remove images of ${entityType} ${entityId}`, { err });
     }
   }
+
+  /** Unlinks files whose rows were already deleted; failures are logged, never thrown. */
+  async removeFiles(images: ReadonlyArray<{ entityType: EntityType; url: string }>): Promise<void> {
+    const results = await Promise.allSettled(
+      images.map((image) => this.storage.remove(image.entityType, image.url)),
+    );
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed) log.error(`Could not remove ${failed} of ${images.length} image files`);
+  }
 }

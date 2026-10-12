@@ -16,6 +16,9 @@ import {
   NotFoundError,
   ConflictError,
 } from '../../../core/errors';
+import { ImageCleanupService } from '../../images/application/ImageCleanupService';
+import { SQLiteImageRepository } from '../../images/infrastructure/SQLiteImageRepository';
+import { LocalImageStorage } from '../../images/infrastructure/LocalImageStorage';
 import { parseOrThrow } from '../../../core/validation';
 import { AUTH } from '../../../core/config';
 import {
@@ -177,12 +180,34 @@ export class UpdateProfileUseCase {
   }
 }
 
+/** A stored image file whose row was removed together with its owner's account. */
+export interface RemovedImageFile {
+  entityType: 'plant' | 'substrate';
+  url: string;
+}
+
+export interface AccountDeleter {
+  /** Returns the removed image files, or null when no deletable user exists. */
+  deleteAccount(userId: number): Promise<RemovedImageFile[] | null>;
+}
+
+export interface ImageFileRemover {
+  removeFiles(images: readonly RemovedImageFile[]): Promise<void>;
+}
+
 export class DeleteProfileUseCase {
-  constructor(private readonly repo: UserRepository) {}
+  constructor(
+    private readonly repo: AccountDeleter,
+    private readonly files: ImageFileRemover = new ImageCleanupService(
+      new SQLiteImageRepository(),
+      new LocalImageStorage(),
+    ),
+  ) {}
 
   async execute(userId: number): Promise<void> {
-    const deleted = await this.repo.delete(userId);
-    if (!deleted) throw new NotFoundError('User');
+    const removed = await this.repo.deleteAccount(userId);
+    if (!removed) throw new NotFoundError('User');
     sessionStore.deleteAll(userId);
+    await this.files.removeFiles(removed);
   }
 }
