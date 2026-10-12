@@ -62,7 +62,7 @@ export class SseManager {
   }
 
   async send<T>(data: T): Promise<void> {
-    await this.emit(data);
+    await this.emit(JSON.stringify(data));
   }
 
   /**
@@ -98,32 +98,36 @@ export class SseManager {
 
   // ── Private ──────────────────────────────────────────────────────────────
 
+  /**
+   * Each item is serialized once; a frame's JSON array (brackets and commas
+   * included) stays within maxChunkSize unless a single item exceeds it.
+   */
   private async chunkAndSend<T>(dataArray: T[]): Promise<void> {
-    let currentBatch: T[] = [];
-    let currentBatchSize = 0;
+    let batch: string[] = [];
+    let batchBytes = 0;
 
     for (const item of dataArray) {
-      const itemStr = JSON.stringify(item);
-      const itemSize = Buffer.byteLength(itemStr, 'utf8');
+      const json = JSON.stringify(item);
+      const itemBytes = Buffer.byteLength(json, 'utf8');
 
-      if (currentBatchSize + itemSize > this.maxChunkSize && currentBatch.length > 0) {
-        await this.emit(currentBatch);
-        currentBatch = [];
-        currentBatchSize = 0;
+      if (batch.length > 0 && batchBytes + 1 + itemBytes > this.maxChunkSize) {
+        await this.emit(`[${batch.join(',')}]`);
+        batch = [];
+        batchBytes = 0;
       }
 
-      currentBatch.push(item);
-      currentBatchSize += itemSize;
+      batchBytes += batch.length === 0 ? 2 + itemBytes : 1 + itemBytes;
+      batch.push(json);
     }
 
-    if (currentBatch.length > 0) {
-      await this.emit(currentBatch);
+    if (batch.length > 0) {
+      await this.emit(`[${batch.join(',')}]`);
     }
   }
 
-  private emit<T>(data: T): Promise<void> {
+  private emit(json: string): Promise<void> {
     return new Promise((resolve) => {
-      const canWrite = this.res.write(`data: ${JSON.stringify(data)}\n\n`);
+      const canWrite = this.res.write(`data: ${json}\n\n`);
       (this.res as ServerResponse & { flush?: () => void }).flush?.();
 
       if (!canWrite) {

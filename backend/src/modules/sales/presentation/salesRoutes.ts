@@ -38,7 +38,8 @@ export const salesRoutes =
     const cache = new NodeCacheAdapter();
     const tracker = new SourceHealthTracker(new SQLiteSourceHealthRepository());
     const sources = (deps.createSources ?? createAllScrapers)(cache, tracker);
-    const refresher = new SalesRefresher(sources, new SQLiteSalesRepository(), {
+    const repo = new SQLiteSalesRepository();
+    const refresher = new SalesRefresher(sources, repo, {
       intervalMs: config.refreshIntervalMin * MINUTE_MS,
       warmDelayMs: deps.warmDelayMs ?? config.refreshWarmDelayMs,
       health: tracker,
@@ -55,14 +56,17 @@ export const salesRoutes =
       await refresher.stop();
     });
 
-    const getSalesData = createSalesController(sources);
-    const health = createSourceHealthController(sources, tracker);
+    const sales = createSalesController(repo);
+    const health = createSourceHealthController(sources, tracker, refresher);
 
+    app.get('/', { onRequest: makeAuthenticateSSE() }, sales.stream);
     app.get('/health', { onRequest: [authenticateToken, isAdmin] }, health.listHealth);
     app.post(
       '/health/:key/check',
       { onRequest: [authenticateToken, isAdmin] },
       health.recheckSource,
     );
-    app.get('/', { onRequest: makeAuthenticateSSE() }, getSalesData);
+    app.get('/summary', { onRequest: authenticateToken }, sales.summary);
+    // Registered last; static paths such as /health and /summary still win over the parameter.
+    app.get('/:id', { onRequest: authenticateToken }, sales.detail);
   };

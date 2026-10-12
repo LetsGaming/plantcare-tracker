@@ -21,9 +21,19 @@ export interface SourceHealthController {
   recheckSource: Handler;
 }
 
+/** The part of the refresher a recheck needs. */
+export interface SourceRefresh {
+  refreshSource(key: string): Promise<unknown>;
+}
+
+/**
+ * Without a refresher a recheck only scrapes page 1; with one it runs a full
+ * refresh, within the shared scrape limits, that also stores the items.
+ */
 export const createSourceHealthController = (
   sources: SalesSource[],
   tracker: SourceHealthTracker,
+  refresher?: SourceRefresh,
 ): SourceHealthController => ({
   listHealth: async () => {
     const body: SourceHealthListResponse = {
@@ -38,7 +48,11 @@ export const createSourceHealthController = (
     const source = sources.find((s) => s.key === (req.params as { key: string }).key);
     if (!source) throw new NotFoundError('Source');
 
-    await source.fetchPage(1, { bypassCache: true });
+    if (refresher) {
+      await refresher.refreshSource(source.key);
+    } else {
+      await source.fetchPage(1, { bypassCache: true });
+    }
 
     const health = tracker.get(source.key);
     if (!health) throw new NotFoundError('Source health');

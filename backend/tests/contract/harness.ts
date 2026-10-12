@@ -15,6 +15,10 @@ import bcrypt from 'bcryptjs';
 import sharp from 'sharp';
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../../src/app';
+import type {
+  RefreshOutcome,
+  SalesRefresher,
+} from '../../src/modules/sales/application/SalesRefresher';
 
 // ── Public contract ───────────────────────────────────────────────────────────
 
@@ -155,6 +159,8 @@ export interface ContractApp {
   }>;
   /** Encoded 8x8 PNG, usable as an upload fixture. */
   png: () => Promise<Buffer>;
+  /** Runs one refresh of every sales source and stores the results, like the background refresher. */
+  refreshSales: () => Promise<RefreshOutcome[]>;
   close: () => Promise<void>;
 }
 
@@ -177,7 +183,18 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
   (await import('../../src/core/logging')).logger.silent = true;
   await dbModule.initDatabase();
 
-  const app = await buildApp(deps);
+  let refresher: SalesRefresher | null = null;
+  const app = await buildApp({
+    ...deps,
+    sales: {
+      ...deps.sales,
+      autoRefresh: deps.sales?.autoRefresh ?? false,
+      onRefresher: (built) => {
+        refresher = built;
+        deps.sales?.onRefresher?.(built);
+      },
+    },
+  });
   await app.ready();
   const db: ContractApp['db'] = {
     query: <T extends object>(sql: string, params: SqlParam[] = []) =>
@@ -230,6 +247,10 @@ export const createContractApp = async (deps: AppDeps = {}): Promise<ContractApp
       sharp({ create: { width: 8, height: 8, channels: 3, background: '#2a8a4a' } })
         .png()
         .toBuffer(),
+    refreshSales: () => {
+      if (!refresher) throw new Error('The sales module did not build a refresher');
+      return refresher.refreshAll();
+    },
     close: async () => {
       await app.close();
       await dbModule.closeDb();
