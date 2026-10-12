@@ -42,6 +42,7 @@ import { wateringRoutes } from './modules/watering/presentation/wateringRoutes';
 import { substrateRoutes } from './modules/substrate/presentation/substrateRoutes';
 import { componentRoutes } from './modules/components/presentation/componentRoutes';
 import { imageRoutes } from './modules/images/presentation/imageRoutes';
+import { startVariantBackfill } from './modules/images';
 import { createRecognition, recognitionRoutes } from './modules/recognition';
 import type { RecognitionDeps } from './modules/recognition';
 import { moreInfoRoutes } from './modules/moreInfo/presentation/moreInfoRoutes';
@@ -161,6 +162,8 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
   );
   await app.register(moreInfoRoutes(deps.moreInfo), { prefix: `${V}/more-info` });
   await app.register(recognitionRoutes(recognition), { prefix: `${V}/recognition` });
+
+  startVariantBackfill(app);
 
   app.get(`${V}/health`, async (_request, reply) => {
     try {
