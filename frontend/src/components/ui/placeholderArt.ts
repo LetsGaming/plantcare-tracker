@@ -85,6 +85,14 @@ export const placeholderSpec = (
   return { tint: (h % TINT_COUNT) + 1, variant: Math.floor(h / TINT_COUNT) % VARIANT_COUNT };
 };
 
+const encodeSvg = (svg: string): string =>
+  svg
+    .replace(/"/g, "'")
+    .replace(
+      /[%#<>\r\n]/g,
+      (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"),
+    );
+
 /** `url("data:image/svg+xml,...")` of one drawing, built once per kind, variant, tint and theme. */
 export const placeholderArt = (
   kind: PlaceholderKind,
@@ -101,7 +109,34 @@ export const placeholderArt = (
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">` +
     `<style>${styleSheet(palette, palette.tints[tint - 1] ?? palette.tints[0])}</style>${body}</svg>`;
-  const uri = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  const uri = `url("data:image/svg+xml,${encodeSvg(svg)}")`;
   cache.set(key, uri);
   return uri;
+};
+
+const injected = new Set<string>();
+let sheet: HTMLStyleElement | null = null;
+
+/**
+ * Class name of one drawing. Its rule (tint plus both theme URIs) is added once to a shared
+ * stylesheet, so elements carry only the class and the dark palette switches in CSS.
+ * At most kinds x variants x tints (60) rules ever exist.
+ */
+export const placeholderClass = (kind: PlaceholderKind, variant: number, tint: number): string => {
+  const name = `ph-${kind}-${variant}-${tint}`;
+  if (!injected.has(name)) {
+    injected.add(name);
+    if (!sheet) {
+      sheet = document.createElement("style");
+      sheet.setAttribute("data-placeholder-art", "");
+      document.head.appendChild(sheet);
+    }
+    sheet.appendChild(
+      document.createTextNode(
+        `.${name}{background-color:var(--tint-${tint});background-image:${placeholderArt(kind, variant, tint, "light")}}` +
+          `.ion-palette-dark .${name}{background-image:${placeholderArt(kind, variant, tint, "dark")}}`,
+      ),
+    );
+  }
+  return name;
 };

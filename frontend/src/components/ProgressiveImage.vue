@@ -5,7 +5,8 @@
       :kind="kind"
       :seed="seed || alt"
       :label="showImage ? '' : alt"
-      :color="image?.placeholder ?? ''"
+      :class="{ covered: loaded && showImage }"
+      :color="showImage ? (image?.placeholder ?? '') : ''"
     />
     <img
       v-if="showImage"
@@ -18,6 +19,7 @@
       :width="image?.width || undefined"
       :height="image?.height || undefined"
       :alt="alt"
+      :referrerpolicy="image ? undefined : 'no-referrer'"
       :loading="priority ? 'eager' : 'lazy'"
       :fetchpriority="priority ? 'high' : undefined"
       decoding="async"
@@ -122,6 +124,10 @@ export default defineComponent({
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.layer.covered {
+  visibility: hidden;
 }
 
 .photo {

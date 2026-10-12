@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 
 import ProgressiveImage from "@/components/ProgressiveImage.vue";
 import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
-import { placeholderArt, placeholderSpec } from "@/components/ui/placeholderArt";
+import { placeholderArt, placeholderClass, placeholderSpec } from "@/components/ui/placeholderArt";
 
 const image: ImageView = Object.freeze({
   id: 1,
@@ -121,16 +121,82 @@ describe("ProgressiveImage placeholder", () => {
     expect(placeholders[0].attributes("aria-hidden")).toBe("true");
   });
 
-  it("shows the dominant colour of the image behind it", () => {
+  it("shows the dominant colour of the image behind it as a flat background", () => {
     const wrapper = mountImage();
     expect(wrapper.findComponent(PlantPlaceholder).props("color")).toBe("#336699");
+    const el = wrapper.find(".placeholder").element as HTMLElement;
+    expect(el.style.backgroundColor).not.toBe("");
+    expect(el.style.backgroundImage).toBe("none");
   });
 
-  it("draws the baked art when there is no image colour", () => {
+  it("draws the baked art through a shared class, not inline URIs", () => {
     const wrapper = mountImage({ image: null, src: "", kind: "substrate", seed: "7" });
-    const style = wrapper.find(".placeholder").attributes("style") ?? "";
-    expect(style).toContain("--art-light");
-    expect(style).toContain("--art-dark");
+    const placeholder = wrapper.find(".placeholder");
+    const { tint, variant } = placeholderSpec("substrate", "7");
+    expect(placeholder.classes()).toContain(placeholderClass("substrate", variant, tint));
+    expect(placeholder.attributes("style") ?? "").not.toContain("data:image");
+    expect((placeholder.attributes("style") ?? "").length).toBeLessThan(100);
+    const css = document.head.querySelector("style[data-placeholder-art]")?.textContent ?? "";
+    expect(css).toContain(`.${placeholderClass("substrate", variant, tint)}{`);
+    expect(css).toContain(".ion-palette-dark .ph-substrate-");
+  });
+
+  it("injects each class rule once", () => {
+    const name = placeholderClass("component", 1, 2);
+    const count = () =>
+      (document.head.querySelector("style[data-placeholder-art]")?.textContent ?? "").split(
+        `.${name}{`,
+      ).length - 1;
+    expect(count()).toBe(1);
+    placeholderClass("component", 1, 2);
+    expect(count()).toBe(1);
+  });
+
+  it("hides the placeholder once the photo has loaded", async () => {
+    const wrapper = mountImage();
+    expect(wrapper.find(".placeholder").classes()).not.toContain("covered");
+    await wrapper.find("img").trigger("load");
+    expect(wrapper.find(".placeholder").classes()).toContain("covered");
+  });
+
+  it("shows the art instead of the flat colour after the image failed", async () => {
+    const wrapper = mountImage();
+    await wrapper.find("img").trigger("load");
+    await wrapper.find("img").trigger("error");
+    const placeholder = wrapper.find(".placeholder");
+    expect(wrapper.findComponent(PlantPlaceholder).props("color")).toBe("");
+    expect(placeholder.classes()).not.toContain("covered");
+    expect(placeholder.classes().some((name) => name.startsWith("ph-"))).toBe(true);
+    expect((placeholder.element as HTMLElement).style.backgroundImage).not.toBe("none");
+  });
+});
+
+describe("ProgressiveImage load state", () => {
+  it("is loaded at mount without a load event when the image is already cached", () => {
+    const complete = vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    const width = vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(1024);
+    const wrapper = mountImage();
+    expect(wrapper.find("img").classes()).toContain("is-loaded");
+    complete.mockRestore();
+    width.mockRestore();
+  });
+
+  it("is not loaded at mount for an incomplete image", () => {
+    expect(mountImage().find("img").classes()).not.toContain("is-loaded");
+  });
+
+  it("drops is-loaded when the url changes", async () => {
+    const wrapper = mountImage();
+    await wrapper.find("img").trigger("load");
+    expect(wrapper.find("img").classes()).toContain("is-loaded");
+    await wrapper.setProps({ image: { ...image, url: "/uploads/b.webp" } });
+    expect(wrapper.find("img").classes()).not.toContain("is-loaded");
+  });
+
+  it("sends no referrer for third-party src-only images but not for server images", () => {
+    expect(mountImage().find("img").attributes("referrerpolicy")).toBeUndefined();
+    const thirdParty = mountImage({ image: null, src: "https://shop.test/a.jpg" });
+    expect(thirdParty.find("img").attributes("referrerpolicy")).toBe("no-referrer");
   });
 });
 
