@@ -17,7 +17,7 @@ import ApiUtils from "@/utils/apiUtils";
 import MoreInfoMapper from "@/mapping/MoreInfoMapping";
 import localizationService from "@/services/general/LocalizationService";
 import { renderMarkdown } from "@/utils/markdown";
-import { coalesced, isStale } from "./resource";
+import { coalesced, epoch, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/more-info";
 const MAX_GUIDES = 30;
@@ -90,12 +90,13 @@ export const useMoreInfoStore = defineStore("moreInfo", {
         return Promise.resolve();
       }
 
-      return coalesced(this, key, async () => {
+      return coalesced(this, key, async (isCurrent) => {
         pendingKeys.add(key);
         stopRequested.delete(key);
         try {
           if (!force && Object.keys(this.byKey).length === 0) {
             await this.$hydrate();
+            if (!isCurrent()) return;
             if (this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null)) return;
           }
           if (stopRequested.has(key)) return;
@@ -105,6 +106,18 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           stopRequested.delete(key);
         }
       });
+    },
+
+    /**
+     * Loads stored guides when none are in memory and reports whether a fresh
+     * guide for this plant is available. Never opens a stream.
+     */
+    async loadCached(plantName: string): Promise<boolean> {
+      const key = moreInfoKey(plantName, localizationService.getLocale());
+      if (Object.keys(this.byKey).length === 0) await this.$hydrate();
+      const fresh = !!this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null);
+      if (fresh) this.usedAtByKey[key] = ++useClock;
+      return fresh;
     },
 
     /** Stops the running stream for this plant; every waiting caller resolves. */
@@ -146,9 +159,11 @@ export const useMoreInfoStore = defineStore("moreInfo", {
         const render = (): MoreInfo[] =>
           MoreInfoMapper.convertToMoreInfo({ ...raw, ai: renderMarkdown(raw.ai) });
 
+        let unsubscribe: (() => void) | null = null;
         const end = () => {
           ended = true;
           haltByKey.delete(key);
+          unsubscribe?.();
         };
         const finish = () => {
           this.streaming[key] = false;
@@ -170,13 +185,15 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           lang: localizationService.getLocale(),
         });
 
-        haltByKey.set(key, () => {
+        const halt = () => {
           if (ended) return;
           end();
           stop?.();
           this.streaming[key] = false;
           resolve();
-        });
+        };
+        haltByKey.set(key, halt);
+        unsubscribe = epoch.onAbortAll(halt);
 
         void ApiUtils.stream<{ type: string; value: string }>(
           `${BASE_ENDPOINT}?${params.toString()}`,
