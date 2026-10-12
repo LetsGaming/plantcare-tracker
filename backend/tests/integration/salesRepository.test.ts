@@ -109,7 +109,7 @@ describe('applySourceSnapshot', () => {
     expect(await repo.findById(first.sale_id)).toEqual({
       sale_id: first.sale_id,
       source_key: 'alpha',
-      seller: 'Alpha',
+      seller: 'alpha',
       name: 'Renamed',
       link: link('alpha', 1),
       image_url: 'https://img/1.jpg',
@@ -180,6 +180,42 @@ describe('applySourceSnapshot', () => {
 
     expect(result).toEqual({ upserted: 0, pricePointsAdded: 0, deactivated: 0 });
     expect(activeIds('alpha')).toHaveLength(2);
+  });
+
+  it("stores each sale's own seller and ignores the seller argument", async () => {
+    const item = sale('alpha', 1);
+    await repo.applySourceSnapshot('alpha', 'Other Name', [item], 1_000);
+    expect((await repo.findById(item.sale_id))!.seller).toBe('alpha');
+  });
+
+  it('keeps the first of duplicate sale ids and counts unique items', async () => {
+    const first = sale('alpha', 1, { price: 10 });
+    const duplicate = sale('alpha', 1, { price: 3 });
+    const other = sale('alpha', 2);
+    const result = await repo.applySourceSnapshot(
+      'alpha',
+      'alpha',
+      [first, duplicate, other],
+      1_000,
+    );
+
+    expect(result).toEqual({ upserted: 2, pricePointsAdded: 2, deactivated: 0 });
+    expect((await repo.findById(first.sale_id))!.new_price).toBe(10);
+    expect(pointsOf(first.sale_id)).toEqual([{ observed_at: 1_000, price: 10 }]);
+  });
+
+  it('ignores a price change at an already used runAt (callers guarantee a monotonic runAt)', async () => {
+    const id = idOf('alpha', 1);
+    await snapshot('alpha', [1], 1_000, 10);
+    await snapshot('alpha', [1], 2_000, 7);
+
+    const result = await snapshot('alpha', [1], 2_000, 5);
+
+    expect(result.pricePointsAdded).toBe(0);
+    expect(pointsOf(id)).toEqual([
+      { observed_at: 1_000, price: 10 },
+      { observed_at: 2_000, price: 7 },
+    ]);
   });
 
   it("never touches another source's items", async () => {
@@ -307,6 +343,14 @@ describe('summary', () => {
     await repo.setSourceState('alpha', { last_success_at: 2_500 });
     expect((await repo.summary(0)).refreshed_at).toBe(2_500);
   });
+
+  it('falls back to the latest last_seen_at when state rows have no last_success_at', async () => {
+    await snapshot('alpha', [1], 1_000);
+    await snapshot('beta', [1], 3_000);
+    await repo.setSourceState('alpha', { last_attempt_at: 9_000 });
+
+    expect((await repo.summary(0)).refreshed_at).toBe(3_000);
+  });
 });
 
 describe('pruneRetention', () => {
@@ -329,6 +373,35 @@ describe('pruneRetention', () => {
     expect((await repo.findById(idOf('alpha', 1)))!.active).toBe(1);
     expect(pointsOf(idOf('alpha', 1))).toEqual([{ observed_at: old, price: 10 }]);
     expect((await repo.findById(idOf('beta', 2)))!.active).toBe(0);
+  });
+
+  it("keeps each item's newest price point however old, and prunes only older ones", async () => {
+    const now = 1_000 * DAY;
+    const ancient = now - (PRICE_POINT_RETENTION_DAYS + 20) * DAY;
+
+    await snapshot('alpha', [1, 2], ancient, 5);
+    await snapshot('alpha', [1, 2], now - 10 * DAY, 5);
+    await snapshot('alpha', [2], now - 5 * DAY, 6);
+
+    const result = await repo.pruneRetention(now);
+
+    expect(result).toEqual({ items: 0, pricePoints: 1 });
+    expect(pointsOf(idOf('alpha', 1))).toEqual([{ observed_at: ancient, price: 5 }]);
+    expect(pointsOf(idOf('alpha', 2))).toEqual([{ observed_at: now - 5 * DAY, price: 6 }]);
+  });
+});
+
+describe('deactivateSource', () => {
+  it('deactivates only the active items of that source and returns the count', async () => {
+    await snapshot('alpha', [1, 2, 3], 1_000);
+    await snapshot('alpha', [1, 2], 2_000);
+    await snapshot('beta', [1, 2], 1_000);
+
+    expect(await repo.deactivateSource('alpha')).toBe(2);
+    expect(activeIds('alpha')).toEqual([]);
+    expect(activeIds('beta')).toHaveLength(2);
+    expect(await repo.deactivateSource('alpha')).toBe(0);
+    expect(await repo.deactivateSource('unknown')).toBe(0);
   });
 });
 

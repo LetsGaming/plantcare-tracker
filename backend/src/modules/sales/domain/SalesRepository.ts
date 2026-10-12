@@ -60,7 +60,10 @@ export interface SalesRepository {
    * Writes one scrape of a source in a single transaction: upserts every
    * sale (keeping `first_seen_at`), records a price point when the price
    * changed, and deactivates this source's items missing from `sales`. An
-   * empty snapshot deactivates nothing.
+   * empty snapshot deactivates nothing. Duplicate `sale_id`s: the first wins.
+   * The stored seller is each sale's own `sale_seller`; the `seller` argument
+   * is not used. A price point at an existing `(sale_id, runAt)` is ignored, so
+   * callers must pass a strictly increasing `runAt` per source.
    */
   applySourceSnapshot(
     sourceKey: string,
@@ -79,8 +82,11 @@ export interface SalesRepository {
 
   summary(since: number): Promise<SalesSummary>;
 
-  /** Deletes long inactive items (with their points) and old price points. */
+  /** Deletes long inactive items (with their points) and old price points, always keeping each item's newest point. */
   pruneRetention(now: number): Promise<RetentionResult>;
+
+  /** Deactivates all active items of a source; returns how many. */
+  deactivateSource(sourceKey: string): Promise<number>;
 
   getSourceState(sourceKey: string): Promise<SalesSourceState | null>;
 

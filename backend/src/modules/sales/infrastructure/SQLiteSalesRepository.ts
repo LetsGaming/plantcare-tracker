@@ -56,7 +56,7 @@ const uniqueById = (sales: readonly Sale[]): Sale[] => {
 export class SQLiteSalesRepository implements SalesRepository {
   async applySourceSnapshot(
     sourceKey: string,
-    seller: string,
+    _seller: string,
     sales: readonly Sale[],
     runAt: number,
   ): Promise<SnapshotResult> {
@@ -69,7 +69,7 @@ export class SQLiteSalesRepository implements SalesRepository {
       .execute(async (trx) => {
         let pricePointsAdded = 0;
         for (const sale of items) {
-          await this.upsertItem(trx, sourceKey, seller, sale, runAt);
+          await this.upsertItem(trx, sourceKey, sale, runAt);
           if (await this.recordPrice(trx, sale.sale_id, sale.sale_new_price, runAt, maxPoints)) {
             pricePointsAdded++;
           }
@@ -164,12 +164,25 @@ export class SQLiteSalesRepository implements SalesRepository {
         const points = await trx
           .deleteFrom('sales_price_points')
           .where('observed_at', '<', pointCutoff)
+          .where(
+            sql<SqlBool>`observed_at < (SELECT MAX(p2.observed_at) FROM sales_price_points p2 WHERE p2.sale_id = sales_price_points.sale_id)`,
+          )
           .executeTakeFirst();
         return {
           items: Number(items.numDeletedRows),
           pricePoints: Number(points.numDeletedRows),
         };
       });
+  }
+
+  async deactivateSource(sourceKey: string): Promise<number> {
+    const result = await getKysely()
+      .updateTable('sales_items')
+      .set({ active: 0 })
+      .where('source_key', '=', sourceKey)
+      .where(isActive)
+      .executeTakeFirst();
+    return Number(result.numUpdatedRows);
   }
 
   async getSourceState(sourceKey: string): Promise<SalesSourceState | null> {
@@ -204,7 +217,6 @@ export class SQLiteSalesRepository implements SalesRepository {
   private async upsertItem(
     trx: Transaction<Database>,
     sourceKey: string,
-    seller: string,
     sale: Sale,
     runAt: number,
   ): Promise<void> {
@@ -213,7 +225,7 @@ export class SQLiteSalesRepository implements SalesRepository {
       .values({
         sale_id: sale.sale_id,
         source_key: sourceKey,
-        seller,
+        seller: sale.sale_seller,
         name: sale.sale_name,
         link: sale.sale_link,
         image_url: sale.sale_image_url,
