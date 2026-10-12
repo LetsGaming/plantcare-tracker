@@ -130,7 +130,7 @@ const main = async () => {
         token: ctx.token("admin"),
         json: { name: `${PREFIX}component-${i + 1}`, fineness: (i % FINENESS_LEVELS) + 1 },
       });
-      componentIds.push(created.component_id);
+      componentIds.push(created.id);
     }
 
     log(`creating ${substrateCount} substrates`);
