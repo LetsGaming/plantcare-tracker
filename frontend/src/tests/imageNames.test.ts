@@ -18,7 +18,7 @@ describe("image accessible names", () => {
   });
 
   it("hides the gallery date caption because the image alt already carries it", () => {
-    expect(source("HorizontalGallery.vue")).toMatch(
+    expect(source("GalleryTile.vue")).toMatch(
       /<span[^>]*class="image-date"[^>]*aria-hidden="true"/,
     );
   });

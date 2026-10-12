@@ -14,18 +14,13 @@
 
     <ul v-else class="gallery">
       <li v-for="image in sortedImages" :key="image.id" class="gallery-item">
-        <button type="button" class="gallery-open" @click="enlargeImage(image)">
-          <span class="gallery-image">
-            <progressive-image
-              :src="image.url"
-              :alt="altFor(image)"
-              :seed="`${plantName}:${image.id}`"
-            />
-          </span>
-          <span v-if="image.date" class="image-date" aria-hidden="true">{{
-            captionFor(image)
-          }}</span>
-        </button>
+        <gallery-tile
+          :image="image"
+          :alt="altFor(image)"
+          :caption="image.dateMs ? captionFor(image) : ''"
+          :seed="`${plantName}:${image.id}`"
+          @open="enlargeImage(image)"
+        />
       </li>
     </ul>
 
@@ -46,7 +41,7 @@
 import { defineComponent } from "vue";
 import { mapState } from "pinia";
 import ImageModal from "../images/ImageModal.vue";
-import ProgressiveImage from "@/components/ProgressiveImage.vue";
+import GalleryTile from "./GalleryTile.vue";
 import StateBlock from "@/components/ui/StateBlock.vue";
 import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
@@ -59,12 +54,12 @@ export default defineComponent({
   emits: ["edit-click", "upload-click"],
   components: {
     ImageModal,
-    ProgressiveImage,
+    GalleryTile,
     StateBlock,
   },
   props: {
     images: {
-      type: Array as () => Image[],
+      type: Array as () => readonly ImageView[],
       required: true,
     },
     isPublic: {
@@ -79,7 +74,7 @@ export default defineComponent({
   },
   data() {
     return {
-      enlargedImage: null as Image | null,
+      enlargedImage: null as ImageView | null,
       isModalVisible: false,
       headingId: `gallery-heading-${++galleryCount}`,
     };
@@ -90,25 +85,24 @@ export default defineComponent({
       return !this.isPublic && !this.isGuest;
     },
     /** Newest photo first. */
-    sortedImages(): Image[] {
-      return [...this.images].sort((a, b) => b.date_millis - a.date_millis || b.id - a.id);
+    sortedImages(): ImageView[] {
+      return [...this.images].sort((a, b) => b.dateMs - a.dateMs || b.id - a.id);
     },
   },
   methods: {
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
-    captionFor(image: Image): string {
-      if (!image.date_millis) return image.date;
-      return formatDisplayDate(image.date_millis, localizationService.getLocale());
+    captionFor(image: ImageView): string {
+      return formatDisplayDate(image.dateMs, localizationService.getLocale());
     },
-    altFor(image: Image): string {
+    altFor(image: ImageView): string {
       return this.t("plantdetail.gallery_alt", {
         name: this.plantName,
         date: this.captionFor(image),
       });
     },
-    enlargeImage(image: Image) {
+    enlargeImage(image: ImageView) {
       this.enlargedImage = image;
       this.$nextTick(() => {
         this.isModalVisible = true;
@@ -153,45 +147,11 @@ export default defineComponent({
   scroll-snap-align: start;
 }
 
-.gallery-open {
-  display: grid;
-  gap: var(--space-1);
-  padding: 0;
-  margin: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.gallery-image {
-  display: block;
-  width: 168px;
-  height: 168px;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-}
-
-.image-date {
-  font-size: var(--text-xs);
-  color: var(--ink-soft);
-}
-
 .gallery-empty {
   margin: 0;
   max-width: none;
   padding: var(--space-4);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
-}
-
-@media (min-width: 900px) {
-  .gallery-image {
-    width: 148px;
-    height: 148px;
-  }
 }
 </style>

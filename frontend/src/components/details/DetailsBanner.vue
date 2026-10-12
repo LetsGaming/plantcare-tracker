@@ -2,7 +2,10 @@
   <section class="details-banner">
     <div class="details-banner__media">
       <progressive-image
+        :image="image"
         :src="imageUrl ?? ''"
+        sizes="100vw"
+        priority
         :alt="altText"
         :kind="placeholderKind"
         :seed="seed || bannerTitle"
@@ -36,6 +39,11 @@ export default defineComponent({
     bannerSubtitle: {
       type: String,
       required: false,
+    },
+    /** Server image with its variants; takes precedence over `imageUrl`. */
+    image: {
+      type: Object as PropType<ImageView | null>,
+      default: null,
     },
     imageUrl: {
       type: String,

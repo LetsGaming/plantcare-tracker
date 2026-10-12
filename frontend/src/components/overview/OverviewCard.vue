@@ -97,12 +97,12 @@ export default defineComponent({
       type: String as PropType<PlaceholderKind>,
       default: "plant",
     },
-    /** `sizes` of the card image; only handed on together with an `image` object. */
+    /** `sizes` of the card image. */
     sizes: {
       type: String,
       default: "",
     },
-    /** Above-the-fold card: load its image eagerly. Only handed on with an `image` object. */
+    /** Above-the-fold card: load its image eagerly. */
     priority: {
       type: Boolean,
       default: false,
@@ -115,12 +115,11 @@ export default defineComponent({
   computed: {
     imageProps(): Record<string, unknown> {
       const image = this.item.image;
-      if (!image) return { src: this.item.imageUrl };
       return {
-        src: image.url,
-        image,
-        ...(this.sizes ? { sizes: this.sizes } : {}),
-        ...(this.priority ? { priority: true } : {}),
+        src: image?.url ?? this.item.imageUrl,
+        image: image ?? null,
+        sizes: this.sizes,
+        priority: this.priority,
       };
     },
   },

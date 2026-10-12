@@ -48,11 +48,13 @@
           @touchend="onTouchEnd"
           @touchcancel="onTouchEnd"
         >
-          <ion-img
+          <img
             :src="imageUrl"
             :alt="alt || label"
             class="enlarged-image"
             ref="zoomableImage"
+            decoding="async"
+            draggable="false"
             :style="{
               transform: `translate(${offsetX}px, ${offsetY}px) scale(${zoomScale})`,
             }"
@@ -64,7 +66,7 @@
 </template>
 
 <script lang="ts">
-import { IonModal, IonContent, IonImg } from "@ionic/vue";
+import { IonModal, IonContent } from "@ionic/vue";
 import { defineComponent, PropType, ref, watch } from "vue";
 import EditingHeader from "../modal/EditingHeader.vue";
 import IconButton from "@/components/ui/IconButton.vue";
@@ -86,7 +88,6 @@ export default defineComponent({
   components: {
     IonModal,
     IonContent,
-    IonImg,
     EditingHeader,
     IconButton,
   },
@@ -371,7 +372,9 @@ export default defineComponent({
 }
 
 .enlarged-image {
+  display: block;
   width: 90%;
+  height: auto;
   transition: transform 0.2s ease-in-out;
 }
 </style>
