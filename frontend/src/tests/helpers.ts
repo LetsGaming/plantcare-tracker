@@ -7,8 +7,9 @@ export const memoryStore = new Map<string, unknown>();
 export const storageModule = () => ({
   default: {
     get: vi.fn(async (key: string) => memoryStore.get(key) ?? null),
+    // Cloned like IndexedDB does, so a reactive proxy left in a value fails here too.
     set: vi.fn(async (key: string, value: unknown) => {
-      memoryStore.set(key, value);
+      memoryStore.set(key, structuredClone(value));
     }),
     remove: vi.fn(async (key: string) => {
       memoryStore.delete(key);
@@ -82,9 +83,10 @@ export const createInstalledPinia = async () => {
 };
 
 /**
- * Drops the debounced storage writes still pending on stores from
- * `createInstalledPinia`. A test that ran on real timers would otherwise
- * write into `memoryStore` up to 250 ms later, in the middle of a later test.
+ * Drops the debounced storage writes (and the changes marked for them) still
+ * pending on stores from `createInstalledPinia`. A test that ran on real
+ * timers would otherwise write into `memoryStore` up to 250 ms later, in the
+ * middle of a later test.
  */
 export const cancelPendingPersistence = () => {
   for (const store of installedStores) store.$cancelPersist();
