@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -177,5 +177,40 @@ describe('trusted proxy hops', () => {
     expect((await limited('203.0.113.1')).statusCode).toBe(200);
     expect((await limited('203.0.113.2')).statusCode).toBe(200);
     expect((await limited('203.0.113.1')).statusCode).toBe(429);
+  });
+});
+
+describe('zero trusted proxy hops', () => {
+  it('ignores X-Forwarded-For and reports the socket address', async () => {
+    const zeroDir = fs.mkdtempSync(path.join(os.tmpdir(), 'plantcare-http-zero-'));
+    process.env.DB_PATH = path.join(zeroDir, 'zero.db');
+    process.env.NAS_PATH = path.join(zeroDir, 'uploads');
+    process.env.TRUST_PROXY_HOPS = '0';
+    vi.resetModules();
+    const { buildApp } = await import('../../src/app');
+    const dbModule = await import('../../src/core/database/db');
+    (await import('../../src/core/logging')).logger.silent = true;
+    await dbModule.initDatabase();
+    const zero = await buildApp();
+    try {
+      zero.get('/test/ip', async (request) => ({ ip: request.ip }));
+      await zero.ready();
+      const res = await zero.inject({
+        method: 'GET',
+        url: '/test/ip',
+        remoteAddress: '198.51.100.9',
+        headers: { 'x-forwarded-for': '203.0.113.7' },
+      });
+      expect(res.json()).toEqual({ ip: '198.51.100.9' });
+    } finally {
+      await zero.close();
+      await dbModule.closeDb();
+      process.env.TRUST_PROXY_HOPS = '2';
+      try {
+        fs.rmSync(zeroDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
   });
 });

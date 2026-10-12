@@ -70,6 +70,19 @@ describe('cursor', () => {
   it('rejects a cursor issued for another sort', () => {
     expect400(() => decodeCursor(encodeCursor({ s: 'name', v: 'a', id: 1 }), 'created'));
   });
+
+  it('rejects a cursor whose value or id type differs from the declared types', () => {
+    const stringValue = encodeCursor({ s: 'created', v: '5', id: 1 });
+    const stringId = encodeCursor({ s: 'created', v: 5, id: '1' });
+    expect400(() => decodeCursor(stringValue, 'created', { valueType: 'number' }));
+    expect400(() => decodeCursor(stringId, 'created', { idType: 'number' }));
+    expect400(() =>
+      decodeCursor(encodeCursor({ s: 'name', v: 5, id: 1 }), 'name', { valueType: 'string' }),
+    );
+    expect(decodeCursor(stringValue, 'created', { valueType: 'string', idType: 'number' })).toEqual(
+      { s: 'created', v: '5', id: 1 },
+    );
+  });
 });
 
 describe('parseListQuery', () => {
@@ -123,6 +136,56 @@ describe('parseListQuery', () => {
     });
     expect400(() => parseListQuery({ cursor }, options));
     expect400(() => parseListQuery({ cursor: 'garbage!' }, options));
+  });
+});
+
+describe('parseListQuery options', () => {
+  const typed = {
+    sorts: {
+      created: { direction: 'desc', valueType: 'number', idType: 'number' },
+      name: { direction: 'asc', valueType: 'string', idType: 'number' },
+    },
+    defaultSort: 'created',
+  } as const;
+
+  it('reads the cursor from cursorParam and ignores the default name', () => {
+    const cursor = encodeCursor({ s: 'created', v: 5, id: 1 });
+    const config = { ...typed, cursorParam: 'before' };
+    expect(parseListQuery({ before: cursor }, config).cursor).toEqual({
+      s: 'created',
+      v: 5,
+      id: 1,
+    });
+    expect(parseListQuery({ cursor }, config).cursor).toBeNull();
+    expect400(() => parseListQuery({ before: 'garbage!' }, config));
+  });
+
+  it('applies defaultLimit, clamped to the maximum, unless the request gives a limit', () => {
+    expect(parseListQuery({}, { ...typed, defaultLimit: 50 }).limit).toBe(50);
+    expect(parseListQuery({}, { ...typed, defaultLimit: 5000 }).limit).toBe(LIST.MAX_LIMIT);
+    expect(parseListQuery({ limit: '10' }, { ...typed, defaultLimit: 50 }).limit).toBe(10);
+  });
+
+  it('rejects cursors whose types contradict the sort declaration', () => {
+    const wrongValue = encodeCursor({ s: 'name', v: 5, id: 1 });
+    const wrongId = encodeCursor({ s: 'created', v: 5, id: 'x' });
+    expect400(() => parseListQuery({ sort: 'name', cursor: wrongValue }, typed));
+    expect400(() => parseListQuery({ cursor: wrongId }, typed));
+    expect(
+      parseListQuery({ cursor: encodeCursor({ s: 'created', v: 5, id: 1 }) }, typed).cursor,
+    ).toEqual({ s: 'created', v: 5, id: 1 });
+  });
+
+  it('validates sort keys from the record form', () => {
+    expect(parseListQuery({ sort: 'name' }, typed).sort).toBe('name');
+    expect400(() => parseListQuery({ sort: 'price' }, typed));
+  });
+
+  it('accepts numeric query values as a coerced querystring would deliver them', () => {
+    expect(parseListQuery({ limit: 7 }, options).limit).toBe(7);
+    expect(parseListQuery({ q: 12 }, options).q).toBe('12');
+    expect400(() => parseListQuery({ limit: Number.NaN }, options));
+    expect400(() => parseListQuery({ limit: true }, options));
   });
 });
 
@@ -280,6 +343,22 @@ describe('keyset walk', () => {
       ).name.toLowerCase(),
     );
     expect(ordered).toEqual([...ordered].sort());
+  });
+
+  it('ends with a null cursor and no empty trailing page on an exact multiple', async () => {
+    sqlite.exec('DELETE FROM items');
+    for (let i = 0; i < 49; i++) insert(`Plant ${i}`, 1_000 + (i % 5));
+    const pages: number[] = [];
+    let cursor: Cursor | null = null;
+    let next: string | null = 'start';
+    for (let page = 0; page < 20 && next; page++) {
+      const result = await fetchPage(BY_CREATED, 7, cursor);
+      pages.push(result.items.length);
+      next = result.nextCursor;
+      cursor = next ? decodeCursor(next, BY_CREATED.key) : null;
+    }
+    expect(pages).toEqual([7, 7, 7, 7, 7, 7, 7]);
+    expect(next).toBeNull();
   });
 
   it('asks for exactly limit + 1 rows and reports the last page without a cursor', async () => {
