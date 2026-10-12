@@ -1,84 +1,263 @@
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type SqlBool } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import type { Database } from '../../../core/database/schema';
 import { toPublicImageUrl } from '../../../core/config';
+import { applyKeyset, containsLike, toPage, type KeysetOptions } from '../../../core/pagination';
+import { toImageDto, type ImageDTO } from '../../images/presentation/imageDto';
+import {
+  summaryColumns,
+  summaryFromRow,
+  type SummaryRow,
+} from '../../watering/infrastructure/wateringSummary';
 import type { SpeciesResolver } from '../domain/SpeciesResolver';
-import type { PlantRepository, CreatePlantDTO, UpdatePlantDTO } from '../domain/Plant';
+import type {
+  PlantRepository,
+  CreatePlantDTO,
+  UpdatePlantDTO,
+  PlantListItem,
+  PlantListPage,
+  PlantListQuery,
+  PlantSort,
+  SubstrateRef,
+} from '../domain/Plant';
 import { Plant } from '../domain/Plant';
-import type { SubstrateRef, ImageRef } from '../domain/Plant';
 
-// ── Raw DB row ────────────────────────────────────────────────────────────────
-interface PlantRow {
-  plant_id: number;
-  plant_user_id: number;
-  plant_name: string;
-  plant_species_id: number | null;
-  plant_species_name: string | null;
-  is_public: number;
-  plant_created_at: number;
-  substrate_id: number | null;
-  substrate_name: string | null;
-  image_id: number | null;
-  image_url: string | null;
-  upload_date: number | null;
+const MS_PER_SECOND = 1000;
+
+interface ImageRow {
+  id: number;
+  image_url: string;
+  upload_date: number;
+  variants: number;
+  width: number | null;
+  height: number | null;
+  placeholder: string | null;
 }
 
-/** Plants joined with species, substrate and images, images oldest first. */
-const plantRows = () =>
-  getKysely()
-    .selectFrom('plants as p')
-    .leftJoin('species', 'p.species_id', 'species.id')
-    .leftJoin('substrates as s', 'p.substrate_id', 's.id')
-    .leftJoin('images as img', (join) =>
-      join.onRef('img.entity_id', '=', 'p.id').on('img.entity_type', '=', 'plant'),
-    )
-    .select([
-      'p.id as plant_id',
-      'p.user_id as plant_user_id',
-      'p.name as plant_name',
-      'p.species_id as plant_species_id',
-      'p.created_at as plant_created_at',
-      'p.is_public as is_public',
-      'species.name as plant_species_name',
-      's.id as substrate_id',
-      's.name as substrate_name',
-      'img.id as image_id',
-      'img.image_url',
-      'img.upload_date',
-    ]);
+interface PlantBaseRow {
+  plant_id: number;
+  plant_name: string;
+  user_id: number;
+  is_public: number;
+  created_at: number;
+  species_name: string | null;
+  substrate_id: number | null;
+  substrate_name: string | null;
+}
+
+interface ListRow extends PlantBaseRow, Partial<SummaryRow> {
+  cover_id: number | null;
+  image_count: number;
+}
+
+type ListScope = { kind: 'mine'; userId: number } | { kind: 'public' };
+
+const SORT_KEYSET: Record<
+  PlantSort,
+  Pick<KeysetOptions, 'column' | 'direction' | 'collateNoCase'>
+> = {
+  created: { column: 'p.created_at', direction: 'desc' },
+  name: { column: 'p.name', direction: 'asc', collateNoCase: true },
+};
+
+const IMAGE_COLUMNS = [
+  'id',
+  'image_url',
+  'upload_date',
+  'variants',
+  'width',
+  'height',
+  'placeholder',
+] as const;
+
+const toImage = (row: ImageRow): ImageDTO =>
+  toImageDto({
+    id: row.id,
+    url: toPublicImageUrl(row.image_url),
+    date: row.upload_date,
+    variants: row.variants,
+    width: row.width,
+    height: row.height,
+    placeholder: row.placeholder,
+  });
+
+const toSubstrate = (row: PlantBaseRow): SubstrateRef | null =>
+  row.substrate_id
+    ? { substrate_id: row.substrate_id, substrate_name: row.substrate_name ?? '' }
+    : null;
+
+const newestImageId = sql<
+  number | null
+>`(SELECT i.id FROM images i WHERE i.entity_type = 'plant' AND i.entity_id = p.id ORDER BY i.upload_date DESC, i.id DESC LIMIT 1)`;
+const imageCount = sql<number>`(SELECT COUNT(*) FROM images i WHERE i.entity_type = 'plant' AND i.entity_id = p.id)`;
+
+/** Plants with their species, filtered by scope and search. The public predicate is a literal so the partial indexes apply. */
+const filteredPlants = (scope: ListScope, q: string | null) => {
+  let qb = getKysely().selectFrom('plants as p').leftJoin('species', 'p.species_id', 'species.id');
+  qb =
+    scope.kind === 'mine'
+      ? qb.where('p.user_id', '=', scope.userId)
+      : qb.where(sql<SqlBool>`p.is_public = 1`);
+  if (q) {
+    qb = qb.where((eb) =>
+      scope.kind === 'mine'
+        ? eb.or([containsLike('p.name', q), containsLike('species.name', q)])
+        : containsLike('p.name', q),
+    );
+  }
+  return qb;
+};
 
 // ── Repository ───────────────────────────────────────────────────────────────
 export class SQLitePlantRepository implements PlantRepository {
   /** Builds a resolver on the given executor so a species insert and the plant write share a transaction. */
   constructor(private readonly speciesFor: (db: Kysely<Database>) => SpeciesResolver) {}
 
-  async findAllPublic(): Promise<Plant[]> {
-    const rows = await plantRows()
-      .where('p.is_public', '=', 1)
-      .orderBy('p.created_at', 'desc')
-      .orderBy('img.upload_date')
-      .orderBy('img.id')
-      .execute();
-    return this.groupRows(rows);
+  listMine(userId: number, query: PlantListQuery, tz: number): Promise<PlantListPage> {
+    return this.list({ kind: 'mine', userId }, query, tz);
   }
 
-  async findAllByUser(userId: number): Promise<Plant[]> {
-    const rows = await plantRows()
-      .where('p.user_id', '=', userId)
-      .orderBy('p.created_at', 'desc')
-      .orderBy('img.upload_date')
-      .orderBy('img.id')
-      .execute();
-    return this.groupRows(rows);
+  listPublic(query: PlantListQuery): Promise<PlantListPage> {
+    return this.list({ kind: 'public' }, query, null);
   }
 
-  async findById(id: number): Promise<Plant | null> {
-    const rows = await plantRows()
+  /** `tz` is null for scopes without watering summaries. */
+  private async list(
+    scope: ListScope,
+    query: PlantListQuery,
+    tz: number | null,
+  ): Promise<PlantListPage> {
+    const summary = summaryColumns('p.id', tz ?? 0);
+    const cursor = query.cursor;
+    // The row-value seek alone does not bound the name index range; this redundant lower bound does.
+    const base = filteredPlants(scope, query.q)
+      .$if(query.sort === 'name' && cursor !== null, (qb) =>
+        qb.where(sql<SqlBool>`p.name COLLATE NOCASE >= ${cursor!.v}`),
+      )
+      .leftJoin('substrates as s', 'p.substrate_id', 's.id')
+      .select([
+        'p.id as plant_id',
+        'p.name as plant_name',
+        'p.user_id as user_id',
+        'p.is_public as is_public',
+        'p.created_at as created_at',
+        'species.name as species_name',
+        's.id as substrate_id',
+        's.name as substrate_name',
+        newestImageId.as('cover_id'),
+        imageCount.as('image_count'),
+      ]);
+    // The summary columns exist only on the mine query; ListRow marks them optional.
+    const selected = (tz === null
+      ? base
+      : base.select([
+          summary.last_watered_sec.as('last_watered_sec'),
+          summary.last_fertilized_sec.as('last_fertilized_sec'),
+          summary.first_watered_sec.as('first_watered_sec'),
+          summary.distinct_local_days.as('distinct_local_days'),
+        ])) as unknown as typeof base;
+
+    const rows: ListRow[] = await applyKeyset(selected, {
+      ...SORT_KEYSET[query.sort],
+      idColumn: 'p.id',
+      cursor,
+      limit: query.limit,
+    }).execute();
+
+    // The cursor carries the stored seconds and name, not the DTO values.
+    const page = toPage(rows, {
+      limit: query.limit,
+      sort: query.sort,
+      key: (row) => ({
+        v: query.sort === 'name' ? row.plant_name : row.created_at,
+        id: row.plant_id,
+      }),
+    });
+
+    const covers = await this.loadCovers(page.items.map((row) => row.cover_id));
+    const items = page.items.map((row): PlantListItem => ({
+      plant_id: row.plant_id,
+      plant_name: row.plant_name,
+      user_id: row.user_id,
+      is_public: Boolean(row.is_public),
+      created_at: row.created_at * MS_PER_SECOND,
+      species_name: row.species_name,
+      substrate: toSubstrate(row),
+      cover: row.cover_id === null ? null : (covers.get(row.cover_id) ?? null),
+      image_count: row.image_count,
+      watering: tz === null ? null : summaryFromRow(row as SummaryRow, tz),
+    }));
+
+    const result: PlantListPage = { items, nextCursor: page.nextCursor };
+    if (query.cursor === null) {
+      const counted = await filteredPlants(scope, query.q)
+        .select(sql<number>`COUNT(*)`.as('n'))
+        .executeTakeFirstOrThrow();
+      result.total = counted.n;
+    }
+    return result;
+  }
+
+  private async loadCovers(coverIds: (number | null)[]): Promise<Map<number, ImageDTO>> {
+    const ids = coverIds.filter((id): id is number => id !== null);
+    const covers = new Map<number, ImageDTO>();
+    if (ids.length === 0) return covers;
+    const rows = await getKysely()
+      .selectFrom('images')
+      .select([...IMAGE_COLUMNS])
+      .where('id', 'in', ids)
+      .execute();
+    for (const row of rows) covers.set(row.id, toImage(row));
+    return covers;
+  }
+
+  async findById(id: number, viewerId: number | null, tz: number): Promise<Plant | null> {
+    const summary = summaryColumns('p.id', tz);
+    const row = await getKysely()
+      .selectFrom('plants as p')
+      .leftJoin('species', 'p.species_id', 'species.id')
+      .leftJoin('substrates as s', 'p.substrate_id', 's.id')
+      .select([
+        'p.id as plant_id',
+        'p.name as plant_name',
+        'p.user_id as user_id',
+        'p.is_public as is_public',
+        'p.created_at as created_at',
+        'species.name as species_name',
+        's.id as substrate_id',
+        's.name as substrate_name',
+        summary.last_watered_sec.as('last_watered_sec'),
+        summary.last_fertilized_sec.as('last_fertilized_sec'),
+        summary.first_watered_sec.as('first_watered_sec'),
+        summary.distinct_local_days.as('distinct_local_days'),
+      ])
       .where('p.id', '=', id)
-      .orderBy('img.upload_date')
-      .orderBy('img.id')
+      .executeTakeFirst();
+    if (!row) return null;
+
+    const imageRows = await getKysely()
+      .selectFrom('images')
+      .select([...IMAGE_COLUMNS])
+      .where('entity_type', '=', 'plant')
+      .where('entity_id', '=', id)
+      .orderBy('upload_date')
+      .orderBy('id')
       .execute();
-    return this.groupRows(rows)[0] ?? null;
+    const images = imageRows.map(toImage);
+
+    return new Plant({
+      plant_id: row.plant_id,
+      plant_name: row.plant_name,
+      user_id: row.user_id,
+      is_public: Boolean(row.is_public),
+      created_at: row.created_at * MS_PER_SECOND,
+      species_name: row.species_name,
+      substrate: toSubstrate(row),
+      cover: images.length > 0 ? images[images.length - 1] : null,
+      image_count: images.length,
+      watering: viewerId !== null && viewerId === row.user_id ? summaryFromRow(row, tz) : null,
+      images,
+    });
   }
 
   async create(dto: CreatePlantDTO): Promise<number> {
@@ -146,46 +325,5 @@ export class SQLitePlantRepository implements PlantRepository {
       .where((eb) => eb.or([eb('is_public', '=', 1), eb('user_id', '=', userId)]))
       .executeTakeFirst();
     return row !== undefined;
-  }
-
-  // ── Collapse JOIN rows into Plant entities ────────────────────────────────
-  private groupRows(rows: PlantRow[]): Plant[] {
-    const map = new Map<number, { data: PlantRow; images: ImageRef[] }>();
-
-    for (const row of rows) {
-      if (!map.has(row.plant_id)) {
-        map.set(row.plant_id, { data: row, images: [] });
-      }
-      if (row.image_id && row.image_url) {
-        map.get(row.plant_id)!.images.push({
-          id: row.image_id,
-          url: toPublicImageUrl(row.image_url),
-          date: row.upload_date ?? 0,
-        });
-      }
-    }
-
-    return Array.from(map.values()).map(({ data, images }) => {
-      const substrate: SubstrateRef | null = data.substrate_id
-        ? {
-            substrate_id: data.substrate_id,
-            substrate_name: data.substrate_name ?? '',
-          }
-        : null;
-
-      const latestImage = images.length > 0 ? images[images.length - 1].url : null;
-
-      return new Plant({
-        plant_id: data.plant_id,
-        plant_user_id: data.plant_user_id,
-        plant_name: data.plant_name,
-        plant_species: data.plant_species_name ?? null,
-        is_public: Boolean(data.is_public),
-        plant_created_at: data.plant_created_at,
-        image_url: latestImage,
-        substrate,
-        images,
-      });
-    });
   }
 }

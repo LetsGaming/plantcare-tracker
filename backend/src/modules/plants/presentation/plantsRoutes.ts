@@ -17,8 +17,8 @@ export const plantsRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLitePlantRepository((db) => new SpeciesResolver(new SQLiteSpeciesCatalog(db)));
   const ctrl = createPlantsController(repo, createImageCleanup());
 
-  // Optional auth on reads: public plants are visible without login,
-  // private plants are included when a valid token is present.
+  // Optional auth on reads: public plants are visible without login, and a
+  // valid token adds the caller's own plants (scope=mine) and their summaries.
   app.get('/', { onRequest: optionalAuthenticateToken }, ctrl.getAllPlants);
   app.get('/:id', { onRequest: optionalAuthenticateToken }, ctrl.getPlant);
   app.post('/', { onRequest: authenticateToken }, ctrl.addPlant);

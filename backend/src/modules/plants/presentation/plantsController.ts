@@ -14,22 +14,43 @@
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { numericParam, type Handler } from '../../../core/middleware';
+import { isGuestRole } from '../../../core/auth';
 import {
-  GetAllPlantsUseCase,
+  parseListQuery,
+  privateRevalidate,
+  toEnvelope,
+  type ListEnvelope,
+} from '../../../core/pagination';
+import {
+  ListPlantsUseCase,
   GetPlantUseCase,
   CreatePlantUseCase,
   UpdatePlantUseCase,
   DeletePlantUseCase,
 } from '../application/PlantUseCases';
-import type { PlantRepository, PlantData } from '../domain/Plant';
+import type {
+  PlantData,
+  PlantListItem,
+  PlantRepository,
+  PlantScope,
+  PlantSort,
+} from '../domain/Plant';
+import { parseTzOffset } from '../domain/wateringSummary';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
+const PLANT_SORTS = {
+  created: { valueType: 'number', idType: 'number', direction: 'desc' },
+  name: { valueType: 'string', idType: 'number', direction: 'asc' },
+} as const;
+const PLANT_SCOPES: readonly PlantScope[] = ['mine', 'public'];
+
+const tzOf = (req: FastifyRequest): number =>
+  parseTzOffset((req.query as Record<string, unknown> | undefined)?.tz_offset);
+
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface PlantListResponse {
-  data: PlantData[];
-}
+export type PlantListResponse = ListEnvelope<PlantListItem>;
 export interface PlantResponse {
   data: PlantData;
 }
@@ -54,36 +75,45 @@ export const createPlantsController = (
   repo: PlantRepository,
   imageCleanup: EntityImageCleanup,
 ): PlantsController => {
-  const getAll = new GetAllPlantsUseCase(repo);
+  const list = new ListPlantsUseCase(repo);
   const getOne = new GetPlantUseCase(repo);
   const create = new CreatePlantUseCase(repo);
   const update = new UpdatePlantUseCase(repo);
   const remove = new DeletePlantUseCase(repo, imageCleanup);
 
   return {
-    getAllPlants: async (req: FastifyRequest) => {
-      const userId = req.user?.id ?? null;
-      const plants = await getAll.execute(userId);
-      const body: PlantListResponse = { data: plants.map((p) => p.toJSON()) };
+    getAllPlants: async (req: FastifyRequest, reply: FastifyReply) => {
+      // Guests own no plants, so their scope=mine is an empty page rather than an error.
+      const viewerId = req.user && !isGuestRole(req.user.role) ? req.user.id : null;
+      const { scope, ...query } = parseListQuery<PlantSort, PlantScope>(req.query, {
+        sorts: PLANT_SORTS,
+        defaultSort: 'created',
+        scopes: PLANT_SCOPES,
+        defaultScope: viewerId === null ? 'public' : 'mine',
+      });
+      const page = await list.execute(scope ?? 'public', query, viewerId, tzOf(req));
+      privateRevalidate(reply);
+      const body: PlantListResponse = toEnvelope(page, page.total);
       return body;
     },
 
-    getPlant: async (req: FastifyRequest) => {
-      const plant = await getOne.execute(numericParam(req, 'id'), req.user?.id ?? null);
+    getPlant: async (req: FastifyRequest, reply: FastifyReply) => {
+      const plant = await getOne.execute(numericParam(req, 'id'), req.user?.id ?? null, tzOf(req));
+      privateRevalidate(reply);
       const body: PlantResponse = { data: plant.toJSON() };
       return body;
     },
 
     addPlant: async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = req.user!.id;
-      const plant = await create.execute(req.body, userId);
+      const plant = await create.execute(req.body, userId, tzOf(req));
       const body: PlantResponse = { data: plant.toJSON() };
       return reply.code(HTTP_STATUS.CREATED).header('Location', `/plants/${plant.id}`).send(body);
     },
 
     editPlant: async (req: FastifyRequest) => {
       const userId = req.user!.id;
-      const plant = await update.execute(numericParam(req, 'id'), userId, req.body);
+      const plant = await update.execute(numericParam(req, 'id'), userId, req.body, tzOf(req));
       const body: PlantResponse = { data: plant.toJSON() };
       return body;
     },

@@ -36,16 +36,19 @@ describe('POST /plants', () => {
     expect(res.body).toEqual({
       data: {
         plant_id: expect.any(Number),
-        plant_user_id: owner.user.id,
         plant_name: 'Monstera',
-        plant_species: 'Monstera deliciosa',
+        user_id: owner.user.id,
         is_public: true,
-        plant_created_at: expect.any(Number),
-        image_url: null,
+        created_at: expect.any(Number),
+        species_name: 'Monstera deliciosa',
         substrate: { substrate_id: substrate.substrate_id, substrate_name: 'Aroid Mix' },
+        cover: null,
+        image_count: 0,
+        watering: { last_watered_at: null, last_fertilized_at: null, avg_interval_days: null },
         images: [],
       },
     });
+    expect(res.body.data.created_at).toBeGreaterThan(1_000_000_000_000);
   });
 
   it('defaults isPublic to false', async () => {
@@ -75,7 +78,7 @@ describe('POST /plants', () => {
       },
     });
     expect(first.plant_id).not.toBe(second.body.data.plant_id);
-    expect(second.body.data.plant_species).toBe('Philodendron hederaceum');
+    expect(second.body.data.species_name).toBe('Philodendron hederaceum');
   });
 
   it('rejects invalid input with a per-field 400', async () => {
@@ -103,7 +106,7 @@ describe('POST /plants', () => {
     expect(res.status).toBe(201);
     expect(res.body.data).toMatchObject({
       plant_name: 'First plant',
-      plant_species: null,
+      species_name: null,
       substrate: null,
     });
   });
@@ -117,7 +120,7 @@ describe('POST /plants', () => {
       json: { name: 'Blank', species: '', substrateId: null },
     });
     expect(res.status).toBe(201);
-    expect(res.body.data).toMatchObject({ plant_species: null, substrate: null });
+    expect(res.body.data).toMatchObject({ species_name: null, substrate: null });
   });
 
   it('answers a plant with an unknown substrate with 404', async () => {
@@ -147,15 +150,15 @@ describe('POST /plants', () => {
       headers: owner.auth,
     });
     expect(one.status).toBe(200);
-    expect(one.body.data).toMatchObject({ plant_species: null, substrate: null });
+    expect(one.body.data).toMatchObject({ species_name: null, substrate: null });
     const all = await app.client.request({
       method: 'get',
       url: `${API}/plants`,
       headers: owner.auth,
     });
     expect(all.status).toBe(200);
-    const listed = all.body.data.find((p: { plant_id: number }) => p.plant_id === id);
-    expect(listed).toMatchObject({ plant_species: null, substrate: null });
+    const listed = all.body.data.items.find((p: { plant_id: number }) => p.plant_id === id);
+    expect(listed).toMatchObject({ species_name: null, substrate: null });
   });
 
   it('answers 401 without a token and 403 for a guest', async () => {
@@ -176,16 +179,22 @@ describe('POST /plants', () => {
 describe('GET /plants', () => {
   it('shows anonymous callers only public plants', async () => {
     const { owner, substrate } = await setup();
-    const open = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: true });
-    const hidden = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: false });
-    const res = await app.client.request({ method: 'get', url: `${API}/plants` });
+    const open = await createPlant(app, owner.auth, substrate.substrate_id, {
+      name: 'AnonOpen',
+      isPublic: true,
+    });
+    const hidden = await createPlant(app, owner.auth, substrate.substrate_id, {
+      name: 'AnonHidden',
+      isPublic: false,
+    });
+    const res = await app.client.request({ method: 'get', url: `${API}/plants?q=Anon` });
     expect(res.status).toBe(200);
-    const ids = res.body.data.map((p: { plant_id: number }) => p.plant_id);
+    const ids = res.body.data.items.map((p: { plant_id: number }) => p.plant_id);
     expect(ids).toContain(open.plant_id);
     expect(ids).not.toContain(hidden.plant_id);
   });
 
-  it('shows an authenticated owner public plants plus their own, without duplicates', async () => {
+  it('lists own plants for scope=mine and the public plants of everyone for scope=public', async () => {
     const { owner, substrate } = await setup();
     const other = await app.signIn('user');
     const otherSubstrate = await createSubstrate(app, other.auth);
@@ -196,16 +205,189 @@ describe('GET /plants', () => {
     const theirPrivate = await createPlant(app, other.auth, otherSubstrate.substrate_id, {
       isPublic: false,
     });
-    const res = await app.client.request({
+    const idsOf = async (query: string) => {
+      const res = await app.client.request({
+        method: 'get',
+        url: `${API}/plants${query}`,
+        headers: owner.auth,
+      });
+      expect(res.status).toBe(200);
+      return res.body.data.items.map((p: { plant_id: number }) => p.plant_id) as number[];
+    };
+
+    const defaultIds = await idsOf('?limit=100');
+    const mineIds = await idsOf('?scope=mine&limit=100');
+    expect(defaultIds).toEqual(mineIds);
+    expect(mineIds).toContain(mine.plant_id);
+    expect(mineIds).toContain(minePrivate.plant_id);
+    expect(mineIds).not.toContain(theirPrivate.plant_id);
+    expect(new Set(mineIds).size).toBe(mineIds.length);
+
+    const publicIds = await idsOf('?scope=public&limit=100');
+    expect(publicIds).toContain(mine.plant_id);
+    expect(publicIds).not.toContain(minePrivate.plant_id);
+    expect(publicIds).not.toContain(theirPrivate.plant_id);
+  });
+
+  it('answers scope=mine with an empty page for guests and defaults them to public', async () => {
+    const { owner, substrate } = await setup();
+    const open = await createPlant(app, owner.auth, substrate.substrate_id, {
+      name: 'GuestVisible',
+      isPublic: true,
+    });
+    const guest = await app.signIn('guest');
+    const mine = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?scope=mine`,
+      headers: guest.auth,
+    });
+    expect(mine.status).toBe(200);
+    expect(mine.body).toEqual({ data: { items: [], next_cursor: null, total: 0 } });
+
+    const fallback = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?q=GuestVisible`,
+      headers: guest.auth,
+    });
+    expect(fallback.body.data.items.map((p: { plant_id: number }) => p.plant_id)).toEqual([
+      open.plant_id,
+    ]);
+    const anonymous = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?scope=mine`,
+    });
+    expect(anonymous.body.data.items).toEqual([]);
+  });
+
+  it('returns the envelope with list items, watering for mine only and total on the first page', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, {
+      name: 'EnvelopeShape',
+      isPublic: true,
+    });
+    const noon = Date.UTC(2026, 2, 1, 12) / 1000;
+    app.db.execute(
+      'INSERT INTO watering_records (plant_id, date, used_fertilizer) VALUES (?, ?, 1)',
+      [plant.plant_id, noon],
+    );
+    const mine = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?q=EnvelopeShape`,
+      headers: owner.auth,
+    });
+    expect(mine.body.data).toEqual({
+      items: [
+        {
+          plant_id: plant.plant_id,
+          plant_name: 'EnvelopeShape',
+          user_id: owner.user.id,
+          is_public: true,
+          created_at: expect.any(Number),
+          species_name: 'Monstera deliciosa',
+          substrate: { substrate_id: substrate.substrate_id, substrate_name: 'Aroid Mix' },
+          cover: null,
+          image_count: 0,
+          watering: {
+            last_watered_at: noon * 1000,
+            last_fertilized_at: noon * 1000,
+            avg_interval_days: null,
+          },
+        },
+      ],
+      next_cursor: null,
+      total: 1,
+    });
+    const shared = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?scope=public&q=EnvelopeShape`,
+      headers: owner.auth,
+    });
+    expect(shared.body.data.items[0].watering).toBeNull();
+  });
+
+  it('pages with a cursor, sends total only on the first page and rejects bad input', async () => {
+    const { owner, substrate } = await setup();
+    for (const name of ['PageA', 'PageB', 'PageC']) {
+      await createPlant(app, owner.auth, substrate.substrate_id, { name });
+    }
+    const first = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?q=Page&limit=2&sort=name`,
+      headers: owner.auth,
+    });
+    expect(first.body.data.items.map((p: { plant_name: string }) => p.plant_name)).toEqual([
+      'PageA',
+      'PageB',
+    ]);
+    expect(first.body.data.total).toBe(3);
+    const second = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?q=Page&limit=2&sort=name&cursor=${first.body.data.next_cursor}`,
+      headers: owner.auth,
+    });
+    expect(second.body.data.items.map((p: { plant_name: string }) => p.plant_name)).toEqual([
+      'PageC',
+    ]);
+    expect(second.body.data.next_cursor).toBeNull();
+    expect(second.body.data).not.toHaveProperty('total');
+
+    for (const query of ['sort=bogus', 'scope=all', 'limit=0', 'tz_offset=900', 'tz_offset=1.5']) {
+      const res = await app.client.request({
+        method: 'get',
+        url: `${API}/plants?${query}`,
+        headers: owner.auth,
+      });
+      expect(res.status, query).toBe(400);
+    }
+    const crossSort = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?sort=created&cursor=${first.body.data.next_cursor}`,
+      headers: owner.auth,
+    });
+    expect(crossSort.status).toBe(400);
+  });
+
+  it('sends private revalidation headers and an ETag that answers 304', async () => {
+    const { owner } = await setup();
+    const first = await app.client.request({
       method: 'get',
       url: `${API}/plants`,
       headers: owner.auth,
     });
-    const ids: number[] = res.body.data.map((p: { plant_id: number }) => p.plant_id);
-    expect(ids).toContain(mine.plant_id);
-    expect(ids).toContain(minePrivate.plant_id);
-    expect(ids).not.toContain(theirPrivate.plant_id);
-    expect(new Set(ids).size).toBe(ids.length);
+    expect(first.headers['cache-control']).toBe('private, no-cache');
+    const tag = first.headers.etag as string;
+    expect(tag).toBeTruthy();
+    const again = await app.client.request({
+      method: 'get',
+      url: `${API}/plants`,
+      headers: { ...owner.auth, 'if-none-match': tag },
+    });
+    expect(again.status).toBe(304);
+  });
+
+  it('moves a late-evening watering to the next local day with tz_offset', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, {
+      name: 'TzShift',
+    });
+    const lateUtc = Date.UTC(2026, 2, 1, 23, 30) / 1000;
+    const nextDayUtc = Date.UTC(2026, 2, 2, 12) / 1000;
+    for (const date of [lateUtc, nextDayUtc]) {
+      app.db.execute('INSERT INTO watering_records (plant_id, date) VALUES (?, ?)', [
+        plant.plant_id,
+        date,
+      ]);
+    }
+    const avgFor = async (tz: string) => {
+      const res = await app.client.request({
+        method: 'get',
+        url: `${API}/plants?q=TzShift${tz}`,
+        headers: owner.auth,
+      });
+      return res.body.data.items[0].watering.avg_interval_days;
+    };
+    expect(await avgFor('')).toBe(1);
+    expect(await avgFor('&tz_offset=60')).toBeNull();
   });
 
   it('treats an invalid token as anonymous', async () => {
@@ -271,6 +453,43 @@ describe('GET /plants/:id', () => {
     expect(res.body.data.plant_id).toBe(plant.plant_id);
   });
 
+  it('returns images oldest first with the newest as cover, and the watering summary to the owner only', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, { isPublic: true });
+    for (const [url, date] of [
+      ['/uploads/plant/new.webp', 200],
+      ['/uploads/plant/old.webp', 100],
+    ] as const) {
+      app.db.execute(
+        "INSERT INTO images (image_url, entity_type, entity_id, upload_date) VALUES (?, 'plant', ?, ?)",
+        [url, plant.plant_id, date],
+      );
+    }
+    app.db.execute('INSERT INTO watering_records (plant_id, date) VALUES (?, 1700000000)', [
+      plant.plant_id,
+    ]);
+
+    const own = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(own.headers['cache-control']).toBe('private, no-cache');
+    expect(own.body.data.images.map((i: { date: number }) => i.date)).toEqual([100, 200]);
+    expect(own.body.data.cover.date).toBe(200);
+    expect(own.body.data.image_count).toBe(2);
+    expect(own.body.data.watering.last_watered_at).toBe(1_700_000_000_000);
+
+    const other = await app.signIn('user');
+    const foreign = await app.client.request({
+      method: 'get',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: other.auth,
+    });
+    expect(foreign.status).toBe(200);
+    expect(foreign.body.data.watering).toBeNull();
+  });
+
   it('answers 404 for an unknown or malformed id', async () => {
     expect((await app.client.request({ method: 'get', url: `${API}/plants/999999` })).status).toBe(
       404,
@@ -310,7 +529,7 @@ describe('PATCH /plants/:id', () => {
     });
     expect(res.status).toBe(200);
     expect(res.body.data.substrate).toBeNull();
-    expect(res.body.data.plant_species).toBe('Monstera deliciosa');
+    expect(res.body.data.species_name).toBe('Monstera deliciosa');
   });
 
   it('clears the species with an empty string or null', async () => {
@@ -323,7 +542,7 @@ describe('PATCH /plants/:id', () => {
       json: { species: '' },
     });
     expect(empty.status).toBe(200);
-    expect(empty.body.data.plant_species).toBeNull();
+    expect(empty.body.data.species_name).toBeNull();
     expect(empty.body.data.substrate).not.toBeNull();
 
     const other = await createPlant(app, owner.auth, substrate.substrate_id);
@@ -334,7 +553,7 @@ describe('PATCH /plants/:id', () => {
       json: { species: null },
     });
     expect(cleared.status).toBe(200);
-    expect(cleared.body.data.plant_species).toBeNull();
+    expect(cleared.body.data.species_name).toBeNull();
   });
 
   it('keeps the length and positive checks on update', async () => {
