@@ -66,6 +66,14 @@ export class SQLiteUserRepository implements UserRepository {
     return Number(result.numUpdatedRows) > 0;
   }
 
+  async updatePasswordHash(userId: number, hash: string): Promise<void> {
+    await getKysely()
+      .updateTable('users')
+      .set({ password: hash })
+      .where('id', '=', userId)
+      .execute();
+  }
+
   async delete(userId: number): Promise<boolean> {
     return (await this.deleteAccount(userId)) !== null;
   }

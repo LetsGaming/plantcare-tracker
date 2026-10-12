@@ -3,11 +3,9 @@
  *
  * Use cases for registration, login (user + guest), token refresh,
  * logout, SSE tickets, and profile management. Validation goes through
- * the shared parseOrThrow helper; magic numbers (bcrypt cost, session
- * limits) come from core/config.
+ * the shared parseOrThrow helper.
  */
 
-import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import type { AccountDeleter, ImageFileRemover, UserRepository } from '../domain/User';
 import {
@@ -17,8 +15,10 @@ import {
   ConflictError,
 } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
-import { AUTH } from '../../../core/config';
+import { createModuleLogger } from '../../../core/logging';
 import {
+  hashPassword,
+  verifyPassword,
   issueSession,
   signAccessToken,
   sessionStore,
@@ -26,12 +26,14 @@ import {
   verifyRefreshToken,
 } from '../../../core/auth';
 
+const log = createModuleLogger('Auth');
+
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const USERNAME_MIN = 3;
 const USERNAME_MAX = 64;
 const PASSWORD_MIN = 8;
-/** bcrypt ignores everything past 72 bytes, so longer passwords are rejected instead of truncated. */
+/** Matches the input limit of legacy bcrypt hashes, which ignore everything past 72 bytes. */
 const PASSWORD_MAX_BYTES = 72;
 const LOGIN_PASSWORD_MAX = 1024;
 
@@ -80,8 +82,7 @@ export class RegisterUseCase {
     const existing = await this.repo.findByUsername(username);
     if (existing) throw new ConflictError('Username already exists');
 
-    const hashedPassword = await bcrypt.hash(password, AUTH.BCRYPT_SALT_ROUNDS);
-    return this.repo.create(username, hashedPassword);
+    return this.repo.create(username, await hashPassword(password));
   }
 }
 
@@ -96,11 +97,20 @@ export class LoginUseCase {
     );
 
     const user = await this.repo.findByUsername(username);
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new UnauthorizedError('Invalid credentials');
-    }
+    const check = user ? await verifyPassword(password, user.password) : null;
+    if (!user || !check?.ok) throw new UnauthorizedError('Invalid credentials');
+    if (check.needsRehash) await this.upgradeHash(user.id, password);
 
     return issueSession({ id: user.id, username: user.username, role: user.role });
+  }
+
+  /** Best effort: a failed upgrade keeps the old hash, which still verifies. */
+  private async upgradeHash(userId: number, password: string): Promise<void> {
+    try {
+      await this.repo.updatePasswordHash(userId, await hashPassword(password));
+    } catch (err: unknown) {
+      log.warn(`Could not upgrade the password hash of user ${userId}`, { err });
+    }
   }
 }
 
@@ -160,7 +170,7 @@ export class UpdateProfileUseCase {
       if (fields.password !== fields.passwordConfirmation) {
         throw new ValidationError('Passwords do not match');
       }
-      updateFields['password'] = await bcrypt.hash(fields.password, AUTH.BCRYPT_SALT_ROUNDS);
+      updateFields['password'] = await hashPassword(fields.password);
       delete updateFields['passwordConfirmation'];
     }
 

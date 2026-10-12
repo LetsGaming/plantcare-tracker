@@ -28,5 +28,7 @@ export interface UserRepository {
   findByUsername(username: string): Promise<UserData | null>;
   create(username: string, hashedPassword: string): Promise<{ id: number; username: string }>;
   update(userId: number, fields: Partial<Record<string, unknown>>): Promise<boolean>;
+  /** Replaces the stored hash without touching sessions; used to upgrade legacy hashes. */
+  updatePasswordHash(userId: number, hash: string): Promise<void>;
   delete(userId: number): Promise<boolean>;
 }

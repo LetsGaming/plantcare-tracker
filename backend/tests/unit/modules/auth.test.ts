@@ -4,8 +4,12 @@
  * Tests for all Auth use cases.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import bcrypt from 'bcryptjs';
+
+vi.hoisted(() => {
+  process.env.DB_PATH = ':memory:';
+});
 import type { UserRepository } from '../../../src/modules/auth/domain/User';
 import type { RemovedImageFile } from '../../../src/modules/auth/domain/User';
 import {
@@ -23,14 +27,37 @@ import {
   NotFoundError,
   ConflictError,
 } from '../../../src/core/errors';
-import { issueSession, sessionStore, verifyRefreshToken } from '../../../src/core/auth';
+import {
+  hashPassword,
+  issueSession,
+  sessionStore,
+  verifyPassword,
+  verifyRefreshToken,
+} from '../../../src/core/auth';
+import { closeDb, getSqlite, initDatabase } from '../../../src/core/database/db';
 import { makeUserRow } from '../../helpers/mockFactory';
 
 const makeMockRepo = (): UserRepository => ({
   findByUsername: vi.fn().mockResolvedValue(null),
   create: vi.fn().mockResolvedValue({ id: 1, username: 'newuser' }),
   update: vi.fn().mockResolvedValue(true),
+  updatePasswordHash: vi.fn().mockResolvedValue(undefined),
   delete: vi.fn().mockResolvedValue(true),
+});
+
+/** Sessions reference users, so every user id a test signs in must exist. */
+const SESSION_USER_IDS = [1, 3, 5, 50, 77, 78, 99];
+
+beforeAll(async () => {
+  await initDatabase();
+  const insert = getSqlite().prepare(
+    'INSERT INTO users (id, username, password, role_id) VALUES (?, ?, ?, 2)',
+  );
+  for (const id of SESSION_USER_IDS) insert.run(id, `session-user-${id}`, 'x');
+});
+
+afterAll(async () => {
+  await closeDb();
 });
 
 // ── RegisterUseCase ───────────────────────────────────────────────────────────
@@ -75,7 +102,11 @@ describe('RegisterUseCase', () => {
     await new RegisterUseCase(repo).execute({ username: 'alice', password: 'plaintext' });
     const storedPassword = (repo.create as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(storedPassword).not.toBe('plaintext');
-    expect(await bcrypt.compare('plaintext', storedPassword)).toBe(true);
+    expect(storedPassword).toMatch(/^scrypt\$16384\$8\$1\$/);
+    expect(await verifyPassword('plaintext', storedPassword)).toEqual({
+      ok: true,
+      needsRehash: false,
+    });
   });
 });
 
@@ -83,7 +114,7 @@ describe('RegisterUseCase', () => {
 
 describe('LoginUseCase', () => {
   it('returns tokens on valid credentials', async () => {
-    const hash = await bcrypt.hash('correctpass', 10);
+    const hash = await hashPassword('correctpass');
     const repo = makeMockRepo();
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ id: 5, username: 'alice', password: hash, role: 'user' }),
@@ -98,7 +129,7 @@ describe('LoginUseCase', () => {
   });
 
   it('throws UnauthorizedError for wrong password', async () => {
-    const hash = await bcrypt.hash('correct', 10);
+    const hash = await hashPassword('correct');
     const repo = makeMockRepo();
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ password: hash }),
@@ -116,7 +147,7 @@ describe('LoginUseCase', () => {
   });
 
   it('starts a session for the refresh token', async () => {
-    const hash = await bcrypt.hash('pass', 10);
+    const hash = await hashPassword('pass');
     const repo = makeMockRepo();
     (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeUserRow({ id: 99, password: hash }),
@@ -127,6 +158,46 @@ describe('LoginUseCase', () => {
     });
     expect(sessionStore.has(99, verifyRefreshToken(refreshToken)!.sid)).toBe(true);
     sessionStore.deleteAll(99);
+  });
+
+  it('upgrades a legacy bcrypt hash to scrypt after a successful login', async () => {
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await bcrypt.hash('legacypass', 4) }),
+    );
+    await new LoginUseCase(repo).execute({ username: 'alice', password: 'legacypass' });
+    const [userId, hash] = (repo.updatePasswordHash as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(userId).toBe(5);
+    expect(hash).toMatch(/^scrypt\$/);
+    expect(await verifyPassword('legacypass', hash)).toEqual({ ok: true, needsRehash: false });
+  });
+
+  it('keeps a current scrypt hash and never rehashes on a failed login', async () => {
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await hashPassword('currentpass') }),
+    );
+    await new LoginUseCase(repo).execute({ username: 'alice', password: 'currentpass' });
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await bcrypt.hash('legacypass', 4) }),
+    );
+    await expect(
+      new LoginUseCase(repo).execute({ username: 'alice', password: 'wrongpass' }),
+    ).rejects.toThrow(UnauthorizedError);
+    expect(repo.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it('still logs in when the hash upgrade fails', async () => {
+    const repo = makeMockRepo();
+    (repo.findByUsername as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeUserRow({ id: 5, password: await bcrypt.hash('legacypass', 4) }),
+    );
+    (repo.updatePasswordHash as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('locked'));
+    const { accessToken } = await new LoginUseCase(repo).execute({
+      username: 'alice',
+      password: 'legacypass',
+    });
+    expect(accessToken).toBeTruthy();
   });
 });
 
@@ -210,7 +281,7 @@ describe('UpdateProfileUseCase', () => {
       passwordConfirmation: 'newpassword',
     });
     const passArg = (repo.update as ReturnType<typeof vi.fn>).mock.calls[0][1].password;
-    expect(await bcrypt.compare('newpassword', passArg)).toBe(true);
+    expect(await verifyPassword('newpassword', passArg)).toEqual({ ok: true, needsRehash: false });
   });
 
   it('throws NotFoundError when update returns false', async () => {
