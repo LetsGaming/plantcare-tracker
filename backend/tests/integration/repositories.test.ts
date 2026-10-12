@@ -49,6 +49,7 @@ describe('migrations', () => {
       '0003_relative_image_paths',
       '0004_source_health_issues',
       '0005_image_embeddings',
+      '0006_list_indexes',
     ]);
 
     const roles = await getKysely().selectFrom('roles').select('name').orderBy('id').execute();

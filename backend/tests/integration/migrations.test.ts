@@ -76,6 +76,35 @@ describe('baseline migration', () => {
   });
 });
 
+describe('list index migration', () => {
+  it('keeps existing rows and swaps the plants list index', async () => {
+    const { sqlite, db } = open();
+    const migrator = new Migrator({ db, provider: migrationProvider });
+    const { error: baselineError } = await migrator.migrateTo('0001_baseline');
+    if (baselineError) throw baselineError;
+    sqlite.exec(`
+      INSERT INTO users (id, username, password) VALUES (9, 'u', 'h');
+      INSERT INTO plants (id, name, user_id) VALUES (1, 'a', 9), (2, 'b', 9);
+      INSERT INTO images (id, image_url, entity_type, entity_id) VALUES (1, '/uploads/plant/a.webp', 'plant', 1);
+    `);
+
+    const { error } = await migrator.migrateToLatest();
+    expect(error).toBeUndefined();
+
+    expect(sqlite.prepare('SELECT id FROM plants ORDER BY id').all()).toEqual([
+      { id: 1 },
+      { id: 2 },
+    ]);
+    expect(sqlite.prepare('SELECT id FROM images').all()).toEqual([{ id: 1 }]);
+    const indexes = (sqlite.prepare('PRAGMA index_list(plants)').all() as { name: string }[]).map(
+      (r) => r.name,
+    );
+    expect(indexes).toContain('idx_plants_user_created');
+    expect(indexes).not.toContain('idx_plants_list');
+    await db.destroy();
+  });
+});
+
 describe('image data migrations', () => {
   const BACKSLASH = String.fromCharCode(92);
 

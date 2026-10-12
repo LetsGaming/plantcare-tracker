@@ -36,13 +36,13 @@ const openSqlite = (): SqliteDatabase => {
   if (dbPath !== IN_MEMORY) fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const db = new BetterSqlite3(dbPath);
+  db.pragma('busy_timeout = 5000');
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
   db.pragma('cache_size = -64000'); // 64 MB
   db.pragma('temp_store = MEMORY');
   db.pragma('mmap_size = 134217728'); // 128 MB memory-mapped I/O
-  db.pragma('busy_timeout = 5000');
   db.pragma('journal_size_limit = 67108864'); // 64 MB
 
   logger.debug(`SQLite database opened at ${dbPath}`);
@@ -75,7 +75,13 @@ export const initDatabase = async (): Promise<void> => {
 /** Closes the connection; call during shutdown so the WAL is checkpointed. */
 export const closeDb = async (): Promise<void> => {
   if (!sqlite) return;
-  sqlite.pragma('optimize');
+  if (sqlite.open) {
+    try {
+      sqlite.pragma('optimize');
+    } catch (error) {
+      logger.warn(`SQLite optimize failed during shutdown: ${String(error)}`);
+    }
+  }
   // Destroying Kysely closes the underlying connection.
   if (kysely) await kysely.destroy();
   else sqlite.close();

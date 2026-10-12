@@ -17,7 +17,7 @@ const plan = (statement: string, ...params: unknown[]): string =>
 
 const expectIndexed = (statement: string, index: string, ...params: unknown[]) => {
   const detail = plan(statement, ...params);
-  expect(detail).toContain(`USING INDEX ${index}`);
+  expect(detail).toMatch(new RegExp(`USING (COVERING )?INDEX ${index}\\b`));
   expect(detail).not.toContain('USE TEMP B-TREE FOR ORDER BY');
 };
 
@@ -61,7 +61,7 @@ describe('list query plans', () => {
     ['substrates', 'p'],
   ])('%s: mine, newest first', (table, alias) => {
     expectIndexed(
-      `SELECT ${alias}.id FROM ${table} ${alias} WHERE ${alias}.user_id = ? ORDER BY ${alias}.created_at DESC, ${alias}.id DESC LIMIT ?`,
+      `SELECT ${alias}.id, ${alias}.name, ${alias}.is_public FROM ${table} ${alias} WHERE ${alias}.user_id = ? ORDER BY ${alias}.created_at DESC, ${alias}.id DESC LIMIT ?`,
       `idx_${table}_user_created`,
       105,
       31,
@@ -70,7 +70,7 @@ describe('list query plans', () => {
 
   it.each(['plants', 'substrates'])('%s: mine, newest first, keyset continuation', (table) => {
     expectIndexed(
-      `SELECT p.id FROM ${table} p WHERE p.user_id = ? AND (p.created_at, p.id) < (?, ?) ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
+      `SELECT p.id, p.name, p.is_public FROM ${table} p WHERE p.user_id = ? AND (p.created_at, p.id) < (?, ?) ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
       `idx_${table}_user_created`,
       105,
       1_700_001_000,
@@ -81,7 +81,7 @@ describe('list query plans', () => {
 
   it.each(['plants', 'substrates'])('%s: mine, by name', (table) => {
     expectIndexed(
-      `SELECT p.id FROM ${table} p WHERE p.user_id = ? ORDER BY p.name COLLATE NOCASE ASC, p.id ASC LIMIT ?`,
+      `SELECT p.id, p.name, p.is_public FROM ${table} p WHERE p.user_id = ? ORDER BY p.name COLLATE NOCASE ASC, p.id ASC LIMIT ?`,
       `idx_${table}_user_name`,
       105,
       31,
@@ -90,7 +90,7 @@ describe('list query plans', () => {
 
   it.each(['plants', 'substrates'])('%s: public, newest first', (table) => {
     expectIndexed(
-      `SELECT p.id FROM ${table} p WHERE p.is_public = 1 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
+      `SELECT p.id, p.name, p.is_public FROM ${table} p WHERE p.is_public = 1 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
       `idx_${table}_public_created`,
       31,
     );
@@ -98,7 +98,7 @@ describe('list query plans', () => {
 
   it.each(['plants', 'substrates'])('%s: public, keyset continuation', (table) => {
     expectIndexed(
-      `SELECT p.id FROM ${table} p WHERE p.is_public = 1 AND (p.created_at, p.id) < (?, ?) ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
+      `SELECT p.id, p.name, p.is_public FROM ${table} p WHERE p.is_public = 1 AND (p.created_at, p.id) < (?, ?) ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
       `idx_${table}_public_created`,
       1_700_001_000,
       500,
@@ -108,15 +108,29 @@ describe('list query plans', () => {
 
   it.each(['plants', 'substrates'])('%s: public, by name', (table) => {
     expectIndexed(
-      `SELECT p.id FROM ${table} p WHERE p.is_public = 1 ORDER BY p.name COLLATE NOCASE ASC, p.id ASC LIMIT ?`,
+      `SELECT p.id, p.name, p.is_public FROM ${table} p WHERE p.is_public = 1 ORDER BY p.name COLLATE NOCASE ASC, p.id ASC LIMIT ?`,
       `idx_${table}_public_name`,
+      31,
+    );
+  });
+
+  it.each([
+    ['mine', 'p.user_id = ?', 'idx_plants_user_name', [105]],
+    ['public', 'p.is_public = 1', 'idx_plants_public_name', []],
+  ] as const)('plants: %s, by name, keyset continuation', (_label, filter, index, params) => {
+    expectIndexed(
+      `SELECT p.id, p.name, p.is_public FROM plants p WHERE ${filter} AND (p.name COLLATE NOCASE, p.id) > (?, ?) ORDER BY p.name COLLATE NOCASE ASC, p.id ASC LIMIT ?`,
+      index,
+      ...params,
+      'plant 5',
+      500,
       31,
     );
   });
 
   it('components: by name', () => {
     expectIndexed(
-      'SELECT c.id FROM components c ORDER BY c.name COLLATE NOCASE ASC, c.id ASC LIMIT ?',
+      'SELECT c.id, c.name, c.fineness_id FROM components c ORDER BY c.name COLLATE NOCASE ASC, c.id ASC LIMIT ?',
       'idx_components_name',
       31,
     );
