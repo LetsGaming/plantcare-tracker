@@ -131,8 +131,28 @@ export const configureSharp = (): void => {
 
 const toHex = (channel: number): string => channel.toString(16).padStart(2, '0');
 
-const variantFilename = (filename: string, width: number): string =>
+export const variantFilename = (filename: string, width: number): string =>
   filename.replace(/\.webp$/i, `-${width}.webp`);
+
+const writeVariant = async (
+  raw: Buffer,
+  rawInfo: sharp.OutputInfo,
+  width: number | null,
+  target: string,
+): Promise<Buffer> => {
+  let pipeline = sharp(raw, {
+    raw: { width: rawInfo.width, height: rawInfo.height, channels: rawInfo.channels },
+  });
+  if (width !== null) pipeline = pipeline.resize({ width, withoutEnlargement: true });
+  const encoded = await pipeline.webp({ quality: WEBP_QUALITY }).toBuffer();
+  await fs.writeFile(target, encoded);
+  return encoded;
+};
+
+const dominantColour = async (encoded: Buffer): Promise<string> => {
+  const { dominant } = await sharp(encoded).stats();
+  return `#${toHex(dominant.r)}${toHex(dominant.g)}${toHex(dominant.b)}`;
+};
 
 const hasErrnoCode = (err: unknown): boolean =>
   typeof (err as NodeJS.ErrnoException | null)?.code === 'string';
@@ -141,6 +161,47 @@ const isPixelLimitError = (err: unknown): boolean =>
   err instanceof Error && /pixel limit/i.test(err.message);
 
 configureSharp();
+
+export interface VariantsFromFile {
+  width: number;
+  height: number;
+  placeholder: string;
+}
+
+/**
+ * Writes the 160 and 480 px variants next to an already stored webp and
+ * leaves the stored file untouched. Existing variant files are overwritten.
+ */
+export const createVariantsFromFile = (
+  entityType: string,
+  filename: string,
+  options: { rootDir?: string } = {},
+): Promise<VariantsFromFile> =>
+  uploadSlots.run(async () => {
+    const mainPath = path.join(options.rootDir ?? getUploadsDirectory(), entityType, filename);
+    const { data, info } = await sharp(await fs.readFile(mainPath), {
+      failOn: 'error',
+      limitInputPixels: getConfig().uploadMaxPixels,
+    })
+      .timeout({ seconds: SOURCE_TIMEOUT_SECONDS })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const [small] = await Promise.all([
+      writeVariant(
+        data,
+        info,
+        VARIANT_WIDTHS.small,
+        variantFilename(mainPath, VARIANT_WIDTHS.small),
+      ),
+      writeVariant(
+        data,
+        info,
+        VARIANT_WIDTHS.medium,
+        variantFilename(mainPath, VARIANT_WIDTHS.medium),
+      ),
+    ]);
+    return { width: info.width, height: info.height, placeholder: await dominantColour(small) };
+  });
 
 export interface LocalImageStorageOptions {
   rootDir?: string;
@@ -186,21 +247,6 @@ export class LocalImageStorage implements ImageStorage {
     const capturedAt = extractImageDate(file.buffer);
     const limitInputPixels = this.maxInputPixels ?? getConfig().uploadMaxPixels;
 
-    const writeVariant = async (
-      raw: Buffer,
-      rawInfo: sharp.OutputInfo,
-      width: number | null,
-      target: string,
-    ): Promise<Buffer> => {
-      let pipeline = sharp(raw, {
-        raw: { width: rawInfo.width, height: rawInfo.height, channels: rawInfo.channels },
-      });
-      if (width !== null) pipeline = pipeline.resize({ width, withoutEnlargement: true });
-      const encoded = await pipeline.webp({ quality: WEBP_QUALITY }).toBuffer();
-      await fs.writeFile(target, encoded);
-      return encoded;
-    };
-
     try {
       const { data, info } = await sharp(file.buffer, { failOn: 'error', limitInputPixels })
         .timeout({ seconds: SOURCE_TIMEOUT_SECONDS })
@@ -210,21 +256,19 @@ export class LocalImageStorage implements ImageStorage {
         .toBuffer({ resolveWithObject: true });
 
       const settled = await Promise.allSettled([
-        writeVariant(data, info, VARIANT_WIDTHS.small, smallPath).then(
-          async (encoded) => (await sharp(encoded).stats()).dominant,
-        ),
+        writeVariant(data, info, VARIANT_WIDTHS.small, smallPath).then(dominantColour),
         writeVariant(data, info, VARIANT_WIDTHS.medium, mediumPath),
         writeVariant(data, info, null, mainPath),
       ]);
       const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
       if (failed) throw failed.reason;
-      const dominant = (settled[0] as PromiseFulfilledResult<sharp.Stats['dominant']>).value;
+      const placeholder = (settled[0] as PromiseFulfilledResult<string>).value;
       return {
         filename,
         capturedAt,
         width: info.width,
         height: info.height,
-        placeholder: `#${toHex(dominant.r)}${toHex(dominant.g)}${toHex(dominant.b)}`,
+        placeholder,
         variants: 1,
       };
     } catch (err) {

@@ -19,7 +19,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "model:fetch": "node scripts/fetch-model.mjs",
-    "db:import": "tsx src/tools/importMysqlDumpCli.ts"
+    "db:import": "tsx src/tools/importMysqlDumpCli.ts",
+    "images:backfill": "tsx src/tools/backfillImageVariants.ts"
   },
   "dependencies": {
     "@fastify/compress": "^9.2.1",
