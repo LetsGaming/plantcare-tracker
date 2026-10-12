@@ -6,6 +6,7 @@ import { loadOnnxEmbedder } from './infrastructure/OnnxEmbedder';
 import { SQLiteEmbeddingRepository } from './infrastructure/SQLiteEmbeddingRepository';
 
 export { recognitionRoutes } from './presentation/recognitionRoutes';
+export { invalidateVectors } from './infrastructure/vectorCache';
 
 export interface RecognitionDeps {
   /** Replaces the embedder; null disables recognition. Omitted: load the configured model. */
@@ -29,7 +30,11 @@ export const createRecognition = async (
   const embedder =
     deps.embedder !== undefined
       ? deps.embedder
-      : await loadOnnxEmbedder(getConfig().recognitionModelPath, (m) => log.warn(m));
+      : await loadOnnxEmbedder(
+          getConfig().recognitionModelPath,
+          (m) => log.warn(m),
+          getConfig().uploadMaxPixels,
+        );
   const embeddings = new SQLiteEmbeddingRepository();
   const embedImages = embedder
     ? new EmbedImagesService(embedder, embeddings, getUploadsDirectory(), log)
@@ -40,7 +45,7 @@ export const createRecognition = async (
     embedImages,
     onImageStored: (event) => {
       if (embedImages && event.entityType === 'plant') {
-        void embedImages.embedStored(event.imageId, event.imageUrl);
+        embedImages.enqueue(event.imageId, event.imageUrl);
       }
     },
   };

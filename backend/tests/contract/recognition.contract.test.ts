@@ -102,7 +102,10 @@ describe('recognition with a model', () => {
       headers: owner.auth,
     });
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ available: true });
+    expect(res.body.data).toEqual({
+      available: true,
+      embedQueue: { queued: expect.any(Number), pending: expect.any(Number), deferred: 0 },
+    });
   });
 
   it('ranks the plant whose photo looks like the snapshot first', async () => {
@@ -282,7 +285,7 @@ describe('recognition without a model', () => {
       url: `${API}/recognition/status`,
       headers: owner.auth,
     });
-    expect(status.body.data).toEqual({ available: false });
+    expect(status.body.data).toEqual({ available: false, embedQueue: null });
     const res = await match(owner.auth, await solid(...RED));
     expect(res.status).toBe(503);
     expect(res.body.error.message).toBe('Plant recognition is not available');

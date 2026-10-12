@@ -36,6 +36,7 @@ export class ConfirmSnapshotUseCase {
     private readonly modelId: string,
     private readonly uploadsDir: string,
     private readonly log: Pick<RecognitionLogger, 'warn'>,
+    private readonly rescanEmbeddings: () => void = () => undefined,
   ) {}
 
   async execute(userId: number, snapshotId: string, input: unknown): Promise<ConfirmResult> {
@@ -79,6 +80,7 @@ export class ConfirmSnapshotUseCase {
       await this.embeddings.save(imageId, this.modelId, snap.vector);
     } catch (err) {
       this.log.warn({ err, imageId }, 'snapshot photo embedding failed');
+      this.rescanEmbeddings();
     }
     return imageId;
   }

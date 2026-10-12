@@ -17,6 +17,7 @@ interface Opts {
   createImage?: () => Promise<number>;
   saveEmbedding?: () => Promise<void>;
   missingSnapshotFile?: boolean;
+  rescan?: () => void;
 }
 
 const setup = async (opts: Opts = {}) => {
@@ -66,6 +67,7 @@ const setup = async (opts: Opts = {}) => {
     'm',
     uploads,
     log,
+    opts.rescan,
   );
   const files = async () => readdir(path.join(uploads, 'plant')).catch(() => [] as string[]);
   return { useCase, addSnapshot, rows, files, log };
@@ -100,6 +102,19 @@ describe('ConfirmSnapshotUseCase photo handling', () => {
     expect(rows.size).toBe(1);
     expect(await files()).toHaveLength(1);
     expect(log.warn).toHaveBeenCalled();
+  });
+
+  it('asks for an embedding rescan when only the embedding fails', async () => {
+    const rescan = vi.fn();
+    const { useCase, addSnapshot } = await setup({
+      saveEmbedding: async () => {
+        throw new Error('embed fail');
+      },
+      rescan,
+    });
+    await addSnapshot('s1');
+    await useCase.execute(1, 's1', { plantId: 3 });
+    expect(rescan).toHaveBeenCalledTimes(1);
   });
 
   it('returns a null imageId and no row when the snapshot file cannot be copied', async () => {

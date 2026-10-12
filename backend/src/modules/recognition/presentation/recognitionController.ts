@@ -5,6 +5,7 @@ import {
   TooManyRequestsError,
   ValidationError,
 } from '../../../core/errors';
+import type { EmbedQueueStats } from '../domain/Recognition';
 import type { Handler } from '../../../core/middleware';
 import { readUpload } from '../../images/presentation/multipartUpload';
 import type { ConfirmResult, ConfirmSnapshotUseCase } from '../application/ConfirmSnapshot';
@@ -22,8 +23,9 @@ const UNAVAILABLE = 'Plant recognition is not available';
 export const createRecognitionController = (
   match: MatchSnapshotUseCase | null,
   confirm: ConfirmSnapshotUseCase | null,
+  embedQueue: () => EmbedQueueStats | null,
 ): RecognitionController => ({
-  status: async () => ({ data: { available: match !== null } }),
+  status: async () => ({ data: { available: match !== null, embedQueue: embedQueue() } }),
 
   match: async (req: FastifyRequest) => {
     if (!match) throw new ServiceUnavailableError(UNAVAILABLE);

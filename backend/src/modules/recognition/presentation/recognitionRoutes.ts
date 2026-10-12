@@ -1,7 +1,7 @@
 import os from 'node:os';
 import multipart from '@fastify/multipart';
 import type { FastifyPluginAsync } from 'fastify';
-import { getUploadsDirectory } from '../../../core/config';
+import { getConfig, getUploadsDirectory } from '../../../core/config';
 import { authenticateToken, globalErrorHandler } from '../../../core/middleware';
 import { SQLiteImageRepository } from '../../images/infrastructure/SQLiteImageRepository';
 import { MAX_UPLOAD_BYTES, translateUploadError } from '../../images/presentation/uploadErrors';
@@ -18,7 +18,10 @@ export const recognitionRoutes =
   async (app) => {
     const snapshots = new TempSnapshotStore(os.tmpdir());
     await snapshots.init();
-    app.addHook('onClose', () => snapshots.stop());
+    app.addHook('onClose', async () => {
+      ctx.embedImages?.stop();
+      await snapshots.stop();
+    });
     app.addHook('onReady', async () => {
       ctx.embedImages
         ?.backfill()
@@ -27,7 +30,9 @@ export const recognitionRoutes =
 
     const { embedder } = ctx;
     const ctrl = createRecognitionController(
-      embedder ? new MatchSnapshotUseCase(embedder, ctx.embeddings, snapshots) : null,
+      embedder
+        ? new MatchSnapshotUseCase(embedder, ctx.embeddings, snapshots, getConfig().uploadMaxPixels)
+        : null,
       embedder
         ? new ConfirmSnapshotUseCase(
             new CreateWateringRecordUseCase(new SQLiteWateringRepository()),
@@ -37,8 +42,10 @@ export const recognitionRoutes =
             embedder.modelId,
             getUploadsDirectory(),
             app.log,
+            () => ctx.embedImages?.scheduleRescan(),
           )
         : null,
+      () => ctx.embedImages?.stats() ?? null,
     );
 
     await app.register(multipart, {
