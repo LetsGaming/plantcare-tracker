@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import {
   FAILURE_BACKOFF_BASE_MS,
   PRUNE_INTERVAL_MS,
+  SOURCE_STALE_MS,
+  STOP_WRITE_WAIT_MS,
   SalesRefresher,
   type SalesRefresherOptions,
 } from '../../../src/modules/sales/application/SalesRefresher';
@@ -10,6 +12,7 @@ import type {
   SalesRepository,
   SalesSourceState,
   SalesSourceStatePatch,
+  SnapshotResult,
 } from '../../../src/modules/sales/domain/SalesRepository';
 import type { FetchOptions, SalesSource } from '../../../src/modules/sales/domain/SalesSource';
 
@@ -55,15 +58,18 @@ const fakeSource = (
 
 const fakeRepository = (initial: SalesSourceState[] = []) => {
   const states = new Map(initial.map((state) => [state.source_key, state]));
+  const active = new Map<string, boolean>();
   const fns = {
     applySourceSnapshot: vi.fn<SalesRepository['applySourceSnapshot']>(
-      async (_key, _seller, sales) => ({
-        upserted: sales.length,
-        pricePointsAdded: 0,
-        deactivated: 0,
-      }),
+      async (key, _seller, sales) => {
+        if (sales.length > 0) active.set(key, true);
+        return { upserted: sales.length, pricePointsAdded: 0, deactivated: 0 };
+      },
     ),
-    deactivateSource: vi.fn<SalesRepository['deactivateSource']>(async () => 0),
+    deactivateSource: vi.fn<SalesRepository['deactivateSource']>(async (key) => {
+      active.set(key, false);
+      return 0;
+    }),
     pruneRetention: vi.fn<SalesRepository['pruneRetention']>(async () => ({
       items: 0,
       pricePoints: 0,
@@ -87,7 +93,7 @@ const fakeRepository = (initial: SalesSourceState[] = []) => {
     history: vi.fn(),
     summary: vi.fn(),
   };
-  return { fns, states, repo: fns as unknown as SalesRepository };
+  return { fns, states, active, repo: fns as unknown as SalesRepository };
 };
 
 const state = (key: string, nextDueAt: number | null): SalesSourceState => ({
@@ -111,10 +117,26 @@ const deferred = <T>() => {
   return { promise, resolve };
 };
 
+const nextImmediate = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+/** Lets a run started in this tick reach its write phase (the refresher yields once with setImmediate). */
+const reachWritePhase = async () => {
+  await nextImmediate();
+  await nextImmediate();
+};
+
+const recentSuccess = (key: string): SalesSourceState => ({
+  ...state(key, null),
+  last_success_at: T0 - MINUTE,
+});
+
 let refresher: SalesRefresher | undefined;
 
 beforeEach(() => {
-  vi.useFakeTimers({ now: T0 });
+  vi.useFakeTimers({
+    now: T0,
+    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+  });
 });
 
 afterEach(async () => {
@@ -189,7 +211,7 @@ describe('SalesRefresher runs', () => {
   it('backs off exponentially on failures and keeps the stored items active', async () => {
     let clock = T0;
     const source = fakeSource('a', [new Error('offline')]);
-    const { fns, states, repo } = fakeRepository();
+    const { fns, states, repo } = fakeRepository([recentSuccess('a')]);
     refresher = new SalesRefresher([source], repo, options({ now: () => clock }));
 
     const delays: number[] = [];
@@ -208,14 +230,14 @@ describe('SalesRefresher runs', () => {
       FAILURE_BACKOFF_BASE_MS * 16,
       INTERVAL,
     ]);
-    expect(states.get('a')?.last_success_at).toBeNull();
+    expect(states.get('a')?.last_success_at).toBe(T0 - MINUTE);
     expect(fns.applySourceSnapshot).not.toHaveBeenCalled();
     expect(fns.deactivateSource).not.toHaveBeenCalled();
   });
 
   it('treats an empty page 1 that health reports as failing as a failure', async () => {
     const source = fakeSource('a', [[]]);
-    const { fns, states, repo } = fakeRepository();
+    const { fns, states, repo } = fakeRepository([recentSuccess('a')]);
     const health = { get: () => ({ status: 'failing' as const }) };
     refresher = new SalesRefresher([source], repo, options({ health }));
 
@@ -360,6 +382,7 @@ describe('SalesRefresher scheduling', () => {
 
     await refresher.start();
     await vi.advanceTimersByTimeAsync(2000);
+    await nextImmediate();
     expect(source.fetchPage).toHaveBeenCalledTimes(1);
     expect(failing.fetchPage).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(2);
@@ -406,8 +429,236 @@ describe('SalesRefresher scheduling', () => {
     const stopping = refresher.stop();
     gate.resolve([item(1)]);
     await stopping;
+    await reachWritePhase();
 
     expect(vi.getTimerCount()).toBe(0);
     expect(fns.applySourceSnapshot).not.toHaveBeenCalled();
+  });
+});
+
+describe('SalesRefresher outcomes', () => {
+  it('returns one outcome per source from refreshAll, sharing a run in progress', async () => {
+    const gate = deferred<RawSaleItem[]>();
+    const a = fakeSource('a', [[item(1)]], { priority: 2 });
+    const b = fakeSource('b', [[item(2)]], { priority: 1 });
+    a.fetchPage.mockImplementationOnce(() => gate.promise);
+    const { repo } = fakeRepository();
+    refresher = new SalesRefresher([a, b], repo, options());
+
+    const running = refresher.refreshSource('a');
+    const all = refresher.refreshAll();
+    gate.resolve([item(1)]);
+    const outcomes = await all;
+
+    expect(outcomes.map((outcome) => [outcome.sourceKey, outcome.status])).toEqual([
+      ['b', 'success'],
+      ['a', 'success'],
+    ]);
+    expect(outcomes[1]).toBe(await running);
+    expect(a.fetchPage).toHaveBeenCalledTimes(1);
+    expect(b.fetchPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns a storage error into a failed outcome', async () => {
+    const source = fakeSource('a', [[item(1)]]);
+    const { fns, states, repo } = fakeRepository();
+    fns.applySourceSnapshot.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
+    refresher = new SalesRefresher([source], repo, options());
+
+    await expect(refresher.refreshSource('a')).resolves.toMatchObject({ status: 'failed' });
+    expect(states.get('a')).toMatchObject({ consecutive_failures: 1, last_success_at: null });
+  });
+
+  it('reads an empty page 1 that health reports as ok as an empty sale', async () => {
+    const source = fakeSource('a', [[]]);
+    const { fns, repo } = fakeRepository();
+    const health = { get: () => ({ status: 'ok' as const }) };
+    refresher = new SalesRefresher([source], repo, options({ health }));
+
+    expect(await refresher.refreshSource('a')).toMatchObject({ status: 'empty', pages: 1 });
+    expect(fns.applySourceSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('retries a deactivation that threw on the next empty run, then deactivates only once', async () => {
+    const source = fakeSource('a', [[]]);
+    const { fns, repo } = fakeRepository();
+    fns.deactivateSource.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
+    refresher = new SalesRefresher([source], repo, options());
+
+    await refresher.refreshSource('a');
+    await refresher.refreshSource('a');
+    expect((await refresher.refreshSource('a')).status).toBe('failed');
+    expect(fns.deactivateSource).toHaveBeenCalledTimes(1);
+
+    expect((await refresher.refreshSource('a')).status).toBe('empty');
+    expect(fns.deactivateSource).toHaveBeenCalledTimes(2);
+
+    await refresher.refreshSource('a');
+    expect(fns.deactivateSource).toHaveBeenCalledTimes(2);
+  });
+
+  it('prunes retention even when every source fails', async () => {
+    const source = fakeSource('a', [new Error('offline')]);
+    const { fns, repo } = fakeRepository();
+    refresher = new SalesRefresher([source], repo, options());
+
+    await refresher.refreshSource('a');
+
+    expect(fns.pruneRetention).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('SalesRefresher staleness', () => {
+  const togglingSource = (pages: Page[]) => {
+    const source = fakeSource('a', pages);
+    source.fetchPage.mockImplementation(async () => {
+      const result = pages[0];
+      if (result instanceof Error) throw result;
+      return result;
+    });
+    return source;
+  };
+
+  it('deactivates a source failing three times without a success for a day, once until a success', async () => {
+    let clock = T0;
+    const pages: Page[] = [new Error('down')];
+    const source = togglingSource(pages);
+    const { fns, active, repo } = fakeRepository([{ ...state('a', null), last_success_at: T0 }]);
+    active.set('a', true);
+    refresher = new SalesRefresher([source], repo, options({ now: () => clock }));
+
+    for (const hours of [1, 2, 3]) {
+      clock = T0 + hours * 60 * MINUTE;
+      await refresher.refreshSource('a');
+    }
+    expect(fns.deactivateSource).not.toHaveBeenCalled();
+
+    clock = T0 + SOURCE_STALE_MS;
+    await refresher.refreshSource('a');
+    expect(fns.deactivateSource).toHaveBeenCalledTimes(1);
+    expect(active.get('a')).toBe(false);
+
+    clock += 60 * MINUTE;
+    await refresher.refreshSource('a');
+    expect(fns.deactivateSource).toHaveBeenCalledTimes(1);
+
+    pages[0] = [item(1)];
+    clock += 60 * MINUTE;
+    const successAt = clock;
+    expect((await refresher.refreshSource('a')).status).toBe('success');
+    expect(active.get('a')).toBe(true);
+
+    pages[0] = new Error('down again');
+    for (const offset of [60 * MINUTE, 120 * MINUTE, SOURCE_STALE_MS]) {
+      clock = successAt + offset;
+      await refresher.refreshSource('a');
+    }
+    expect(fns.deactivateSource).toHaveBeenCalledTimes(2);
+    expect(active.get('a')).toBe(false);
+  });
+
+  it('deactivates a source that never succeeded on its third failure', async () => {
+    const source = fakeSource('a', [new Error('down')]);
+    const { fns, repo } = fakeRepository();
+    refresher = new SalesRefresher([source], repo, options());
+
+    await refresher.refreshSource('a');
+    await refresher.refreshSource('a');
+    expect(fns.deactivateSource).not.toHaveBeenCalled();
+
+    expect((await refresher.refreshSource('a')).status).toBe('failed');
+    expect(fns.deactivateSource).toHaveBeenCalledWith('a');
+  });
+
+  it('counts partial runs towards staleness', async () => {
+    const source = fakeSource('a', [[item(1)], new Error('timeout')]);
+    const { fns, repo } = fakeRepository();
+    refresher = new SalesRefresher([source], repo, options());
+
+    for (let run = 0; run < 3; run++) {
+      expect((await refresher.refreshSource('a')).status).toBe('partial');
+    }
+    expect(fns.deactivateSource).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('SalesRefresher shutdown', () => {
+  it('does not wait for a scrape in progress', async () => {
+    const source = fakeSource('a', [[item(1)]]);
+    source.fetchPage.mockImplementationOnce(() => new Promise<RawSaleItem[]>(() => {}));
+    const { fns, repo } = fakeRepository();
+    refresher = new SalesRefresher([source], repo, options());
+
+    void refresher.refreshSource('a');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.fetchPage).toHaveBeenCalledTimes(1);
+
+    let stopped = false;
+    void refresher.stop().then(() => (stopped = true));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(stopped).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    expect((await refresher.refreshSource('a')).status).toBe('skipped');
+    expect(fns.applySourceSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('waits for a write in progress to finish', async () => {
+    const gate = deferred<SnapshotResult>();
+    const source = fakeSource('a', [[item(1)]]);
+    const { fns, states, repo } = fakeRepository();
+    fns.applySourceSnapshot.mockImplementationOnce(() => gate.promise);
+    refresher = new SalesRefresher([source], repo, options());
+
+    const run = refresher.refreshSource('a');
+    await reachWritePhase();
+    expect(fns.applySourceSnapshot).toHaveBeenCalledTimes(1);
+
+    let stopped = false;
+    const stopping = refresher.stop().then(() => (stopped = true));
+    await vi.advanceTimersByTimeAsync(STOP_WRITE_WAIT_MS - 1);
+    expect(stopped).toBe(false);
+
+    gate.resolve({ upserted: 1, pricePointsAdded: 0, deactivated: 0 });
+    await stopping;
+    expect(states.get('a')?.last_success_at).toBe(T0);
+    expect((await run).status).toBe('success');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('gives up waiting for a write after the shutdown bound', async () => {
+    const source = fakeSource('a', [[item(1)]]);
+    const { fns, repo } = fakeRepository();
+    fns.applySourceSnapshot.mockImplementationOnce(() => new Promise<SnapshotResult>(() => {}));
+    const local = new SalesRefresher([source], repo, options());
+
+    void local.refreshSource('a');
+    await reachWritePhase();
+    expect(fns.applySourceSnapshot).toHaveBeenCalledTimes(1);
+
+    let stopped = false;
+    void local.stop().then(() => (stopped = true));
+    await vi.advanceTimersByTimeAsync(STOP_WRITE_WAIT_MS - 1);
+    expect(stopped).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stopped).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('leaves no timers when stopped while starting', async () => {
+    const gate = deferred<SalesSourceState | null>();
+    const sources = ['a', 'b'].map((key) => fakeSource(key, [[item(1)]]));
+    const { fns, repo } = fakeRepository();
+    fns.getSourceState.mockImplementationOnce(() => gate.promise);
+    refresher = new SalesRefresher(sources, repo, options());
+
+    const starting = refresher.start();
+    const stopping = refresher.stop();
+    gate.resolve(null);
+    await starting;
+    await stopping;
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(fns.getSourceState).toHaveBeenCalledTimes(1);
   });
 });

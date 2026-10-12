@@ -7,7 +7,11 @@
 
 import { Sale, type RawSaleItem } from '../domain/Sale';
 import type { SalesSource } from '../domain/SalesSource';
-import type { SalesRepository, SalesSourceStatePatch } from '../domain/SalesRepository';
+import type {
+  SalesRepository,
+  SalesSourceState,
+  SalesSourceStatePatch,
+} from '../domain/SalesRepository';
 import type { HealthStatus } from '../../../core/scrapeHealth';
 import { NotFoundError } from '../../../core/errors/AppError';
 import { createModuleLogger } from '../../../core/logging';
@@ -22,13 +26,18 @@ export const WARM_STAGGER_MS = 2000;
 export const PRUNE_INTERVAL_MS = HOUR_MS;
 export const SCHEDULE_JITTER = 0.1;
 export const EMPTY_RUNS_BEFORE_DEACTIVATE = 3;
+export const FAILURES_BEFORE_STALE = 3;
+export const SOURCE_STALE_MS = 24 * HOUR_MS;
+/** Server shutdown force-exits after 10 s, so stop() waits at most this long for writes. */
+export const STOP_WRITE_WAIT_MS = 2000;
 const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
 
 /**
  * - `success`: a complete run with items, written as a snapshot.
  * - `empty`: a complete run without items; nothing written.
- * - `failed`: page 1 failed; stored items stay active.
- * - `partial`: page 1 worked but a later page failed; nothing written.
+ * - `failed`: page 1 failed; stored items stay active until the source is stale
+ *   (`FAILURES_BEFORE_STALE` failures in a row and no success for `SOURCE_STALE_MS`).
+ * - `partial`: page 1 worked but a later page failed; no snapshot written.
  * - `skipped`: the refresher was stopped before or during the run.
  */
 export type RefreshStatus = 'success' | 'empty' | 'failed' | 'partial' | 'skipped';
@@ -72,6 +81,8 @@ export class SalesRefresher {
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private readonly lastRunAt = new Map<string, number>();
   private readonly emptyRuns = new Map<string, number>();
+  private readonly deactivated = new Set<string>();
+  private readonly writes = new Set<Promise<unknown>>();
   private readonly limiters: ScrapeLimiters;
   private readonly now: () => number;
   private readonly random: () => number;
@@ -121,22 +132,34 @@ export class SalesRefresher {
     }
   }
 
-  /** Clears every timer, prevents new runs and waits for runs in progress. */
+  /**
+   * Clears every timer and prevents new runs. Scrapes in progress are not
+   * awaited (their results are discarded); writes in progress are, for at most
+   * `STOP_WRITE_WAIT_MS`.
+   */
   async stop(): Promise<void> {
     this.stopped = true;
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
-    await Promise.allSettled([...this.inFlight.values()]);
+    if (this.writes.size === 0) return;
+
+    let bound: NodeJS.Timeout | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      bound = setTimeout(resolve, STOP_WRITE_WAIT_MS);
+      bound.unref();
+    });
+    await Promise.race([Promise.allSettled([...this.writes]), timeout]);
+    clearTimeout(bound);
   }
 
   /** Refreshes one source; a call while a run of it is in progress returns that run. */
   refreshSource(key: string): Promise<RefreshOutcome> {
-    const running = this.inFlight.get(key);
-    if (running) return running;
-
     const source = this.byKey.get(key);
     if (!source) return Promise.reject(new NotFoundError('Source'));
     if (this.stopped) return Promise.resolve(skipped(key));
+
+    const running = this.inFlight.get(key);
+    if (running) return running;
 
     const run = this.run(source).finally(() => this.inFlight.delete(key));
     this.inFlight.set(key, run);
@@ -176,11 +199,16 @@ export class SalesRefresher {
     const scan = await this.scan(source);
     if (this.stopped) return skipped(key);
 
+    const write =
+      scan.failedPage === null
+        ? this.complete(source, scan, runAt)
+        : this.fail(source, scan, runAt);
+    this.writes.add(write);
     let outcome: RefreshOutcome;
-    if (scan.failedPage === null) {
-      outcome = await this.complete(source, scan, runAt);
-    } else {
-      outcome = await this.fail(source, scan, runAt);
+    try {
+      outcome = await write;
+    } finally {
+      this.writes.delete(write);
     }
 
     if (this.started && !this.stopped && outcome.nextDueAt !== null) {
@@ -234,13 +262,16 @@ export class SalesRefresher {
     const key = source.key;
     try {
       if (scan.sales.length > 0) {
-        this.emptyRuns.set(key, 0);
+        await new Promise<void>((resolve) => setImmediate(resolve));
         await this.repo.applySourceSnapshot(key, source.seller, scan.sales, runAt);
+        this.emptyRuns.set(key, 0);
+        this.deactivated.delete(key);
       } else {
         const empties = (this.emptyRuns.get(key) ?? 0) + 1;
         this.emptyRuns.set(key, empties);
-        if (empties === EMPTY_RUNS_BEFORE_DEACTIVATE) {
+        if (empties >= EMPTY_RUNS_BEFORE_DEACTIVATE && !this.deactivated.has(key)) {
           const count = await this.repo.deactivateSource(key);
+          this.deactivated.add(key);
           log.info(`[${key}] Empty ${empties} times in a row, deactivated ${count} items`);
         }
       }
@@ -276,20 +307,36 @@ export class SalesRefresher {
       log.warn(`[${key}] Page ${scan.failedPage} failed, keeping the stored items`);
     }
 
-    let previous = 0;
+    let previous: SalesSourceState | null = null;
     try {
-      previous = (await this.repo.getSourceState(key))?.consecutive_failures ?? 0;
+      previous = await this.repo.getSourceState(key);
     } catch (err: unknown) {
       log.error(`[${key}] Could not read refresh state`, { err });
     }
-    const failures = previous + 1;
+    const failures = (previous?.consecutive_failures ?? 0) + 1;
+    const now = this.now();
     const backoff = Math.min(this.options.intervalMs, FAILURE_BACKOFF_BASE_MS * 2 ** failures);
-    const nextDueAt = this.now() + backoff;
+    const nextDueAt = now + backoff;
     await this.saveState(key, {
       last_attempt_at: runAt,
       consecutive_failures: failures,
       next_due_at: nextDueAt,
     });
+
+    const lastSuccessAt = previous?.last_success_at ?? null;
+    const stale = lastSuccessAt === null || now - lastSuccessAt >= SOURCE_STALE_MS;
+    if (failures >= FAILURES_BEFORE_STALE && stale && !this.deactivated.has(key)) {
+      try {
+        const count = await this.repo.deactivateSource(key);
+        this.deactivated.add(key);
+        log.warn(
+          `[${key}] Failed ${failures} times without a recent success, deactivated ${count} items`,
+        );
+      } catch (err: unknown) {
+        log.error(`[${key}] Could not deactivate the stale source`, { err });
+      }
+    }
+    await this.pruneIfDue();
 
     return {
       sourceKey: key,
