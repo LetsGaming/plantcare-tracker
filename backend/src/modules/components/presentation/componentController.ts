@@ -13,25 +13,36 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { numericParam, type Handler } from '../../../core/middleware';
 import {
-  GetAllComponentsUseCase,
+  ListComponentsUseCase,
   GetFinenessLevelsUseCase,
   GetComponentUseCase,
   CreateComponentUseCase,
   UpdateComponentUseCase,
   DeleteComponentUseCase,
 } from '../application/ComponentUseCases';
-import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
+import type {
+  ComponentRepository,
+  ComponentDetail,
+  ComponentListItem,
+  FinenessLevel,
+} from '../domain/Component';
+import {
+  parseListQuery,
+  toEnvelope,
+  privateRevalidate,
+  type ListEnvelope,
+} from '../../../core/pagination';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface ComponentListResponse {
-  data: ComponentData[];
-}
+export type ComponentListResponse = ListEnvelope<ComponentListItem>;
 export interface ComponentResponse {
-  data: ComponentData;
+  data: ComponentDetail;
 }
+const FINENESS_MAX_AGE_SECONDS = 3600;
+
 export interface FinenessLevelListResponse {
   data: FinenessLevel[];
 }
@@ -57,7 +68,7 @@ export const createComponentController = (
   repo: ComponentRepository,
   imageCleanup: EntityImageCleanup,
 ): ComponentController => {
-  const getAll = new GetAllComponentsUseCase(repo);
+  const list = new ListComponentsUseCase(repo);
   const getLevels = new GetFinenessLevelsUseCase(repo);
   const getOne = new GetComponentUseCase(repo);
   const create = new CreateComponentUseCase(repo);
@@ -65,20 +76,30 @@ export const createComponentController = (
   const remove = new DeleteComponentUseCase(repo, imageCleanup);
 
   return {
-    getAllComponents: async () => {
-      const components = await getAll.execute();
-      const body: ComponentListResponse = { data: components };
+    getAllComponents: async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = parseListQuery(req.query, {
+        sorts: { name: { direction: 'asc', valueType: 'string', idType: 'number' } },
+        defaultSort: 'name',
+      });
+      const { page, total } = await list.execute(
+        { limit: query.limit, cursor: query.cursor, q: query.q },
+        query.sort,
+      );
+      privateRevalidate(reply);
+      const body: ComponentListResponse = toEnvelope(page, total);
       return body;
     },
 
-    getFinenessLevels: async () => {
+    getFinenessLevels: async (_req: FastifyRequest, reply: FastifyReply) => {
       const levels = await getLevels.execute();
+      reply.header('Cache-Control', `private, max-age=${FINENESS_MAX_AGE_SECONDS}`);
       const body: FinenessLevelListResponse = { data: levels };
       return body;
     },
 
-    getComponent: async (req: FastifyRequest) => {
+    getComponent: async (req: FastifyRequest, reply: FastifyReply) => {
       const component = await getOne.execute(numericParam(req, 'id'));
+      privateRevalidate(reply);
       const body: ComponentResponse = { data: component };
       return body;
     },
@@ -88,7 +109,7 @@ export const createComponentController = (
       const body: ComponentResponse = { data: component };
       return reply
         .code(HTTP_STATUS.CREATED)
-        .header('Location', `/components/${component.component_id}`)
+        .header('Location', `/components/${component.id}`)
         .send(body);
     },
 

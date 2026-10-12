@@ -7,7 +7,14 @@
  */
 
 import { z } from 'zod';
-import type { ComponentRepository, ComponentData, FinenessLevel } from '../domain/Component';
+import type {
+  ComponentRepository,
+  ComponentDetail,
+  ComponentListItem,
+  ComponentPageQuery,
+  FinenessLevel,
+} from '../domain/Component';
+import type { Page } from '../../../core/pagination';
 import { NotFoundError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
 import type { EntityImageCleanup } from '../../images/domain/Image';
@@ -30,26 +37,46 @@ export const UpdateComponentSchema = z
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
-export class GetAllComponentsUseCase {
+export interface ComponentListResult {
+  page: Page<ComponentListItem>;
+  /** Present on the first page only. */
+  total?: number;
+}
+
+export class ListComponentsUseCase {
   constructor(private readonly repo: ComponentRepository) {}
 
-  async execute(): Promise<ComponentData[]> {
-    return this.repo.findAll();
+  async execute(query: ComponentPageQuery, sort: string): Promise<ComponentListResult> {
+    const page = await this.repo.findPage(query, sort);
+    if (query.cursor) return { page };
+    return { page, total: await this.repo.count(query.q) };
   }
 }
 
+export const FINENESS_LEVELS_TTL_MS = 3_600_000;
+
+/** The levels are seeded lookup data, so they are kept in memory for an hour. */
 export class GetFinenessLevelsUseCase {
-  constructor(private readonly repo: ComponentRepository) {}
+  private cached: { levels: FinenessLevel[]; expiresAt: number } | null = null;
+
+  constructor(
+    private readonly repo: ComponentRepository,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   async execute(): Promise<FinenessLevel[]> {
-    return this.repo.findFinenessLevels();
+    const now = this.now();
+    if (this.cached && this.cached.expiresAt > now) return this.cached.levels;
+    const levels = await this.repo.findFinenessLevels();
+    this.cached = { levels, expiresAt: now + FINENESS_LEVELS_TTL_MS };
+    return levels;
   }
 }
 
 export class GetComponentUseCase {
   constructor(private readonly repo: ComponentRepository) {}
 
-  async execute(id: number): Promise<ComponentData> {
+  async execute(id: number): Promise<ComponentDetail> {
     const component = await this.repo.findById(id);
     if (!component) throw new NotFoundError('Component');
     return component;
@@ -59,7 +86,7 @@ export class GetComponentUseCase {
 export class CreateComponentUseCase {
   constructor(private readonly repo: ComponentRepository) {}
 
-  async execute(input: unknown): Promise<ComponentData> {
+  async execute(input: unknown): Promise<ComponentDetail> {
     const data = parseOrThrow(CreateComponentSchema, input, 'Invalid component data');
 
     const id = await this.repo.create(data.name, data.fineness);
@@ -73,7 +100,7 @@ export class CreateComponentUseCase {
 export class UpdateComponentUseCase {
   constructor(private readonly repo: ComponentRepository) {}
 
-  async execute(id: number, input: unknown): Promise<ComponentData> {
+  async execute(id: number, input: unknown): Promise<ComponentDetail> {
     const data = parseOrThrow(UpdateComponentSchema, input, 'Invalid component data');
 
     const updated = await this.repo.update(id, data);
