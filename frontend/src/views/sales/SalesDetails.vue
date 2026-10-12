@@ -108,6 +108,7 @@ import { useSalesStore } from "@/stores/sales";
 import localizationService from "@/services/general/LocalizationService";
 import { LoadPhase, phaseFromError } from "@/utils/loadPhase";
 import { formatPrice } from "@/utils/formatPrice";
+import { numberFormat } from "@/utils/intlCache";
 
 export default defineComponent({
   name: "SalesDetails",
@@ -153,7 +154,7 @@ export default defineComponent({
     },
     savingPercent(): string {
       if (!this.sale || !this.hasDiscount) return "";
-      return new Intl.NumberFormat(localizationService.getLocale(), {
+      return numberFormat(localizationService.getLocale(), {
         style: "percent",
         maximumFractionDigits: 0,
       }).format(this.savingAmount / this.sale.oldPrice);
@@ -175,7 +176,7 @@ export default defineComponent({
     },
   },
   methods: {
-    ...mapActions(useSalesStore, { loadSales: "load" }),
+    ...mapActions(useSalesStore, { loadSales: "load", markSeen: "markSeen" }),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
@@ -189,6 +190,11 @@ export default defineComponent({
         return;
       }
       this.phase = this.sale ? "ready" : "not-found";
+      if (this.sale) {
+        const id = this.id;
+        // After the first paint, so the hidden list's recompute never delays this page.
+        requestAnimationFrame(() => this.markSeen(id));
+      }
     },
     refresh() {
       return this.reload(true);

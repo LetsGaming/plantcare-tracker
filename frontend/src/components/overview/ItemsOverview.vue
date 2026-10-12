@@ -180,7 +180,14 @@ export interface OverviewItem {
   priceText?: string;
   oldPriceText?: string;
   discountText?: string;
+  /** Lowercase text the search matches instead of every text field, when given. */
+  searchText?: string;
 }
+
+const matchesSearch = (item: OverviewItem, needle: string): boolean =>
+  item.searchText === undefined
+    ? Utils.baseSearchFilter(needle, [item]).length > 0
+    : item.searchText.includes(needle);
 
 export default defineComponent({
   name: "ItemsOverview",
@@ -293,7 +300,10 @@ export default defineComponent({
     },
     filterItems(query: string) {
       this.currentSearch = query;
-      const filtered = Utils.baseSearchFilter(query, this.items);
+      const needle = query.trim().toLowerCase();
+      const filtered = needle
+        ? this.items.filter((item) => matchesSearch(item, needle))
+        : this.items;
       this.filteredItems = this.sortItems(filtered);
     },
     clearSearch() {

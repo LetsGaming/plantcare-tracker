@@ -56,7 +56,7 @@ import {
 import { navIcons, type NavDestination } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 import { useSessionStore } from "@/stores/session";
-import { useSalesStore } from "@/stores/sales";
+import { SALES_NEW_KEY, useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 
 export default defineComponent({
@@ -84,7 +84,7 @@ export default defineComponent({
     ...mapState(useSalesStore, { salesCount: "newCount" }),
   },
   async mounted() {
-    await this.restoreSales();
+    void useSalesStore().$hydrate([SALES_NEW_KEY]);
     if (!this.isAdmin) return;
     try {
       await this.loadSourceHealth();
@@ -96,7 +96,6 @@ export default defineComponent({
     tabIcon(tab: NavDestination): string {
       return this.activeTab === tab ? navIcons[tab].selected : navIcons[tab].idle;
     },
-    ...mapActions(useSalesStore, { restoreSales: "restore" }),
     ...mapActions(useAdminHealthStore, { loadSourceHealth: "load" }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);

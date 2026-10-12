@@ -25,8 +25,8 @@ interface Sale {
   imageUrl?: string;
   /** ISO timestamp of when the scraper last saw this item */
   scrapedAt?: string;
-  /** True if this sale was not present in the previous session's cache */
-  isNew?: boolean;
+  /** Lowercase full name and seller; the only text a sales search matches. */
+  searchKey: string;
 }
 
 /** A price point stored in the local price history cache */

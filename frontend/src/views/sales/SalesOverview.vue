@@ -87,7 +87,7 @@ import {
 } from "@ionic/vue";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
-import ItemsOverview from "@/components/overview/ItemsOverview.vue";
+import ItemsOverview, { type OverviewItem } from "@/components/overview/ItemsOverview.vue";
 import SalesFilterModal from "@/components/sales/SalesFilterModal.vue";
 import { icons } from "@/theme/icons";
 import {
@@ -101,6 +101,19 @@ import { discountPercent, formatDiscount, formatPrice } from "@/utils/formatPric
 
 import { mapActions, mapState } from "pinia";
 import { useSalesStore } from "@/stores/sales";
+
+type CardText = Pick<OverviewItem, "priceText" | "oldPriceText" | "discountText">;
+
+const cardText = (sale: Sale, locale: string): CardText => ({
+  priceText: sale.price ? formatPrice(sale.price, locale) : undefined,
+  oldPriceText: discountPercent(sale.price, sale.oldPrice)
+    ? formatPrice(sale.oldPrice, locale)
+    : undefined,
+  discountText: formatDiscount(sale.price, sale.oldPrice, locale) || undefined,
+});
+
+/** Card texts of the last rendered list, by id, prices and locale. */
+let cardTexts = new Map<string, CardText>();
 
 export default defineComponent({
   name: "SalesOverview",
@@ -120,7 +133,6 @@ export default defineComponent({
     return {
       failed: false,
       loadedOnce: false,
-      openedId: null as string | null,
       showFilter: false,
       sorts: SALES_SORTS,
       sortIcon: icons.sort,
@@ -130,10 +142,12 @@ export default defineComponent({
   computed: {
     ...mapState(useSalesStore, {
       sales: "filteredSales",
-      allSales: "visibleSales",
+      allSales: "items",
       sellers: "sellers",
       query: "query",
       streaming: "streaming",
+      isNew: "isNew",
+      byId: "byId",
     }),
     allCount(): number {
       return this.allSales.length;
@@ -148,32 +162,32 @@ export default defineComponent({
       return this.streaming || !this.loadedOnce;
     },
     mappedSales(): OverviewItem[] {
-      return this.sales.map((sale: Sale) => ({
-        id: sale.id,
-        name: sale.name,
-        imageUrl: sale.imageUrl,
-        description: sale.seller,
-        isNew: sale.isNew,
-        priceText: sale.price ? formatPrice(sale.price) : undefined,
-        oldPriceText: discountPercent(sale.price, sale.oldPrice)
-          ? formatPrice(sale.oldPrice)
-          : undefined,
-        discountText: formatDiscount(sale.price, sale.oldPrice) || undefined,
-      }));
+      const locale = localizationService.getLocale();
+      const texts = new Map<string, CardText>();
+      const items = this.sales.map((sale: Sale) => {
+        const key = `${sale.id}|${sale.price}|${sale.oldPrice}|${locale}`;
+        const text = cardTexts.get(key) ?? cardText(sale, locale);
+        texts.set(key, text);
+        return Object.freeze({
+          id: sale.id,
+          name: sale.name,
+          imageUrl: sale.imageUrl,
+          description: sale.seller,
+          searchText: sale.searchKey,
+          isNew: this.isNew(sale.id),
+          ...text,
+        });
+      });
+      cardTexts = texts;
+      return items;
     },
   },
   mounted() {
     void this.fetchSales(false);
   },
-  ionViewWillEnter() {
-    if (this.openedId === null) return;
-    this.markSeen(this.openedId);
-    this.openedId = null;
-  },
   methods: {
     ...mapActions(useSalesStore, {
       loadSales: "load",
-      markSeen: "markSeen",
       markAllSeen: "markAllSeen",
       setQuery: "setQuery",
       resetQuery: "resetQuery",
@@ -206,9 +220,7 @@ export default defineComponent({
     },
 
     async onItemClick(id: string) {
-      if (!this.sales.find((s: Sale) => s.id === id)) return;
-
-      this.openedId = id;
+      if (!this.byId(id)) return;
       await this.$router.push({ name: "sales-details", params: { id } });
     },
   },

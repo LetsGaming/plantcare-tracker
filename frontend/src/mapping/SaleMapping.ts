@@ -16,6 +16,11 @@ const realPhoto = (url: string | null | undefined): string | undefined =>
   url && !url.startsWith(GENERATED_TILE_PREFIX) ? url : undefined;
 
 export default class SaleMapper {
+  /** What a search over sales matches: the full name and the shop, never ids or links. */
+  static searchKeyOf(nameFull: string, seller: string): string {
+    return `${nameFull} ${seller}`.toLowerCase();
+  }
+
   /**
    * Maps a single V2 APISale to the frontend Sale model.
    *
@@ -33,6 +38,7 @@ export default class SaleMapper {
       link: sale.sale_link,
       imageUrl: realPhoto(sale.sale_image_url),
       scrapedAt: sale.sale_scraped_at,
+      searchKey: SaleMapper.searchKeyOf(sale.sale_name, sale.sale_seller),
     };
   }
 
