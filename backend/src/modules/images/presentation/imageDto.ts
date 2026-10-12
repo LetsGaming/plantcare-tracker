@@ -1,16 +1,9 @@
 import { variantUrl } from '../../../core/config/uploads';
+import type { ImageDTO } from '../domain/imageDto';
 
 const WEBP_URL = /\.webp$/i;
 
-export interface ImageDTO {
-  id: number;
-  url: string;
-  srcset: string | null;
-  width: number | null;
-  height: number | null;
-  placeholder: string | null;
-  date: number;
-}
+export type { ImageDTO };
 
 export interface ImageDtoSource {
   id: number;

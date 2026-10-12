@@ -2,7 +2,7 @@
  * modules/substrate/domain/Substrate.ts
  */
 
-import type { ImageDTO } from '../../images/presentation/imageDto';
+import type { ImageDTO } from '../../images/domain/imageDto';
 import type { Cursor } from '../../../core/pagination';
 
 export interface ComponentRef {

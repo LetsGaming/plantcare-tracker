@@ -3,7 +3,7 @@
  */
 
 import type { Page } from '../../../core/pagination';
-import type { ImageDTO } from '../../images/presentation/imageDto';
+import type { ImageDTO } from '../../images/domain/imageDto';
 
 export interface ComponentListItem {
   id: number;
