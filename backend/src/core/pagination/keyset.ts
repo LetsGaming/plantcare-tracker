@@ -38,9 +38,14 @@ export const applyKeyset = <DB, TB extends keyof DB, O>(
 
   let query = qb;
   if (options.cursor) {
-    query = query.where(
-      sql<SqlBool>`(${column}, ${id}) ${operator} (${options.cursor.v}, ${options.cursor.id})`,
-    );
+    // The planner does not turn a row-value seek on a NOCASE column into an index range, so the
+    // redundant single-column bound is what keeps deep pages from scanning the skipped rows.
+    const bound = options.direction === 'desc' ? sql.raw('<=') : sql.raw('>=');
+    query = query
+      .where(sql<SqlBool>`${column} ${bound} ${options.cursor.v}`)
+      .where(
+        sql<SqlBool>`(${column}, ${id}) ${operator} (${options.cursor.v}, ${options.cursor.id})`,
+      );
   }
   return query
     .orderBy(column, options.direction)

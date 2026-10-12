@@ -129,11 +129,7 @@ export class SQLitePlantRepository implements PlantRepository {
   ): Promise<PlantListPage> {
     const summary = summaryColumns('p.id', tz ?? 0);
     const cursor = query.cursor;
-    // The row-value seek alone does not bound the name index range; this redundant lower bound does.
     const base = filteredPlants(scope, query.q)
-      .$if(query.sort === 'name' && cursor !== null, (qb) =>
-        qb.where(sql<SqlBool>`p.name COLLATE NOCASE >= ${cursor!.v}`),
-      )
       .leftJoin('substrates as s', 'p.substrate_id', 's.id')
       .select([
         'p.id as plant_id',

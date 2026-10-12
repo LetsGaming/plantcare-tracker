@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
-import { Kysely, SqliteDialect } from 'kysely';
+import { Kysely, SqliteDialect, sql, type SqlBool } from 'kysely';
 
 import {
   applyKeyset,
@@ -213,6 +213,8 @@ interface ItemTable {
   id: number;
   name: string;
   created_at: number;
+  user_id: number;
+  is_public: number;
 }
 interface TestDb {
   items: ItemTable;
@@ -375,6 +377,92 @@ describe('keyset walk', () => {
     }).compile();
     expect(text).toContain('("i"."name" COLLATE NOCASE, "i"."id") > (?, ?)');
     expect(text).toMatch(/order by "i"\."name" COLLATE NOCASE asc, "i"\."id" asc limit \?$/);
+  });
+});
+
+describe('keyset index range', () => {
+  beforeEach(() => {
+    sqlite.exec(`
+      ALTER TABLE items ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE items ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX idx_items_user_created ON items(user_id, created_at DESC, id DESC);
+      CREATE INDEX idx_items_user_name ON items(user_id, name COLLATE NOCASE, id);
+      CREATE INDEX idx_items_public_created ON items(created_at DESC, id DESC) WHERE is_public = 1;
+      CREATE INDEX idx_items_public_name ON items(name COLLATE NOCASE, id) WHERE is_public = 1;
+    `);
+    for (let i = 0; i < 300; i++)
+      sqlite
+        .prepare('INSERT INTO items (name, created_at, user_id, is_public) VALUES (?, ?, ?, ?)')
+        .run(`Plant ${i}`, i, i % 3, i % 2);
+    sqlite.exec('ANALYZE');
+  });
+
+  const plan = (
+    scope: 'user' | 'public',
+    column: 'name' | 'created_at',
+    direction: SortDirection,
+    cursor: Cursor | null = { s: 'x', v: column === 'name' ? 'plant 5' : 150, id: 5 },
+  ): string => {
+    const base = db.selectFrom('items as i').selectAll('i');
+    const scoped =
+      scope === 'user'
+        ? base.where('i.user_id', '=', 1)
+        : base.where(sql<SqlBool>`i.is_public = 1`);
+    const { sql: text, parameters } = applyKeyset(scoped, {
+      column: `i.${column}`,
+      idColumn: 'i.id',
+      direction,
+      cursor,
+      limit: 30,
+      collateNoCase: column === 'name',
+    }).compile();
+    return (sqlite.prepare(`EXPLAIN QUERY PLAN ${text}`).all(...parameters) as { detail: string }[])
+      .map((row) => row.detail)
+      .join(' | ');
+  };
+
+  it('bounds the NOCASE name index range for a user scope, ascending', () => {
+    const detail = plan('user', 'name', 'asc');
+    expect(detail).toContain('SEARCH i USING INDEX idx_items_user_name (user_id=? AND name>?)');
+  });
+
+  it('bounds the NOCASE name index range for the partial public index', () => {
+    const detail = plan('public', 'name', 'asc');
+    expect(detail).toContain('SEARCH i USING INDEX idx_items_public_name (name>?)');
+  });
+
+  it('bounds the NOCASE name index range when descending', () => {
+    const detail = plan('user', 'name', 'desc');
+    expect(detail).toContain('SEARCH i USING INDEX idx_items_user_name (user_id=? AND name<?)');
+  });
+
+  it('keeps the created sort bounded on both scopes', () => {
+    expect(plan('user', 'created_at', 'desc')).toContain(
+      'SEARCH i USING INDEX idx_items_user_created (user_id=? AND created_at<?)',
+    );
+    expect(plan('public', 'created_at', 'desc')).toContain(
+      'SEARCH i USING INDEX idx_items_public_created (created_at<?)',
+    );
+  });
+
+  it('adds no bound on the first page', () => {
+    const detail = plan('user', 'name', 'asc', null);
+    expect(detail).toContain('idx_items_user_name (user_id=?)');
+    expect(detail).not.toContain('name>');
+  });
+
+  it('walks a descending NOCASE order exactly once with ties', async () => {
+    sqlite.exec('DELETE FROM items');
+    const names = ['b', 'B', 'a', 'A', 'c', 'C'];
+    for (let i = 0; i < 50; i++) insert(names[i % names.length], i);
+    const sort: Sort = { key: 'name', column: 'name', direction: 'desc', collateNoCase: true };
+    const seen = await walk(sort, 7);
+    const expected = (
+      sqlite.prepare('SELECT id FROM items ORDER BY name COLLATE NOCASE DESC, id DESC').all() as {
+        id: number;
+      }[]
+    ).map((row) => row.id);
+    expect(seen).toEqual(expected);
   });
 });
 
