@@ -1,19 +1,15 @@
 /**
  * mapping/PlantMapping.ts
  *
- * Maps V2 API plant shapes to frontend models.
+ * Maps the plant API shapes to frozen view models.
  *
- * V2 source type (PlantData):
- *   plant_id, plant_user_id, plant_name, plant_species,
- *   is_public (boolean), plant_created_at,
- *   image_url (string|null), substrate (SubstrateRef|null), images[]
+ * Lists (GET /plants, envelope): APIPlantListItem with plant_id, plant_name,
+ * user_id, is_public, created_at (epoch ms), species_name, substrate
+ * (SubstrateRef or null), cover, image_count and watering (owner only).
+ * Details (GET /plants/:id, POST/PATCH): APIPlantDetail adds images.
+ * The legacy APIPlant mappers below serve the remaining pre-envelope callers.
  *
- * Important V2 differences from V1:
- *   - substrate is a lightweight SubstrateRef { substrate_id, substrate_name },
- *     NOT the full SubstrateData object. Use the substrates store (getSubstrate)
- *     to load full substrate details when needed.
- *   - plant_description does not exist in V2.
- *   - is_public is always boolean (the repo normalizes the MySQL tinyint).
+ * The substrate is a lightweight reference; load the full substrate when needed.
  */
 import ImageMapper, { toCoverView, toImageViews } from "./ImageMapping";
 import WateringMapper from "./WateringMapping";

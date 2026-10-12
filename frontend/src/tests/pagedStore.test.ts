@@ -138,6 +138,7 @@ describe("loadFirst and loadMore", () => {
       cursor: null,
       q: "",
       sort: "created",
+      conditional: false,
     });
 
     const firstList = store.public.items;
@@ -149,6 +150,7 @@ describe("loadFirst and loadMore", () => {
       cursor: "c1",
       q: "",
       sort: "created",
+      conditional: false,
     });
 
     await store.more(fetchPage);
@@ -198,9 +200,65 @@ describe("loadFirst and loadMore", () => {
     const store = useDemoStore();
     await store.first(pagedSource(new Map([[null, page(items(1, 2), null)]])));
     const list = store.public.items;
-    await store.first(vi.fn().mockResolvedValue({ notModified: true }));
+    const answer = vi.fn().mockResolvedValue({ notModified: true });
+    await store.first(answer);
+    expect(answer).toHaveBeenCalledWith(expect.objectContaining({ conditional: true }));
     expect(store.public.items).toBe(list);
     expect(store.public.status).toBe("ready");
+  });
+
+  it("sends the first page unconditionally until one is committed", async () => {
+    const store = useDemoStore();
+    const fetchPage = pagedSource(new Map([[null, page(items(1, 2), "c1")]]));
+    await store.first(fetchPage);
+    expect(fetchPage).toHaveBeenLastCalledWith(expect.objectContaining({ conditional: false }));
+  });
+
+  it("refetches once without the flag when a 304 arrives for a cleared list", async () => {
+    const store = useDemoStore();
+    const fetchPage = vi
+      .fn<FetchPage<Item>>()
+      .mockResolvedValueOnce({ notModified: true })
+      .mockResolvedValueOnce(page(items(1, 2), null, 2));
+    await store.first(fetchPage);
+    expect(fetchPage).toHaveBeenCalledTimes(2);
+    expect(fetchPage).toHaveBeenLastCalledWith(expect.objectContaining({ conditional: false }));
+    expect(store.public.items).toHaveLength(2);
+    expect(store.public.status).toBe("ready");
+  });
+
+  it("fails instead of looping when an unconditional request keeps answering 304", async () => {
+    const store = useDemoStore();
+    const fetchPage = vi.fn().mockResolvedValue({ notModified: true });
+    await expect(store.first(fetchPage)).rejects.toThrow();
+    expect(fetchPage).toHaveBeenCalledTimes(2);
+    expect(store.public.status).toBe("error");
+  });
+
+  it("does not stall when loadMore answers 304", async () => {
+    const store = useDemoStore();
+    await store.first(pagedSource(new Map([[null, page(items(1, 30), "c1")]])));
+    await store.more(vi.fn().mockResolvedValue({ notModified: true }));
+    expect(store.public.loadingMore).toBe(false);
+    expect(store.public.nextCursor).toBe("c1");
+
+    await store.more(pagedSource(new Map([["c1", page(items(31, 2), null)]])));
+    expect(store.public.items).toHaveLength(32);
+  });
+
+  it("does nothing in loadMore while a first page loads", async () => {
+    const store = useDemoStore();
+    await store.first(pagedSource(new Map([[null, page(items(1, 30), "c1")]])));
+    const pending = deferred<FetchedPage<Item>>();
+    const running = store.first(vi.fn(() => pending.promise));
+    const fetchMore = vi.fn();
+
+    await store.more(fetchMore);
+    expect(fetchMore).not.toHaveBeenCalled();
+    expect(store.public.loadingMore).toBe(false);
+
+    pending.resolve(page(items(1, 30), "c1"));
+    await running;
   });
 });
 
@@ -241,6 +299,7 @@ describe("setQuery", () => {
       cursor: null,
       q: "fern",
       sort: "name",
+      conditional: false,
     });
 
     pending.resolve(page(items(200, 1), null, 1));
@@ -260,6 +319,46 @@ describe("setQuery", () => {
     await store.query("ivy", fetchPage);
 
     expect(fetchPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a revisited query unconditionally and never keeps an empty list on 304", async () => {
+    const store = useDemoStore();
+    const seen = new Set<string>();
+    const server = vi.fn(async (params: PageParams) => {
+      const known = seen.has(params.q);
+      seen.add(params.q);
+      if (params.conditional && known) return { notModified: true as const };
+      return page(items(params.q === "abc" ? 100 : 1, 2), null, 2);
+    });
+
+    await store.query("abc", server);
+    await store.query("", server);
+    await store.query("abc", server);
+
+    expect(server.mock.calls.map(([params]) => params.conditional)).toEqual([false, false, false]);
+    expect(store.public.items.map((item) => item.id)).toEqual([100, 101]);
+    expect(store.public.status).toBe("ready");
+
+    await store.first(server);
+    expect(server).toHaveBeenLastCalledWith(expect.objectContaining({ conditional: true }));
+    expect(store.public.items.map((item) => item.id)).toEqual([100, 101]);
+  });
+
+  it("loads the same query again after its first page was dropped by the session", async () => {
+    const store = useDemoStore();
+    const pending = deferred<FetchedPage<Item>>();
+    const dropped = store.first(
+      vi.fn(() => pending.promise),
+      { isCurrent: () => false },
+    );
+    pending.resolve(page(items(1, 1), null));
+    await dropped;
+    expect(store.public.status).toBe("idle");
+
+    const fetchPage = vi.fn().mockResolvedValue(page(items(1, 1), null));
+    await store.query("", fetchPage);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+    expect(store.public.items).toHaveLength(1);
   });
 
   it("drops a loadMore that was in flight when the query changed", async () => {
@@ -293,9 +392,9 @@ describe("loadAll", () => {
     await store.all(fetchPage);
 
     expect(fetchPage.mock.calls.map(([params]) => params)).toEqual([
-      { limit: LOAD_ALL_PAGE_SIZE, cursor: null, q: "", sort: "name" },
-      { limit: LOAD_ALL_PAGE_SIZE, cursor: "a", q: "", sort: "name" },
-      { limit: LOAD_ALL_PAGE_SIZE, cursor: "b", q: "", sort: "name" },
+      { limit: LOAD_ALL_PAGE_SIZE, cursor: null, q: "", sort: "name", conditional: false },
+      { limit: LOAD_ALL_PAGE_SIZE, cursor: "a", q: "", sort: "name", conditional: false },
+      { limit: LOAD_ALL_PAGE_SIZE, cursor: "b", q: "", sort: "name", conditional: false },
     ]);
     expect(store.mine.items).toHaveLength(230);
     expect(store.mine.total).toBe(230);
@@ -309,6 +408,41 @@ describe("loadAll", () => {
     const fetchPage = pagedSource(new Map([[null, page(items(1, 3), null)]]));
     await Promise.all([store.all(fetchPage), store.all(fetchPage)]);
     expect(fetchPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails on a repeated cursor instead of looping", async () => {
+    const store = useDemoStore();
+    const fetchPage = pagedSource(
+      new Map([
+        [null, page(items(1, 100), "a")],
+        ["a", page(items(101, 100), "b")],
+        ["b", page(items(201, 100), "a")],
+      ]),
+    );
+    await expect(store.all(fetchPage)).rejects.toThrow("cursor loop");
+    expect(fetchPage).toHaveBeenCalledTimes(3);
+    expect(store.mine.items).toHaveLength(0);
+    expect(store.mine.status).toBe("error");
+  });
+
+  it("stops at the page cap when every cursor is new", async () => {
+    const store = useDemoStore();
+    let calls = 0;
+    const fetchPage = vi.fn(async () => page(items(1, 1), `c${calls++}`));
+    await expect(store.all(fetchPage)).rejects.toThrow("cursor loop");
+    expect(calls).toBeLessThanOrEqual(1001);
+  });
+
+  it("never sends the conditional flag and fails on a stray 304 without a stored copy", async () => {
+    const store = useDemoStore();
+    const fetchPage = vi
+      .fn<FetchPage<Item>>()
+      .mockResolvedValueOnce(page(items(1, 100), "a"))
+      .mockResolvedValueOnce({ notModified: true });
+    const failure = await store.all(fetchPage).catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).not.toContain("later page");
+    for (const [params] of fetchPage.mock.calls) expect(params.conditional).toBe(false);
   });
 
   it("commits nothing when a later page fails", async () => {
@@ -374,6 +508,28 @@ describe("logout epoch", () => {
     current = false;
     pending.reject(new DOMException("aborted", "AbortError"));
     await expect(running).resolves.toBeUndefined();
+  });
+
+  it("$reset drops first, more and all requests still in flight", async () => {
+    const store = useDemoStore();
+    await store.first(pagedSource(new Map([[null, page(items(1, 30), "c1")]])));
+    const first = deferred<FetchedPage<Item>>();
+    const more = deferred<FetchedPage<Item>>();
+    const all = deferred<FetchedPage<Item>>();
+    const pendingMore = store.more(vi.fn(() => more.promise));
+    const pendingAll = store.all(vi.fn(() => all.promise));
+    const pendingFirst = store.first(vi.fn(() => first.promise));
+
+    store.$reset();
+    first.resolve(page(items(1, 3), null));
+    more.resolve(page(items(31, 3), null));
+    all.resolve(page(items(1, 4), null));
+    await Promise.all([pendingFirst, pendingMore, pendingAll]);
+
+    expect(store.public.items).toHaveLength(0);
+    expect(store.public.status).toBe("idle");
+    expect(store.mine.items).toHaveLength(0);
+    expect(store.mine.status).toBe("idle");
   });
 
   it("reset drops responses still in flight", async () => {
@@ -443,6 +599,19 @@ describe("persistence", () => {
     expect(restored.public.nextCursor).toBe("c1");
     expect(restored.public.total).toBe(40);
     expect(restored.public.status).toBe("ready");
+  });
+
+  it("does not write again after hydration", async () => {
+    await useDemoStore().first(pagedSource(new Map([[null, page(items(1, 2), "c1", 40)]])));
+    useDemoStore().$flushPersist();
+    cancelPendingPersistence();
+
+    await createInstalledPinia();
+    const restored = useDemoStore();
+    await restored.$hydrate([PUBLIC_KEY]);
+    memoryStore.delete(PUBLIC_KEY);
+    restored.$flushPersist();
+    expect(memoryStore.has(PUBLIC_KEY)).toBe(false);
   });
 
   it("persists an owned list in full", async () => {

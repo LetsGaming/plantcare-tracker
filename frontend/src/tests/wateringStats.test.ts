@@ -21,6 +21,13 @@ const summary = (lastDaysAgo: number | null, avgIntervalDays: number | null): Wa
     avg_interval_days: avgIntervalDays,
   });
 
+/** The backend formula: calendar days first to last, divided by distinct days minus one. */
+const summaryFrom = (...daysAgo: number[]): WateringSummary => {
+  const distinct = new Set(daysAgo).size;
+  const span = Math.max(...daysAgo) - Math.min(...daysAgo);
+  return summary(Math.min(...daysAgo), distinct >= 2 ? span / (distinct - 1) : null);
+};
+
 interface Fixture {
   name: string;
   records: { date_millis: number }[];
@@ -33,61 +40,61 @@ const fixtures: Fixture[] = [
   {
     name: "watered daily, last today",
     records: records(4, 3, 2, 1, 0),
-    summary: summary(0, 1),
+    summary: summaryFrom(4, 3, 2, 1, 0),
     tone: "ok",
   },
   {
     name: "watered daily, last four days ago",
     records: records(8, 7, 6, 5, 4),
-    summary: summary(4, 1),
+    summary: summaryFrom(8, 7, 6, 5, 4),
     tone: "overdue",
   },
   {
     name: "watered weekly, last three days ago",
     records: records(17, 10, 3),
-    summary: summary(3, 7),
+    summary: summaryFrom(17, 10, 3),
     tone: "ok",
   },
   {
     name: "watered weekly, due",
     records: records(22, 15, 8),
-    summary: summary(8, 7),
+    summary: summaryFrom(22, 15, 8),
     tone: "due",
   },
   {
     name: "watered weekly, overdue",
     records: records(30, 23, 16),
-    summary: summary(16, 7),
+    summary: summaryFrom(30, 23, 16),
     tone: "overdue",
   },
   {
     name: "single watering within the default interval",
     records: records(7),
-    summary: summary(7, null),
+    summary: summaryFrom(7),
     tone: "ok",
   },
   {
     name: "single watering, due against the default interval",
     records: records(8),
-    summary: summary(8, null),
+    summary: summaryFrom(8),
     tone: "due",
   },
   {
     name: "single watering, overdue against the default interval",
     records: records(20),
-    summary: summary(20, null),
+    summary: summaryFrom(20),
     tone: "overdue",
   },
   {
     name: "uneven rhythm with two records on one day",
     records: [...records(10, 6, 1), { date_millis: day(6) + 3_600_000 }],
-    summary: summary(1, 4.5),
+    summary: summaryFrom(10, 6, 1),
     tone: "ok",
   },
   {
     name: "uneven rhythm, due",
     records: records(14, 9, 5),
-    summary: summary(5, 4.5),
+    summary: summaryFrom(14, 9, 5),
     tone: "due",
   },
 ];
@@ -114,8 +121,8 @@ describe("wateringStatus(summary)", () => {
     const fertilized = WateringMapper.mapSummary({
       last_watered_at: day(8),
       last_fertilized_at: day(0),
-      avg_interval_days: 7,
+      avg_interval_days: summaryFrom(22, 15, 8).avgIntervalDays,
     });
-    expect(wateringStatus(fertilized, now)).toEqual(wateringStatus(summary(8, 7), now));
+    expect(wateringStatus(fertilized, now)).toEqual(wateringStatus(summaryFrom(22, 15, 8), now));
   });
 });

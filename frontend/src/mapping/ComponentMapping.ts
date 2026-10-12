@@ -1,15 +1,14 @@
 /**
  * mapping/ComponentMapping.ts
  *
- * Maps V2 API component shapes to frontend models.
+ * Maps the component API shapes to frozen view models.
  *
- * V2 source type (ComponentData):
- *   component_id, component_name, fineness_id, component_fineness,
- *   image_url (string|null), images[]
- *
- * V2 SubstrateComponent source (ComponentRef):
- *   component_id, component_name, component_fineness, component_parts
- *   (no component_description — fineness name is used as description)
+ * Lists (GET /components, envelope): APIComponentListItem with id, name,
+ * fineness_id, fineness_name and cover. Details add images.
+ * Components embedded in a substrate (APISubstrateComponent: component_id,
+ * component_name, component_fineness, component_parts) carry no fineness id;
+ * the fineness name doubles as the description.
+ * The legacy APIComponent mappers below serve the remaining pre-envelope callers.
  */
 import { toCoverView, toImageViews } from "./ImageMapping";
 
@@ -78,8 +77,8 @@ export default class ComponentMapper {
    * Maps a V2 APISubstrateComponent (lightweight ComponentRef) to the
    * frontend SubstrateComponent model.
    *
-   * In V2, component_fineness serves as the description — there is no
-   * separate component_description field.
+   * component_fineness serves as the description; there is no separate
+   * component_description field.
    */
   static mapSubstrateComponent(component: APISubstrateComponent): SubstrateComponent {
     return {

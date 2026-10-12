@@ -1,12 +1,14 @@
 /**
  * mapping/SubstrateMapping.ts
  *
- * Maps V2 API substrate shapes to frontend models.
+ * Maps the substrate API shapes to frozen view models.
  *
- * V2 source type (SubstrateData):
- *   substrate_id, substrate_user_id, substrate_name,
- *   is_public (boolean), substrate_created_at,
- *   image_url (string|null), images[], components[]
+ * Lists (GET /substrates, envelope): APISubstrateListItem with id, name,
+ * user_id, is_public, created_at (epoch ms), cover and component_count; the
+ * mix itself (`components`) is null on list items.
+ * Details (GET /substrates/:id, POST/PATCH): APISubstrateDetail with the
+ * legacy substrate_* field names, images and components.
+ * The legacy APISubstrate mappers below serve the remaining pre-envelope callers.
  */
 import ComponentMapper from "./ComponentMapping";
 import ImageMapper, { toCoverView, toImageViews } from "./ImageMapping";

@@ -19,7 +19,7 @@
  *   persist: { entries: [pagedPersistEntry("plants_public", (s) => s.public, "firstPage")] }
  */
 
-import { markRaw } from "vue";
+import { markRaw, toRaw } from "vue";
 import type { StateTree } from "pinia";
 import { commitList } from "./optimistic";
 import type { PersistEntry } from "./persistence";
@@ -27,6 +27,7 @@ import type { ResourceStatus } from "./resource";
 
 export const PAGE_SIZE = 30;
 export const LOAD_ALL_PAGE_SIZE = 100;
+const LOAD_ALL_MAX_PAGES = 1000;
 
 export interface PageQuery {
   q: string;
@@ -37,14 +38,15 @@ export interface PageQuery {
 export interface PageParams extends PageQuery {
   limit: number;
   cursor: string | null;
+  /** True only when the caller holds a committed copy of this exact request and may accept a 304. */
+  conditional: boolean;
 }
 
 /** One page with its items already mapped to frozen view models. */
-export interface FetchedPage<T> {
+export interface FetchedPage<T extends object> {
   items: T[];
   next_cursor: string | null;
   total?: number;
-  etag?: string | null;
 }
 
 /** The `data` of every list endpoint (`ApiUtils` unwraps `{ data }`). */
@@ -55,7 +57,10 @@ export interface ApiPage<D> {
 }
 
 /** Maps a raw page's items through a mapper, keeping cursor and total. */
-export const mapPage = <D, T>(page: ApiPage<D>, map: (item: D) => T): FetchedPage<T> => ({
+export const mapPage = <D, T extends object>(
+  page: ApiPage<D>,
+  map: (item: D) => T,
+): FetchedPage<T> => ({
   items: page.items.map((item) => map(item)),
   next_cursor: page.next_cursor ?? null,
   ...(page.total === undefined ? {} : { total: page.total }),
@@ -80,21 +85,23 @@ export interface PageNotModified {
   notModified: true;
 }
 
-export type FetchPage<T> = (params: PageParams) => Promise<FetchedPage<T> | PageNotModified>;
+export type FetchPage<T extends object> = (
+  params: PageParams,
+) => Promise<FetchedPage<T> | PageNotModified>;
 
 export interface PagedOptions {
   /** False once the session that started the request ended; the result is then dropped. */
   isCurrent?: () => boolean;
 }
 
-export interface PersistedPage<T> {
+export interface PersistedPage<T extends object> {
   items: T[];
   nextCursor: string | null;
   total: number | null;
   fetchedAt: number;
 }
 
-export interface PagedState<T> {
+export interface PagedState<T extends object> {
   /** Frozen items in a raw array, replaced on every change, never edited in place. */
   items: T[];
   nextCursor: string | null;
@@ -105,14 +112,13 @@ export interface PagedState<T> {
   status: ResourceStatus;
   loadingMore: boolean;
   fetchedAt: number | null;
-  etag: string | null;
   /** Bumped by every first-page load and reset; a response from an older sequence is dropped. */
   requestSeq: number;
   /** The last committed first page of the default query (what "firstPage" persistence writes). */
   firstPage: Readonly<PersistedPage<T>> | null;
 }
 
-export const pagedState = <T>(defaultSort: string | null = null): PagedState<T> => ({
+export const pagedState = <T extends object>(defaultSort: string | null = null): PagedState<T> => ({
   items: markRaw([]) as T[],
   nextCursor: null,
   total: null,
@@ -121,41 +127,50 @@ export const pagedState = <T>(defaultSort: string | null = null): PagedState<T> 
   status: "idle",
   loadingMore: false,
   fetchedAt: null,
-  etag: null,
   requestSeq: 0,
   firstPage: null,
 });
 
-const notModified = <T>(page: FetchedPage<T> | PageNotModified): page is PageNotModified =>
-  (page as PageNotModified).notModified === true;
+const notModified = <T extends object>(
+  page: FetchedPage<T> | PageNotModified,
+): page is PageNotModified => (page as PageNotModified).notModified === true;
 
 const isCurrent = (options?: PagedOptions): boolean => options?.isCurrent?.() ?? true;
 
-const isDefaultQuery = (target: PagedState<unknown>): boolean =>
+const isDefaultQuery = (target: PagedState<object>): boolean =>
   target.query.q === "" && target.query.sort === target.defaultSort;
 
 const sameQuery = (a: PageQuery, b: PageQuery): boolean => a.q === b.q && a.sort === b.sort;
 
 interface Inflight {
   first?: { seq: number; promise: Promise<void> };
-  more?: Promise<void>;
+  more?: { seq: number; promise: Promise<void> };
   all?: Promise<void>;
 }
 
 const inflight = new WeakMap<object, Inflight>();
 
 const inflightOf = (target: object): Inflight => {
-  let entry = inflight.get(target);
-  if (!entry) inflight.set(target, (entry = {}));
+  const key = toRaw(target);
+  let entry = inflight.get(key);
+  if (!entry) inflight.set(key, (entry = {}));
   return entry;
 };
 
-const commitFirstPage = <T>(target: PagedState<T>, page: FetchedPage<T>): void => {
+/** Leaves the loading status of a request the session ended, unless a newer request owns it. */
+const settleDropped = <T extends object>(target: PagedState<T>, seq: number): void => {
+  if (target.requestSeq !== seq) return;
+  target.status = target.items.length > 0 ? "ready" : "idle";
+  target.loadingMore = false;
+  const running = inflightOf(target);
+  if (running.first?.seq === seq) running.first = undefined;
+};
+
+const commitFirstPage = <T extends object>(target: PagedState<T>, page: FetchedPage<T>): void => {
   const fetchedAt = Date.now();
   target.items = commitList(page.items.slice());
   target.nextCursor = page.next_cursor;
   target.total = page.total ?? null;
-  target.etag = page.etag ?? null;
   target.fetchedAt = fetchedAt;
   target.status = "ready";
   if (isDefaultQuery(target)) {
@@ -168,23 +183,31 @@ const commitFirstPage = <T>(target: PagedState<T>, page: FetchedPage<T>): void =
   }
 };
 
-const runFirst = async <T>(
+const runFirst = async <T extends object>(
   target: PagedState<T>,
   fetchPage: FetchPage<T>,
   seq: number,
   options?: PagedOptions,
 ): Promise<void> => {
   const stillCurrent = () => target.requestSeq === seq && isCurrent(options);
-  target.status = "loading";
-  target.loadingMore = false;
-  try {
-    const page = await fetchPage({
+  const request = (conditional: boolean) =>
+    fetchPage({
       limit: PAGE_SIZE,
       cursor: null,
       q: target.query.q,
       sort: target.query.sort,
+      conditional,
     });
-    if (!stillCurrent()) return;
+  target.status = "loading";
+  target.loadingMore = false;
+  try {
+    let page = await request(target.fetchedAt !== null);
+    if (!stillCurrent()) return settleDropped(target, seq);
+    if (notModified(page) && target.fetchedAt === null) {
+      page = await request(false);
+      if (!stillCurrent()) return settleDropped(target, seq);
+      if (notModified(page)) throw new Error("Not Modified answered an unconditional request.");
+    }
     if (notModified(page)) {
       target.fetchedAt = Date.now();
       target.status = "ready";
@@ -192,7 +215,7 @@ const runFirst = async <T>(
     }
     commitFirstPage(target, page);
   } catch (error) {
-    if (!stillCurrent()) return;
+    if (!stillCurrent()) return settleDropped(target, seq);
     target.status = target.items.length > 0 ? "ready" : "error";
     throw error;
   }
@@ -201,8 +224,9 @@ const runFirst = async <T>(
 /**
  * Loads the first page of the current query, replacing the list. Every call
  * starts a new request sequence, so a response to an earlier call is dropped.
+ * The request is conditional only while a first page of this query is committed.
  */
-export const loadFirst = <T>(
+export const loadFirst = <T extends object>(
   target: PagedState<T>,
   fetchPage: FetchPage<T>,
   options?: PagedOptions,
@@ -214,13 +238,13 @@ export const loadFirst = <T>(
 };
 
 /** Appends the next page; a no-op at the end of the list or while a first page loads. */
-export const loadMore = <T>(
+export const loadMore = <T extends object>(
   target: PagedState<T>,
   fetchPage: FetchPage<T>,
   options?: PagedOptions,
 ): Promise<void> => {
   const running = inflightOf(target);
-  if (running.more) return running.more;
+  if (running.more && running.more.seq === target.requestSeq) return running.more.promise;
   const cursor = target.nextCursor;
   if (cursor === null || target.status === "loading") return Promise.resolve();
 
@@ -236,6 +260,7 @@ export const loadMore = <T>(
         cursor,
         q: target.query.q,
         sort: target.query.sort,
+        conditional: false,
       });
       if (!stillCurrent() || notModified(page)) return;
       target.items = commitList([...target.items, ...page.items]);
@@ -244,18 +269,18 @@ export const loadMore = <T>(
       if (stillCurrent()) throw error;
     } finally {
       if (target.requestSeq === seq) target.loadingMore = false;
-      running.more = undefined;
+      if (running.more?.promise === promise) running.more = undefined;
     }
   })();
-  running.more = promise;
+  running.more = { seq, promise };
   return promise;
 };
 
 /**
  * Loads every page (100 per request) and commits the whole list once.
- * Concurrent callers share one run.
+ * Concurrent callers share one run. Requests are never conditional.
  */
-export const loadAll = <T>(
+export const loadAll = <T extends object>(
   target: PagedState<T>,
   fetchPage: FetchPage<T>,
   options?: PagedOptions,
@@ -270,31 +295,34 @@ export const loadAll = <T>(
   const promise = (async () => {
     try {
       const collected: T[] = [];
+      const seen = new Set<string>();
       let cursor: string | null = null;
       let total: number | null = null;
-      let etag: string | null = null;
       do {
-        const page = await fetchPage({
+        const page: FetchedPage<T> | PageNotModified = await fetchPage({
           limit: LOAD_ALL_PAGE_SIZE,
           cursor,
           q: "",
           sort: target.defaultSort,
+          conditional: false,
         });
-        if (!stillCurrent()) return;
+        if (!stillCurrent()) return settleDropped(target, seq);
         if (notModified(page)) {
-          if (cursor === null) {
-            target.fetchedAt = Date.now();
+          if (cursor === null && target.fetchedAt !== null) {
             target.status = "ready";
             return;
           }
-          throw new Error("A later page answered 304 Not Modified.");
+          throw new Error("Not Modified answered an unconditional request.");
         }
-        if (cursor === null) {
-          total = page.total ?? null;
-          etag = page.etag ?? null;
-        }
+        if (cursor === null) total = page.total ?? null;
         collected.push(...page.items);
         cursor = page.next_cursor;
+        if (cursor !== null) {
+          if (seen.has(cursor) || seen.size >= LOAD_ALL_MAX_PAGES) {
+            throw new Error("The list endpoint returned a cursor loop.");
+          }
+          seen.add(cursor);
+        }
       } while (cursor !== null);
 
       target.query = { q: "", sort: target.defaultSort };
@@ -302,10 +330,9 @@ export const loadAll = <T>(
         items: collected,
         next_cursor: null,
         total: total ?? collected.length,
-        etag,
       });
     } catch (error) {
-      if (!stillCurrent()) return;
+      if (!stillCurrent()) return settleDropped(target, seq);
       target.status = target.items.length > 0 ? "ready" : "error";
       throw error;
     } finally {
@@ -321,7 +348,7 @@ export const loadAll = <T>(
  * the query that is already loading shares that request; a response to an
  * older query is dropped.
  */
-export const setQuery = <T>(
+export const setQuery = <T extends object>(
   target: PagedState<T>,
   query: Partial<PageQuery>,
   fetchPage: FetchPage<T>,
@@ -340,12 +367,12 @@ export const setQuery = <T>(
   target.items = commitList([]);
   target.nextCursor = null;
   target.total = null;
-  target.etag = null;
+  target.fetchedAt = null;
   return loadFirst(target, fetchPage, options);
 };
 
 /** Back to the initial state; responses still in flight are dropped. */
-export const reset = <T>(target: PagedState<T>): void => {
+export const reset = <T extends object>(target: PagedState<T>): void => {
   target.requestSeq += 1;
   target.items = commitList([]);
   target.nextCursor = null;
@@ -354,12 +381,17 @@ export const reset = <T>(target: PagedState<T>): void => {
   target.status = "idle";
   target.loadingMore = false;
   target.fetchedAt = null;
-  target.etag = null;
   target.firstPage = null;
-  inflight.delete(target);
+  inflight.delete(toRaw(target));
 };
 
-const applyPage = <T>(target: PagedState<T>, data: PersistedPage<T>, timestamp: number): void => {
+const applyPage = <T extends object>(
+  target: PagedState<T>,
+  data: PersistedPage<T>,
+  timestamp: number,
+): void => {
+  if (!Array.isArray(data?.items)) return;
+  if (target.fetchedAt !== null && target.fetchedAt >= timestamp) return;
   target.items = commitList(data.items);
   target.nextCursor = data.nextCursor;
   target.total = data.total;
@@ -373,7 +405,7 @@ const applyPage = <T>(target: PagedState<T>, data: PersistedPage<T>, timestamp: 
  * The persist entry for one paged list. "all" writes the whole list whenever
  * its reference changes; "firstPage" writes only the default query's first page.
  */
-export const pagedPersistEntry = <S extends StateTree, T>(
+export const pagedPersistEntry = <S extends StateTree, T extends object>(
   key: string,
   select: (state: S) => PagedState<T>,
   mode: "all" | "firstPage",
