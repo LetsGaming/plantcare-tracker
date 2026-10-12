@@ -82,3 +82,43 @@ interface APISubstrateRef {
   substrate_id: number;
   substrate_name: string;
 }
+
+/** One item of GET /plants (envelope); `created_at` in epoch ms. */
+interface APIPlantListItem {
+  plant_id: number;
+  plant_name: string;
+  user_id: number;
+  is_public: boolean;
+  created_at: number;
+  species_name: string | null;
+  substrate: APISubstrateRef | null;
+  cover: APIImageDTO | null;
+  image_count: number;
+  /** Only for the owner (scope=mine and the owner's detail); null otherwise. */
+  watering: APIWateringSummary | null;
+}
+
+/** GET /plants/:id and the POST/PATCH responses; images oldest first. */
+interface APIPlantDetail extends APIPlantListItem {
+  images: APIImageDTO[];
+}
+
+/** Frozen plant view model shared by lists and details. */
+interface PlantView {
+  readonly id: number;
+  readonly name: string;
+  readonly userId: number;
+  readonly isPublic: boolean;
+  /** Epoch ms. */
+  readonly createdAt: number;
+  readonly speciesName: string | null;
+  readonly substrate: Readonly<PlantSubstrateRef> | null;
+  readonly cover: ImageView | null;
+  readonly imageCount: number;
+  /** Null for plants of others and before the owner's summary is known. */
+  readonly watering: WateringSummary | null;
+  /** Present on details only, oldest first. */
+  readonly images?: readonly ImageView[];
+  /** Lowercase name and species, newline separated, for client search. */
+  readonly searchText: string;
+}

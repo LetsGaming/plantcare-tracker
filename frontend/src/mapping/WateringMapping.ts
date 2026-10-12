@@ -42,6 +42,39 @@ export default class WateringMapper {
       : [this.mapWateringRecord(response)];
   }
 
+  static mapEntry(item: APIWateringItem): WateringEntry {
+    return Object.freeze({
+      id: item.id,
+      plantId: item.plant_id,
+      date: item.date,
+      usedFertilizer: item.used_fertilizer,
+      fertilizerTypeId: item.fertilizer_type_id ?? null,
+    });
+  }
+
+  static mapEntries(items: readonly APIWateringItem[]): WateringEntry[] {
+    return items.map((item) => WateringMapper.mapEntry(item));
+  }
+
+  static mapSummary(summary: APIWateringSummary): WateringSummary {
+    return Object.freeze({
+      lastWateredAt: summary.last_watered_at ?? null,
+      lastFertilizedAt: summary.last_fertilized_at ?? null,
+      avgIntervalDays: summary.avg_interval_days ?? null,
+    });
+  }
+
+  /** Summaries keyed by numeric plant id; plants missing from the response stay missing. */
+  static mapSummaries(
+    summaries: APIWateringSummaries | null | undefined,
+  ): Map<number, WateringSummary> {
+    const byPlant = new Map<number, WateringSummary>();
+    for (const [plantId, summary] of Object.entries(summaries ?? {})) {
+      byPlant.set(Number(plantId), WateringMapper.mapSummary(summary));
+    }
+    return byPlant;
+  }
+
   /**
    * Maps a V2 fertilizer type to the frontend FertilizerType model.
    */

@@ -67,6 +67,44 @@ interface APISubstrateComponent {
   component_parts: number;
 }
 
+/** One item of GET /components (envelope). */
+interface APIComponentListItem {
+  id: number;
+  name: string;
+  fineness_id: number;
+  fineness_name: string;
+  cover: APIImageDTO | null;
+}
+
+/** GET /components/:id and the POST/PUT responses; images oldest first. */
+interface APIComponentDetail extends APIComponentListItem {
+  images: APIImageDTO[];
+}
+
+/**
+ * Frozen component view model for the catalogue (list and detail) and for the
+ * components embedded in a substrate, which carry no fineness id and no images.
+ */
+interface ComponentView {
+  readonly id: number;
+  readonly name: string;
+  /** Null for components embedded in a substrate. */
+  readonly finenessId: number | null;
+  /** Fineness name, e.g. "Fine". */
+  readonly fineness: string;
+  readonly cover: ImageView | null;
+  /** Present on details only, oldest first. */
+  readonly images?: readonly ImageView[];
+  /** Lowercase name and fineness, newline separated, for client search. */
+  readonly searchText: string;
+}
+
+/** A component inside a substrate mix. */
+interface SubstrateComponentView extends ComponentView {
+  /** Parts by volume in the mix. */
+  readonly parts: number;
+}
+
 /** Fineness level as returned by GET /components/fineness-levels */
 interface APIFinenessLevel {
   fineness_id: number;
