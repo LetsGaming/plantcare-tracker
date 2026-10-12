@@ -220,26 +220,29 @@ const mountOverview = (renderStubDefaultSlot = false) => {
 };
 
 const plant = (id: number, userId: number, isPublic: boolean) =>
-  ({ id, userId, name: `plant ${id}`, isPublic }) as Plant;
+  ({ id, userId, name: `plant ${id}`, isPublic, speciesName: null }) as unknown as PlantView;
+const shownIds = (wrapper: { vm: unknown }) =>
+  (wrapper.vm as any).overviewItems.map((item: { id: number }) => item.id);
 
 describe("PlantOverview: store-driven lists", () => {
   it("shows the active segment's plants and repaints when the store changes", async () => {
     const { wrapper, store } = mountOverview();
     await flushPromises();
-    expect((wrapper.vm as any).plants).toEqual([]);
+    expect(shownIds(wrapper)).toEqual([]);
 
-    store.items = [plant(1, 1, false), plant(2, 1, true), plant(3, 9, true)];
+    store.mine.items = [plant(1, 1, false), plant(2, 1, true)];
+    store.public.items = [plant(2, 1, true), plant(3, 9, true)];
     await flushPromises();
-    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2]);
+    expect(shownIds(wrapper)).toEqual([1, 2]);
 
     // an optimistic paint elsewhere shows up without any event or refetch
-    store.items.push(plant(-100, 1, false));
+    store.mine.items = [...store.mine.items, plant(-100, 1, false)];
     await flushPromises();
-    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2, -100]);
+    expect(shownIds(wrapper)).toEqual([1, 2, -100]);
 
     (wrapper.vm as any).handleSegmentChange("public");
     await flushPromises();
-    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([2, 3]);
+    expect(shownIds(wrapper)).toEqual([2, 3]);
     wrapper.unmount();
   });
 
@@ -250,7 +253,7 @@ describe("PlantOverview: store-driven lists", () => {
     const first = header().props("segments");
     expect(first).toHaveLength(2);
 
-    store.items = [plant(1, 1, false)];
+    store.mine.items = [plant(1, 1, false)];
     (wrapper.vm as any).handleSegmentChange("public");
     await flushPromises();
 
@@ -260,7 +263,7 @@ describe("PlantOverview: store-driven lists", () => {
 
   it("hands the list the same props when unrelated page state changes", async () => {
     const { wrapper, store } = mountOverview();
-    store.items = [plant(1, 1, false)];
+    store.mine.items = [plant(1, 1, false)];
     await flushPromises();
     const list = () => wrapper.findComponent({ name: "ItemsOverview" });
     const before = { ...list().props() };
@@ -277,7 +280,7 @@ describe("PlantOverview: store-driven lists", () => {
   it("uses the reconciled plant id for the dependent image upload", async () => {
     const { wrapper, store } = mountOverview();
     await flushPromises();
-    vi.mocked(store.addPlant).mockResolvedValue({ id: 7, name: "Monstera" } as Plant);
+    vi.mocked(store.addPlant).mockResolvedValue({ id: 7, name: "Monstera" } as PlantView);
 
     const image = new File(["x"], "img.jpg", { type: "image/jpeg" });
     await (wrapper.vm as any).addPlant({

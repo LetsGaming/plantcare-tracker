@@ -126,13 +126,11 @@ describe("PlantEditingModal", () => {
     id: 1,
     userId: 1,
     name: "Monty",
-    species: null,
-    description: "",
+    speciesName: null,
     isPublic: false,
-    created_at: "",
     substrate: null,
-    images: [],
-  } as unknown as Plant;
+    searchText: "monty",
+  } as unknown as PlantView;
 
   it("lets species and substrate be cleared", () => {
     const wrapper = shallowMount(PlantEditingModal, {
@@ -168,10 +166,12 @@ describe("species fallback", () => {
     const pinia = createTestingPinia({ createSpy: vi.fn });
     const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
     const store = usePlantsStore(pinia);
-    store.items = [
-      { id: 1, userId: 1, name: "Bare", species: null, description: "", isPublic: true },
-      { id: 2, userId: 1, name: "Named", species: "Ficus", description: "Ficus", isPublic: true },
-    ] as unknown as Plant[];
+    const plants = [
+      { id: 1, userId: 1, name: "Bare", speciesName: null, isPublic: true },
+      { id: 2, userId: 1, name: "Named", speciesName: "Ficus", isPublic: true },
+    ] as unknown as PlantView[];
+    store.mine.items = plants;
+    store.public.items = plants;
     await flushPromises();
     const descriptions = () =>
       (wrapper.vm as any).overviewItems.map((item: { description?: string }) => item.description);
@@ -188,7 +188,7 @@ describe("PlantOverview.addPlant", () => {
     const pinia = createTestingPinia({ createSpy: vi.fn });
     const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
     const store = usePlantsStore(pinia);
-    vi.mocked(store.addPlant).mockResolvedValue({ id: 9, name: "Solo" } as Plant);
+    vi.mocked(store.addPlant).mockResolvedValue({ id: 9, name: "Solo" } as PlantView);
     await (wrapper.vm as any).addPlant({ name: "Solo", substrateId: null });
     expect(store.addPlant).toHaveBeenCalledWith({ name: "Solo", substrateId: null });
     expect(ToastService.showError).not.toHaveBeenCalled();

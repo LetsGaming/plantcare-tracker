@@ -10,6 +10,7 @@
     />
 
     <items-overview
+      ref="overview"
       :items="overviewItems"
       kind="plant"
       :is-loading="isLoadingList"
@@ -17,10 +18,18 @@
       :empty-title="emptyTitle"
       :empty-message="emptyMessage"
       :empty-action-label="emptyActionLabel"
+      :active="pageActive"
+      :has-more="hasMore"
+      :loading-more="loadingMore"
+      :server-search="isPublic"
+      :total="listTotal"
+      :list-key="showPublic"
       @item-click="navigateToPlant"
       @refresh-items="refreshPlants"
       @retry="refreshPlants"
       @empty-action="openAddModal"
+      @load-more="loadMorePlants"
+      @query-change="changeQuery"
     >
       <template #filters>
         <ion-button v-if="showRoundButton" class="round-button" color="primary" @click="openRound">
@@ -53,11 +62,23 @@ import { mapActions, mapState } from "pinia";
 import { usePlantsStore } from "@/stores/plants";
 import { useSubstratesStore } from "@/stores/substrates";
 import { useSessionStore } from "@/stores/session";
-import { useWateringStore } from "@/stores/watering";
+import { isActive, pageActive } from "@/utils/pageActive";
 import { relativeDaysText, wateringStatus } from "@/utils/wateringStats";
 import type { OverviewItem } from "@/components/overview/ItemsOverview.vue";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
+
+interface CachedItem {
+  stamp: string;
+  watering: WateringSummary | null;
+  item: OverviewItem;
+}
+
+const NO_ITEMS: readonly OverviewItem[] = Object.freeze([]);
+
+/** One overview item per plant object and render context, so an unchanged plant keeps its card props. */
+const itemCache = new WeakMap<PlantView, CachedItem>();
+const lastItems = new WeakMap<object, readonly OverviewItem[]>();
 
 export default defineComponent({
   name: "PlantOverview",
@@ -69,6 +90,7 @@ export default defineComponent({
     ItemsOverview,
     PlantAddingModal,
   },
+  mixins: [pageActive],
 
   data() {
     return {
@@ -87,9 +109,8 @@ export default defineComponent({
   },
 
   computed: {
-    ...mapState(usePlantsStore, ["publicPlants", "personalPlants", "status"]),
-    ...mapState(useSessionStore, ["isGuest"]),
-    ...mapState(useWateringStore, ["byPlantId"]),
+    ...mapState(usePlantsStore, { mineList: "mine", publicList: "public" }),
+    ...mapState(useSessionStore, ["isGuest", "userId"]),
     ...mapState(useSubstratesStore, { substrates: "items" }),
     isPublic() {
       return this.showPublic === "public";
@@ -105,11 +126,24 @@ export default defineComponent({
         },
       ];
     },
+    activeList() {
+      return this.isPublic ? this.publicList : this.mineList;
+    },
     isLoadingList(): boolean {
-      return this.status === "loading" || this.status === "idle";
+      const { status, items } = this.activeList;
+      return status === "idle" || (status === "loading" && items.length === 0);
     },
     hasError(): boolean {
-      return this.status === "error";
+      return this.activeList.status === "error";
+    },
+    hasMore(): boolean {
+      return this.isPublic && this.publicList.nextCursor !== null;
+    },
+    loadingMore(): boolean {
+      return this.isPublic && this.publicList.loadingMore;
+    },
+    listTotal(): number | null {
+      return this.isPublic ? this.publicList.total : null;
     },
     emptyTitle(): string {
       return this.t(this.isPublic ? "state.empty_plants_public_title" : "state.empty_plants_title");
@@ -121,69 +155,82 @@ export default defineComponent({
       );
     },
     showRoundButton(): boolean {
-      return !this.isPublic && !this.isGuest && this.personalPlants.length > 0;
+      return !this.isPublic && !this.isGuest && this.mineList.items.length > 0;
     },
     emptyActionLabel(): string {
       return !this.isGuest && !this.isPublic ? this.t("state.empty_plants_action") : "";
     },
-    /** The segment's plants; the store repaints this on every change, optimistic ones included. */
-    plants(): Plant[] {
-      return this.isPublic ? this.publicPlants : this.personalPlants;
-    },
-    /** Personal plants carry their watering state; public ones stay plain (other owners' records are not available). */
-    overviewItems(): OverviewItem[] {
-      const unknownSpecies = this.t("plant.species_unknown");
-      const labelled = this.plants.map((plant): OverviewItem => ({
-        ...plant,
-        description: plant.species || unknownSpecies,
-      }));
-      if (this.isPublic) return labelled;
+    /**
+     * Cards of the segment. The owner's plants carry their watering state, built in O(1) from the
+     * summary; a plant of someone else, or an owner plant without a summary yet, shows none. A
+     * hidden page keeps its last cards and recomputes once when it is shown again.
+     */
+    overviewItems(): readonly OverviewItem[] {
+      if (!isActive(this)) return lastItems.get(this.$) ?? NO_ITEMS;
       const now = Date.now();
-      const locale = localizationService.getLocale();
-      return labelled.map((plant): OverviewItem => {
-        const records = this.byPlantId[plant.id as number];
-        if (!records) return plant;
-        const status = wateringStatus(records, now);
-        const statusLine =
-          status.daysSince === null
-            ? this.t("plantlist.never")
-            : this.t("plantlist.watered", {
-                when: relativeDaysText(status.daysSince, locale),
-              });
-        return {
-          ...plant,
-          statusLine,
-          statusTone: status.tone,
-          statusLabel: status.tone === "ok" ? undefined : this.t(`plantlist.${status.tone}`),
-          sortRank: status.rank,
-        };
-      });
-    },
-  },
-
-  watch: {
-    plants: {
-      immediate: true,
-      handler(list: Plant[]) {
-        if (this.isPublic) return;
-        void this.warmWateringRecords(list.map((plant) => plant.id).filter((id) => id > 0));
-      },
+      const stamp = [
+        localizationService.getLocale(),
+        new Date(now).toDateString(),
+        this.t("plant.species_unknown"),
+      ].join("|");
+      const owned = this.isPublic
+        ? new Map(this.mineList.items.map((plant) => [plant.id, plant.watering]))
+        : null;
+      const items = this.activeList.items.map((plant) => this.cardFor(plant, stamp, now, owned));
+      lastItems.set(this.$, items);
+      return items;
     },
   },
 
   methods: {
-    ...mapActions(useWateringStore, { warmWateringRecords: "ensureRecordsFor" }),
-
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
     },
 
     ...mapActions(useSubstratesStore, { ensureSubstratesLoaded: "ensureLoaded" }),
     ...mapActions(usePlantsStore, {
-      ensureLoaded: "ensureLoaded",
+      ensureMine: "ensureMine",
+      ensurePublic: "ensurePublic",
+      setPublicQuery: "setPublicQuery",
+      loadMorePublic: "loadMorePublic",
       addPlantToStore: "addPlant",
       uploadPlantImage: "uploadPlantImage",
     }),
+
+    /** `owned` maps the viewer's own plants to their summaries; it is only needed in the public segment. */
+    cardFor(
+      plant: PlantView,
+      stamp: string,
+      now: number,
+      owned: ReadonlyMap<number, WateringSummary | null> | null,
+    ): OverviewItem {
+      const watering =
+        plant.userId === this.userId ? (plant.watering ?? owned?.get(plant.id) ?? null) : null;
+      const cached = itemCache.get(plant);
+      if (cached && cached.stamp === stamp && cached.watering === watering) return cached.item;
+
+      const item: OverviewItem = {
+        id: plant.id,
+        name: plant.name,
+        description: plant.speciesName ?? this.t("plant.species_unknown"),
+        imageUrl: plant.cover?.url,
+        searchText: plant.searchText,
+      };
+      if (watering) {
+        const status = wateringStatus(watering, now);
+        item.statusLine =
+          status.daysSince === null
+            ? this.t("plantlist.never")
+            : this.t("plantlist.watered", {
+                when: relativeDaysText(status.daysSince, localizationService.getLocale()),
+              });
+        item.statusTone = status.tone;
+        item.statusLabel = status.tone === "ok" ? undefined : this.t(`plantlist.${status.tone}`);
+        item.sortRank = status.rank;
+      }
+      itemCache.set(plant, { stamp, watering, item: Object.freeze(item) });
+      return item;
+    },
 
     /* -------------------- PLANTS -------------------- */
     async loadPlants(isRefresh = false) {
@@ -192,7 +239,8 @@ export default defineComponent({
         : this.t("plants.type_private");
 
       try {
-        await this.ensureLoaded({ force: isRefresh });
+        if (this.isPublic) await this.ensurePublic({ force: isRefresh });
+        else await this.ensureMine({ force: isRefresh });
 
         if (isRefresh) {
           ToastService.showSuccess({
@@ -215,7 +263,26 @@ export default defineComponent({
       await this.loadPlants(true);
     },
 
+    async loadMorePlants() {
+      if (!this.isPublic) return;
+      try {
+        await this.loadMorePublic();
+      } catch (error) {
+        console.error("Loading more plants failed:", error);
+      }
+    },
+
+    async changeQuery({ q }: { q: string }) {
+      if (!this.isPublic) return;
+      try {
+        await this.setPublicQuery(q);
+      } catch (error) {
+        console.error("Plant search failed:", error);
+      }
+    },
+
     handleSegmentChange(value: string) {
+      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch();
       this.showPublic = value;
       this.fetchPlants();
     },
@@ -277,7 +344,7 @@ export default defineComponent({
 
         this.closeAddModal();
       } catch (error) {
-        // handleRequest has already shown the error toast; the optimistic
+        // handleRequest has shown the error toast; the optimistic
         // wrapper has rolled the store back. Keep the modal open for retry.
         console.error("Add plant failed:", error);
       } finally {

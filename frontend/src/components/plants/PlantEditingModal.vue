@@ -36,7 +36,7 @@ export default defineComponent({
       default: false,
     },
     plant: {
-      type: Object as PropType<Plant>,
+      type: Object as PropType<PlantView>,
       required: true,
     },
     substrates: {
@@ -129,7 +129,7 @@ export default defineComponent({
     resetFromPlant() {
       this.editPlantData = {
         name: this.plant.name,
-        species: this.plant.species ?? "",
+        species: this.plant.speciesName ?? "",
         substrateId: this.plant.substrate?.id ?? null,
         isPublic: this.plant.isPublic,
       };

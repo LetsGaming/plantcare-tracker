@@ -37,7 +37,17 @@ import { usePlantsStore } from "@/stores/plants";
 const mountDetails = (plantOwnerId: number) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const store = usePlantsStore(pinia);
-  store.items = [{ id: 5, userId: plantOwnerId, name: "Monty", isPublic: true } as Plant];
+  store.mine.items = [
+    {
+      id: 5,
+      userId: plantOwnerId,
+      name: "Monty",
+      isPublic: true,
+      speciesName: null,
+      cover: null,
+      images: [],
+    } as unknown as PlantView,
+  ];
   return shallowMount(PlantDetails, {
     props: { id: "5" },
     global: { plugins: [pinia], renderStubDefaultSlot: true },

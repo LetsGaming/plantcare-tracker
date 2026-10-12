@@ -42,7 +42,7 @@
         <plant-tag
           class="area-tag"
           :name="plant.name"
-          :species="plant.species"
+          :species="plant.speciesName"
           :is-public="plant.isPublic"
         />
 
@@ -63,13 +63,13 @@
           <div class="hero">
             <details-banner
               :banner-title="plant.name"
-              :image-url="plant.imageUrl"
+              :image="plant.cover"
               :seed="String(plant.id)"
               image-only
             />
           </div>
           <horizontal-gallery
-            :images="plant.images"
+            :images="galleryImages"
             :is-public="isPublic"
             :plant-name="plant.name"
             @edit-click="handleImageEditClick"
@@ -113,7 +113,7 @@
       <ImageEditingModal
         v-if="enlargedImage"
         :is-open="showImageEditModal"
-        :image="enlargedImage"
+        :image="editableImage"
         entity-type="plant"
         @close="showImageEditModal = false"
         @edited="handleImageEdited"
@@ -147,6 +147,8 @@ import MoreInfo from "@/components/plants/MoreInfo.vue";
 import PlantEditingModal from "@/components/plants/PlantEditingModal.vue";
 import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import ImageEditingModal from "@/components/images/ImageEditingModal.vue";
+
+const NO_IMAGES: readonly ImageView[] = Object.freeze([]);
 
 export default defineComponent({
   name: "PlantDetails",
@@ -184,7 +186,7 @@ export default defineComponent({
       showEditModal: false,
       showUploadModal: false,
 
-      enlargedImage: null as Image | null,
+      enlargedImage: null as ImageView | null,
       showImageEditModal: false,
 
       isLoading: true,
@@ -210,7 +212,7 @@ export default defineComponent({
     hasGallery(): boolean {
       return (this.plant?.images?.length ?? 0) > 0;
     },
-    plant(): Plant | null {
+    plant(): PlantView | null {
       return this.byId(this.plantId) ?? null;
     },
     substrateRefId(): number | undefined {
@@ -224,6 +226,20 @@ export default defineComponent({
     },
     canEdit(): boolean {
       return !this.isPublic && !this.isGuest;
+    },
+    galleryImages(): readonly ImageView[] {
+      return this.plant?.images ?? NO_IMAGES;
+    },
+    /** The image editor still reads the legacy image shape. */
+    editableImage(): Image | null {
+      const image = this.enlargedImage;
+      if (!image) return null;
+      return {
+        id: image.id,
+        url: image.url,
+        date: new Date(image.dateMs).toISOString(),
+        date_millis: image.dateMs,
+      };
     },
   },
 
@@ -373,7 +389,7 @@ export default defineComponent({
       }
     },
 
-    handleImageEditClick(image: Image) {
+    handleImageEditClick(image: ImageView) {
       this.enlargedImage = image;
       this.showImageEditModal = true;
     },
