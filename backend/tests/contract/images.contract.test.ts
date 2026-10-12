@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { API, createContractApp, type ContractApp } from './harness';
@@ -5,10 +7,12 @@ import { createPlant, createSubstrate } from './support';
 
 let app: ContractApp;
 let png: Buffer;
+let uploadsDir: string;
 
 beforeAll(async () => {
   app = await createContractApp();
   png = await app.png();
+  uploadsDir = (await import('../../src/core/config')).getUploadsDirectory();
 });
 afterAll(() => app.close());
 
@@ -41,6 +45,11 @@ const upload = (
 
 const pathOf = (url: string) => new URL(url).pathname;
 
+const variantFiles = (entityType: string, url: string) => {
+  const main = path.join(uploadsDir, entityType, path.basename(pathOf(url)));
+  return [main, main.replace(/\.webp$/, '-160.webp'), main.replace(/\.webp$/, '-480.webp')];
+};
+
 describe('POST /images/:entityType/:entityId', () => {
   it('stores a resized webp, answers 201 with Location, absolute URL and capture date', async () => {
     const { owner, plant } = await setup();
@@ -49,6 +58,28 @@ describe('POST /images/:entityType/:entityId', () => {
     expect(res.headers.location).toBe(`/images/plant/${plant.plant_id}`);
     expect(res.body.data.path).toMatch(/^http:\/\/[^/]+\/uploads\/plant\/\d+-[a-z0-9-]+\.webp$/);
     expect(res.body.data.date).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it('writes the 160, 480 and 1024 variants and persists dimensions, placeholder and variants = 1', async () => {
+    const { owner, plant } = await setup();
+    const res = await upload(owner.auth, 'plant', plant.plant_id);
+    variantFiles('plant', res.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(true),
+    );
+    const [row] = app.db.query<{
+      width: number;
+      height: number;
+      placeholder: string;
+      variants: number;
+    }>('SELECT width, height, placeholder, variants FROM images WHERE entity_id = ?', [
+      plant.plant_id,
+    ]);
+    expect(row).toEqual({
+      width: 8,
+      height: 8,
+      placeholder: expect.stringMatching(/^#[0-9a-f]{6}$/),
+      variants: 1,
+    });
   });
 
   it('serves the stored file statically as webp', async () => {
@@ -131,6 +162,10 @@ describe('GET /images/:entityType', () => {
     expect(res.body.data[0]).toEqual({
       id: expect.any(Number),
       url: expect.stringMatching(/\/uploads\/plant\//),
+      srcset: expect.stringMatching(/-160\.webp 160w, .+-480\.webp 480w, .+\.webp 1024w$/),
+      width: 8,
+      height: 8,
+      placeholder: expect.stringMatching(/^#[0-9a-f]{6}$/),
       date: expect.any(Number),
       entityType: 'plant',
     });
@@ -154,47 +189,35 @@ describe('GET /images/:entityType', () => {
   });
 });
 
-describe('GET /images/:entityType/:entityId', () => {
-  it('serves the primary image as webp with a one day cache header', async () => {
+describe('GET /images/:entityType/:entityId (removed)', () => {
+  it('answers 404 for the former serve route and its ?size resize', async () => {
     const { owner, plant } = await setup();
     await upload(owner.auth, 'plant', plant.plant_id);
-    const res = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: owner.auth,
-    });
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toBe('image/webp');
-    expect(res.headers['cache-control']).toBe('public, max-age=86400');
-    expect((await sharp(res.bytes).metadata()).width).toBe(8);
+    for (const query of ['', '?size=4']) {
+      const res = await app.client.request({
+        method: 'get',
+        url: `${API}/images/plant/${plant.plant_id}${query}`,
+        headers: owner.auth,
+      });
+      expect(res.status, query).toBe(404);
+    }
   });
+});
 
-  it('resizes on the fly with ?size and never enlarges', async () => {
+describe('upload rate limit', () => {
+  it('allows 30 uploads per user in the window and answers 429 afterwards', async () => {
     const { owner, plant } = await setup();
-    await upload(owner.auth, 'plant', plant.plant_id);
-    const small = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}?size=4`,
-      headers: owner.auth,
-    });
-    expect((await sharp(small.bytes).metadata()).width).toBe(4);
-    const big = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}?size=400`,
-      headers: owner.auth,
-    });
-    expect((await sharp(big.bytes).metadata()).width).toBe(8);
-  });
-
-  it('answers 404 when the entity has no image', async () => {
-    const { owner, plant } = await setup();
-    const res = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: owner.auth,
-    });
-    expect(res.status).toBe(404);
-    expect(res.body.error.message).toBe('Image not found');
+    for (let i = 0; i < 30; i += 1) {
+      expect((await upload(owner.auth, 'plant', plant.plant_id)).status, String(i)).toBe(201);
+    }
+    expect((await upload(owner.auth, 'plant', plant.plant_id)).status).toBe(429);
+    const other = await app.signIn('user');
+    const otherPlant = await createPlant(
+      app,
+      other.auth,
+      (await createSubstrate(app, other.auth)).substrate_id,
+    );
+    expect((await upload(other.auth, 'plant', otherPlant.plant_id)).status).toBe(201);
   });
 });
 
@@ -235,6 +258,12 @@ describe('PATCH /images/:id', () => {
     });
     expect(res.status).toBe(200);
     expect(res.body.data.url).not.toBe(first.body.data.path);
+    variantFiles('plant', first.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(false),
+    );
+    variantFiles('plant', res.body.data.url).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(true),
+    );
     expect(
       (await app.client.request({ method: 'get', url: pathOf(first.body.data.path) })).status,
     ).toBe(404);
@@ -295,6 +324,31 @@ describe('DELETE /images', () => {
     expect(
       (await app.client.request({ method: 'get', url: pathOf(up.body.data.path) })).status,
     ).toBe(404);
+    variantFiles('plant', up.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(false),
+    );
+  });
+
+  it('removes only the single file of a legacy image (variants = 0)', async () => {
+    const { owner, plant } = await setup();
+    const up = await upload(owner.auth, 'plant', plant.plant_id);
+    const [main, small, medium] = variantFiles('plant', up.body.data.path);
+    app.db.execute('UPDATE images SET variants = 0 WHERE entity_id = ?', [plant.plant_id]);
+    const list = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant?entityId=${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(list.body.data[0]).toMatchObject({ srcset: null });
+    const res = await app.client.request({
+      method: 'delete',
+      url: `${API}/images/${list.body.data[0].id}`,
+      headers: owner.auth,
+    });
+    expect(res.status).toBe(204);
+    expect(fs.existsSync(main)).toBe(false);
+    expect(fs.existsSync(small)).toBe(true);
+    expect(fs.existsSync(medium)).toBe(true);
   });
 
   it('answers 404 for an unknown image id', async () => {
@@ -307,16 +361,19 @@ describe('DELETE /images', () => {
     expect(res.status).toBe(404);
   });
 
-  it('deletes all images of an entity with 204', async () => {
+  it('deletes all images of an entity with 204 and removes every variant file', async () => {
     const { owner, plant } = await setup();
-    await upload(owner.auth, 'plant', plant.plant_id);
-    await upload(owner.auth, 'plant', plant.plant_id);
+    const first = await upload(owner.auth, 'plant', plant.plant_id);
+    const second = await upload(owner.auth, 'plant', plant.plant_id);
     const res = await app.client.request({
       method: 'delete',
       url: `${API}/images/plant/${plant.plant_id}`,
       headers: owner.auth,
     });
     expect(res.status).toBe(204);
+    [first, second]
+      .flatMap((up) => variantFiles('plant', up.body.data.path))
+      .forEach((file) => expect(fs.existsSync(file), file).toBe(false));
     const list = await app.client.request({
       method: 'get',
       url: `${API}/images/plant?entityId=${plant.plant_id}`,
@@ -351,18 +408,12 @@ describe('authorization', () => {
       headers: auth,
     });
 
-  it("answers 404 when uploading to, listing or serving another user's private plant", async () => {
+  it("answers 404 when uploading to or listing another user's private plant", async () => {
     const { owner, plant } = await setup();
     await upload(owner.auth, 'plant', plant.plant_id);
     const intruder = await app.signIn('user');
     expect((await upload(intruder.auth, 'plant', plant.plant_id)).status).toBe(404);
     expect((await listOf(intruder.auth, plant.plant_id)).status).toBe(404);
-    const served = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: intruder.auth,
-    });
-    expect(served.status).toBe(404);
   });
 
   it("answers 404 when changing or deleting the images of another user's private plant", async () => {
@@ -399,12 +450,6 @@ describe('authorization', () => {
     await upload(owner.auth, 'plant', plant.plant_id);
     const other = await app.signIn('user');
     expect((await listOf(other.auth, plant.plant_id)).status).toBe(200);
-    const served = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: other.auth,
-    });
-    expect(served.status).toBe(200);
     const res = await upload(other.auth, 'plant', plant.plant_id);
     expect(res.status).toBe(403);
     expect(res.body.error.message).toBe('You may not change the images of this plant');

@@ -46,11 +46,16 @@ describe('DELETE /auth/me for a substrate owner', () => {
     const ownPlant = await createPlant(app, owner.auth, privateSubstrate.substrate_id);
     const foreignPlant = await createPlant(app, other.auth, publicSubstrate.substrate_id);
 
-    const files = [
+    const mains = [
       await uploadImage(owner.auth, 'substrate', publicSubstrate.substrate_id),
       await uploadImage(owner.auth, 'substrate', privateSubstrate.substrate_id),
       await uploadImage(owner.auth, 'plant', ownPlant.plant_id),
     ];
+    const files = mains.flatMap((main) => [
+      main,
+      main.replace(/\.webp$/, '-160.webp'),
+      main.replace(/\.webp$/, '-480.webp'),
+    ]);
     const foreignFile = await uploadImage(other.auth, 'plant', foreignPlant.plant_id);
     files.forEach((file) => expect(fs.existsSync(file)).toBe(true));
 

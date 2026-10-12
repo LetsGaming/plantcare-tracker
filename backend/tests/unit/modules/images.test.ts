@@ -12,7 +12,11 @@
  * without any filesystem or SQLite.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import sharp from 'sharp';
 import type {
   ImageActor,
   ImageEntityInfo,
@@ -25,11 +29,12 @@ import { isEntityType } from '../../../src/modules/images/domain/Image';
 import {
   UploadImageUseCase,
   ListEntityImagesUseCase,
-  ServeEntityImageUseCase,
   UpdateImageUseCase,
   DeleteImageUseCase,
   DeleteEntityImagesUseCase,
 } from '../../../src/modules/images/application/ImageUseCases';
+import { LocalImageStorage } from '../../../src/modules/images/infrastructure/LocalImageStorage';
+import { createSemaphore } from '../../../src/modules/images/infrastructure/semaphore';
 import { ImageAccessPolicy } from '../../../src/modules/images/application/ImageAccessPolicy';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../src/core/errors';
 import {
@@ -47,6 +52,10 @@ const makeImage = (overrides: Partial<StoredImage> = {}): StoredImage => ({
   date: 1717236000,
   entityType: 'plant',
   entityId: 4,
+  width: 1024,
+  height: 768,
+  placeholder: '#336699',
+  variants: 1,
   ...overrides,
 });
 
@@ -63,8 +72,11 @@ const makeMockStorage = (): ImageStorage => ({
   processUpload: vi.fn().mockResolvedValue({
     filename: 'new-ef01.webp',
     capturedAt: new Date('2024-06-01T10:00:00.000Z'),
+    width: 1024,
+    height: 768,
+    placeholder: '#336699',
+    variants: 1,
   }),
-  readAsWebp: vi.fn().mockResolvedValue(Buffer.from('webp-bytes')),
   remove: vi.fn().mockResolvedValue(undefined),
 });
 
@@ -171,6 +183,7 @@ describe('UploadImageUseCase', () => {
       4,
       '/uploads/plant/new-ef01.webp',
       1717236000,
+      { width: 1024, height: 768, placeholder: '#336699', variants: 1 },
     );
   });
 
@@ -226,39 +239,6 @@ describe('ListEntityImagesUseCase', () => {
       new ListEntityImagesUseCase(repo, policy).execute('plant', 4, actor),
     ).rejects.toThrow(NotFoundError);
     expect(repo.findByEntity).not.toHaveBeenCalled();
-  });
-});
-
-// ── ServeEntityImageUseCase ───────────────────────────────────────────────────
-
-describe('ServeEntityImageUseCase', () => {
-  it('throws NotFoundError when the entity has no images', async () => {
-    const repo = makeMockRepo();
-    const storage = makeMockStorage();
-    const { policy } = makeAllowAll();
-    await expect(
-      new ServeEntityImageUseCase(repo, storage, policy).execute('plant', 4, actor),
-    ).rejects.toThrow(NotFoundError);
-  });
-
-  it('serves the primary (oldest) image with the requested width', async () => {
-    const repo = makeMockRepo();
-    const storage = makeMockStorage();
-    const { policy, assertCanView } = makeAllowAll();
-    const oldest = makeImage({ id: 1, url: 'https://api.test/uploads/plant/a.webp' });
-    const newer = makeImage({ id: 2, url: 'https://api.test/uploads/plant/b.webp' });
-    asMock(repo.findByEntity).mockResolvedValue([oldest, newer]);
-
-    const buffer = await new ServeEntityImageUseCase(repo, storage, policy).execute(
-      'plant',
-      4,
-      actor,
-      256,
-    );
-
-    expect(assertCanView).toHaveBeenCalledWith('plant', 4, actor);
-    expect(storage.readAsWebp).toHaveBeenCalledWith('plant', oldest.url, 256);
-    expect(buffer.toString()).toBe('webp-bytes');
   });
 });
 
@@ -345,9 +325,13 @@ describe('UpdateImageUseCase', () => {
     expect(repo.update).toHaveBeenCalledWith(10, {
       imageUrl: '/uploads/plant/new-ef01.webp',
       uploadDate: undefined,
+      width: 1024,
+      height: 768,
+      placeholder: '#336699',
+      variants: 1,
     });
-    // Old file removed, and strictly after the DB update
-    expect(storage.remove).toHaveBeenCalledWith('plant', existing.url);
+    // Old file removed (with its variants), and strictly after the DB update
+    expect(storage.remove).toHaveBeenCalledWith('plant', existing.url, 1);
     const updateOrder = asMock(repo.update).mock.invocationCallOrder[0];
     const removeOrder = asMock(storage.remove).mock.invocationCallOrder[0];
     expect(updateOrder).toBeLessThan(removeOrder);
@@ -365,7 +349,16 @@ describe('UpdateImageUseCase', () => {
       imageId: 10,
       date: 1717236000000,
     });
-    expect(Object.keys(record).sort()).toEqual(['date', 'entityType', 'id', 'url']);
+    expect(Object.keys(record).sort()).toEqual([
+      'date',
+      'entityType',
+      'height',
+      'id',
+      'placeholder',
+      'url',
+      'variants',
+      'width',
+    ]);
   });
 
   it('does not touch storage for a date-only update', async () => {
@@ -389,6 +382,16 @@ describe('UpdateImageUseCase', () => {
 // ── DeleteImageUseCase ────────────────────────────────────────────────────────
 
 describe('DeleteImageUseCase', () => {
+  it('passes the legacy variants flag so only the single file is removed', async () => {
+    const repo = makeMockRepo();
+    const storage = makeMockStorage();
+    const { policy } = makeAllowAll();
+    const legacy = makeImage({ variants: 0, width: null, height: null, placeholder: null });
+    asMock(repo.findById).mockResolvedValue(legacy);
+    await new DeleteImageUseCase(repo, storage, policy).execute(10, actor);
+    expect(storage.remove).toHaveBeenCalledWith('plant', legacy.url, 0);
+  });
+
   it('throws NotFoundError for a missing image', async () => {
     const repo = makeMockRepo();
     const storage = makeMockStorage();
@@ -421,7 +424,7 @@ describe('DeleteImageUseCase', () => {
 
     await new DeleteImageUseCase(repo, storage, policy).execute(10, actor);
 
-    expect(storage.remove).toHaveBeenCalledWith('plant', image.url);
+    expect(storage.remove).toHaveBeenCalledWith('plant', image.url, 1);
     expect(repo.delete).toHaveBeenCalledWith(10);
     const removeOrder = asMock(storage.remove).mock.invocationCallOrder[0];
     const deleteOrder = asMock(repo.delete).mock.invocationCallOrder[0];
@@ -445,8 +448,8 @@ describe('DeleteEntityImagesUseCase', () => {
     expect(assertCanModify).toHaveBeenCalledWith('plant', 4, actor);
     expect(repo.deleteByEntity).toHaveBeenCalledWith('plant', 4);
     expect(storage.remove).toHaveBeenCalledTimes(2);
-    expect(storage.remove).toHaveBeenCalledWith('plant', a.url);
-    expect(storage.remove).toHaveBeenCalledWith('plant', b.url);
+    expect(storage.remove).toHaveBeenCalledWith('plant', a.url, 1);
+    expect(storage.remove).toHaveBeenCalledWith('plant', b.url, 1);
   });
 
   it('deletes nothing when the caller may not modify the entity', async () => {
@@ -482,5 +485,120 @@ describe('translateUploadError', () => {
   it('passes other errors through unchanged', () => {
     const err = new Error('boom');
     expect(translateUploadError(err)).toBe(err);
+  });
+});
+
+// ── LocalImageStorage pipeline ────────────────────────────────────────────────
+
+describe('LocalImageStorage.processUpload', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'plantcare-pipeline-'));
+  });
+  afterEach(() => fs.rm(dir, { recursive: true, force: true }));
+
+  const solid = (width: number, height: number, colour: string) =>
+    sharp({ create: { width, height, channels: 3, background: colour } });
+
+  const metaOf = (name: string) => sharp(path.join(dir, 'plant', name)).metadata();
+
+  it('writes three webp variants with the expected widths and returns dimensions and placeholder', async () => {
+    const buffer = await solid(2000, 1000, '#336699').jpeg().toBuffer();
+    const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+    const result = await storage.processUpload({ buffer, originalName: 'Leaf.jpg' }, 'plant');
+
+    const base = result.filename.replace(/\.webp$/, '');
+    expect((await fs.readdir(path.join(dir, 'plant'))).sort()).toEqual(
+      [`${base}-160.webp`, `${base}-480.webp`, `${base}.webp`].sort(),
+    );
+    expect((await metaOf(`${base}-160.webp`)).width).toBe(160);
+    expect((await metaOf(`${base}-480.webp`)).width).toBe(480);
+    expect((await metaOf(`${base}.webp`)).width).toBe(1024);
+    expect(result).toMatchObject({ width: 1024, height: 512, variants: 1 });
+    expect(result.placeholder).toMatch(/^#[0-9a-f]{6}$/);
+    const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+    expect(Math.abs(channel(result.placeholder!, 0) - 0x33)).toBeLessThan(24);
+    expect(Math.abs(channel(result.placeholder!, 2) - 0x99)).toBeLessThan(24);
+  });
+
+  it('applies EXIF orientation 6: variants are upright with swapped dimensions and no metadata', async () => {
+    const raw = Buffer.alloc(200 * 100 * 3, 120);
+    const buffer = await sharp(raw, { raw: { width: 200, height: 100, channels: 3 } })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    expect((await sharp(buffer).metadata()).orientation).toBe(6);
+
+    const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+    const result = await storage.processUpload({ buffer, originalName: 'photo.jpg' }, 'plant');
+
+    expect(result.width).toBe(100);
+    expect(result.height).toBe(200);
+    const base = result.filename.replace(/\.webp$/, '');
+    for (const name of [`${base}-160.webp`, `${base}-480.webp`, `${base}.webp`]) {
+      const meta = await metaOf(name);
+      expect(meta.height).toBeGreaterThan(meta.width!);
+      expect(meta.orientation).toBeUndefined();
+      expect(meta.exif).toBeUndefined();
+    }
+  });
+
+  it('rejects an image over the pixel cap with a ValidationError and leaves no files', async () => {
+    const buffer = await solid(200, 200, '#ffffff').png().toBuffer();
+    const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 10_000 });
+    const error = await storage
+      .processUpload({ buffer, originalName: 'big.png' }, 'plant')
+      .catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).message).toMatch(/too many pixels/);
+    expect(await fs.readdir(path.join(dir, 'plant'))).toEqual([]);
+  });
+
+  it('rejects bytes that are not an image', async () => {
+    const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+    await expect(
+      storage.processUpload({ buffer: Buffer.from('nope'), originalName: 'a.png' }, 'plant'),
+    ).rejects.toThrow('The uploaded file is not a valid image.');
+  });
+
+  it('gives two uploads of the same file name different stored names', async () => {
+    const buffer = await solid(10, 10, '#abcdef').png().toBuffer();
+    const storage = new LocalImageStorage({ rootDir: dir, maxInputPixels: 40_000_000 });
+    const [a, b] = await Promise.all([
+      storage.processUpload({ buffer, originalName: 'same.png' }, 'plant'),
+      storage.processUpload({ buffer, originalName: 'same.png' }, 'plant'),
+    ]);
+    expect(a.filename).not.toBe(b.filename);
+  });
+});
+
+describe('createSemaphore', () => {
+  it('never runs more than the limit at once and starts queued tasks in order', async () => {
+    const semaphore = createSemaphore(2);
+    let active = 0;
+    let peak = 0;
+    const started: number[] = [];
+    const task = (id: number) =>
+      semaphore.run(async () => {
+        started.push(id);
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        active -= 1;
+        return id;
+      });
+
+    const results = await Promise.all([1, 2, 3, 4, 5, 6].map(task));
+
+    expect(results).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(peak).toBe(2);
+    expect(started).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('releases the slot when a task fails', async () => {
+    const semaphore = createSemaphore(1);
+    await expect(semaphore.run(() => Promise.reject(new Error('boom')))).rejects.toThrow('boom');
+    await expect(semaphore.run(async () => 'ok')).resolves.toBe('ok');
   });
 });
