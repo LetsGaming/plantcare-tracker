@@ -13,7 +13,10 @@ import { decodeCursor, type Cursor } from '../../src/core/pagination';
 import { SQLitePlantRepository } from '../../src/modules/plants/infrastructure/SQLitePlantRepository';
 import { SQLiteSpeciesCatalog } from '../../src/modules/plants/infrastructure/SQLiteSpeciesCatalog';
 import { SpeciesResolver } from '../../src/modules/plants/domain/SpeciesResolver';
-import { ListPlantsUseCase } from '../../src/modules/plants/application/PlantUseCases';
+import {
+  ListPlantsUseCase,
+  UpdatePlantUseCase,
+} from '../../src/modules/plants/application/PlantUseCases';
 import type {
   PlantListItem,
   PlantListQuery,
@@ -491,5 +494,90 @@ describe('query plans and speed', () => {
     expect(page.total).toBe(PLANTS / 2);
     expect(page.items[0].watering?.avg_interval_days).toBe(3);
     expect(elapsed).toBeLessThan(50);
+  });
+});
+
+describe('trimmed detail and update reads', () => {
+  interface Statement {
+    sql: string;
+    params: unknown[];
+  }
+
+  const captureAll = async (action: () => Promise<unknown>): Promise<Statement[]> => {
+    const sqlite = getSqlite();
+    const original = sqlite.prepare.bind(sqlite);
+    const captured: Statement[] = [];
+    (sqlite as { prepare: unknown }).prepare = (source: string) => {
+      const statement = original(source);
+      for (const method of ['all', 'get', 'run'] as const) {
+        const call = statement[method].bind(statement) as (...args: unknown[]) => unknown;
+        (statement as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
+          captured.push({ sql: source, params: args.flat() });
+          return call(...args);
+        };
+      }
+      return statement;
+    };
+    try {
+      await action();
+    } finally {
+      (sqlite as { prepare: unknown }).prepare = original;
+    }
+    return captured;
+  };
+
+  const update = new UpdatePlantUseCase(plants);
+
+  it('findOwnership returns the owner and substrate, or null', async () => {
+    const owner = newUser();
+    const id = addPlant(owner, 'Owned');
+    expect(await plants.findOwnership(id)).toEqual({ userId: owner, substrateId: null });
+    expect(await plants.findOwnership(999_999)).toBeNull();
+  });
+
+  it('guards the summary subqueries by the viewer and keeps the DTO for owner and others', async () => {
+    const owner = newUser();
+    const other = newUser();
+    const id = addPlant(owner, 'Shared', { isPublic: true });
+    water(id, at(5, 1));
+    water(id, at(5, 4));
+
+    const asOwner = await plants.findById(id, owner, 0);
+    expect(asOwner!.watering).toMatchObject({ last_watered_at: at(5, 4) * 1000 });
+    expect(asOwner!.watering!.avg_interval_days).toBe(3);
+    expect((await plants.findById(id, other, 0))!.watering).toBeNull();
+    expect((await plants.findById(id, null, 0))!.watering).toBeNull();
+
+    const statements = await captureAll(() => plants.findById(id, other, 0));
+    const detail = statements.find((s) => s.sql.includes('watering_records'))!;
+    expect(detail.sql).toMatch(/CASE WHEN p\.user_id = \?/);
+    expect(detail.params).toContain(other);
+  });
+
+  it('PATCH reads the detail once: the pre-check does not run the summary subqueries', async () => {
+    const owner = newUser();
+    const id = addPlant(owner, 'Before');
+    water(id, at(5, 1));
+
+    let updated: Awaited<ReturnType<typeof update.execute>> | undefined;
+    const statements = await captureAll(async () => {
+      updated = await update.execute(id, owner, { name: 'After' }, 0);
+    });
+
+    expect(updated!.name).toBe('After');
+    expect(updated!.watering).not.toBeNull();
+    const selects = statements.filter((s) => /^\s*select/i.test(s.sql));
+    expect(selects.filter((s) => s.sql.includes('watering_records'))).toHaveLength(1);
+    expect(statements.filter((s) => /^\s*update/i.test(s.sql))).toHaveLength(1);
+  });
+
+  it("answers 404 for someone else's plant without any summary query", async () => {
+    const owner = newUser();
+    const other = newUser();
+    const id = addPlant(owner, 'Not yours');
+    const statements = await captureAll(async () => {
+      await expect(update.execute(id, other, { name: 'x' }, 0)).rejects.toThrow('Plant not found');
+    });
+    expect(statements.some((s) => s.sql.includes('watering_records'))).toBe(false);
   });
 });

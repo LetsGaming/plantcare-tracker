@@ -1,4 +1,4 @@
-import { sql, type Kysely, type SqlBool } from 'kysely';
+import { sql, type Kysely, type RawBuilder, type SqlBool } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import type { Database } from '../../../core/database/schema';
 import { toPublicImageUrl } from '../../../core/config';
@@ -7,6 +7,7 @@ import { toImageDto, type ImageDTO } from '../../images/presentation/imageDto';
 import {
   summaryColumns,
   summaryFromRow,
+  type SummaryColumns,
   type SummaryRow,
 } from '../../watering/infrastructure/wateringSummary';
 import type { SpeciesResolver } from '../domain/SpeciesResolver';
@@ -17,6 +18,7 @@ import type {
   PlantListItem,
   PlantListPage,
   PlantListQuery,
+  PlantOwnership,
   PlantSort,
   SubstrateRef,
 } from '../domain/Plant';
@@ -49,6 +51,9 @@ interface ListRow extends PlantBaseRow, Partial<SummaryRow> {
   cover_id: number | null;
   image_count: number;
 }
+
+const hasSummary = (row: ListRow): row is ListRow & SummaryRow =>
+  row.distinct_local_days !== undefined;
 
 type ListScope = { kind: 'mine'; userId: number } | { kind: 'public' };
 
@@ -85,6 +90,21 @@ const toSubstrate = (row: PlantBaseRow): SubstrateRef | null =>
   row.substrate_id
     ? { substrate_id: row.substrate_id, substrate_name: row.substrate_name ?? '' }
     : null;
+
+/** Wraps each summary subquery so SQLite evaluates it only for the viewer's own plant. */
+const ownerOnly = (
+  columns: SummaryColumns,
+  viewerId: number | null,
+): { [K in keyof SummaryColumns]: RawBuilder<number | null> } => {
+  const guard = <T>(column: RawBuilder<T>): RawBuilder<T | null> =>
+    sql<T | null>`CASE WHEN p.user_id = ${viewerId} THEN ${column} END`;
+  return {
+    last_watered_sec: guard(columns.last_watered_sec),
+    last_fertilized_sec: guard(columns.last_fertilized_sec),
+    first_watered_sec: guard(columns.first_watered_sec),
+    distinct_local_days: guard(columns.distinct_local_days),
+  };
+};
 
 const newestImageId = sql<
   number | null
@@ -127,9 +147,8 @@ export class SQLitePlantRepository implements PlantRepository {
     query: PlantListQuery,
     tz: number | null,
   ): Promise<PlantListPage> {
-    const summary = summaryColumns('p.id', tz ?? 0);
     const cursor = query.cursor;
-    const base = filteredPlants(scope, query.q)
+    const selected = filteredPlants(scope, query.q)
       .leftJoin('substrates as s', 'p.substrate_id', 's.id')
       .select([
         'p.id as plant_id',
@@ -142,16 +161,16 @@ export class SQLitePlantRepository implements PlantRepository {
         's.name as substrate_name',
         newestImageId.as('cover_id'),
         imageCount.as('image_count'),
-      ]);
-    // The summary columns exist only on the mine query; ListRow marks them optional.
-    const selected = (tz === null
-      ? base
-      : base.select([
+      ])
+      .$if(tz !== null, (qb) => {
+        const summary = summaryColumns('p.id', tz as number);
+        return qb.select([
           summary.last_watered_sec.as('last_watered_sec'),
           summary.last_fertilized_sec.as('last_fertilized_sec'),
           summary.first_watered_sec.as('first_watered_sec'),
           summary.distinct_local_days.as('distinct_local_days'),
-        ])) as unknown as typeof base;
+        ]);
+      });
 
     const rows: ListRow[] = await applyKeyset(selected, {
       ...SORT_KEYSET[query.sort],
@@ -181,7 +200,7 @@ export class SQLitePlantRepository implements PlantRepository {
       substrate: toSubstrate(row),
       cover: row.cover_id === null ? null : (covers.get(row.cover_id) ?? null),
       image_count: row.image_count,
-      watering: tz === null ? null : summaryFromRow(row as SummaryRow, tz),
+      watering: tz !== null && hasSummary(row) ? summaryFromRow(row, tz) : null,
     }));
 
     const result: PlantListPage = { items, nextCursor: page.nextCursor };
@@ -208,7 +227,7 @@ export class SQLitePlantRepository implements PlantRepository {
   }
 
   async findById(id: number, viewerId: number | null, tz: number): Promise<Plant | null> {
-    const summary = summaryColumns('p.id', tz);
+    const summary = ownerOnly(summaryColumns('p.id', tz), viewerId);
     const row = await getKysely()
       .selectFrom('plants as p')
       .leftJoin('species', 'p.species_id', 'species.id')
@@ -251,9 +270,21 @@ export class SQLitePlantRepository implements PlantRepository {
       substrate: toSubstrate(row),
       cover: images.length > 0 ? images[images.length - 1] : null,
       image_count: images.length,
-      watering: viewerId !== null && viewerId === row.user_id ? summaryFromRow(row, tz) : null,
+      watering:
+        viewerId !== null && viewerId === row.user_id
+          ? summaryFromRow({ ...row, distinct_local_days: row.distinct_local_days ?? 0 }, tz)
+          : null,
       images,
     });
+  }
+
+  async findOwnership(id: number): Promise<PlantOwnership | null> {
+    const row = await getKysely()
+      .selectFrom('plants')
+      .select(['user_id', 'substrate_id'])
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return row ? { userId: row.user_id, substrateId: row.substrate_id } : null;
   }
 
   async create(dto: CreatePlantDTO): Promise<number> {

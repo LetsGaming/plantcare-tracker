@@ -125,10 +125,10 @@ export class UpdatePlantUseCase {
   async execute(id: number, userId: number, input: unknown, tz: number): Promise<Plant> {
     const data = parseOrThrow(UpdatePlantSchema, input, 'Invalid update data');
 
-    const current = await this.repo.findById(id, userId, tz);
+    const current = await this.repo.findOwnership(id);
     if (!current || current.userId !== userId) throw new NotFoundError('Plant');
     // A plant may keep a substrate whose owner made it private since; only a move is checked.
-    if (data.substrateId !== current.substrate?.substrate_id) {
+    if (data.substrateId !== current.substrateId) {
       await assertSubstrateUsable(this.repo, data.substrateId, userId);
     }
 
@@ -145,11 +145,13 @@ export class DeletePlantUseCase {
   constructor(
     private readonly repo: PlantRepository,
     private readonly images: EntityImageCleanup,
+    private readonly onDeleted?: (ownerUserId: number) => void,
   ) {}
 
   async execute(id: number, userId: number): Promise<void> {
     const deleted = await this.repo.delete(id, userId);
     if (!deleted) throw new NotFoundError('Plant');
     await this.images.removeAll('plant', id);
+    this.onDeleted?.(userId);
   }
 }

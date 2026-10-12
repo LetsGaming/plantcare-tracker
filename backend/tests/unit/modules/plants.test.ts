@@ -18,6 +18,12 @@ import {
   UpdatePlantUseCase,
   DeletePlantUseCase,
 } from '../../../src/modules/plants/application/PlantUseCases';
+import { createPlantsController } from '../../../src/modules/plants/presentation/plantsController';
+import {
+  tzModifier,
+  summaryColumns,
+  loadSummaries,
+} from '../../../src/modules/watering/infrastructure/wateringSummary';
 import { NotFoundError, ValidationError, InternalError } from '../../../src/core/errors';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
@@ -44,6 +50,7 @@ const makeMockRepo = (): PlantRepository => ({
   listMine: vi.fn().mockResolvedValue(emptyPage),
   listPublic: vi.fn().mockResolvedValue(emptyPage),
   findById: vi.fn().mockResolvedValue(null),
+  findOwnership: vi.fn().mockResolvedValue({ userId: 2, substrateId: 1 }),
   create: vi.fn().mockResolvedValue(1),
   update: vi.fn().mockResolvedValue(true),
   delete: vi.fn().mockResolvedValue(true),
@@ -320,7 +327,6 @@ describe('UpdatePlantUseCase', () => {
 
   it('throws NotFoundError for a substrate the user may not use, without writing', async () => {
     const repo = makeMockRepo();
-    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
     (repo.isSubstrateUsableBy as ReturnType<typeof vi.fn>).mockResolvedValue(false);
     await expect(new UpdatePlantUseCase(repo).execute(1, 2, { substrateId: 7 }, 0)).rejects.toThrow(
       'Substrate not found',
@@ -340,12 +346,29 @@ describe('UpdatePlantUseCase', () => {
 
   it("throws Plant not found for someone else's plant without checking or writing", async () => {
     const repo = makeMockRepo();
-    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
     await expect(
       new UpdatePlantUseCase(repo).execute(1, 99, { substrateId: 7 }, 0),
     ).rejects.toThrow('Plant not found');
     expect(repo.isSubstrateUsableBy).not.toHaveBeenCalled();
     expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for a missing plant from the light ownership read, without a detail read', async () => {
+    const repo = makeMockRepo();
+    (repo.findOwnership as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    await expect(new UpdatePlantUseCase(repo).execute(5, 2, { name: 'x' }, 0)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(repo.findById).not.toHaveBeenCalled();
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('reads the detail once, after the write', async () => {
+    const repo = makeMockRepo();
+    (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(new Plant(makePlantData()));
+    await new UpdatePlantUseCase(repo).execute(1, 2, { name: 'x' }, 0);
+    expect(repo.findOwnership).toHaveBeenCalledWith(1);
+    expect(repo.findById).toHaveBeenCalledTimes(1);
   });
 
   it('throws ValidationError when no fields provided', async () => {
@@ -376,5 +399,52 @@ describe('DeletePlantUseCase', () => {
       NotFoundError,
     );
     expect(images.removeAll).not.toHaveBeenCalled();
+  });
+
+  it('calls the onDeleted hook with the owner id after the images are removed', async () => {
+    const repo = makeMockRepo();
+    const order: string[] = [];
+    images.removeAll.mockImplementationOnce(async () => {
+      order.push('images');
+    });
+    const onDeleted = vi.fn(() => order.push('hook'));
+    await new DeletePlantUseCase(repo, images, onDeleted).execute(1, 2);
+    expect(onDeleted).toHaveBeenCalledExactlyOnceWith(2);
+    expect(order).toEqual(['images', 'hook']);
+  });
+
+  it('does not call the onDeleted hook when the delete finds nothing', async () => {
+    const repo = makeMockRepo();
+    (repo.delete as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    const onDeleted = vi.fn();
+    await expect(new DeletePlantUseCase(repo, images, onDeleted).execute(999, 2)).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it('is passed through createPlantsController to the delete handler', async () => {
+    const repo = makeMockRepo();
+    const onDeleted = vi.fn();
+    const ctrl = createPlantsController(repo, images, onDeleted);
+    const reply = { code: vi.fn().mockReturnThis(), send: vi.fn() };
+    const req = { user: { id: 7 }, params: { id: '3' } };
+    await ctrl.deletePlant(req as never, reply as never);
+    expect(repo.delete).toHaveBeenCalledWith(3, 7);
+    expect(onDeleted).toHaveBeenCalledExactlyOnceWith(7);
+  });
+});
+
+describe('watering summary tz guard', () => {
+  it.each([Number.NaN, 1.5, 841, -841, Infinity])('rejects tz %s', async (tz) => {
+    expect(() => tzModifier(tz)).toThrow(/tz minutes/);
+    expect(() => summaryColumns('p.id', tz)).toThrow(/tz minutes/);
+    await expect(loadSummaries([], tz)).rejects.toThrow(/tz minutes/);
+  });
+
+  it('accepts the boundaries', () => {
+    expect(tzModifier(840)).toBe('+840 minutes');
+    expect(tzModifier(-840)).toBe('-840 minutes');
+    expect(tzModifier(0)).toBe('+0 minutes');
   });
 });

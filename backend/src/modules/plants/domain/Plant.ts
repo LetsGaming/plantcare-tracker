@@ -9,7 +9,7 @@
  */
 
 import type { Cursor } from '../../../core/pagination';
-import type { ImageDTO } from '../../images/presentation/imageDto';
+import type { ImageDTO } from '../../images/domain/imageDto';
 import type { WateringSummary } from './wateringSummary';
 
 export type PlantSort = 'created' | 'name';
@@ -126,6 +126,11 @@ export interface PlantListPage {
   total?: number;
 }
 
+export interface PlantOwnership {
+  userId: number;
+  substrateId: number | null;
+}
+
 export interface PlantRepository {
   /** The user's own plants with watering summaries; `tz` is minutes east of UTC. */
   listMine(userId: number, query: PlantListQuery, tz: number): Promise<PlantListPage>;
@@ -133,6 +138,8 @@ export interface PlantRepository {
   listPublic(query: PlantListQuery): Promise<PlantListPage>;
   /** The watering summary is filled only when `viewerId` owns the plant. */
   findById(id: number, viewerId: number | null, tz: number): Promise<Plant | null>;
+  /** Owner and substrate of a plant without loading the detail; null when it does not exist. */
+  findOwnership(id: number): Promise<PlantOwnership | null>;
   create(dto: CreatePlantDTO): Promise<number>; // returns new plant ID
   update(id: number, userId: number, dto: UpdatePlantDTO): Promise<boolean>;
   delete(id: number, userId: number): Promise<boolean>;

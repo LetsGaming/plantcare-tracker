@@ -1,14 +1,31 @@
 import { sql, type RawBuilder } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import {
+  TZ_OFFSET_MAX,
+  TZ_OFFSET_MIN,
   toWateringSummary,
   type WateringAggregates,
   type WateringSummary,
 } from '../../plants/domain/wateringSummary';
 
+/**
+ * Programmer error, not a client error: callers validate request input with
+ * parseTzOffset. A NaN or fractional offset would make SQLite's date() return
+ * NULL and silently drop the average.
+ */
+const assertTzMinutes = (tzMinutes: number): void => {
+  if (!Number.isInteger(tzMinutes) || tzMinutes < TZ_OFFSET_MIN || tzMinutes > TZ_OFFSET_MAX) {
+    throw new Error(
+      `tz minutes must be an integer between ${TZ_OFFSET_MIN} and ${TZ_OFFSET_MAX}, got ${tzMinutes}`,
+    );
+  }
+};
+
 /** SQLite date modifier for a local day boundary, e.g. '+120 minutes'. */
-export const tzModifier = (tzMinutes: number): string =>
-  `${tzMinutes < 0 ? '-' : '+'}${Math.abs(tzMinutes)} minutes`;
+export const tzModifier = (tzMinutes: number): string => {
+  assertTzMinutes(tzMinutes);
+  return `${tzMinutes < 0 ? '-' : '+'}${Math.abs(tzMinutes)} minutes`;
+};
 
 export interface SummaryColumns {
   last_watered_sec: RawBuilder<number | null>;
@@ -24,6 +41,7 @@ export interface SummaryColumns {
  * walks only that plant's entries.
  */
 export const summaryColumns = (plantIdRef: string, tzMinutes: number): SummaryColumns => {
+  assertTzMinutes(tzMinutes);
   const plantId = sql.ref(plantIdRef);
   const tz = tzModifier(tzMinutes);
   return {
@@ -62,6 +80,7 @@ export const loadSummaries = async (
   plantIds: readonly number[],
   tzMinutes: number,
 ): Promise<Map<number, WateringSummary>> => {
+  assertTzMinutes(tzMinutes);
   const result = new Map<number, WateringSummary>();
   if (plantIds.length === 0) return result;
   const cols = summaryColumns('p.id', tzMinutes);

@@ -74,12 +74,13 @@ export interface PlantsController {
 export const createPlantsController = (
   repo: PlantRepository,
   imageCleanup: EntityImageCleanup,
+  onPlantDeleted?: (ownerUserId: number) => void,
 ): PlantsController => {
   const list = new ListPlantsUseCase(repo);
   const getOne = new GetPlantUseCase(repo);
   const create = new CreatePlantUseCase(repo);
   const update = new UpdatePlantUseCase(repo);
-  const remove = new DeletePlantUseCase(repo, imageCleanup);
+  const remove = new DeletePlantUseCase(repo, imageCleanup, onPlantDeleted);
 
   return {
     getAllPlants: async (req: FastifyRequest, reply: FastifyReply) => {
