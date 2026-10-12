@@ -258,6 +258,22 @@ describe("PlantOverview: store-driven lists", () => {
     wrapper.unmount();
   });
 
+  it("hands the list the same props when unrelated page state changes", async () => {
+    const { wrapper, store } = mountOverview();
+    store.items = [plant(1, 1, false)];
+    await flushPromises();
+    const list = () => wrapper.findComponent({ name: "ItemsOverview" });
+    const before = { ...list().props() };
+
+    (wrapper.vm as any).openAddModal();
+    await flushPromises();
+
+    for (const [key, value] of Object.entries(list().props())) {
+      expect(value, key).toBe(before[key]);
+    }
+    wrapper.unmount();
+  });
+
   it("uses the reconciled plant id for the dependent image upload", async () => {
     const { wrapper, store } = mountOverview();
     await flushPromises();

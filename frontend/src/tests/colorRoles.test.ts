@@ -57,9 +57,13 @@ describe("clay means overdue only", () => {
 
 describe("NEW markers use the new token", () => {
   const overview = vue("overview/ItemsOverview.vue");
-  for (const selector of [".new-pill", ".count-new"]) {
+  const card = vue("overview/OverviewCard.vue");
+  for (const [selector, source] of [
+    [".new-pill", card],
+    [".count-new", overview],
+  ]) {
     it(`${selector} uses --new and --new-ink`, () => {
-      const body = rule(overview, selector);
+      const body = rule(source, selector);
       expect(body).toMatch(/var\(--new\)/);
       expect(body).toMatch(/var\(--new-ink\)/);
     });
@@ -75,27 +79,26 @@ describe("NEW markers use the new token", () => {
   }
 
   it("discount chip is neutral with an icon", () => {
-    const overview2 = vue("overview/ItemsOverview.vue");
-    const body = rule(overview2, ".discount-chip");
+    const body = rule(card, ".discount-chip");
     expect(body).toContain("var(--surface-sunken)");
     expect(body).toContain("var(--ion-text-color)");
-    expect(overview2).toMatch(/<ion-icon[^>]*icons\.discount/);
+    expect(card).toMatch(/<ion-icon[^>]*icons\.discount/);
   });
 
   it("pills use the shared pill sizing, not literals", () => {
-    const body = rule(overview, ".new-pill");
+    const body = rule(card, ".new-pill");
     expect(body).not.toMatch(/999px|2px 10px/);
     expect(body).toContain("var(--radius-pill)");
-    expect(rule(overview, ".status-chip")).not.toMatch(/999px|2px 10px/);
-    expect(overview).toMatch(/class="status-chip tone-chip"|status-chip[^>]*tone-chip/);
+    expect(rule(card, ".status-chip")).not.toMatch(/999px|2px 10px/);
+    expect(card).toMatch(/class="status-chip tone-chip"|status-chip[^>]*tone-chip/);
   });
 });
 
 describe("status line", () => {
-  const overview = vue("overview/ItemsOverview.vue");
+  const card = vue("overview/OverviewCard.vue");
   it("overdue uses the overdue ink and due stays tertiary", () => {
-    expect(rule(overview, ".status-line.tone-overdue")).toContain("var(--overdue-ink)");
-    expect(rule(overview, ".status-line.tone-due")).toContain("--ion-color-tertiary-shade");
+    expect(rule(card, ".status-line.tone-overdue")).toContain("var(--overdue-ink)");
+    expect(rule(card, ".status-line.tone-due")).toContain("--ion-color-tertiary-shade");
   });
 });
 

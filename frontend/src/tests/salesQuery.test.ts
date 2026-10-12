@@ -17,7 +17,7 @@ vi.mock("@/services/general/LocalizationService", async () => {
 
 import { activeFilterCount, applySalesQuery, defaultSalesQuery } from "@/utils/salesQuery";
 import SaleMapper from "@/mapping/SaleMapping";
-import ItemsOverview, { type OverviewItem } from "@/components/overview/ItemsOverview.vue";
+import { filterOverviewItems, type OverviewItem } from "@/components/overview/ItemsOverview.vue";
 import SalesOverview from "@/views/sales/SalesOverview.vue";
 import localizationService from "@/services/general/LocalizationService";
 import { formatPrice } from "@/utils/formatPrice";
@@ -141,14 +141,7 @@ describe("sales search", () => {
       sales: [mapped],
       isNew: () => false,
     }) as OverviewItem[];
-    const overview = {
-      items: cards,
-      currentSearch: "",
-      filteredItems: [] as OverviewItem[],
-      sortItems: (items: OverviewItem[]) => items,
-    };
-    (ItemsOverview as any).methods.filterItems.call(overview, query);
-    return overview.filteredItems;
+    return [...filterOverviewItems(cards, query.trim().toLowerCase())];
   };
 
   it("precomputes a lowercase key from the full name and the shop", () => {

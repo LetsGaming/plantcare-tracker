@@ -27,12 +27,12 @@
     </ion-fab>
 
     <div class="overview">
-      <div v-if="items.length" class="search-row">
+      <div v-if="showSearch" class="search-row">
         <search-bar
           ref="search"
           class="search-field"
           :placeholder="t('search.placeholder')"
-          @search="filterItems"
+          @search="onSearch"
         />
         <icon-button
           :icon="refreshIcon"
@@ -45,9 +45,9 @@
 
       <slot name="filters" />
 
-      <div v-if="items.length" class="count-row">
+      <div v-if="sourceItems.length" class="count-row">
         <p class="count" aria-live="polite">
-          {{ filteredItems.length }} {{ t("overview.items") }}
+          {{ itemCount }} {{ t("overview.items") }}
           <strong v-if="showNewCount" class="count-new">
             {{ t("sales3.new_total", { count: newInView }) }}
           </strong>
@@ -56,14 +56,14 @@
       </div>
 
       <state-block
-        v-if="isLoading && !items.length"
+        v-if="isLoading && !sourceItems.length"
         kind="loading"
         :title="t('state.loading')"
         :skeletons="6"
       />
 
       <state-block
-        v-else-if="hasError && !items.length"
+        v-else-if="hasError && !sourceItems.length"
         kind="error"
         :placeholder-kind="kind"
         :title="t('state.error_title')"
@@ -73,7 +73,7 @@
       />
 
       <state-block
-        v-else-if="!items.length"
+        v-else-if="!sourceItems.length && !trimmedQuery"
         kind="empty"
         :placeholder-kind="kind"
         :title="emptyTitle || t('overview.no_entries')"
@@ -86,65 +86,24 @@
         v-else-if="!filteredItems.length"
         kind="empty"
         :placeholder-kind="kind"
-        :title="t('state.no_results_title', { query: currentSearch })"
+        :title="t('state.no_results_title', { query })"
         :message="t('state.no_results_message')"
         :action-label="t('state.clear_search')"
         @action="clearSearch"
       />
 
-      <ul v-else class="grid" role="list">
-        <li v-for="item in filteredItems" :key="item.id">
-          <button type="button" class="tag-card" @click="navigateToItem(item.id)">
-            <span class="tag-media">
-              <progressive-image :src="item.imageUrl" alt="" :kind="kind" :seed="String(item.id)" />
-              <span v-if="item.isNew" class="new-pill">{{ t("label.new") }}</span>
-            </span>
-            <span class="tag-body">
-              <span class="tag-hole" aria-hidden="true" />
-              <span class="tag-name break-words">{{ item.name }}</span>
-              <span v-if="item.priceText" class="tag-price">
-                <span class="price-now">{{ item.priceText }}</span>
-                <span v-if="item.oldPriceText" class="price-old">
-                  <span class="sr-only">{{ t("sales3.was", { price: item.oldPriceText }) }}</span>
-                  <s aria-hidden="true">{{ item.oldPriceText }}</s>
-                </span>
-                <span v-if="item.discountText" class="discount-chip">
-                  <ion-icon :icon="icons.discount" aria-hidden="true" />
-                  {{ item.discountText }}
-                </span>
-              </span>
-              <span v-if="item.description" class="tag-sub break-words">{{
-                item.description
-              }}</span>
-              <span v-if="item.statusLine" class="tag-status">
-                <span
-                  v-if="item.statusTone !== 'new'"
-                  class="status-line break-words"
-                  :class="`tone-${item.statusTone ?? 'ok'}`"
-                  >{{ item.statusLine }}</span
-                >
-                <span
-                  v-if="item.statusLabel"
-                  class="status-chip tone-chip"
-                  :class="`tone-${item.statusTone ?? 'ok'}`"
-                >
-                  <ion-icon
-                    :icon="item.statusTone === 'overdue' ? alertCircle : water"
-                    aria-hidden="true"
-                  />
-                  {{ item.statusLabel }}
-                </span>
-              </span>
-            </span>
-          </button>
-        </li>
-      </ul>
+      <template v-else>
+        <items-grid :items="visibleItems" :kind="kind" @select="navigateToItem" />
+        <ion-infinite-scroll :disabled="!canGrow" @ionInfinite="onInfinite($event)">
+          <ion-infinite-scroll-content :loading-text="t('list.loading_more')" />
+        </ion-infinite-scroll>
+      </template>
     </div>
   </ion-content>
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType, ref } from "vue";
+import { defineComponent, markRaw, PropType, ref } from "vue";
 import {
   IonContent,
   IonRefresher,
@@ -152,42 +111,63 @@ import {
   IonIcon,
   IonFab,
   IonFabButton,
+  IonInfiniteScroll,
+  IonInfiniteScrollContent,
 } from "@ionic/vue";
-import { alertCircle, chevronDownCircleOutline, reload, arrowUp, water } from "ionicons/icons";
+import { chevronDownCircleOutline, reload, arrowUp } from "ionicons/icons";
 
 import SearchBar from "@/components/SearchBar.vue";
-import Utils from "@/utils/utils";
-import type { WateringTone } from "@/utils/wateringStats";
-import { icons } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
-import ProgressiveImage from "@/components/ProgressiveImage.vue";
 import IconButton from "@/components/ui/IconButton.vue";
 import StateBlock from "@/components/ui/StateBlock.vue";
+import ItemsGrid from "@/components/overview/ItemsGrid.vue";
+import type { OverviewItem } from "@/components/overview/OverviewCard.vue";
 import type { PlaceholderKind } from "@/components/ui/PlantPlaceholder.vue";
+import { compareText } from "@/utils/intlCache";
 
-export interface OverviewItem {
-  id: string | number;
-  name: string;
-  imageUrl?: string;
-  description?: string;
-  isNew?: boolean;
-  /** Watering state shown in the tag body; sortRank orders ascending ahead of unranked items. */
-  statusLine?: string;
-  statusTone?: WateringTone;
-  statusLabel?: string;
-  sortRank?: number;
-  /** Formatted prices of a sale card, shown between the name and the shop line. */
-  priceText?: string;
-  oldPriceText?: string;
-  discountText?: string;
-  /** Lowercase text the search matches instead of every text field, when given. */
-  searchText?: string;
+export type { OverviewImage, OverviewItem } from "@/components/overview/OverviewCard.vue";
+
+/** Cards mounted at first and added per infinite-scroll event. */
+export const WINDOW_STEP = 40;
+
+const fallbackKeys = new WeakMap<OverviewItem, string>();
+
+const searchKeyOf = (item: OverviewItem): string => {
+  const text = item.searchText;
+  if (text !== undefined) return text;
+  let key = fallbackKeys.get(item);
+  if (key === undefined) {
+    key = `${item.name}\n${item.description ?? ""}`.toLowerCase();
+    fallbackKeys.set(item, key);
+  }
+  return key;
+};
+
+/** `needle` is trimmed and lowercase; an empty needle returns `items` itself. */
+export const filterOverviewItems = (
+  items: readonly OverviewItem[],
+  needle: string,
+): readonly OverviewItem[] =>
+  needle ? items.filter((item) => searchKeyOf(item).includes(needle)) : items;
+
+/** Ascending `sortRank` first, then NEW items, then by name in the locale's order. */
+export const sortOverviewItems = (
+  items: readonly OverviewItem[],
+  locale: string,
+): readonly OverviewItem[] => {
+  const byName = compareText(locale);
+  return [...items].sort((a, b) => {
+    const rankDelta = (a.sortRank ?? 0) - (b.sortRank ?? 0);
+    if (rankDelta !== 0) return rankDelta;
+    if (a.isNew && !b.isNew) return -1;
+    if (!a.isNew && b.isNew) return 1;
+    return byName(a.name, b.name);
+  });
+};
+
+interface InfiniteTarget {
+  complete: () => unknown;
 }
-
-const matchesSearch = (item: OverviewItem, needle: string): boolean =>
-  item.searchText === undefined
-    ? Utils.baseSearchFilter(needle, [item]).length > 0
-    : item.searchText.includes(needle);
 
 export default defineComponent({
   name: "ItemsOverview",
@@ -199,13 +179,16 @@ export default defineComponent({
     IonIcon,
     IonFab,
     IonFabButton,
-    ProgressiveImage,
+    IonInfiniteScroll,
+    IonInfiniteScrollContent,
     IconButton,
     StateBlock,
+    ItemsGrid,
   },
   props: {
+    /** View models; frozen objects let unchanged cards skip their re-render. */
     items: {
-      type: Array as PropType<OverviewItem[]>,
+      type: Array as PropType<readonly OverviewItem[]>,
       required: true,
     },
     onItemClick: {
@@ -245,33 +228,110 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** More items exist beyond `items`; reaching the end of the window emits `load-more`. */
+    hasMore: {
+      type: Boolean,
+      default: false,
+    },
+    loadingMore: {
+      type: Boolean,
+      default: false,
+    },
+    /** The parent searches (and orders) on the server: no local filter, `query-change` instead. */
+    serverSearch: {
+      type: Boolean,
+      default: false,
+    },
+    /** Count shown in server mode, where `items` holds only the loaded pages. */
+    total: {
+      type: Number as PropType<number | null>,
+      default: null,
+    },
+    /** False while the page is hidden: the list keeps its last result and recomputes on return. */
+    active: {
+      type: Boolean,
+      default: true,
+    },
   },
-  emits: ["retry", "empty-action"],
-  setup() {
+  emits: ["retry", "empty-action", "load-more", "query-change"],
+  setup(props) {
     const contentRef = ref<InstanceType<typeof IonContent> | null>(null);
-    return { contentRef };
+    const memo = markRaw({
+      items: props.items,
+      filtered: props.items,
+      pendingInfinite: null as InfiniteTarget | null,
+    });
+    return { contentRef, memo };
   },
   data() {
     return {
-      currentSearch: "",
-      filteredItems: [] as OverviewItem[],
+      query: "",
+      windowSize: WINDOW_STEP,
       chevronDown: chevronDownCircleOutline,
       refreshIcon: reload,
       arrowUp: arrowUp,
-      alertCircle,
-      water,
-      icons,
       isRefreshing: false,
       showScrollTop: false,
     };
   },
   computed: {
+    trimmedQuery(): string {
+      return this.query.trim();
+    },
+    sourceItems(): readonly OverviewItem[] {
+      if (!this.active) return this.memo.items;
+      this.memo.items = this.items;
+      return this.items;
+    },
+    sortedItems(): readonly OverviewItem[] {
+      if (this.presorted) return this.sourceItems;
+      return sortOverviewItems(this.sourceItems, localizationService.getLocale());
+    },
+    filteredItems(): readonly OverviewItem[] {
+      if (!this.active) return this.memo.filtered;
+      const filtered = this.serverSearch
+        ? this.sourceItems
+        : filterOverviewItems(this.sortedItems, this.trimmedQuery.toLowerCase());
+      this.memo.filtered = filtered;
+      return filtered;
+    },
+    visibleItems(): readonly OverviewItem[] {
+      const filtered = this.filteredItems;
+      return filtered.length > this.windowSize ? filtered.slice(0, this.windowSize) : filtered;
+    },
+    canGrow(): boolean {
+      return this.windowSize < this.filteredItems.length || this.hasMore;
+    },
+    showSearch(): boolean {
+      return (
+        this.sourceItems.length > 0 || this.query !== "" || (this.serverSearch && this.isLoading)
+      );
+    },
+    itemCount(): number {
+      return this.serverSearch && this.total !== null ? this.total : this.filteredItems.length;
+    },
+    newInView(): number {
+      let count = 0;
+      for (const item of this.filteredItems) if (item.isNew) count++;
+      return count;
+    },
     showNewCount(): boolean {
       return this.newInView > 0 && this.newInView < this.filteredItems.length;
     },
-    newInView(): number {
-      return this.filteredItems.filter((item) => item.isNew).length;
+  },
+  watch: {
+    items() {
+      this.completeInfinite();
     },
+    hasMore() {
+      this.completeInfinite();
+    },
+    loadingMore(loading: boolean) {
+      if (!loading) this.completeInfinite();
+    },
+  },
+  beforeUnmount() {
+    this.memo.pendingInfinite = null;
   },
   methods: {
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
@@ -298,27 +358,41 @@ export default defineComponent({
         this.isRefreshing = false;
       });
     },
-    filterItems(query: string) {
-      this.currentSearch = query;
-      const needle = query.trim().toLowerCase();
-      const filtered = needle
-        ? this.items.filter((item) => matchesSearch(item, needle))
-        : this.items;
-      this.filteredItems = this.sortItems(filtered);
+    onSearch(query: string) {
+      if (query === this.query) return;
+      const previous = this.trimmedQuery;
+      this.query = query;
+      this.windowSize = WINDOW_STEP;
+      if (this.serverSearch && this.trimmedQuery !== previous) {
+        this.$emit("query-change", { q: this.trimmedQuery });
+      }
     },
     clearSearch() {
       (this.$refs.search as InstanceType<typeof SearchBar> | undefined)?.clearSearch();
     },
-    sortItems(items: OverviewItem[]) {
-      if (this.presorted) return items;
-      const locale = localizationService.getLocale();
-      return [...items].sort((a, b) => {
-        const rankDelta = (a.sortRank ?? 0) - (b.sortRank ?? 0);
-        if (rankDelta !== 0) return rankDelta;
-        if (a.isNew && !b.isNew) return -1;
-        if (!a.isNew && b.isNew) return 1;
-        return a.name.localeCompare(b.name, locale);
+    onInfinite(event: CustomEvent) {
+      const target = event.target as unknown as InfiniteTarget;
+      const available = this.filteredItems.length;
+      if (this.windowSize < available) this.windowSize += WINDOW_STEP;
+      if (this.windowSize >= available && this.hasMore) {
+        this.requestMore(target);
+        return;
+      }
+      target.complete();
+    },
+    requestMore(target: InfiniteTarget) {
+      this.completeInfinite();
+      this.memo.pendingInfinite = target;
+      if (!this.loadingMore) this.$emit("load-more");
+      // A parent that does not report `loadingMore` would leave the spinner pending forever.
+      this.$nextTick(() => {
+        if (!this.loadingMore) this.completeInfinite();
       });
+    },
+    completeInfinite() {
+      const target = this.memo.pendingInfinite;
+      this.memo.pendingInfinite = null;
+      target?.complete();
     },
     navigateToItem(id: number | string) {
       if (typeof id !== "number" && typeof id !== "string") {
@@ -326,18 +400,6 @@ export default defineComponent({
         return;
       }
       this.onItemClick(id);
-    },
-  },
-  watch: {
-    items: {
-      immediate: true,
-      handler(newItems: OverviewItem[]) {
-        if (this.currentSearch) {
-          this.filterItems(this.currentSearch);
-        } else {
-          this.filteredItems = this.sortItems(newItems);
-        }
-      },
     },
   },
 });
@@ -355,6 +417,8 @@ ion-content {
   margin-inline-start: var(--space-3);
 }
 
+/* Vertical clipping keeps the shadow bleed of the last card row (ItemsGrid) from adding scroll
+   space below the bottom padding. */
 .overview {
   width: 100%;
   max-width: 1200px;
@@ -364,6 +428,7 @@ ion-content {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  overflow-y: clip;
 }
 
 .search-row {
@@ -396,213 +461,5 @@ ion-content {
   border-radius: var(--radius-pill);
   background: var(--new);
   color: var(--new-ink);
-}
-
-.grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-@media (min-width: 640px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: var(--space-4);
-    width: 100%;
-    max-width: 1100px;
-    margin-inline: auto;
-    justify-content: center;
-  }
-}
-
-/* content-visibility paints with containment, which would clip the card shadow and hover lift;
-   the padding gives them room and the negative margin keeps the grid geometry unchanged. */
-.grid > li {
-  --bleed-x: var(--space-4);
-  --bleed-top: var(--space-4);
-  --bleed-bottom: calc(var(--space-4) * 2);
-  margin: calc(-1 * var(--bleed-top)) calc(-1 * var(--bleed-x)) calc(-1 * var(--bleed-bottom));
-  padding: var(--bleed-top) var(--bleed-x) var(--bleed-bottom);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 260px;
-  pointer-events: none;
-}
-
-.tag-card {
-  all: unset;
-  contain: content;
-  pointer-events: auto;
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  cursor: pointer;
-  background: var(--surface-raised);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-  transition:
-    transform 0.25s var(--ease-out),
-    box-shadow 0.25s var(--ease-out);
-}
-
-.tag-card:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-@media (hover: hover) {
-  .tag-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lift);
-  }
-}
-
-.tag-card:active {
-  transform: scale(0.985);
-}
-
-.tag-media {
-  position: relative;
-  display: block;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-}
-
-.new-pill {
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--new);
-  color: var(--new-ink);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.tag-body {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-4) var(--space-3) var(--space-3);
-  border-top: 2px dashed var(--line);
-}
-
-.tag-hole {
-  position: absolute;
-  top: -7px;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  border-radius: 50%;
-  background: var(--surface-sunken);
-  box-shadow: inset 0 0 0 1.5px var(--line);
-}
-
-.tag-name {
-  font-family: var(--font-display);
-  font-weight: 650;
-  font-size: var(--text-md);
-  line-height: 1.2;
-  color: var(--ion-text-color);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.tag-sub {
-  font-size: var(--text-xs);
-  color: var(--ink-soft);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.tag-price {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--space-2);
-  margin-top: 2px;
-}
-
-.price-now {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-lg);
-  line-height: 1.2;
-  color: var(--ion-text-color);
-}
-
-.price-old {
-  font-size: var(--text-xs);
-  color: var(--ink-soft);
-}
-
-.discount-chip {
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  color: var(--ion-text-color);
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-.tag-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  margin-top: var(--space-1);
-}
-
-.status-line {
-  font-size: var(--text-xs);
-  color: var(--ink-soft);
-}
-
-.status-line.tone-due,
-.status-line.tone-overdue {
-  font-weight: 600;
-}
-
-.status-line.tone-due {
-  color: var(--ion-color-tertiary-shade);
-}
-
-.status-line.tone-overdue {
-  color: var(--overdue-ink);
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
 }
 </style>

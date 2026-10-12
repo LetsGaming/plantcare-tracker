@@ -28,7 +28,7 @@ describe("image accessible names", () => {
   });
 
   it("leaves the plant card image decorative inside the named button", () => {
-    const overview = source("ItemsOverview.vue");
+    const overview = source("OverviewCard.vue");
     const card = /<progressive-image[^>]*>/s.exec(overview)?.[0] ?? "";
     expect(card).toMatch(/\salt=""/);
     expect(overview).toMatch(/class="tag-name[\s"]/);

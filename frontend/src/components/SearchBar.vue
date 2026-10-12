@@ -4,6 +4,7 @@
     :value="searchQuery"
     :placeholder="placeholder"
     :debounce="0"
+    :maxlength="maxLength"
     show-clear-button="focus"
     inputmode="search"
     enterkeyhint="search"
@@ -15,6 +16,11 @@
 import { defineComponent } from "vue";
 import { IonSearchbar } from "@ionic/vue";
 import localizationService from "@/services/general/LocalizationService";
+
+/** Trailing delay between the last keystroke and the `search` event. */
+export const SEARCH_DEBOUNCE_MS = 150;
+/** The list endpoints reject longer queries. */
+export const SEARCH_MAX_LENGTH = 100;
 
 export default defineComponent({
   name: "SearchBar",
@@ -31,11 +37,12 @@ export default defineComponent({
   data() {
     return {
       searchQuery: "",
+      maxLength: SEARCH_MAX_LENGTH,
       observer: null as MutationObserver | null,
+      timer: null as ReturnType<typeof setTimeout> | null,
     };
   },
   mounted() {
-    this.emitSearch();
     this.localizeInner();
     this.observer = new MutationObserver(() => this.localizeInner());
     this.observer.observe(this.$el as Element, {
@@ -46,6 +53,7 @@ export default defineComponent({
     });
   },
   beforeUnmount() {
+    this.cancelPending();
     this.observer?.disconnect();
     this.observer = null;
   },
@@ -65,13 +73,22 @@ export default defineComponent({
       }
     },
     onInput(event: CustomEvent) {
-      this.searchQuery = (event.detail.value ?? "").toString();
-      this.emitSearch();
+      this.searchQuery = (event.detail.value ?? "").toString().slice(0, SEARCH_MAX_LENGTH);
+      this.cancelPending();
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        this.emitSearch();
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    cancelPending() {
+      if (this.timer !== null) clearTimeout(this.timer);
+      this.timer = null;
     },
     emitSearch() {
       this.$emit("search", this.searchQuery);
     },
     clearSearch() {
+      this.cancelPending();
       this.searchQuery = "";
       this.emitSearch();
     },
