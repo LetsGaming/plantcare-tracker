@@ -1,4 +1,5 @@
 import localizationService from "@/services/general/LocalizationService";
+import { numberFormat, pluralRules } from "./intlCache";
 
 const FERTILIZER_KEYS: Record<string, string> = {
   organic: "copy2.fertilizer.organic",
@@ -33,13 +34,13 @@ export const finenessLabel = (name: string | undefined | null): string =>
 
 /** Number formatted with the app locale (decimal comma in German). */
 export const formatNumber = (value: number, locale?: string): string =>
-  new Intl.NumberFormat(locale ?? localizationService.getLocale(), {
+  numberFormat(locale ?? localizationService.getLocale(), {
     maximumFractionDigits: 2,
   }).format(value);
 
 /** "1 Teil", "0,5 Teile", "2 Teile": plural category and number format follow the locale. */
 export const partsLabel = (count: number, locale?: string): string => {
   const active = locale ?? localizationService.getLocale();
-  const category = new Intl.PluralRules(active).select(count) === "one" ? "one" : "other";
+  const category = pluralRules(active).select(count) === "one" ? "one" : "other";
   return localizationService.t(`copy2.parts.${category}`, { count: formatNumber(count, active) });
 };

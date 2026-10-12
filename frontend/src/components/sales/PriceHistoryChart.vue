@@ -29,6 +29,7 @@
 import { defineComponent } from "vue";
 import LineChart from "@/components/charts/LineChart.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { dateTimeFormat, numberFormat } from "@/utils/intlCache";
 import { formatDisplayDate } from "@/utils/localDate";
 
 interface PricePoint {
@@ -65,10 +66,10 @@ export default defineComponent({
       const lastIndex = prices.length - 1;
       return {
         labels: this.sorted.map((p) =>
-          new Date(p.timestamp).toLocaleDateString(localizationService.getLocale(), {
+          dateTimeFormat(localizationService.getLocale(), {
             day: "numeric",
             month: "numeric",
-          }),
+          }).format(new Date(p.timestamp)),
         ),
         datasets: [
           {
@@ -118,7 +119,7 @@ export default defineComponent({
       return formatDisplayDate(timestamp, localizationService.getLocale());
     },
     formatPrice(value: number): string {
-      return new Intl.NumberFormat(localizationService.getLocale(), {
+      return numberFormat(localizationService.getLocale(), {
         style: "currency",
         currency: "EUR",
       }).format(value);

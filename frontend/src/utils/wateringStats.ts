@@ -1,3 +1,4 @@
+import { relativeTimeFormat } from "./intlCache";
 import { calendarDaysBetween, toDayKey } from "./localDate";
 
 export type IntervalUnit = "days" | "weeks" | "months" | "years";
@@ -23,7 +24,7 @@ export const describeInterval = (avgDays: number): { unit: IntervalUnit; count: 
 
 /** "3 days ago" in the given locale; "today" and "yesterday" are spelled out. */
 export const relativeDaysText = (daysAgo: number, locale: string): string => {
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const formatter = relativeTimeFormat(locale, { numeric: "auto" });
   if (daysAgo < 14) return formatter.format(-daysAgo, "day");
   if (daysAgo < 60) return formatter.format(-Math.round(daysAgo / 7), "week");
   if (daysAgo < 365) return formatter.format(-Math.round(daysAgo / 30), "month");
