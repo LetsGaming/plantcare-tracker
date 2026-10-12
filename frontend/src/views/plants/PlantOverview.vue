@@ -2,15 +2,7 @@
   <ion-page>
     <overview-header
       :title="t('plants.title')"
-      :segments="[
-        { value: 'public', label: t('segment.public'), icon: icons.segmentPublic },
-        {
-          value: 'private',
-          label: t('segment.private'),
-          icon: icons.segmentPrivate,
-          hideFromGuests: true,
-        },
-      ]"
+      :segments="segments"
       :addIcon="icons.add"
       starting-segment="private"
       @segment-change="handleSegmentChange"
@@ -101,6 +93,17 @@ export default defineComponent({
     ...mapState(useSubstratesStore, { substrates: "items" }),
     isPublic() {
       return this.showPublic === "public";
+    },
+    segments() {
+      return [
+        { value: "public", label: this.t("segment.public"), icon: icons.segmentPublic },
+        {
+          value: "private",
+          label: this.t("segment.private"),
+          icon: icons.segmentPrivate,
+          hideFromGuests: true,
+        },
+      ];
     },
     isLoadingList(): boolean {
       return this.status === "loading" || this.status === "idle";

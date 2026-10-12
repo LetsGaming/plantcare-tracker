@@ -241,6 +241,21 @@ describe("PlantOverview: store-driven lists", () => {
     wrapper.unmount();
   });
 
+  it("hands the header the same segments array across re-renders", async () => {
+    const { wrapper, store } = mountOverview();
+    await flushPromises();
+    const header = () => wrapper.findComponent({ name: "OverviewHeader" });
+    const first = header().props("segments");
+    expect(first).toHaveLength(2);
+
+    store.items = [plant(1, 1, false)];
+    (wrapper.vm as any).handleSegmentChange("public");
+    await flushPromises();
+
+    expect(header().props("segments")).toBe(first);
+    wrapper.unmount();
+  });
+
   it("uses the reconciled plant id for the dependent image upload", async () => {
     const { wrapper, store } = mountOverview();
     await flushPromises();

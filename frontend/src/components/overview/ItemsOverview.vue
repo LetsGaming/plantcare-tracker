@@ -408,8 +408,23 @@ ion-content {
   }
 }
 
+/* content-visibility paints with containment, which would clip the card shadow and hover lift;
+   the padding gives them room and the negative margin keeps the grid geometry unchanged. */
+.grid > li {
+  --bleed-x: var(--space-4);
+  --bleed-top: var(--space-4);
+  --bleed-bottom: calc(var(--space-4) * 2);
+  margin: calc(-1 * var(--bleed-top)) calc(-1 * var(--bleed-x)) calc(-1 * var(--bleed-bottom));
+  padding: var(--bleed-top) var(--bleed-x) var(--bleed-bottom);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+  pointer-events: none;
+}
+
 .tag-card {
   all: unset;
+  contain: content;
+  pointer-events: auto;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
