@@ -44,14 +44,14 @@ export class ConfirmSnapshotUseCase {
     const snap = this.snapshots.take(snapshotId, userId);
     if (!snap) throw new NotFoundError('Snapshot');
     try {
-      const record = await this.createWatering.execute(data.plantId, userId, {
+      const { record } = await this.createWatering.execute(data.plantId, userId, {
         usedFertilizer: data.usedFertilizer,
         fertilizerTypeId: data.fertilizerTypeId,
       });
-      if (!data.keepPhoto) return { recordId: record.record_id, imageId: null };
+      if (!data.keepPhoto) return { recordId: record.id, imageId: null };
 
       const imageId = await this.keepPhoto(snap, data.plantId);
-      return { recordId: record.record_id, imageId };
+      return { recordId: record.id, imageId };
     } finally {
       await rm(snap.path, { force: true });
     }

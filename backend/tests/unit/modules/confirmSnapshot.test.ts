@@ -56,7 +56,7 @@ const setup = async (opts: Opts = {}) => {
     },
   } as unknown as EmbeddingRepository;
   const watering = {
-    execute: async () => ({ record_id: 7 }),
+    execute: async () => ({ record: { id: 7 } }),
   } as unknown as CreateWateringRecordUseCase;
   const log = { warn: vi.fn(), info: vi.fn() };
   const useCase = new ConfirmSnapshotUseCase(
