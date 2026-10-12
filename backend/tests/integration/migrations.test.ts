@@ -22,6 +22,9 @@ describe('baseline migration', () => {
       '0004_source_health_issues',
       '0005_image_embeddings',
       '0006_list_indexes',
+      '0007_image_variants',
+      '0008_sales',
+      '0009_sessions',
     ]);
     const tables = sqlite
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
@@ -101,6 +104,53 @@ describe('list index migration', () => {
     );
     expect(indexes).toContain('idx_plants_user_created');
     expect(indexes).not.toContain('idx_plants_list');
+    await db.destroy();
+  });
+});
+
+describe('variant, sales and session migrations', () => {
+  it('apply on a populated 0006 database without touching existing rows', async () => {
+    const { sqlite, db } = open();
+    const migrator = new Migrator({ db, provider: migrationProvider });
+    const { error: earlierError } = await migrator.migrateTo('0006_list_indexes');
+    if (earlierError) throw earlierError;
+    sqlite.exec(`
+      INSERT INTO users (id, username, password) VALUES (9, 'u', 'h');
+      INSERT INTO plants (id, name, user_id) VALUES (1, 'a', 9);
+      INSERT INTO images (id, image_url, entity_type, entity_id, upload_date)
+        VALUES (1, '/uploads/plant/a.webp', 'plant', 1, 1700000000);
+    `);
+
+    const { error } = await migrator.migrateToLatest();
+    expect(error).toBeUndefined();
+
+    expect(sqlite.prepare('SELECT * FROM images').all()).toEqual([
+      {
+        id: 1,
+        image_url: '/uploads/plant/a.webp',
+        entity_type: 'plant',
+        entity_id: 1,
+        upload_date: 1700000000,
+        width: null,
+        height: null,
+        placeholder: null,
+        variants: 0,
+      },
+    ]);
+    expect(sqlite.prepare('SELECT id, name FROM plants').all()).toEqual([{ id: 1, name: 'a' }]);
+    const tables = (
+      sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
+        name: string;
+      }[]
+    ).map((r) => r.name);
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        'sales_items',
+        'sales_price_points',
+        'sales_source_state',
+        'sessions',
+      ]),
+    );
     await db.destroy();
   });
 });

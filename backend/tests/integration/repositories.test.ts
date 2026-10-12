@@ -50,6 +50,9 @@ describe('migrations', () => {
       '0004_source_health_issues',
       '0005_image_embeddings',
       '0006_list_indexes',
+      '0007_image_variants',
+      '0008_sales',
+      '0009_sessions',
     ]);
 
     const roles = await getKysely().selectFrom('roles').select('name').orderBy('id').execute();

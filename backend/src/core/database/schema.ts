@@ -60,6 +60,10 @@ export interface ImagesTable {
   entity_type: 'plant' | 'substrate' | 'component';
   entity_id: number;
   upload_date: Generated<number>;
+  width: Generated<number | null>;
+  height: Generated<number | null>;
+  placeholder: Generated<string | null>;
+  variants: Generated<number>;
 }
 
 export interface ImageEmbeddingsTable {
@@ -87,6 +91,43 @@ export interface SubstrateComponentsTable {
   parts: number;
 }
 
+export interface SalesItemsTable {
+  sale_id: string;
+  source_key: string;
+  seller: string;
+  name: string;
+  link: string;
+  image_url: string | null;
+  old_price: number | null;
+  new_price: number;
+  discount_pct: number | null;
+  first_seen_at: number;
+  last_seen_at: number;
+  scraped_at: number;
+  active: Generated<number>;
+}
+
+export interface SalesPricePointsTable {
+  sale_id: string;
+  observed_at: number;
+  price: number;
+}
+
+export interface SalesSourceStateTable {
+  source_key: string;
+  last_attempt_at: number | null;
+  last_success_at: number | null;
+  consecutive_failures: Generated<number>;
+  next_due_at: number | null;
+}
+
+export interface SessionsTable {
+  sid: string;
+  user_id: number;
+  expires_at: number;
+  created_at: number;
+}
+
 export interface Database {
   roles: RolesTable;
   users: UsersTable;
@@ -100,4 +141,8 @@ export interface Database {
   fertilizer_types: FertilizerTypesTable;
   watering_records: WateringRecordsTable;
   substrate_components: SubstrateComponentsTable;
+  sales_items: SalesItemsTable;
+  sales_price_points: SalesPricePointsTable;
+  sales_source_state: SalesSourceStateTable;
+  sessions: SessionsTable;
 }
