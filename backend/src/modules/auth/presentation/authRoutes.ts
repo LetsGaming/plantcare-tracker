@@ -17,6 +17,9 @@
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { SQLiteUserRepository } from '../infrastructure/SQLiteUserRepository';
+import { ImageCleanupService } from '../../images/application/ImageCleanupService';
+import { SQLiteImageRepository } from '../../images/infrastructure/SQLiteImageRepository';
+import { LocalImageStorage } from '../../images/infrastructure/LocalImageStorage';
 import {
   RegisterUseCase,
   LoginUseCase,
@@ -59,7 +62,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   const logout = new LogoutUseCase();
   const requestTicket = new RequestTicketUseCase();
   const updateProfile = new UpdateProfileUseCase(repo);
-  const deleteProfile = new DeleteProfileUseCase(repo);
+  const deleteProfile = new DeleteProfileUseCase(
+    repo,
+    new ImageCleanupService(new SQLiteImageRepository(), new LocalImageStorage()),
+  );
 
   const ipLimiter = createLimiter(app, {
     windowMs: AUTH_RATE_LIMIT.WINDOW_MS,

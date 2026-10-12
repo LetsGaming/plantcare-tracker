@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import bcrypt from 'bcryptjs';
 import type { UserRepository } from '../../../src/modules/auth/domain/User';
-import type { RemovedImageFile } from '../../../src/modules/auth/application/AuthUseCases';
+import type { RemovedImageFile } from '../../../src/modules/auth/domain/User';
 import {
   RegisterUseCase,
   LoginUseCase,

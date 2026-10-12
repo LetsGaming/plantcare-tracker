@@ -9,16 +9,13 @@
 
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import type { UserRepository } from '../domain/User';
+import type { AccountDeleter, ImageFileRemover, UserRepository } from '../domain/User';
 import {
   ValidationError,
   UnauthorizedError,
   NotFoundError,
   ConflictError,
 } from '../../../core/errors';
-import { ImageCleanupService } from '../../images/application/ImageCleanupService';
-import { SQLiteImageRepository } from '../../images/infrastructure/SQLiteImageRepository';
-import { LocalImageStorage } from '../../images/infrastructure/LocalImageStorage';
 import { parseOrThrow } from '../../../core/validation';
 import { AUTH } from '../../../core/config';
 import {
@@ -180,28 +177,10 @@ export class UpdateProfileUseCase {
   }
 }
 
-/** A stored image file whose row was removed together with its owner's account. */
-export interface RemovedImageFile {
-  entityType: 'plant' | 'substrate';
-  url: string;
-}
-
-export interface AccountDeleter {
-  /** Returns the removed image files, or null when no deletable user exists. */
-  deleteAccount(userId: number): Promise<RemovedImageFile[] | null>;
-}
-
-export interface ImageFileRemover {
-  removeFiles(images: readonly RemovedImageFile[]): Promise<void>;
-}
-
 export class DeleteProfileUseCase {
   constructor(
     private readonly repo: AccountDeleter,
-    private readonly files: ImageFileRemover = new ImageCleanupService(
-      new SQLiteImageRepository(),
-      new LocalImageStorage(),
-    ),
+    private readonly files: ImageFileRemover,
   ) {}
 
   async execute(userId: number): Promise<void> {

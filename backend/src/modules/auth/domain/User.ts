@@ -9,6 +9,21 @@ export interface UserData {
   role: string;
 }
 
+/** A stored image file whose row was removed together with its owner's account. */
+export interface RemovedImageFile {
+  entityType: 'plant' | 'substrate';
+  url: string;
+}
+
+export interface AccountDeleter {
+  /** Returns the removed image files, or null when no deletable user exists. */
+  deleteAccount(userId: number): Promise<RemovedImageFile[] | null>;
+}
+
+export interface ImageFileRemover {
+  removeFiles(images: readonly RemovedImageFile[]): Promise<void>;
+}
+
 export interface UserRepository {
   findByUsername(username: string): Promise<UserData | null>;
   create(username: string, hashedPassword: string): Promise<{ id: number; username: string }>;

@@ -5,7 +5,7 @@
 import { sql } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import type { UserRepository, UserData } from '../domain/User';
-import type { RemovedImageFile } from '../application/AuthUseCases';
+import type { RemovedImageFile } from '../domain/User';
 
 /** The shared guest account is never edited or removed through the API. */
 const notGuest = sql<boolean>`role_id <> COALESCE((SELECT id FROM roles WHERE name = 'guest' COLLATE NOCASE), -1)`;
