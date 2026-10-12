@@ -11,6 +11,24 @@ export interface ImageHeader {
   capturedAt: number | null;
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+/** Inside the backend window (2000-01-01 UTC to now + 24h) in every timezone. */
+export const CAPTURE_DATE_MIN_MS = Date.UTC(2000, 0, 1) + 14 * HOUR_MS;
+export const CAPTURE_DATE_MAX_AHEAD_MS = 23 * HOUR_MS;
+
+export const isCaptureDateInRange = (ms: number, now: number = Date.now()): boolean =>
+  Number.isSafeInteger(ms) && ms >= CAPTURE_DATE_MIN_MS && ms <= now + CAPTURE_DATE_MAX_AHEAD_MS;
+
+/** The `date` form value for an upload: epoch ms as a string, or undefined when unusable. */
+export const captureDateParam = (value: unknown): string | undefined => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const ms =
+    typeof value === "string" && /^\d+$/.test(value.trim())
+      ? Number(value.trim())
+      : new Date(value as string | number | Date).getTime();
+  return isCaptureDateInRange(ms) ? String(ms) : undefined;
+};
+
 const EMPTY_HEADER: ImageHeader = { width: null, height: null, orientation: 1, capturedAt: null };
 
 const readBytes = (blob: Blob): Promise<ArrayBuffer> => {
@@ -29,7 +47,7 @@ const parseExifDate = (text: string): number | null => {
   const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
   if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1) return null;
   const time = new Date(year, month - 1, day, hour, minute, second).getTime();
-  return Number.isNaN(time) ? null : time;
+  return isCaptureDateInRange(time) ? time : null;
 };
 
 const parseTiff = (
@@ -93,22 +111,22 @@ const parseJpeg = (view: DataView): ImageHeader => {
     if (marker === 0xda || marker === 0xd9) break;
     const length = view.getUint16(pos + 2);
     const body = pos + 4;
-    if (
-      marker === 0xe1 &&
-      length >= 8 &&
-      view.getUint32(body) === 0x45786966 &&
-      view.getUint16(body + 4) === 0
-    ) {
-      try {
+    try {
+      if (
+        marker === 0xe1 &&
+        length >= 8 &&
+        view.getUint32(body) === 0x45786966 &&
+        view.getUint16(body + 4) === 0
+      ) {
         Object.assign(header, parseTiff(view, body + 6));
-      } catch {
-        // a truncated EXIF block still leaves the frame header readable
+      } else if (marker >= 0xc0 && marker <= 0xcf && !SOF_SKIPPED.has(marker)) {
+        if (body + 5 <= view.byteLength) {
+          header.height = view.getUint16(body + 1);
+          header.width = view.getUint16(body + 3);
+        }
       }
-    } else if (marker >= 0xc0 && marker <= 0xcf && !SOF_SKIPPED.has(marker)) {
-      if (body + 5 <= view.byteLength) {
-        header.height = view.getUint16(body + 1);
-        header.width = view.getUint16(body + 3);
-      }
+    } catch {
+      // a truncated segment keeps whatever was read before it
     }
     pos += 2 + length;
   }
@@ -142,4 +160,7 @@ export const rememberCapturedAt = (file: Blob, capturedAt: number): void => {
   capturedAtByFile.set(file, capturedAt);
 };
 
-export const capturedAtOf = (file: Blob): number | undefined => capturedAtByFile.get(file);
+export const capturedAtOf = (file: Blob): number | undefined => {
+  const at = capturedAtByFile.get(file);
+  return at !== undefined && isCaptureDateInRange(at) ? at : undefined;
+};

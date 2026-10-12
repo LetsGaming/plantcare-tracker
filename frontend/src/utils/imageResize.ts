@@ -1,4 +1,4 @@
-import { readImageHeader, rememberCapturedAt } from "@/utils/exifDate";
+import { type ImageHeader, readImageHeader, rememberCapturedAt } from "@/utils/exifDate";
 
 export const UPLOAD_MAX_WIDTH = 1600;
 export const SNAP_MAX_WIDTH = 768;
@@ -11,6 +11,7 @@ const EXTENSIONS: Record<string, string> = { [WEBP]: "webp", [JPEG]: "jpg" };
 export interface ResizeOptions {
   maxWidth: number;
   quality?: number;
+  header?: ImageHeader;
 }
 
 export interface ResizedImage {
@@ -61,6 +62,8 @@ const encodeCanvas = async (
   const context = canvas.getContext("2d");
   if (!context) return null;
   context.imageSmoothingQuality = "high";
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, width, height);
   context.drawImage(bitmap, 0, 0, width, height);
   for (const type of [WEBP, JPEG]) {
     const blob = await toBlob(canvas, type, quality);
@@ -78,7 +81,7 @@ export const resizeImage = async (file: File, options: ResizeOptions): Promise<R
   const { maxWidth, quality = 0.8 } = options;
   if (typeof createImageBitmap === "undefined") throw new Error("createImageBitmap unavailable");
 
-  const header = await readImageHeader(file);
+  const header = options.header ?? (await readImageHeader(file));
   const knownWidth =
     header.width !== null && header.height !== null
       ? orientedWidth(header.width, header.height, header.orientation)
@@ -117,8 +120,9 @@ export const resizeImage = async (file: File, options: ResizeOptions): Promise<R
  */
 export const downscaleImage = async (file: File, maxWidth: number): Promise<File> => {
   try {
-    const capturedAt = (await readImageHeader(file)).capturedAt;
-    const resized = await resizeImage(file, { maxWidth });
+    const header = await readImageHeader(file);
+    const resized = await resizeImage(file, { maxWidth, header });
+    const capturedAt = header.capturedAt;
     if (resized.blob === file) return file;
     const result = new File([resized.blob], resized.name, {
       type: resized.blob.type,

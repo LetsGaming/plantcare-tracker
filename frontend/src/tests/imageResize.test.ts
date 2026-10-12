@@ -7,7 +7,7 @@ vi.mock("@/utils/requestFeedback", () => ({
 }));
 
 import { SNAP_MAX_WIDTH, UPLOAD_MAX_WIDTH, downscaleImage, resizeImage } from "@/utils/imageResize";
-import { capturedAtOf, readExifDate, readImageHeader } from "@/utils/exifDate";
+import { capturedAtOf, readExifDate, readImageHeader, rememberCapturedAt } from "@/utils/exifDate";
 import ImageService from "@/services/ImageService";
 
 interface JpegSpec {
@@ -113,6 +113,41 @@ describe("readExifDate", () => {
     await expect(readExifDate(new File(["plain text"], "a.txt"))).resolves.toBeNull();
   });
 
+  it("returns null for capture times the backend would reject", async () => {
+    await expect(readExifDate(jpegFile({ date: "1980:01:01 00:00:00" }))).resolves.toBeNull();
+    await expect(readExifDate(jpegFile({ date: "2099:01:01 00:00:00" }))).resolves.toBeNull();
+  });
+
+  it("resolves with what it could read from truncated or malicious headers", async () => {
+    const jpeg = buildJpeg({ width: 640, height: 480 });
+    const withHead = (head: number[]) => Uint8Array.from([0xff, 0xd8, ...head, ...jpeg.slice(2)]);
+    const shortApp1 = withHead([0xff, 0xe1, 0x00, 0x08, 0x45, 0x78]);
+    await expect(readImageHeader(new File([shortApp1], "a.jpg"))).resolves.toBeDefined();
+    const zeroLength = withHead([0xff, 0xe1, 0x00, 0x00]);
+    await expect(readImageHeader(new File([zeroLength], "b.jpg"))).resolves.toBeDefined();
+    const hugeIfd = buildJpeg({ width: 640, height: 480 });
+    new DataView(hugeIfd.buffer).setUint32(2 + 2 + 2 + 6 + 4, 0xfffffff0, true);
+    await expect(readImageHeader(new File([hugeIfd], "c.jpg"))).resolves.toMatchObject({
+      width: 640,
+      height: 480,
+    });
+    const cutInExif = jpeg.slice(0, 20);
+    await expect(readImageHeader(new File([cutInExif], "d.jpg"))).resolves.toMatchObject({
+      orientation: 1,
+    });
+  });
+
+  it("keeps the frame size found before a truncated segment", async () => {
+    const sofFirst = Uint8Array.from([
+      0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 8, 0x01, 0xe0, 0x02, 0x80, 3, 1, 0x22, 0, 2, 0x11, 1, 3,
+      0x11, 1, 0xff, 0xe1, 0x00, 0x20, 0x45,
+    ]);
+    await expect(readImageHeader(new File([sofFirst], "e.jpg"))).resolves.toMatchObject({
+      width: 640,
+      height: 480,
+    });
+  });
+
   it("reads orientation and frame size from the header", async () => {
     const header = await readImageHeader(jpegFile({ orientation: 6, width: 4000, height: 3000 }));
     expect(header).toMatchObject({ orientation: 6, width: 4000, height: 3000 });
@@ -202,16 +237,18 @@ describe("resizeImage", () => {
       const toBlob = vi.fn((callback: BlobCallback, type: string) =>
         callback(new Blob(["img"], { type: typeFor(type) })),
       );
+      const drawImage = vi.fn();
+      const fillRect = vi.fn();
       const canvas = {
         width: 0,
         height: 0,
-        getContext: () => ({ drawImage: vi.fn(), imageSmoothingQuality: "low" }),
+        getContext: () => ({ drawImage, fillRect, fillStyle: "", imageSmoothingQuality: "low" }),
         toBlob,
       };
       const create = document.createElement.bind(document);
       vi.spyOn(document, "createElement").mockImplementation(((tag: string) =>
         tag === "canvas" ? canvas : create(tag)) as typeof document.createElement);
-      return { canvas, toBlob };
+      return { canvas, toBlob, fillRect, drawImage };
     };
 
     afterEach(() => vi.restoreAllMocks());
@@ -226,6 +263,16 @@ describe("resizeImage", () => {
       expect(canvas).toMatchObject({ width: 1600, height: 1200 });
       expect(toBlob).toHaveBeenCalledWith(expect.any(Function), "image/webp", 0.6);
       expect(result.blob.type).toBe("image/webp");
+    });
+
+    it("fills the canvas white before drawing so transparency does not turn black", async () => {
+      stubBitmap(1600, 1200);
+      const { fillRect, drawImage } = stubDomCanvas();
+      await resizeImage(jpegFile({ width: 4000, height: 3000 }), { maxWidth: 1600 });
+      expect(fillRect).toHaveBeenCalledWith(0, 0, 1600, 1200);
+      expect(fillRect.mock.invocationCallOrder[0]).toBeLessThan(
+        drawImage.mock.invocationCallOrder[0],
+      );
     });
 
     it("tries jpeg when webp comes back as another type", async () => {
@@ -278,6 +325,17 @@ describe("downscaleImage", () => {
   });
 });
 
+describe("downscaleImage header reads", () => {
+  it("reads the header once per file", async () => {
+    stubBitmap(1600, 1200);
+    stubOffscreen();
+    const file = jpegFile({ width: 4000, height: 3000 });
+    const slice = vi.spyOn(file, "slice");
+    await downscaleImage(file, 1600);
+    expect(slice).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("ImageService.uploadImage date", () => {
   const dateSent = () =>
     (api.upload.mock.calls.at(-1) as unknown as [string, FormData])[1].get("date");
@@ -297,6 +355,29 @@ describe("ImageService.uploadImage date", () => {
     await ImageService.uploadImage(resized, "plant", 1, 1700000000000);
     expect(dateSent()).toBe("1700000000000");
     await ImageService.uploadImage(new File(["x"], "a.png", { type: "image/png" }), "plant", 1);
+    expect(dateSent()).toBeNull();
+  });
+
+  it("sends a Date as epoch ms and drops dates the backend would reject", async () => {
+    const file = new File(["x"], "a.png", { type: "image/png" });
+    await ImageService.uploadImage(file, "plant", 1, new Date(2024, 5, 1));
+    expect(dateSent()).toBe(String(new Date(2024, 5, 1).getTime()));
+    await ImageService.uploadImage(file, "plant", 1, new Date("nope"));
+    expect(dateSent()).toBeNull();
+    await ImageService.uploadImage(file, "plant", 1, new Date(1980, 0, 1));
+    expect(dateSent()).toBeNull();
+    await ImageService.uploadImage(file, "plant", 1, "2024-06-01");
+    expect(dateSent()).toBe(String(new Date("2024-06-01").getTime()));
+  });
+
+  it("sends no date when the remembered capture time is out of range", async () => {
+    const old = new File(["x"], "old.webp", { type: "image/webp" });
+    rememberCapturedAt(old, new Date(1980, 0, 1).getTime());
+    await ImageService.uploadImage(old, "plant", 1);
+    expect(dateSent()).toBeNull();
+    const future = new File(["x"], "future.webp", { type: "image/webp" });
+    rememberCapturedAt(future, Date.now() + 5 * 24 * 3600 * 1000);
+    await ImageService.uploadImage(future, "plant", 1);
     expect(dateSent()).toBeNull();
   });
 });

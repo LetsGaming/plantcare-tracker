@@ -1,6 +1,6 @@
 /** Component tests for the dialog and field pieces behind the form modals. */
 
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 
@@ -134,6 +134,12 @@ describe("UploadField", () => {
     expect(wrapper.emitted("update:modelValue")!.at(-1)).toEqual([file]);
   });
 
+  const savedUrl = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+  afterEach(() => {
+    URL.createObjectURL = savedUrl.create;
+    URL.revokeObjectURL = savedUrl.revoke;
+  });
+
   const pick = async (wrapper: ReturnType<typeof mount>, file: File) => {
     const input = wrapper.find("input[type=file]");
     Object.defineProperty(input.element, "files", { value: [file], configurable: true });
@@ -165,11 +171,41 @@ describe("UploadField", () => {
     expect(wrapper.emitted("update:modelValue")!.at(-1)).toEqual([undefined]);
   });
 
+  it("drops a pending valid downscale after an invalid pick", async () => {
+    let finish: (file: File) => void = () => {};
+    resize.downscaleImage.mockReturnValueOnce(new Promise<File>((resolve) => (finish = resolve)));
+    const wrapper = mount(UploadField, { props: { field }, global: { stubs } });
+    const valid = new File(["x"], "fern.png", { type: "image/png" });
+    const input = wrapper.find("input[type=file]");
+    Object.defineProperty(input.element, "files", { value: [valid], configurable: true });
+    await input.trigger("change");
+    const invalid = new File(["x"], "notes.txt", { type: "text/plain" });
+    Object.defineProperty(input.element, "files", { value: [invalid], configurable: true });
+    await input.trigger("change");
+    finish(valid);
+    await flushPromises();
+    expect(wrapper.emitted("update:modelValue")).toEqual([[undefined]]);
+  });
+
+  it("drops a pending valid downscale when the picker is cleared", async () => {
+    let finish: (file: File) => void = () => {};
+    resize.downscaleImage.mockReturnValueOnce(new Promise<File>((resolve) => (finish = resolve)));
+    const wrapper = mount(UploadField, { props: { field }, global: { stubs } });
+    const valid = new File(["x"], "fern.png", { type: "image/png" });
+    const input = wrapper.find("input[type=file]");
+    Object.defineProperty(input.element, "files", { value: [valid], configurable: true });
+    await input.trigger("change");
+    Object.defineProperty(input.element, "files", { value: [], configurable: true });
+    await input.trigger("change");
+    finish(valid);
+    await flushPromises();
+    expect(wrapper.emitted("update:modelValue")).toBeUndefined();
+  });
+
   it("previews the given file and revokes the object URL on replace and unmount", async () => {
     const urls = ["blob:one", "blob:two"];
     const create = vi.fn(() => urls.shift()!);
     const revoke = vi.fn();
-    const saved = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
     URL.createObjectURL = create;
     URL.revokeObjectURL = revoke;
     const first = new File(["a"], "a.webp", { type: "image/webp" });
@@ -184,8 +220,6 @@ describe("UploadField", () => {
     expect(wrapper.find("img").attributes("src")).toBe("blob:two");
     wrapper.unmount();
     expect(revoke).toHaveBeenCalledWith("blob:two");
-    URL.createObjectURL = saved.create;
-    URL.revokeObjectURL = saved.revoke;
   });
 });
 

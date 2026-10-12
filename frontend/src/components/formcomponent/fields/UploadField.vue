@@ -152,6 +152,7 @@ export default defineComponent({
       const input = event.target as HTMLInputElement;
       const chosen = input.files?.[0];
       this.localError = "";
+      const token = ++this.pickToken;
       if (!chosen) return;
 
       const problem = checkImageFile(chosen);
@@ -167,7 +168,6 @@ export default defineComponent({
         this.$emit("update:modelValue", undefined);
         return;
       }
-      const token = ++this.pickToken;
       const prepared = await downscaleImage(chosen, UPLOAD_MAX_WIDTH);
       if (token !== this.pickToken) return;
       this.$emit("update:modelValue", prepared);
