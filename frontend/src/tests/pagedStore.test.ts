@@ -532,6 +532,61 @@ describe("logout epoch", () => {
     expect(store.mine.status).toBe("idle");
   });
 
+  it("loads again after a logout and an immediate login while the old loadAll is still running", async () => {
+    const store = useDemoStore();
+    let session = 1;
+    const started = session;
+    const oldRun = deferred<FetchedPage<Item>>();
+    const pendingOld = store.all(
+      vi.fn(() => oldRun.promise),
+      { isCurrent: () => session === started },
+    );
+
+    session = 2;
+    store.$reset();
+    const fetchNew = pagedSource(new Map([[null, page(items(1, 4), null)]]));
+    const pendingNew = store.all(fetchNew, { isCurrent: () => session === 2 });
+    oldRun.resolve(page(items(100, 2), null));
+    await Promise.all([pendingOld, pendingNew]);
+
+    expect(fetchNew).toHaveBeenCalledTimes(1);
+    expect(store.mine.items).toHaveLength(4);
+    expect(store.mine.status).toBe("ready");
+  });
+
+  it("does not let a dropped run end the sharing of the run that replaced it", async () => {
+    const store = useDemoStore();
+    const oldRun = deferred<FetchedPage<Item>>();
+    const newRun = deferred<FetchedPage<Item>>();
+    const pendingOld = store.all(vi.fn(() => oldRun.promise));
+    store.$reset();
+    const fetchNew = vi.fn(() => newRun.promise);
+    const pendingNew = store.all(fetchNew);
+    oldRun.resolve(page(items(100, 2), null));
+    await pendingOld;
+
+    const joined = store.all(vi.fn(() => Promise.reject(new Error("must share"))));
+    newRun.resolve(page(items(1, 4), null));
+    await Promise.all([pendingNew, joined]);
+
+    expect(store.mine.items).toHaveLength(4);
+  });
+
+  it("never reuses a request sequence after $reset", async () => {
+    const store = useDemoStore();
+    const first = deferred<FetchedPage<Item>>();
+    const second = deferred<FetchedPage<Item>>();
+    const pendingOld = store.first(vi.fn(() => first.promise));
+    store.$reset();
+    const pendingNew = store.first(vi.fn(() => second.promise));
+    first.resolve(page(items(100, 2), null));
+    await pendingOld;
+    expect(store.public.items).toHaveLength(0);
+    second.resolve(page(items(1, 3), null));
+    await pendingNew;
+    expect(store.public.items).toHaveLength(3);
+  });
+
   it("reset drops responses still in flight", async () => {
     const store = useDemoStore();
     const pending = deferred<FetchedPage<Item>>();

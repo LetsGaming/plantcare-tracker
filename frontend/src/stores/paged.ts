@@ -145,10 +145,15 @@ const sameQuery = (a: PageQuery, b: PageQuery): boolean => a.q === b.q && a.sort
 interface Inflight {
   first?: { seq: number; promise: Promise<void> };
   more?: { seq: number; promise: Promise<void> };
-  all?: Promise<void>;
+  all?: { seq: number; promise: Promise<void>; live: () => boolean };
 }
 
 const inflight = new WeakMap<object, Inflight>();
+
+// Pinia's `$reset` merges a fresh state into the existing object and sets `requestSeq` back to 0,
+// so sequences come from one counter: a number is never reused by a later request.
+let lastSeq = 0;
+const nextSeq = (target: PagedState<object>): number => (target.requestSeq = ++lastSeq);
 
 const inflightOf = (target: object): Inflight => {
   const key = toRaw(target);
@@ -231,7 +236,7 @@ export const loadFirst = <T extends object>(
   fetchPage: FetchPage<T>,
   options?: PagedOptions,
 ): Promise<void> => {
-  const seq = ++target.requestSeq;
+  const seq = nextSeq(target);
   const promise = runFirst(target, fetchPage, seq, options);
   inflightOf(target).first = { seq, promise };
   return promise;
@@ -286,9 +291,11 @@ export const loadAll = <T extends object>(
   options?: PagedOptions,
 ): Promise<void> => {
   const running = inflightOf(target);
-  if (running.all) return running.all;
+  if (running.all && running.all.seq === target.requestSeq && running.all.live()) {
+    return running.all.promise;
+  }
 
-  const seq = ++target.requestSeq;
+  const seq = nextSeq(target);
   const stillCurrent = () => target.requestSeq === seq && isCurrent(options);
 
   target.status = "loading";
@@ -336,10 +343,10 @@ export const loadAll = <T extends object>(
       target.status = target.items.length > 0 ? "ready" : "error";
       throw error;
     } finally {
-      running.all = undefined;
+      if (running.all?.promise === promise) running.all = undefined;
     }
   })();
-  running.all = promise;
+  running.all = { seq, promise, live: stillCurrent };
   return promise;
 };
 
@@ -373,7 +380,7 @@ export const setQuery = <T extends object>(
 
 /** Back to the initial state; responses still in flight are dropped. */
 export const reset = <T extends object>(target: PagedState<T>): void => {
-  target.requestSeq += 1;
+  nextSeq(target);
   target.items = commitList([]);
   target.nextCursor = null;
   target.total = null;
