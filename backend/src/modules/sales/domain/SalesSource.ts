@@ -2,8 +2,8 @@
  * modules/sales/domain/SalesSource.ts
  *
  * The core interface that every scraper must implement.
- * The application layer (FetchSalesOverview) only knows about this
- * interface — it is completely agnostic of Axios, Playwright, or HTML parsing.
+ * The application layer (SalesRefresher) only knows about this
+ * interface; it is agnostic of Axios, Playwright, or HTML parsing.
  */
 
 import type { RawSaleItem } from './Sale';

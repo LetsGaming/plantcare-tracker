@@ -15,18 +15,6 @@ export interface RawSaleItem {
   newPrice?: number | null;
 }
 
-/** Legacy stream item shape: `sale_scraped_at` is an ISO string. */
-export interface SaleData {
-  sale_id: string;
-  sale_name: string;
-  sale_seller: string;
-  sale_link: string;
-  sale_image_url: string | null;
-  sale_old_price: number | null;
-  sale_new_price: number;
-  sale_scraped_at: string;
-}
-
 /** A persisted `sales_items` row; times are epoch milliseconds. */
 export interface SaleRow {
   sale_id: string;
@@ -70,6 +58,9 @@ interface SaleProps {
   sale_scraped_at: number;
 }
 
+const isPrice = (value: number | null | undefined): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
 /** Whole-number discount of `newPrice` against `oldPrice`; null without an old price. */
 export const discountPercent = (newPrice: number, oldPrice: number | null): number | null => {
   if (oldPrice === null) return null;
@@ -103,11 +94,13 @@ export class Sale {
 
   /**
    * Builds a Sale from raw scraper output stamped with the fetch time of its
-   * page. Returns null if the item lacks required fields (link, newPrice).
+   * page. Returns null without a link, without a positive new price, or when
+   * a given price is not a finite non-negative number.
    */
-  static fromRaw(raw: RawSaleItem, seller: string, scrapedAt: number = Date.now()): Sale | null {
-    if (!raw.link || !raw.newPrice) return null;
+  static fromRaw(raw: RawSaleItem, seller: string, scrapedAt: number): Sale | null {
+    if (!raw.link || !isPrice(raw.newPrice) || raw.newPrice === 0) return null;
     const oldPrice = raw.oldPrice ?? null;
+    if (oldPrice !== null && !isPrice(oldPrice)) return null;
 
     return new Sale({
       sale_id: Sale.generateId(seller, raw.link),
@@ -134,19 +127,6 @@ export class Sale {
       sale_discount_pct: row.discount_pct,
       sale_first_seen_at: row.first_seen_at,
       sale_scraped_at: row.scraped_at,
-    };
-  }
-
-  toJSON(): SaleData {
-    return {
-      sale_id: this.sale_id,
-      sale_name: this.sale_name,
-      sale_seller: this.sale_seller,
-      sale_link: this.sale_link,
-      sale_image_url: this.sale_image_url,
-      sale_old_price: this.sale_old_price,
-      sale_new_price: this.sale_new_price,
-      sale_scraped_at: new Date(this.sale_scraped_at).toISOString(),
     };
   }
 
