@@ -218,6 +218,177 @@ describe('applySourceSnapshot', () => {
     ]);
   });
 
+  it('writes a 1,500 item snapshot with a constant number of statements', async () => {
+    await snapshot('alpha', range(1, 1_400), 1_000, 10);
+    const items = range(101, 1_600).map((n) =>
+      sale('alpha', n, { price: n % 3 === 0 ? 7 : 10, scrapedAt: 2_000 }),
+    );
+
+    const sqlite = getSqlite();
+    const prepare = sqlite.prepare.bind(sqlite);
+    let statements = 0;
+    const spy = vi.spyOn(sqlite, 'prepare').mockImplementation(((source: string) => {
+      statements++;
+      return prepare(source);
+    }) as unknown as typeof sqlite.prepare);
+
+    let result: Awaited<ReturnType<typeof repo.applySourceSnapshot>> | undefined;
+    const started = performance.now();
+    try {
+      result = await repo.applySourceSnapshot('alpha', 'alpha', items, 2_000);
+    } finally {
+      spy.mockRestore();
+    }
+    const elapsed = performance.now() - started;
+
+    expect(statements).toBeLessThanOrEqual(8);
+    expect(elapsed).toBeLessThan(1_000);
+    const changed = range(101, 1_400).filter((n) => n % 3 === 0).length;
+    expect(result).toEqual({ upserted: 1_500, pricePointsAdded: changed + 200, deactivated: 100 });
+    expect(activeIds('alpha')).toHaveLength(1_500);
+  });
+
+  it('upserts, records prices and deactivates a mixed large snapshot like single writes', async () => {
+    const price = (n: number, run: number) => (run === 2 && n % 2 === 0 ? 9.99 : 19.95);
+    const write = (ns: number[], run: number) =>
+      repo.applySourceSnapshot(
+        'alpha',
+        'alpha',
+        ns.map((n) => sale('alpha', n, { price: price(n, run), scrapedAt: run * 1_000 - 50 })),
+        run * 1_000,
+      );
+
+    await write(range(1, 300), 1);
+    const second = await write([...range(1, 200), ...range(301, 400)], 2);
+
+    const changed = range(1, 200).filter((n) => n % 2 === 0);
+    expect(second).toEqual({
+      upserted: 300,
+      pricePointsAdded: changed.length + 100,
+      deactivated: 100,
+    });
+
+    const unchanged = (await repo.findById(idOf('alpha', 1)))!;
+    expect(unchanged).toMatchObject({
+      first_seen_at: 1_000,
+      last_seen_at: 2_000,
+      scraped_at: 1_950,
+      new_price: 19.95,
+      active: 1,
+    });
+    expect(pointsOf(idOf('alpha', 1))).toEqual([{ observed_at: 1_000, price: 19.95 }]);
+
+    expect((await repo.findById(idOf('alpha', 2)))!.new_price).toBe(9.99);
+    expect(pointsOf(idOf('alpha', 2))).toEqual([
+      { observed_at: 1_000, price: 19.95 },
+      { observed_at: 2_000, price: 9.99 },
+    ]);
+
+    expect(await repo.findById(idOf('alpha', 250))).toMatchObject({
+      first_seen_at: 1_000,
+      last_seen_at: 1_000,
+      active: 0,
+    });
+    expect(await repo.findById(idOf('alpha', 350))).toMatchObject({
+      first_seen_at: 2_000,
+      last_seen_at: 2_000,
+      active: 1,
+    });
+    expect(pointsOf(idOf('alpha', 350))).toEqual([{ observed_at: 2_000, price: 19.95 }]);
+    expect(activeIds('alpha')).toHaveLength(300);
+  });
+
+  it('updates items but adds no price point when runAt collides on a large snapshot', async () => {
+    await snapshot('alpha', range(1, 200), 1_000, 10);
+    await snapshot('alpha', range(1, 200), 2_000, 7);
+
+    const result = await snapshot('alpha', range(1, 200), 2_000, 5);
+
+    expect(result).toEqual({ upserted: 200, pricePointsAdded: 0, deactivated: 0 });
+    for (const n of [1, 100, 200]) {
+      expect((await repo.findById(idOf('alpha', n)))!.new_price).toBe(5);
+      expect(pointsOf(idOf('alpha', n))).toEqual([
+        { observed_at: 1_000, price: 10 },
+        { observed_at: 2_000, price: 7 },
+      ]);
+    }
+  });
+
+  it('compares against the newest observed point, not the last inserted one', async () => {
+    await snapshot('alpha', [1, 2, 3], 500, 1);
+    getSqlite().exec('DELETE FROM sales_price_points');
+    const insert = getSqlite().prepare(
+      'INSERT INTO sales_price_points (sale_id, observed_at, price) VALUES (?, ?, ?)',
+    );
+    const history: [number, [number, number][]][] = [
+      [
+        1,
+        [
+          [1_000, 5],
+          [3_000, 9],
+          [2_000, 7],
+        ],
+      ],
+      [
+        2,
+        [
+          [1_000, 5],
+          [3_000, 9],
+          [2_000, 7],
+        ],
+      ],
+      [
+        3,
+        [
+          [3_000, 4],
+          [1_000, 9],
+        ],
+      ],
+    ];
+    for (const [n, points] of history) {
+      for (const [at, price] of points) insert.run(idOf('alpha', n), at, price);
+    }
+
+    const result = await repo.applySourceSnapshot(
+      'alpha',
+      'alpha',
+      [
+        sale('alpha', 1, { price: 7 }),
+        sale('alpha', 2, { price: 9 }),
+        sale('alpha', 3, { price: 9 }),
+      ],
+      4_000,
+    );
+
+    expect(result.pricePointsAdded).toBe(2);
+    expect(pointsOf(idOf('alpha', 1)).at(-1)).toEqual({ observed_at: 4_000, price: 7 });
+    expect(pointsOf(idOf('alpha', 2)).at(-1)).toEqual({ observed_at: 3_000, price: 9 });
+    expect(pointsOf(idOf('alpha', 3)).at(-1)).toEqual({ observed_at: 4_000, price: 9 });
+  });
+
+  it('trims only sales above the cap and keeps their newest points', async () => {
+    const cap = getConfig().sales.pricePointsMax;
+    await snapshot('alpha', range(1, 100), 500, 1);
+    getSqlite().exec('DELETE FROM sales_price_points');
+    const insert = getSqlite().prepare(
+      'INSERT INTO sales_price_points (sale_id, observed_at, price) VALUES (?, ?, ?)',
+    );
+    for (const n of range(1, 100)) {
+      const count = n <= 50 ? cap : cap - 1;
+      for (let k = 1; k <= count; k++) insert.run(idOf('alpha', n), k * 1_000, k);
+    }
+
+    await snapshot('alpha', range(1, 100), 100_000, 0.5);
+
+    const full = pointsOf(idOf('alpha', 10));
+    expect(full).toHaveLength(cap);
+    expect(full[0].observed_at).toBe(2_000);
+    expect(full.at(-1)).toEqual({ observed_at: 100_000, price: 0.5 });
+    const below = pointsOf(idOf('alpha', 60));
+    expect(below).toHaveLength(cap);
+    expect(below[0].observed_at).toBe(1_000);
+  });
+
   it("never touches another source's items", async () => {
     await snapshot('alpha', [1, 2], 1_000);
     await snapshot('beta', [1, 2], 1_000);

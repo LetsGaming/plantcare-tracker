@@ -53,6 +53,18 @@ const uniqueById = (sales: readonly Sale[]): Sale[] => {
   return [...byId.values()];
 };
 
+const toSnapshotRow = (sale: Sale) => ({
+  sale_id: sale.sale_id,
+  seller: sale.sale_seller,
+  name: sale.sale_name,
+  link: sale.sale_link,
+  image_url: sale.sale_image_url,
+  old_price: sale.sale_old_price,
+  new_price: sale.sale_new_price,
+  discount_pct: sale.sale_discount_pct,
+  scraped_at: sale.sale_scraped_at,
+});
+
 export class SQLiteSalesRepository implements SalesRepository {
   async applySourceSnapshot(
     sourceKey: string,
@@ -63,19 +75,16 @@ export class SQLiteSalesRepository implements SalesRepository {
     const items = uniqueById(sales);
     if (items.length === 0) return { upserted: 0, pricePointsAdded: 0, deactivated: 0 };
     const maxPoints = getConfig().sales.pricePointsMax;
+    const rows = JSON.stringify(items.map(toSnapshotRow));
+    const ids = JSON.stringify(items.map((sale) => sale.sale_id));
 
     return getKysely()
       .transaction()
       .execute(async (trx) => {
-        let pricePointsAdded = 0;
-        for (const sale of items) {
-          await this.upsertItem(trx, sourceKey, sale, runAt);
-          if (await this.recordPrice(trx, sale.sale_id, sale.sale_new_price, runAt, maxPoints)) {
-            pricePointsAdded++;
-          }
-        }
+        await this.upsertItems(trx, sourceKey, rows, runAt);
+        const pricePointsAdded = await this.recordPrices(trx, rows, runAt);
+        await this.trimPrices(trx, ids, maxPoints);
 
-        const ids = JSON.stringify(items.map((sale) => sale.sale_id));
         const deactivated = await trx
           .updateTable('sales_items')
           .set({ active: 0 })
@@ -214,83 +223,70 @@ export class SQLiteSalesRepository implements SalesRepository {
     ).execute();
   }
 
-  private async upsertItem(
+  /** `WHERE true` keeps SQLite from parsing ON CONFLICT as a join constraint of the SELECT. */
+  private async upsertItems(
     trx: Transaction<Database>,
     sourceKey: string,
-    sale: Sale,
+    rows: string,
     runAt: number,
   ): Promise<void> {
-    await trx
-      .insertInto('sales_items')
-      .values({
-        sale_id: sale.sale_id,
-        source_key: sourceKey,
-        seller: sale.sale_seller,
-        name: sale.sale_name,
-        link: sale.sale_link,
-        image_url: sale.sale_image_url,
-        old_price: sale.sale_old_price,
-        new_price: sale.sale_new_price,
-        discount_pct: sale.sale_discount_pct,
-        first_seen_at: runAt,
-        last_seen_at: runAt,
-        scraped_at: sale.sale_scraped_at,
-        active: 1,
-      })
-      .onConflict((oc) =>
-        oc.column('sale_id').doUpdateSet((eb) => ({
-          source_key: eb.ref('excluded.source_key'),
-          seller: eb.ref('excluded.seller'),
-          name: eb.ref('excluded.name'),
-          link: eb.ref('excluded.link'),
-          image_url: eb.ref('excluded.image_url'),
-          old_price: eb.ref('excluded.old_price'),
-          new_price: eb.ref('excluded.new_price'),
-          discount_pct: eb.ref('excluded.discount_pct'),
-          last_seen_at: eb.ref('excluded.last_seen_at'),
-          scraped_at: eb.ref('excluded.scraped_at'),
-          active: 1,
-        })),
-      )
-      .execute();
+    await sql`
+      INSERT INTO sales_items (sale_id, source_key, seller, name, link, image_url, old_price,
+        new_price, discount_pct, first_seen_at, last_seen_at, scraped_at, active)
+      SELECT j.value ->> '$.sale_id', ${sourceKey}, j.value ->> '$.seller', j.value ->> '$.name',
+        j.value ->> '$.link', j.value ->> '$.image_url', j.value ->> '$.old_price',
+        j.value ->> '$.new_price', j.value ->> '$.discount_pct', ${runAt}, ${runAt},
+        j.value ->> '$.scraped_at', 1
+      FROM json_each(${rows}) AS j
+      WHERE true
+      ON CONFLICT (sale_id) DO UPDATE SET
+        source_key = excluded.source_key,
+        seller = excluded.seller,
+        name = excluded.name,
+        link = excluded.link,
+        image_url = excluded.image_url,
+        old_price = excluded.old_price,
+        new_price = excluded.new_price,
+        discount_pct = excluded.discount_pct,
+        last_seen_at = excluded.last_seen_at,
+        scraped_at = excluded.scraped_at,
+        active = 1`.execute(trx);
   }
 
-  /** Adds a point when the price differs from the latest one; returns whether it did. */
-  private async recordPrice(
+  /** Adds a point for every sale whose price differs from its latest point; returns how many. */
+  private async recordPrices(
     trx: Transaction<Database>,
-    saleId: string,
-    price: number,
+    rows: string,
     observedAt: number,
+  ): Promise<number> {
+    const inserted = await sql`
+      INSERT OR IGNORE INTO sales_price_points (sale_id, observed_at, price)
+      SELECT j.value ->> '$.sale_id', ${observedAt}, j.value ->> '$.new_price'
+      FROM json_each(${rows}) AS j
+      WHERE (j.value ->> '$.new_price') IS NOT (
+        SELECT p.price FROM sales_price_points AS p
+        WHERE p.sale_id = j.value ->> '$.sale_id'
+        ORDER BY p.observed_at DESC
+        LIMIT 1
+      )`.execute(trx);
+    return Number(inserted.numAffectedRows ?? 0);
+  }
+
+  private async trimPrices(
+    trx: Transaction<Database>,
+    ids: string,
     maxPoints: number,
-  ): Promise<boolean> {
-    const latest = await trx
-      .selectFrom('sales_price_points')
-      .select('price')
-      .where('sale_id', '=', saleId)
-      .orderBy('observed_at', 'desc')
-      .limit(1)
-      .executeTakeFirst();
-    if (latest && latest.price === price) return false;
-
-    const inserted = await trx
-      .insertInto('sales_price_points')
-      .orIgnore()
-      .values({ sale_id: saleId, observed_at: observedAt, price })
-      .executeTakeFirst();
-    if (Number(inserted.numInsertedOrUpdatedRows ?? 0) === 0) return false;
-
-    await trx
-      .deleteFrom('sales_price_points')
-      .where('sale_id', '=', saleId)
-      .where('observed_at', 'not in', (qb) =>
-        qb
-          .selectFrom('sales_price_points')
-          .select('observed_at')
-          .where('sale_id', '=', saleId)
-          .orderBy('observed_at', 'desc')
-          .limit(maxPoints),
-      )
-      .execute();
-    return true;
+  ): Promise<void> {
+    await sql`
+      DELETE FROM sales_price_points
+      WHERE (sale_id, observed_at) IN (
+        SELECT sale_id, observed_at FROM (
+          SELECT p.sale_id, p.observed_at,
+            row_number() OVER (PARTITION BY p.sale_id ORDER BY p.observed_at DESC) AS newest_rank
+          FROM sales_price_points AS p
+          WHERE p.sale_id IN (SELECT value FROM json_each(${ids}))
+        )
+        WHERE newest_rank > ${maxPoints}
+      )`.execute(trx);
   }
 }
