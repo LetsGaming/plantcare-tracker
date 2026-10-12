@@ -55,8 +55,9 @@ for (const path in localeLoaders) {
  */
 async function initializeApp() {
   document.title = Utils.getAppTitle();
+  const localeReady = localizationService.resolveInitialLocale();
+  void applyInitialTheme();
   if (devToken) await TokenUtils.setToken(devToken);
-  await applyInitialTheme();
   connectSessionToTransport(pinia);
   // Once the local session is gone: leave for the login screen and reload so no
   // account data survives in memory. Nothing to do when already there.
@@ -78,7 +79,7 @@ async function initializeApp() {
     return localizationService.t(key, vars, fallback);
   };
 
-  await Promise.all([router.isReady(), localizationService.resolveInitialLocale()]);
+  await Promise.all([router.isReady(), localeReady]);
 
   app.mount("#app");
   void registerServiceWorker();

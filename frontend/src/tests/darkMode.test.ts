@@ -7,7 +7,9 @@ vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
 );
 
-import { setDarkMode, isDarkMode } from "@/theme/darkMode";
+import storageService from "@/services/general/StorageService";
+import { setDarkMode, isDarkMode, applyInitialTheme, THEME_MIRROR_KEY } from "@/theme/darkMode";
+import vite from "../../vite.config";
 
 const root = document.documentElement;
 
@@ -41,6 +43,73 @@ describe("setDarkMode", () => {
   it("keeps the previous content when the token is unavailable", async () => {
     await setDarkMode(true);
     expect(metaContent()).toBe("#000001");
+  });
+});
+
+describe("theme mirror", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+  });
+
+  it("is written when the theme changes", async () => {
+    await setDarkMode(true);
+    expect(localStorage.getItem(THEME_MIRROR_KEY)).toBe("dark");
+    await setDarkMode(false);
+    expect(localStorage.getItem(THEME_MIRROR_KEY)).toBe("light");
+  });
+
+  it("decides the first paint without waiting for storage", () => {
+    localStorage.setItem(THEME_MIRROR_KEY, "dark");
+    vi.mocked(storageService.get).mockReturnValueOnce(new Promise(() => undefined));
+    void applyInitialTheme();
+    expect(isDarkMode()).toBe(true);
+  });
+
+  it("lets the stored choice win and refreshes the mirror", async () => {
+    localStorage.setItem(THEME_MIRROR_KEY, "dark");
+    vi.mocked(storageService.get).mockResolvedValueOnce(false);
+    await applyInitialTheme();
+    expect(isDarkMode()).toBe(false);
+    expect(localStorage.getItem(THEME_MIRROR_KEY)).toBe("light");
+  });
+
+  it("survives an unavailable localStorage", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    await expect(setDarkMode(true)).resolves.toBeUndefined();
+    await expect(applyInitialTheme()).resolves.toBeUndefined();
+    vi.restoreAllMocks();
+  });
+
+  it("is read by the inline script in index.html under the same key", () => {
+    const html = fs.readFileSync(path.resolve(__dirname, "../../index.html"), "utf8");
+    expect(html).toContain(THEME_MIRROR_KEY);
+  });
+});
+
+describe("build config", () => {
+  const resolve = (vite as any).build.modulePreload.resolveDependencies as (
+    file: string,
+    deps: string[],
+    context: { hostId: string; hostType: "html" | "js" },
+  ) => string[];
+  const deps = [
+    "assets/vendor-ionic-a.js",
+    "assets/vendor-charts-b.js",
+    "assets/vendor-luxon-c.js",
+  ];
+
+  it("keeps vendor-charts out of the html modulepreload list", () => {
+    const kept = resolve("index.html", deps, { hostId: "index.html", hostType: "html" });
+    expect(kept.some((d) => d.includes("vendor-charts"))).toBe(false);
+    expect(kept).toHaveLength(2);
   });
 });
 

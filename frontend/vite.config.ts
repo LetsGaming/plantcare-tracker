@@ -43,6 +43,10 @@ export default defineConfig({
   },
   build: {
     target: ["es2022", "safari15"],
+    modulePreload: {
+      resolveDependencies: (_file, deps, context) =>
+        context.hostType === "html" ? deps.filter((dep) => !dep.includes("vendor-charts")) : deps,
+    },
     rolldownOptions: {
       output: {
         codeSplitting: {

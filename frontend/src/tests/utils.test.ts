@@ -12,7 +12,8 @@
  *   - debounce
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { resetOverlayRegistry } from "@/utils/overlayRegistry";
 
 // ── Mock Ionic Vue before importing Utils ──────────────────────────
 vi.mock("@ionic/vue", () => ({
@@ -246,7 +247,15 @@ describe("closeAllOpenModals", () => {
   const top = vi.mocked(modalController.getTop);
   const dismiss = vi.mocked(modalController.dismiss);
 
+  beforeEach(() => {
+    const host = document.createElement("ion-modal");
+    document.body.appendChild(host);
+    host.dispatchEvent(new CustomEvent("ionModalDidPresent", { bubbles: true }));
+  });
+
   afterEach(() => {
+    resetOverlayRegistry();
+    document.body.innerHTML = "";
     top.mockReset().mockResolvedValue(undefined);
     dismiss.mockReset().mockResolvedValue(true);
   });
