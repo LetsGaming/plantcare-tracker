@@ -12,7 +12,13 @@ import type {
   EmbeddingRepository,
 } from '../../../src/modules/recognition/domain/Recognition';
 
-afterEach(() => vi.restoreAllMocks());
+const services: EmbedImagesService[] = [];
+
+afterEach(() => {
+  for (const service of services.splice(0)) service.stop();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 interface Options {
   /** Images that exist in the database; a file is written for each unless listed in `noFile`. */
@@ -66,7 +72,11 @@ const setup = async ({ ids, noFile = [], embed, rescanDelayMs = 5 }: Options) =>
     embed: embed ?? (async (b) => Float32Array.from([b.length])),
   };
   const log = { warn: vi.fn(), info: vi.fn() };
-  const make = () => new EmbedImagesService(embedder, repo, dir, log, rescanDelayMs);
+  const make = () => {
+    const service = new EmbedImagesService(embedder, repo, dir, log, rescanDelayMs);
+    services.push(service);
+    return service;
+  };
   return { service: make(), make, embedded, saves, calls, log };
 };
 
@@ -111,12 +121,28 @@ describe('EmbedImagesService', () => {
     ]);
   });
 
-  it('yields to the event loop after every image', async () => {
-    const spy = vi.spyOn(globalThis, 'setImmediate');
-    const { service } = await setup({ ids: range(12) });
-    spy.mockClear();
-    await service.backfill();
-    expect(spy.mock.calls.length).toBeGreaterThanOrEqual(12);
+  it('lets a competing event loop turn run between any two embeddings', async () => {
+    let turns = 0;
+    let active = true;
+    const tick = (): void => {
+      turns++;
+      if (active) setImmediate(tick);
+    };
+    setImmediate(tick);
+    const turnsAtEmbed: number[] = [];
+    const { service } = await setup({
+      ids: range(12),
+      embed: async (b) => {
+        turnsAtEmbed.push(turns);
+        return Float32Array.from([b.length]);
+      },
+    });
+    expect(await service.backfill()).toBe(12);
+    active = false;
+    expect(turnsAtEmbed).toHaveLength(12);
+    for (let i = 1; i < turnsAtEmbed.length; i++) {
+      expect(turnsAtEmbed[i]).toBeGreaterThan(turnsAtEmbed[i - 1]);
+    }
   });
 
   it('resumes after an interruption and embeds each image once', async () => {
@@ -152,7 +178,7 @@ describe('EmbedImagesService', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const { service, embedded, log } = await setup({
+    const { service, embedded, log, saves } = await setup({
       ids,
       embed: async (b) => {
         await gate;
@@ -165,18 +191,45 @@ describe('EmbedImagesService', () => {
     expect(log.warn).toHaveBeenCalled();
     release();
     await vi.waitFor(() => expect(embedded.size).toBe(150), { timeout: 5000 });
-    service.stop();
+    expect(saves).toHaveLength(150);
+    expect(new Set(saves).size).toBe(150);
   });
 
   it('debounces the rescan across several uploads', async () => {
-    const { service, calls } = await setup({ ids: [1, 2, 3], rescanDelayMs: 30 });
+    const { service, calls } = await setup({ ids: [1, 2, 3], rescanDelayMs: 5_000 });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     service.enqueue(1, '/uploads/plant/1.webp');
+    await vi.advanceTimersByTimeAsync(4_000);
     service.enqueue(2, '/uploads/plant/2.webp');
+    await vi.advanceTimersByTimeAsync(4_000);
     service.enqueue(3, '/uploads/plant/3.webp');
-    await vi.waitFor(() => expect(calls.any).toBe(1), { timeout: 2000 });
-    await new Promise((r) => setTimeout(r, 80));
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(calls.any).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
     expect(calls.any).toBe(1);
-    service.stop();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(calls.any).toBe(1);
+  });
+
+  it('does not rescan an image that is still queued', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { service, saves } = await setup({
+      ids: [1, 2, 3],
+      rescanDelayMs: 1,
+      embed: async (b) => {
+        await gate;
+        return Float32Array.from([b.length]);
+      },
+    });
+    for (const id of [1, 2, 3]) service.enqueue(id, `/uploads/plant/${id}.webp`);
+    const rescan = service.backfill();
+    release();
+    await rescan;
+    await vi.waitFor(() => expect(saves).toHaveLength(3));
+    expect(new Set(saves).size).toBe(3);
   });
 
   it('treats a busy embedder as log-and-skip', async () => {

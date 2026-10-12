@@ -6,7 +6,7 @@ import { loadOnnxEmbedder } from './infrastructure/OnnxEmbedder';
 import { SQLiteEmbeddingRepository } from './infrastructure/SQLiteEmbeddingRepository';
 
 export { recognitionRoutes } from './presentation/recognitionRoutes';
-export { invalidateVectors } from './infrastructure/vectorCache';
+export { clearVectorCache, invalidateVectors } from './infrastructure/vectorCache';
 
 export interface RecognitionDeps {
   /** Replaces the embedder; null disables recognition. Omitted: load the configured model. */

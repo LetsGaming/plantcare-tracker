@@ -2,6 +2,7 @@ import { sql, type RawBuilder } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import type { EmbeddingRepository, MissingImage, PlantVector } from '../domain/Recognition';
 import {
+  bumpEpoch,
   cacheVectors,
   cachedVectors,
   currentEpoch,
@@ -41,6 +42,7 @@ export class SQLiteEmbeddingRepository implements EmbeddingRepository {
       .values({ image_id: imageId, model, vector: blob })
       .onConflict((oc) => oc.column('image_id').doUpdateSet({ model, vector: blob }))
       .execute();
+    bumpEpoch();
     if (!hasCachedVectors()) return;
     const owner = await db
       .selectFrom('images as i')
@@ -56,14 +58,18 @@ export class SQLiteEmbeddingRepository implements EmbeddingRepository {
     const hit = cachedVectors(userId, model);
     if (hit) return hit;
     const loadedAt = currentEpoch();
+    const vectors = await this.loadVectors(userId, model);
+    cacheVectors(userId, model, vectors, loadedAt);
+    return vectors;
+  }
+
+  protected async loadVectors(userId: number, model: string): Promise<PlantVector[]> {
     const { rows } = await vectorsQuery(userId, model).execute(getKysely());
-    const vectors = rows.map((r) => ({
+    return rows.map((r) => ({
       plantId: r.plantId,
       imageId: r.imageId,
       vector: fromBlob(r.vector),
     }));
-    cacheVectors(userId, model, vectors, loadedAt);
-    return vectors;
   }
 
   async plantImagesMissing(

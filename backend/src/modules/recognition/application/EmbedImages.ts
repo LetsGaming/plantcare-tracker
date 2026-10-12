@@ -21,6 +21,7 @@ interface QueuedImage {
 
 export class EmbedImagesService {
   private readonly queue: QueuedImage[] = [];
+  private readonly queued = new Set<number>();
   private draining: Promise<void> | null = null;
   private running: Promise<number> | null = null;
   private rescanTimer?: NodeJS.Timeout;
@@ -57,7 +58,8 @@ export class EmbedImagesService {
     if (this.queue.length >= MAX_QUEUE) {
       this.deferred++;
       this.log.warn({ imageId }, 'embedding queue full, image left to the backfill');
-    } else {
+    } else if (!this.queued.has(imageId)) {
+      this.queued.add(imageId);
       this.queue.push({ imageId, imageUrl });
       this.draining ??= this.drain().finally(() => {
         this.draining = null;
@@ -79,6 +81,7 @@ export class EmbedImagesService {
     this.stopped = true;
     clearTimeout(this.rescanTimer);
     this.queue.length = 0;
+    this.queued.clear();
   }
 
   backfill(): Promise<number> {
@@ -91,6 +94,7 @@ export class EmbedImagesService {
   private async drain(): Promise<void> {
     for (let next = this.queue.shift(); next; next = this.queue.shift()) {
       await this.embedStored(next.imageId, next.imageUrl);
+      this.queued.delete(next.imageId);
       await yieldToEventLoop();
     }
   }
@@ -111,6 +115,7 @@ export class EmbedImagesService {
       if (batch.length === 0) break;
       for (const { imageId, imageUrl } of batch) {
         if (this.stopped) return embedded;
+        if (this.queued.has(imageId)) continue;
         if (await this.embedStored(imageId, imageUrl)) {
           embedded++;
           this.pending = Math.max(0, this.pending - 1);

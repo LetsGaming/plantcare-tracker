@@ -1,3 +1,4 @@
+import type { PlantVector } from '../../src/modules/recognition/domain/Recognition';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContractApp, type ContractApp } from '../contract/harness';
 import { createPlant, createSubstrate } from '../contract/support';
@@ -7,7 +8,9 @@ import {
   vectorsQuery,
 } from '../../src/modules/recognition/infrastructure/SQLiteEmbeddingRepository';
 import {
+  MAX_CACHE_BYTES,
   cacheVectors,
+  cachedBytes,
   cachedVectors,
   clearVectorCache,
   currentEpoch,
@@ -30,6 +33,18 @@ const plantWithImage = async (existingOwner?: Awaited<ReturnType<typeof app.sign
   );
   return { owner, plant, imageId: insertId };
 };
+
+class GatedRepository extends SQLiteEmbeddingRepository {
+  gate: Promise<void> = Promise.resolve();
+  loaded: () => void = () => undefined;
+
+  protected override async loadVectors(userId: number, model: string): Promise<PlantVector[]> {
+    const vectors = await super.loadVectors(userId, model);
+    this.loaded();
+    await this.gate;
+    return vectors;
+  }
+}
 
 describe('SQLiteEmbeddingRepository', () => {
   const repo = new SQLiteEmbeddingRepository();
@@ -172,6 +187,88 @@ describe('SQLiteEmbeddingRepository', () => {
       expect(cachedVectors(2, 'm1')).toBeNull();
       expect(cachedVectors(1, 'm1')).not.toBeNull();
       expect(cachedVectors(21, 'm1')).not.toBeNull();
+    });
+
+    it('never caches a set loaded before a concurrent save, even with an empty cache', async () => {
+      const gated = new GatedRepository();
+      const first = await plantWithImage();
+      await gated.save(first.imageId, 'm1', Float32Array.from([1]));
+      clearVectorCache();
+      let release: () => void = () => undefined;
+      gated.gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const read = new Promise<void>((resolve) => {
+        gated.loaded = resolve;
+      });
+      const stale = gated.vectorsForUser(first.owner.user.id, 'm1');
+      await read;
+      const second = await plantWithImage(first.owner);
+      await gated.save(second.imageId, 'm1', Float32Array.from([1]));
+      release();
+      expect(await stale).toHaveLength(1);
+      expect(cachedVectors(first.owner.user.id, 'm1')).toBeNull();
+      gated.gate = Promise.resolve();
+      expect(await gated.vectorsForUser(first.owner.user.id, 'm1')).toHaveLength(2);
+    });
+
+    it('expires an entry after the TTL', () => {
+      const vectors = [{ plantId: 1, imageId: 1, vector: Float32Array.of(1) }];
+      cacheVectors(7, 'm1', vectors, currentEpoch(), 1_000);
+      expect(cachedVectors(7, 'm1', 1_000 + 5 * 60_000)).toBe(vectors);
+      expect(cachedVectors(7, 'm1', 1_000 + 5 * 60_000 + 1)).toBeNull();
+    });
+
+    it('sweeps expired entries of other users when storing', () => {
+      const one = [{ plantId: 1, imageId: 1, vector: Float32Array.of(1) }];
+      cacheVectors(8, 'm1', one, currentEpoch(), 1_000);
+      cacheVectors(9, 'm1', one, currentEpoch(), 1_000 + 5 * 60_000 + 1);
+      expect(cachedBytes()).toBe(4);
+      expect(cachedVectors(8, 'm1', 1_000 + 5 * 60_000 + 1)).toBeNull();
+    });
+
+    it('evicts the entry when the model changes', () => {
+      cacheVectors(
+        10,
+        'm1',
+        [{ plantId: 1, imageId: 1, vector: Float32Array.of(1) }],
+        currentEpoch(),
+      );
+      expect(cachedVectors(10, 'm2')).toBeNull();
+      expect(cachedVectors(10, 'm1')).toBeNull();
+      expect(cachedBytes()).toBe(0);
+    });
+
+    it('bounds the cache by total bytes, evicting the least recently used', () => {
+      const dim = 384;
+      const perVector = dim * 4;
+      const count = Math.floor((MAX_CACHE_BYTES * 0.4) / perVector);
+      const set = (): PlantVector[] =>
+        Array.from({ length: count }, (_, i) => ({
+          plantId: i,
+          imageId: i,
+          vector: new Float32Array(dim),
+        }));
+      cacheVectors(1, 'm1', set(), currentEpoch());
+      cacheVectors(2, 'm1', set(), currentEpoch());
+      expect(cachedVectors(1, 'm1')).not.toBeNull();
+      cacheVectors(3, 'm1', set(), currentEpoch());
+      expect(cachedBytes()).toBeLessThanOrEqual(MAX_CACHE_BYTES);
+      expect(cachedVectors(2, 'm1')).toBeNull();
+      expect(cachedVectors(1, 'm1')).not.toBeNull();
+      expect(cachedVectors(3, 'm1')).not.toBeNull();
+    });
+
+    it('does not cache a single user set larger than the budget', () => {
+      const count = Math.floor(MAX_CACHE_BYTES / 4) + 1;
+      cacheVectors(
+        4,
+        'm1',
+        [{ plantId: 1, imageId: 1, vector: new Float32Array(count) }],
+        currentEpoch(),
+      );
+      expect(cachedVectors(4, 'm1')).toBeNull();
+      expect(cachedBytes()).toBe(0);
     });
 
     it('never caches a load that raced with an invalidation', () => {
