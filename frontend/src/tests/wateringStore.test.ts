@@ -25,6 +25,8 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
+import { toRaw } from "vue";
+import storageService from "@/services/general/StorageService";
 import { useWateringStore } from "@/stores/watering";
 
 const apiRecord = (overrides: Partial<APIWateringRecord> = {}): APIWateringRecord => ({
@@ -309,6 +311,71 @@ describe("persistence", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(memoryStore.has("watering_records_data")).toBe(false);
     expect(store.recordsFor(7)).toEqual([]);
+  });
+});
+
+describe("warming many plants", () => {
+  const recordsWrites = () =>
+    (storageService.set as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => call[0] === "watering_records_data",
+    );
+
+  it("commits once per finished wave instead of once per plant", async () => {
+    vi.useFakeTimers();
+    api.get.mockImplementation(async (url: string) => [
+      apiRecord({ plant_id: Number(url.split("/").pop()) }),
+    ]);
+    const store = await newStore();
+    let mutations = 0;
+    store.$subscribe(() => (mutations += 1), { detached: true, flush: "sync" });
+    const references = new Set<unknown>([toRaw(store.byPlantId)]);
+    store.$onAction(({ name, after }) => {
+      if (name === "commitRecords") after(() => references.add(toRaw(store.byPlantId)));
+    });
+
+    const plantIds = Array.from({ length: 200 }, (_, i) => i + 1);
+    await store.ensureRecordsFor(plantIds, 3);
+
+    expect(Object.keys(store.byPlantId)).toHaveLength(200);
+    expect(references.size - 1).toBeLessThanOrEqual(Math.ceil(200 / 3));
+    expect(mutations).toBeLessThanOrEqual(3 * Math.ceil(200 / 3));
+    expect(store.maxLoadedAt).toBeGreaterThan(0);
+  });
+
+  it("writes the records once for the whole warm-up", async () => {
+    vi.useFakeTimers();
+    api.get.mockResolvedValue([apiRecord()]);
+    const store = await newStore();
+    await store.ensureRecordsFor(
+      Array.from({ length: 200 }, (_, i) => i + 1),
+      3,
+    );
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recordsWrites()).toHaveLength(1);
+  });
+
+  it("skips failed plants without blocking the others", async () => {
+    api.get.mockImplementation(async (url: string) => {
+      if (url.endsWith("/2")) throw new Error("offline");
+      return [apiRecord()];
+    });
+    const store = await newStore();
+    await store.ensureRecordsFor([1, 2, 3, 4], 2);
+    expect(Object.keys(store.byPlantId)).toEqual(["1", "3", "4"]);
+  });
+
+  it("rewrites the records after an optimistic edit that mutates a list in place", async () => {
+    vi.useFakeTimers();
+    api.get.mockResolvedValue([apiRecord()]);
+    const store = await newStore();
+    await store.ensureRecords(7);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recordsWrites()).toHaveLength(1);
+
+    api.post.mockResolvedValue(apiRecord({ record_id: 5 }));
+    await store.addRecord(7, { usedFertilizer: false });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recordsWrites()).toHaveLength(2);
   });
 });
 

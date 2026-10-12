@@ -11,6 +11,7 @@
  * Failures are not toasted: the guide section presents them inline.
  */
 
+import { toRaw } from "vue";
 import { defineStore } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
 import MoreInfoMapper from "@/mapping/MoreInfoMapping";
@@ -19,6 +20,10 @@ import { renderMarkdown } from "@/utils/markdown";
 import { coalesced, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/more-info";
+const MAX_GUIDES = 30;
+
+/** Monotonic recency counter shared by all guide reads and writes. */
+let useClock = 0;
 
 /** Halts the running stream per key; kept outside the reactive state. */
 const haltByKey = new Map<string, () => void>();
@@ -34,6 +39,8 @@ export const useMoreInfoStore = defineStore("moreInfo", {
   state: () => ({
     byKey: {} as Record<string, MoreInfo[]>,
     fetchedAtByKey: {} as Record<string, number>,
+    /** Recency rank per stored guide (higher is newer); decides which guide is evicted. */
+    usedAtByKey: {} as Record<string, number>,
     drafts: {} as Record<string, MoreInfo[]>,
     streaming: {} as Record<string, boolean>,
   }),
@@ -44,10 +51,14 @@ export const useMoreInfoStore = defineStore("moreInfo", {
         key: "more_info_data",
         pick: (state) => state.byKey,
         timestamp: (state) => Math.max(0, ...Object.values(state.fetchedAtByKey)) || null,
+        dirtyOn: ["runStream"],
+        version: (state) => state.byKey,
         apply: (state, data: Record<string, MoreInfo[]>, timestamp) => {
-          state.byKey = data;
-          state.fetchedAtByKey = Object.fromEntries(
-            Object.keys(data).map((key) => [key, timestamp]),
+          const keys = Object.keys(data).slice(-MAX_GUIDES);
+          state.byKey = Object.fromEntries(keys.map((key) => [key, data[key]]));
+          state.fetchedAtByKey = Object.fromEntries(keys.map((key) => [key, timestamp]));
+          state.usedAtByKey = Object.fromEntries(
+            keys.map((key, index) => [key, -keys.length + index]),
           );
         },
       },
@@ -72,7 +83,10 @@ export const useMoreInfoStore = defineStore("moreInfo", {
     ensureInfo(plantName: string, { force = false }: { force?: boolean } = {}): Promise<void> {
       const key = moreInfoKey(plantName, localizationService.getLocale());
       const fresh = this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null);
-      if (!force && fresh) return Promise.resolve();
+      if (!force && fresh) {
+        this.usedAtByKey[key] = ++useClock;
+        return Promise.resolve();
+      }
 
       return coalesced(this, key, async () => {
         pendingKeys.add(key);
@@ -97,6 +111,25 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       const halt = haltByKey.get(key);
       if (halt) halt();
       else if (pendingKeys.has(key)) stopRequested.add(key);
+    },
+
+    /** Keeps the guide as the newest one and evicts the least recently used beyond `MAX_GUIDES`. */
+    storeGuide(key: string, guide: MoreInfo[]): void {
+      const byKey = { ...toRaw(this.byKey), [key]: guide };
+      const fetchedAtByKey = { ...toRaw(this.fetchedAtByKey), [key]: Date.now() };
+      const usedAtByKey = { ...toRaw(this.usedAtByKey), [key]: ++useClock };
+      const stored = Object.keys(byKey);
+      if (stored.length > MAX_GUIDES) {
+        stored.sort((a, b) => (usedAtByKey[a] ?? 0) - (usedAtByKey[b] ?? 0));
+        for (const evicted of stored.slice(0, stored.length - MAX_GUIDES)) {
+          delete byKey[evicted];
+          delete fetchedAtByKey[evicted];
+          delete usedAtByKey[evicted];
+        }
+      }
+      this.byKey = byKey;
+      this.fetchedAtByKey = fetchedAtByKey;
+      this.usedAtByKey = usedAtByKey;
     },
 
     runStream(plantName: string, key: string): Promise<void> {
@@ -168,8 +201,7 @@ export const useMoreInfoStore = defineStore("moreInfo", {
             }
             end();
             stop?.();
-            this.byKey[key] = render();
-            this.fetchedAtByKey[key] = Date.now();
+            this.storeGuide(key, render());
             finish();
             resolve();
           },

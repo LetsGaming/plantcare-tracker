@@ -18,6 +18,8 @@ const menuCollapsedEntry: PersistEntry<LayoutState> = {
   key: "menu_collapsed",
   keepOnClear: true,
   allowExpired: true,
+  dirtyOn: ["toggleMenu"],
+  version: (state) => state.menuCollapsed,
   pick: (state) => state.menuCollapsed,
   apply: (state, data: unknown) => {
     state.menuCollapsed = data === true;

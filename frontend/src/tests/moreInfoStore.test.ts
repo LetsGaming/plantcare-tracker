@@ -374,3 +374,47 @@ describe("stopInfo", () => {
     expect(store.byKey["en:Aloe"][0].ai).not.toContain("partial text");
   });
 });
+
+describe("guide cache bound", () => {
+  const guide = (name: string) => `en:${name}`;
+
+  it("evicts the least recently used guide when the 31st is stored", async () => {
+    stream.script = messages({ type: "ai_chunk", value: "guide" });
+    const store = await newStore();
+    for (let i = 1; i <= 30; i++) await store.ensureInfo(`Plant ${i}`);
+    expect(Object.keys(store.byKey)).toHaveLength(30);
+
+    await store.ensureInfo("Plant 1");
+    await store.ensureInfo("Plant 31");
+
+    const keys = Object.keys(store.byKey);
+    expect(keys).toHaveLength(30);
+    expect(keys).toContain(guide("Plant 1"));
+    expect(keys).toContain(guide("Plant 31"));
+    expect(keys).not.toContain(guide("Plant 2"));
+    expect(Object.keys(store.fetchedAtByKey).sort()).toEqual([...keys].sort());
+    expect(Object.keys(store.usedAtByKey).sort()).toEqual([...keys].sort());
+  });
+
+  it("persists at most 30 guides", async () => {
+    vi.useFakeTimers();
+    stream.script = messages({ type: "ai_chunk", value: "guide" });
+    const store = await newStore();
+    for (let i = 1; i <= 32; i++) await store.ensureInfo(`Plant ${i}`);
+    await vi.advanceTimersByTimeAsync(500);
+    const stored = memoryStore.get("more_info_data") as StoredGuides;
+    expect(Object.keys(stored.data)).toHaveLength(30);
+  });
+
+  it("trims an oversized stored snapshot to the newest 30 on hydrate", async () => {
+    const data = Object.fromEntries(
+      Array.from({ length: 40 }, (_, i) => [guide(`Plant ${i + 1}`), []]),
+    );
+    memoryStore.set("more_info_data", { data, timestamp: Date.now() });
+    const store = await newStore();
+    await store.$hydrate();
+    const keys = Object.keys(store.byKey);
+    expect(keys).toHaveLength(30);
+    expect(keys[0]).toBe(guide("Plant 11"));
+  });
+});
