@@ -88,7 +88,9 @@ export default defineComponent({
     // Without stored new ids the list may still carry an older release's flags; restore adopts them.
     void sales
       .$hydrate([SALES_NEW_KEY])
-      .then((found) => found || sales.restore())
+      .then(async (found) => {
+        if (!found) await sales.restore();
+      })
       .catch((error: unknown) => console.error("Restoring the new sales failed:", error));
     if (!this.isAdmin) return;
     try {
