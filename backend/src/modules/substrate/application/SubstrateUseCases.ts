@@ -26,10 +26,16 @@ const ComponentItemSchema = z.object({
   parts: z.coerce.number().positive(),
 });
 
-export const ComponentsSchema = z.array(ComponentItemSchema).min(1, 'Components array is required');
+const MAX_COMPONENTS = 100;
+
+export const ComponentsSchema = z
+  .array(ComponentItemSchema)
+  .min(1, 'Components array is required')
+  .max(MAX_COMPONENTS);
 
 export const ReplaceComponentsSchema = z
   .array(ComponentItemSchema)
+  .max(MAX_COMPONENTS)
   .refine((list) => new Set(list.map((c) => c.componentId)).size === list.length, {
     message: 'Duplicate components are not allowed',
   });

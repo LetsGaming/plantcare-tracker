@@ -48,7 +48,7 @@ export interface SubstrateController {
   addSubstrate: Handler;
   editSubstrate: Handler;
   addComponents: Handler;
-  upsertComponents: Handler;
+  replaceComponents: Handler;
   deleteSubstrate: Handler;
 }
 
@@ -108,7 +108,7 @@ export const createSubstrateController = (
         .send(body);
     },
 
-    upsertComponents: async (req: FastifyRequest) => {
+    replaceComponents: async (req: FastifyRequest) => {
       const substrate = await replaceComponents.execute(
         numericParam(req, 'id'),
         req.user!.id,

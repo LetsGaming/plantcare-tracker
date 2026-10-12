@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { API, createContractApp, type ContractApp } from './harness';
 import { createComponent, createSubstrate } from './support';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 let app: ContractApp;
 let componentA: { component_id: number; component_name: string };
 let componentB: { component_id: number; component_name: string };
@@ -37,6 +39,7 @@ describe('POST /substrates', () => {
       images: [],
       components: [],
     });
+    expect(Math.abs(Date.now() - res.body.data.substrate_created_at)).toBeLessThan(DAY_MS);
   });
 
   it('creates the substrate with its mix in one request and shows it in the detail', async () => {
@@ -155,6 +158,7 @@ describe('GET /substrates', () => {
       cover: null,
       component_count: 0,
     });
+    expect(Math.abs(Date.now() - res.body.data.items[0].created_at)).toBeLessThan(DAY_MS);
   });
 
   it('lists public substrates of everyone and never private ones in the public scope', async () => {
@@ -521,6 +525,34 @@ describe('component composition', () => {
       json: { components: [{ componentId: -1, parts: 0 }] },
     });
     expect(bad.status).toBe(400);
+  });
+
+  it('rejects more than 100 components on create, add and replace with 400', async () => {
+    const owner = await app.signIn('user');
+    const substrate = await createSubstrate(app, owner.auth);
+    const tooMany = Array.from({ length: 101 }, (_, i) => ({ componentId: i + 1, parts: 1 }));
+    const url = `${API}/substrates/${substrate.substrate_id}/components`;
+    const created = await app.client.request({
+      method: 'post',
+      url: `${API}/substrates`,
+      headers: owner.auth,
+      json: { name: 'Too many', components: tooMany },
+    });
+    expect(created.status).toBe(400);
+    const added = await app.client.request({
+      method: 'post',
+      url,
+      headers: owner.auth,
+      json: { components: tooMany },
+    });
+    expect(added.status).toBe(400);
+    const replaced = await app.client.request({
+      method: 'patch',
+      url,
+      headers: owner.auth,
+      json: { components: tooMany },
+    });
+    expect(replaced.status).toBe(400);
   });
 
   it("answers 404 when adding components to someone else's substrate", async () => {

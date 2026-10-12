@@ -302,6 +302,34 @@ describe('AddSubstrateComponentsUseCase', () => {
   });
 });
 
+const mix = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({ componentId: i + 1, parts: 1 }));
+
+describe('component list cap', () => {
+  it('accepts 100 components and rejects 101 on every write path', async () => {
+    const repo = makeMockRepo();
+    asMock(repo.findById).mockResolvedValue(makeSubstrate());
+
+    await new CreateSubstrateUseCase(repo).execute({ name: 'x', components: mix(100) }, 2);
+    await new UpdateSubstrateUseCase(repo).execute(1, 2, { components: mix(100) });
+    await new AddSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(100) });
+    await new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(100) });
+
+    await expect(
+      new CreateSubstrateUseCase(repo).execute({ name: 'x', components: mix(101) }, 2),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      new UpdateSubstrateUseCase(repo).execute(1, 2, { components: mix(101) }),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      new AddSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(101) }),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(101) }),
+    ).rejects.toThrow(ValidationError);
+  });
+});
+
 describe('ReplaceSubstrateComponentsUseCase', () => {
   it('replaces with the parsed list and returns the read-back substrate', async () => {
     const repo = makeMockRepo();

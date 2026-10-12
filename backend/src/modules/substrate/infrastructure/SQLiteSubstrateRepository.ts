@@ -54,6 +54,8 @@ const toDto = (row: ImageRow): ImageDTO =>
     placeholder: row.placeholder,
   });
 
+const MS_PER_SECOND = 1000;
+
 const roundParts = (parts: number): number => Math.round(parts * 100) / 100;
 
 type Scope = { kind: 'mine'; userId: number } | { kind: 'public' };
@@ -120,7 +122,7 @@ const assemble = (
       substrate_user_id: base.user_id,
       substrate_name: base.name,
       is_public: base.is_public === 1,
-      substrate_created_at: base.created_at,
+      substrate_created_at: base.created_at * MS_PER_SECOND,
       cover: own.length ? own[own.length - 1] : null,
       images: own,
       components: components.get(base.id) ?? [],
@@ -363,7 +365,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       name: row.name,
       user_id: row.user_id,
       is_public: row.is_public === 1,
-      created_at: row.created_at,
+      created_at: row.created_at * MS_PER_SECOND,
       cover: row.cover_id === null ? null : (covers.get(row.cover_id) ?? null),
       component_count: row.component_count,
     }));

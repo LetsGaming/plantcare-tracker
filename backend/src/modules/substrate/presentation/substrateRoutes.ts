@@ -21,6 +21,6 @@ export const substrateRoutes: FastifyPluginAsync = async (app) => {
   app.post('/', { onRequest: authenticateToken }, ctrl.addSubstrate);
   app.patch('/:id', { onRequest: authenticateToken }, ctrl.editSubstrate);
   app.post('/:id/components', { onRequest: authenticateToken }, ctrl.addComponents);
-  app.patch('/:id/components', { onRequest: authenticateToken }, ctrl.upsertComponents);
+  app.patch('/:id/components', { onRequest: authenticateToken }, ctrl.replaceComponents);
   app.delete('/:id', { onRequest: authenticateToken }, ctrl.deleteSubstrate);
 };

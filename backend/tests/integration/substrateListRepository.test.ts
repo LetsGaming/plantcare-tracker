@@ -154,6 +154,15 @@ describe('substrate list statement and row budget', () => {
     expect(detail!.cover?.id).toBe(detail!.images[2].id);
   });
 
+  it('reports dates in epoch milliseconds in the list and the detail', async () => {
+    const userId = await newUser();
+    const id = await substrates.create('Dated', userId, false);
+    const [item] = (await substrates.listMine(userId, params())).items;
+    const detail = await substrates.findById(id);
+    expect(Math.abs(Date.now() - item.created_at)).toBeLessThan(60_000);
+    expect(detail!.substrate_created_at).toBe(item.created_at);
+  });
+
   it('skips the cover statement when the page has no images', async () => {
     const userId = await newUser();
     await substrates.create('Bare', userId, false);

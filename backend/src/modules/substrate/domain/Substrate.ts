@@ -23,7 +23,7 @@ export interface SubstrateData {
   substrate_user_id: number;
   substrate_name: string;
   is_public: boolean;
-  substrate_created_at: number; // Unix epoch seconds
+  substrate_created_at: number; // Unix epoch milliseconds
   /** Newest image, null when the substrate has none. */
   cover: ImageDTO | null;
   /** Oldest first. */
@@ -36,7 +36,7 @@ export interface SubstrateListItem {
   name: string;
   user_id: number;
   is_public: boolean;
-  created_at: number; // Unix epoch seconds
+  created_at: number; // Unix epoch milliseconds
   cover: ImageDTO | null;
   component_count: number;
 }
