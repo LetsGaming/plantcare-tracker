@@ -339,7 +339,7 @@ describe("l2Persistence", () => {
 
   it("lets a stored setting win over a change made before hydration", async () => {
     vi.useFakeTimers();
-    memoryStore.set("scoped_label", { data: "z", keepOnClear: false, timestamp: 1 });
+    memoryStore.set("scoped_label", { data: "z", keepOnClear: false, timestamp: Date.now() });
     await createInstalledPinia();
     const store = useScopedStore();
     store.setLabel("b");
