@@ -32,6 +32,7 @@ import localizationService from "@/services/general/LocalizationService";
 import { compareText } from "@/utils/intlCache";
 import { handleRequest } from "@/utils/requestFeedback";
 import { useSessionStore } from "./session";
+import { usePlantsStore } from "./plants";
 import { coalesced, epoch, isStale } from "./resource";
 import { commitList, idIndexOf, removeItem, upsertItem } from "./optimistic";
 import {
@@ -161,7 +162,7 @@ const editMine = (lists: SubstrateLists, edit: ListEdit): void => {
   if (next) lists.mine.items = commitList(next);
 };
 
-/** A plant made private leaves `public`; a newly public one asks for a refresh. */
+/** A substrate made private leaves `public`; a newly public one asks for a refresh. */
 const syncPublicMembership = (lists: SubstrateLists, substrate: SubstrateView): void => {
   if (!substrate.isPublic) {
     editPublic(lists, removing(substrate.id));
@@ -170,11 +171,15 @@ const syncPublicMembership = (lists: SubstrateLists, substrate: SubstrateView): 
   }
 };
 
+const detailFetchedAt = new WeakMap<SubstrateView, number>();
+
 const withDetail = (
   details: Readonly<Record<number, SubstrateView>>,
   detail: SubstrateView,
-): Readonly<Record<number, SubstrateView>> =>
-  Object.freeze(markRaw({ ...details, [detail.id]: detail }));
+): Readonly<Record<number, SubstrateView>> => {
+  detailFetchedAt.set(detail, Date.now());
+  return Object.freeze(markRaw({ ...details, [detail.id]: detail }));
+};
 
 const withoutKey = <T>(
   record: Readonly<Record<number, T>>,
@@ -299,7 +304,10 @@ export const useSubstratesStore = defineStore("substrates", {
     /**
      * Marks everything held stale so the next ensure refetches. The persisted
      * snapshots are rewritten as expired (and a not yet hydrated one is not
-     * read), so a cached list cannot come back as fresh.
+     * read), so a cached list cannot come back as fresh. A load already in
+     * flight is not cancelled: paged.ts keeps its request sequence private, and
+     * bumping it from here would strand the list in "loading" behind the shared
+     * coalesced promise.
      */
     invalidate(): void {
       this.mine.fetchedAt = 0;
@@ -323,10 +331,10 @@ export const useSubstratesStore = defineStore("substrates", {
       return substrate;
     },
 
-    /** Returns the substrate detail from memory, fetching it when unknown or `force` is set. */
+    /** Returns the substrate detail from memory, fetching it when unknown, stale or `force` is set. */
     async getSubstrate(id: number, force = false): Promise<SubstrateView> {
       const cached = this.details[id];
-      if (cached && !force) return cached;
+      if (cached && !force && !isStale(detailFetchedAt.get(cached) ?? null)) return cached;
       return this.fetchOne(id);
     },
 
@@ -394,6 +402,7 @@ export const useSubstratesStore = defineStore("substrates", {
       editPublic(this, replacing(light));
       this.details = withDetail(this.details, substrate);
       syncPublicMembership(this, light);
+      usePlantsStore().patchSubstrate(substrate.id, substrate.name);
     },
 
     async deleteSubstrate(substrateId: number): Promise<void> {
@@ -407,6 +416,7 @@ export const useSubstratesStore = defineStore("substrates", {
       editMine(this, removing(substrateId));
       editPublic(this, removing(substrateId));
       this.details = withoutKey(this.details, substrateId);
+      usePlantsStore().patchSubstrate(substrateId, null);
     },
 
     /** Uploads an image, then refreshes just this substrate so it shows up. */

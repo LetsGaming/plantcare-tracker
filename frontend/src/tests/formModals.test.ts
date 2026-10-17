@@ -313,4 +313,32 @@ describe("SubstrateFormModal", () => {
       parts: { 1: 1, 3: 3 },
     });
   });
+
+  it("tells the selection while the component catalogue has not arrived", async () => {
+    const wrapper = mount(SubstrateFormModal, {
+      props: { isOpen: true, title: "Add", selectionTitle: "Select", substrate: null },
+      global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn })],
+        stubs: {
+          ...stubs,
+          IonContent: passthrough(),
+          IonFooter: passthrough(),
+          ModalHeader: true,
+          ConfirmDialog: true,
+          FormComponent: true,
+          ComponentSelection: true,
+        },
+      },
+    });
+    const components = useComponentsStore();
+    const loading = () => wrapper.findComponent(ComponentSelection).props("loading");
+
+    expect(loading()).toBe(true);
+    components.status = "loading";
+    await wrapper.vm.$nextTick();
+    expect(loading()).toBe(true);
+    components.status = "ready";
+    await wrapper.vm.$nextTick();
+    expect(loading()).toBe(false);
+  });
 });

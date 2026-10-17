@@ -431,6 +431,64 @@ describe("applySummaries", () => {
   });
 });
 
+describe("patchSubstrate", () => {
+  const withSubstrate = (id: number, substrateId: number | null) =>
+    item(id, {
+      substrate:
+        substrateId === null ? null : { substrate_id: substrateId, substrate_name: "Aroid Mix" },
+    });
+
+  it("renames the substrate on matching plants in one commit and leaves the others", async () => {
+    route({ mine: () => page([withSubstrate(1, 5), withSubstrate(2, 6), withSubstrate(3, 5)]) });
+    const store = await newStore();
+    await store.ensureMine();
+    const before = store.personalPlants;
+    const commits: unknown[] = [];
+    store.$subscribe(() => commits.push(store.mine.items), { flush: "sync" });
+
+    store.patchSubstrate(5, "Bark Mix");
+
+    const after = store.personalPlants;
+    expect(after.map((p) => p.substrate?.name)).toEqual(["Bark Mix", "Aroid Mix", "Bark Mix"]);
+    expect(Object.isFrozen(after[0].substrate)).toBe(true);
+    expect(after[1]).toBe(before[1]);
+    expect(new Set(commits).size).toBe(1);
+  });
+
+  it("clears the substrate of matching plants when it was deleted", async () => {
+    route({ mine: () => page([withSubstrate(1, 5), withSubstrate(2, 6)]) });
+    const store = await newStore();
+    await store.ensureMine();
+    store.patchSubstrate(5, null);
+    expect(store.personalPlants.map((p) => p.substrate?.id ?? null)).toEqual([null, 6]);
+  });
+
+  it("does not commit when no plant uses the substrate or the name is unchanged", async () => {
+    route({ mine: () => page([withSubstrate(1, 5)]) });
+    const store = await newStore();
+    await store.ensureMine();
+    const before = store.personalPlants;
+    store.patchSubstrate(99, "X");
+    store.patchSubstrate(5, "Aroid Mix");
+    expect(store.personalPlants).toBe(before);
+  });
+
+  it("keeps the change when a list load that started earlier finishes afterwards", async () => {
+    let call = 0;
+    const gate = deferred<unknown>();
+    route({
+      mine: () => (++call === 1 ? page([withSubstrate(1, 5)]) : gate.promise),
+    });
+    const store = await newStore();
+    await store.ensureMine();
+    const reloading = store.ensureMine({ force: true });
+    store.patchSubstrate(5, "Bark Mix");
+    gate.resolve(page([withSubstrate(1, 5)]));
+    await reloading;
+    expect(store.personalPlants[0].substrate?.name).toBe("Bark Mix");
+  });
+});
+
 describe("addPlant (optimistic)", () => {
   it("paints a temporary negative-id plant, then swaps it for the detail the server returns", async () => {
     route({ mine: () => page([item(1, { plant_name: "Existing" })]) });

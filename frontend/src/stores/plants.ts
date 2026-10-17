@@ -227,6 +227,23 @@ const applying =
     return next;
   };
 
+const patchingSubstrate =
+  (substrateId: number, name: string | null): ListEdit =>
+  (list) => {
+    const raw = toRaw(list) as readonly PlantView[];
+    let next: PlantView[] | null = null;
+    raw.forEach((plant, at) => {
+      if (plant.substrate?.id !== substrateId) return;
+      if (name !== null && plant.substrate.name === name) return;
+      next ??= raw.slice();
+      next[at] = Object.freeze({
+        ...plant,
+        substrate: name === null ? null : Object.freeze({ id: substrateId, name }),
+      });
+    });
+    return next;
+  };
+
 const editPublic = (lists: PlantLists, edit: ListEdit): void => {
   const target = lists.public;
   const before = target.items;
@@ -318,6 +335,7 @@ export const usePlantsStore = defineStore("plants", {
           "editPlant",
           "deletePlant",
           "applySummaries",
+          "patchSubstrate",
         ],
       }),
       pagedPersistEntry(PUBLIC_KEY, (state) => state.public as PagedState<PlantView>, "firstPage"),
@@ -445,6 +463,11 @@ export const usePlantsStore = defineStore("plants", {
     applySummaries(summaries: ReadonlyMap<number, WateringSummary | null>): void {
       if (summaries.size === 0) return;
       editEverywhere(this, applying(summaries));
+    },
+
+    /** Follows a substrate rename (`name`) or deletion (`null`) in every plant that references it. */
+    patchSubstrate(substrateId: number, name: string | null): void {
+      editEverywhere(this, patchingSubstrate(substrateId, name));
     },
 
     /** Best-effort substrate name for an optimistic card; empty when it cannot be loaded. */

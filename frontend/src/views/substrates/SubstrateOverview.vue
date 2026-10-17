@@ -87,19 +87,6 @@ export default defineComponent({
       showPublic: "private",
       showAddingModal: false,
       isSubmitting: false,
-      segments: [
-        {
-          value: "public",
-          label: localizationService.t("substrate.public_label"),
-          icon: icons.segmentPublic,
-        },
-        {
-          value: "private",
-          label: localizationService.t("substrate.private_label"),
-          icon: icons.segmentPrivate,
-          hideFromGuests: true,
-        },
-      ],
     };
   },
   setup() {
@@ -108,6 +95,17 @@ export default defineComponent({
   computed: {
     ...mapState(useSubstratesStore, { mineList: "mine", publicList: "public" }),
     ...mapState(useSessionStore, ["isGuest"]),
+    segments() {
+      return [
+        { value: "public", label: this.t("substrate.public_label"), icon: icons.segmentPublic },
+        {
+          value: "private",
+          label: this.t("substrate.private_label"),
+          icon: icons.segmentPrivate,
+          hideFromGuests: true,
+        },
+      ];
+    },
     isPublic(): boolean {
       return this.showPublic === "public";
     },
@@ -214,8 +212,13 @@ export default defineComponent({
     },
 
     handleSegmentChange(value: string) {
-      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch();
+      // The new segment is set first so the clear below is not taken for a search of the old one.
       this.showPublic = value;
+      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch();
+      if (value === "public" && this.publicList.query.q !== "") {
+        this.changeQuery({ q: "" });
+        return;
+      }
       this.fetchSubstrates();
     },
 

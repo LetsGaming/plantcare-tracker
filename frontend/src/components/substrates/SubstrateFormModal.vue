@@ -43,6 +43,7 @@
         v-else
         :title="selectionTitle"
         :components="availableComponents"
+        :loading="catalogueLoading"
         :selectedComponentIds="selectedComponentIds"
         :componentParts="componentParts"
         :show-errors="showPartErrors"
@@ -154,7 +155,16 @@ export default defineComponent({
     if (this.isOpen) this.loadCatalogue();
   },
   computed: {
-    ...mapState(useComponentsStore, { availableComponents: "selectableComponents" }),
+    ...mapState(useComponentsStore, {
+      availableComponents: "selectableComponents",
+      componentsStatus: (store) => store.status,
+    }),
+    catalogueLoading(): boolean {
+      return (
+        this.availableComponents.length === 0 &&
+        (this.componentsStatus === "idle" || this.componentsStatus === "loading")
+      );
+    },
     formFields(): FormField[] {
       const fields: FormField[] = [
         {

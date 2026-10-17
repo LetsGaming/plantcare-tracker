@@ -40,6 +40,7 @@ import storageService from "@/services/general/StorageService";
 import { epoch } from "@/stores/resource";
 import { useSessionStore } from "@/stores/session";
 import { useSubstratesStore } from "@/stores/substrates";
+import { usePlantsStore } from "@/stores/plants";
 
 const item = (id: number, overrides: Partial<APISubstrateListItem> = {}) =>
   apiSubstrateListItem({ id, name: `Mix ${id}`, user_id: 1, is_public: false, ...overrides });
@@ -456,5 +457,51 @@ describe("persistence and structure", () => {
       find.mockRestore();
       findIndex.mockRestore();
     }
+  });
+});
+
+describe("detail freshness", () => {
+  it("refetches a cached detail once it is older than the cache lifetime", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    api.get.mockResolvedValue(detail(9));
+    const store = await newStore();
+    await store.getSubstrate(9);
+    await store.getSubstrate(9);
+    expect(api.get).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + 48 * 60 * 60 * 1000);
+    await store.getSubstrate(9);
+    expect(api.get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("plants follow substrate changes", () => {
+  it("renames the substrate on the plants that use it after an edit", async () => {
+    api.get.mockResolvedValueOnce(page([item(5)]));
+    const store = await newStore();
+    await store.ensureMine();
+    const plants = usePlantsStore();
+    const patch = vi.spyOn(plants, "patchSubstrate");
+    api.patch.mockResolvedValue(detail(5, { substrate_name: "Renamed" }));
+    await store.editSubstrate(5, { name: "Renamed" });
+    expect(patch).toHaveBeenCalledWith(5, "Renamed");
+  });
+
+  it("clears the substrate on the plants that use it after a delete", async () => {
+    api.get.mockResolvedValueOnce(page([item(5)]));
+    const store = await newStore();
+    await store.ensureMine();
+    const patch = vi.spyOn(usePlantsStore(), "patchSubstrate");
+    api.delete.mockResolvedValue(null);
+    await store.deleteSubstrate(5);
+    expect(patch).toHaveBeenCalledWith(5, null);
+  });
+
+  it("does not touch the plants when the delete fails", async () => {
+    const store = await newStore();
+    const patch = vi.spyOn(usePlantsStore(), "patchSubstrate");
+    api.delete.mockRejectedValue(new Error("403"));
+    await expect(store.deleteSubstrate(5)).rejects.toThrow("403");
+    expect(patch).not.toHaveBeenCalled();
   });
 });
