@@ -272,7 +272,7 @@ describe("PlantOverview: store-driven lists", () => {
   });
 
   it("hands the list the same props when unrelated page state changes", async () => {
-    const { wrapper, store } = mountOverview();
+    const { wrapper, store } = mountOverview(true);
     store.mine.items = [plant(1, 1, false)];
     await flushPromises();
     const list = () => wrapper.findComponent({ name: "ItemsOverview" });

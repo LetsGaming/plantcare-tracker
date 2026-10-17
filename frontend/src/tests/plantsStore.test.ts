@@ -858,7 +858,7 @@ describe("local changes during a load in flight", () => {
     vi.mocked(ApiUtils.post).mockResolvedValue(
       apiPlantDetail({ plant_id: 50, plant_name: "Fresh", user_id: 1 }),
     );
-    await store.addPlant({ name: "Fresh", species: null, substrateId: null } as AddPlant);
+    await store.addPlant({ name: "Fresh", substrateId: null });
     gate.resolve(page([item(1), item(2)]));
     await pending;
     expect(ids(store.personalPlants)).toEqual([1, 2, 50]);
@@ -932,7 +932,9 @@ describe("list details", () => {
         ]),
       ),
     );
-    expect(indexOf).not.toHaveBeenCalled();
+    const searches = indexOf.mock.calls.length;
+    indexOf.mockRestore();
+    expect(searches).toBe(0);
     expect(store.byId(40)?.watering?.lastWateredAt).toBe(39);
   });
 

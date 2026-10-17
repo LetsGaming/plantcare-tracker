@@ -185,7 +185,8 @@ const carryImages = (item: PlantView, known: PlantView | undefined): PlantView =
 const fetchScope =
   (scope: Scope, target: PagedState<PlantView>): FetchPage<PlantView> =>
   async (params) => {
-    const extra = scope === "mine" ? { scope, tz_offset: tzOffset() } : { scope };
+    const extra: Record<string, string | number> =
+      scope === "mine" ? { scope, tz_offset: tzOffset() } : { scope };
     const path = `${BASE_ENDPOINT}?${pageSearchParams(params, extra)}`;
     const request = params.conditional
       ? ApiUtils.get<ApiPage<APIPlantListItem>>(path, undefined, { conditional: true })

@@ -13,7 +13,12 @@ const showRoundButton = (state: {
   isPublic: boolean;
   isGuest: boolean;
   personalPlants: unknown[];
-}) => (PlantOverview as any).computed.showRoundButton.call(state);
+}) =>
+  (PlantOverview as any).computed.showRoundButton.call({
+    isPublic: state.isPublic,
+    isGuest: state.isGuest,
+    mineList: { items: state.personalPlants },
+  });
 
 describe("watering round entry on the plant overview", () => {
   it("shows the button in the private segment for a signed-in user with plants", () => {

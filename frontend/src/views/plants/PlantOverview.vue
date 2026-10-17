@@ -326,7 +326,7 @@ export default defineComponent({
     handleSegmentChange(value: string) {
       // The new segment is set first so the clear below is not taken for a search of the old one.
       this.showPublic = value;
-      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch();
+      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch?.();
       if (value === "public" && this.publicList.query.q !== "") {
         this.changeQuery({ q: "" });
         return;

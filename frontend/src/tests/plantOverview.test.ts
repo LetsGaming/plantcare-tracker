@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, nextTick } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import {
+  apiImageDto,
   apiPlantListItem,
   apiWateringSummary,
   createInstalledPinia,
@@ -138,6 +139,8 @@ const route = (routes: Routes) =>
 const paths = (): URL[] =>
   vi.mocked(ApiUtils.get).mock.calls.map(([path]) => new URL(path as string, "http://test"));
 
+const mounted: VueWrapper<any>[] = [];
+
 const mountPage = async (
   routes: Routes,
   claims: Record<string, unknown> = { id: 1, username: "alice", role: "user" },
@@ -146,6 +149,7 @@ const mountPage = async (
   await useSessionStore(pinia).storeToken(fakeJwt(claims));
   route(routes);
   const wrapper = mount(PlantOverview, { global: { plugins: [pinia], stubs } });
+  mounted.push(wrapper);
   return { wrapper, store: usePlantsStore(pinia), vm: wrapper.vm as any };
 };
 
@@ -166,6 +170,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  mounted.splice(0).forEach((wrapper) => wrapper.unmount());
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -197,7 +202,7 @@ describe("PlantOverview entry", () => {
     expect(paths().map((url) => url.pathname)).toEqual(["/plants"]);
     expect(paths().some((url) => url.pathname.startsWith("/watering"))).toBe(false);
     expect(shown(wrapper).map((card) => card.statusTone)).toEqual(["ok", "overdue", "new"]);
-    expect(shown(wrapper)[2].statusLine).toBe("plantlist.never");
+    expect(shown(wrapper)[2].statusLine).toBe("en:plantlist.never");
     wrapper.unmount();
   });
 
@@ -455,7 +460,9 @@ describe("PlantOverview day and locale", () => {
   });
 
   it("hands the cover image to the card", async () => {
-    const { wrapper, vm } = await mountPage({ mine: () => page([item(1)]) });
+    const { wrapper, vm } = await mountPage({
+      mine: () => page([item(1, { cover: apiImageDto() })]),
+    });
     await vm.fetchPlants();
     await flushPromises();
     const card = shown(wrapper)[0];

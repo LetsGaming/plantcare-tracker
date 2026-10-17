@@ -436,7 +436,9 @@ describe("WaterRound", () => {
       await flushPromises();
     };
     const visibleNames = (wrapper: Wrapper) =>
-      (wrapper.findComponent(RoundList).props("rows") as { name: string }[]).map((r) => r.name);
+      (wrapper.findComponent(RoundList).props("rows") as readonly { name: string }[]).map(
+        (r) => r.name,
+      );
 
     it("tells how many ticked plants a search hides, and still logs them", async () => {
       const { wrapper, watering } = mountRound();

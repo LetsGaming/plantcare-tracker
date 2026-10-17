@@ -110,7 +110,7 @@
         :is-loading="isImageLoading"
       />
       <ImageEditingModal
-        v-if="enlargedImage"
+        v-if="editableImage"
         :is-open="showImageEditModal"
         :image="editableImage"
         entity-type="plant"

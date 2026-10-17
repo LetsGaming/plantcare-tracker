@@ -169,6 +169,17 @@ interface InfiniteTarget {
   complete: () => unknown;
 }
 
+interface Memo {
+  items: readonly OverviewItem[];
+  filtered: readonly OverviewItem[];
+  pendingInfinite: InfiniteTarget | null;
+}
+
+/** Writes into the non-reactive memo that keeps the last result while the page is hidden. */
+const remember = <K extends keyof Memo>(memo: Memo, key: K, value: Memo[K]): void => {
+  memo[key] = value;
+};
+
 export default defineComponent({
   name: "ItemsOverview",
   components: {
@@ -261,10 +272,10 @@ export default defineComponent({
   emits: ["retry", "empty-action", "load-more", "query-change"],
   setup(props) {
     const contentRef = ref<InstanceType<typeof IonContent> | null>(null);
-    const memo = markRaw({
+    const memo = markRaw<Memo>({
       items: props.items,
       filtered: props.items,
-      pendingInfinite: null as InfiniteTarget | null,
+      pendingInfinite: null,
     });
     return { contentRef, memo };
   },
@@ -285,7 +296,7 @@ export default defineComponent({
     },
     sourceItems(): readonly OverviewItem[] {
       if (!this.active) return this.memo.items;
-      this.memo.items = this.items;
+      remember(this.memo, "items", this.items);
       return this.items;
     },
     sortedItems(): readonly OverviewItem[] {
@@ -297,7 +308,7 @@ export default defineComponent({
       const filtered = this.serverSearch
         ? this.sourceItems
         : filterOverviewItems(this.sortedItems, this.trimmedQuery.toLowerCase());
-      this.memo.filtered = filtered;
+      remember(this.memo, "filtered", filtered);
       return filtered;
     },
     visibleItems(): readonly OverviewItem[] {
