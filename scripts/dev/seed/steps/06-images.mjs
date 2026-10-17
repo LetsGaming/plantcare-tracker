@@ -36,7 +36,7 @@ const upload = async (ctx, token, type, id, variant, daysAgo) => {
   const entity = await ctx.call("GET", `/${type}s/${id}`, { token });
   const newest = entity.images[entity.images.length - 1];
   const patch = new FormData();
-  patch.append("date", new Date(Date.now() - daysAgo * DAY_MS).toISOString());
+  patch.append("date", String(Date.now() - daysAgo * DAY_MS));
   await ctx.call("PATCH", `/images/${newest.id}`, { token, form: patch });
 };
 
