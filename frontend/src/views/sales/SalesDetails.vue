@@ -140,6 +140,11 @@ export default defineComponent({
       detail: null as { sale: Sale; history: readonly SalePricePoint[] } | null,
     };
   },
+  watch: {
+    id() {
+      this.detail = null;
+    },
+  },
   async ionViewWillEnter() {
     this.entering = this.reload();
     await this.entering;

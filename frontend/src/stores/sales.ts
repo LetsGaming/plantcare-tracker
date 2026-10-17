@@ -178,6 +178,8 @@ export const useSalesStore = defineStore("sales", {
     query: defaultSalesQuery(),
     /** Every persisted entry was read (or tried) since the store was created or reset. */
     restored: false,
+    /** The badge entries were read once; reading them again would overwrite newer in-memory state. */
+    bootRead: false,
     /**
      * Replaced by `$reset`: reads and streams begun before a logout check it
      * and leave the state alone once it changed.
@@ -194,7 +196,7 @@ export const useSalesStore = defineStore("sales", {
         key: SALES_SEEN_KEY,
         keepOnClear: true,
         allowExpired: true,
-        dirtyOn: [...REPLAY_ACTIONS, "restore", "markSeen", "markAllSeen"],
+        dirtyOn: [...REPLAY_ACTIONS, "restore", "loadSummary", "markSeen", "markAllSeen"],
         version: (state) => state.seen,
         pick: (state) => state.seen,
         apply: (state, data: Partial<SalesSeen> | null) => {
@@ -304,12 +306,23 @@ export const useSalesStore = defineStore("sales", {
   },
 
   actions: {
+    /** Reads the badge entries once per session; later calls and concurrent callers share that read. */
+    async hydrateBoot(): Promise<void> {
+      if (this.bootRead) return;
+      const session = this.session;
+      await coalesced(session, "boot", async () => {
+        await this.$hydrate(SALES_BOOT_KEYS);
+        if (this.session !== session) return;
+        this.bootRead = true;
+      });
+    },
+
     /** Loads the stored sales into memory without touching the network; concurrent callers share one read. */
     restore(): Promise<void> {
       if (this.restored) return Promise.resolve();
       const session = this.session;
       return coalesced(session, "restore", async () => {
-        await Promise.all([this.$hydrate(SALES_BOOT_KEYS), this.$hydrate(LIST_KEYS)]);
+        await Promise.all([this.hydrateBoot(), this.$hydrate(LIST_KEYS)]);
         if (this.session !== session) return;
         this.restored = true;
       });
@@ -319,7 +332,7 @@ export const useSalesStore = defineStore("sales", {
     async loadSummary(): Promise<APISalesSummary | null> {
       const session = this.session;
       const isCurrent = sessionGuard();
-      await this.$hydrate(SALES_BOOT_KEYS);
+      await this.hydrateBoot();
       if (!isCurrent() || this.session !== session) return null;
       const dto = await ApiUtils.get<APISalesSummary>(
         `${ENDPOINT}/summary?since=${this.seen.watermark}`,
@@ -358,15 +371,28 @@ export const useSalesStore = defineStore("sales", {
       const listRefreshedAt = this.summary.listRefreshedAt;
       const newer =
         refreshedAt !== null && (listRefreshedAt === null || refreshedAt > listRefreshedAt);
-      if (this.items.length === 0 || newer) await this.replay();
+      if (this.items.length === 0 || newer) await this.runReplay(false);
     },
 
     /** Replays the sales now; concurrent callers share one stream. */
     replay(): Promise<void> {
+      return this.runReplay(true);
+    },
+
+    /** `loadFirst` reads the server summary so the replay is stamped with its `refreshed_at`. */
+    runReplay(loadFirst: boolean): Promise<void> {
       const session = this.session;
       return coalesced(session, "stream", async (isCurrent) => {
         await this.restore();
         if (this.session !== session || !isCurrent()) return;
+        if (loadFirst) {
+          try {
+            await this.loadSummary();
+          } catch (error) {
+            console.error("Loading the sales summary failed:", error);
+          }
+          if (this.session !== session || !isCurrent()) return;
+        }
         await handleRequest(this.runStream(), RESOURCE_KEY);
       });
     },
@@ -459,9 +485,12 @@ export const useSalesStore = defineStore("sales", {
             }
           },
           fail,
-          () => {
+          (done) => {
             if (settled || superseded()) return;
             cleanup();
+            if (typeof done?.total === "number" && done.total !== received.size) {
+              console.warn(`Sales replay received ${received.size} of ${done.total} sales`);
+            }
             const items = saleList(received.values());
             const now = Date.now();
             const seen = prunedSeen(this.seen, items);

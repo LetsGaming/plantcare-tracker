@@ -487,6 +487,21 @@ describe("summary and freshness", () => {
     expect(store.summary.listRefreshedAt).toBe(NOW);
   });
 
+  it("stamps the list with the server refresh time when a pull to refresh replays", async () => {
+    emit([apiSale("a")]);
+    const store = await newStore();
+    await store.ensureFresh();
+
+    api.get.mockResolvedValue(summaryDto({ refreshed_at: NOW + 5000 }));
+    await store.replay();
+    expect(store.summary.refreshedAt).toBe(NOW + 5000);
+    expect(store.summary.listRefreshedAt).toBe(NOW + 5000);
+
+    api.stream.mockClear();
+    await store.ensureFresh();
+    expect(api.stream).not.toHaveBeenCalled();
+  });
+
   it("skips the replay when refreshed_at is unchanged", async () => {
     emit([apiSale("a")]);
     const store = await newStore();
@@ -598,6 +613,8 @@ describe("persistence", () => {
     const store = await newStore();
     await (TabsPage as any).mounted.call({ isAdmin: false });
     await Promise.all([store.restore(), store.restore()]);
+    await store.loadSummary();
+    await store.loadSummary();
 
     expect([...readKeys()].sort()).toEqual([
       "sales_data",
@@ -605,6 +622,23 @@ describe("persistence", () => {
       "sales_seen",
       "sales_summary",
     ]);
+  });
+
+  it("keeps a sale opened within the debounce when ensureFresh follows", async () => {
+    stored("sales_data", [storedSale("a", { firstSeenAt: NOW - DAY })]);
+    stored("sales_seen", { watermark: NOW - 7 * DAY, ids: [] });
+    stored("sales_summary", { total: 1, newCount: 1, refreshedAt: NOW, listRefreshedAt: NOW });
+    const store = await newStore();
+    await store.restore();
+    expect(store.isNew("a")).toBe(true);
+
+    api.get.mockResolvedValue(summaryDto({ new_since: 1 }));
+    store.markSeen("a");
+    await store.ensureFresh();
+
+    expect(store.seen.ids).toEqual(["a"]);
+    expect(store.isNew("a")).toBe(false);
+    expect(store.newCount).toBe(0);
   });
 
   it("ignores a list stored by an older release", async () => {

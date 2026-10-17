@@ -26,12 +26,6 @@ interface Sale {
   readonly searchKey: string;
 }
 
-/** A price point stored in the local price history cache */
-interface PricePoint {
-  price: number;
-  timestamp: number;
-}
-
 // ── V2 API shapes ─────────────────────────────────────────────────────────────
 
 /** One sale as the SSE replay and GET /sales/:id send it. */

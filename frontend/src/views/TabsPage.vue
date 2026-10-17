@@ -56,7 +56,7 @@ import {
 import { navIcons, type NavDestination } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 import { useSessionStore } from "@/stores/session";
-import { SALES_BOOT_KEYS, useSalesStore } from "@/stores/sales";
+import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 
 /** Runs `task` once the first frame is out, so boot does not wait for it. */
@@ -94,7 +94,7 @@ export default defineComponent({
   async mounted() {
     const sales = useSalesStore();
     void sales
-      .$hydrate(SALES_BOOT_KEYS)
+      .hydrateBoot()
       .then(() => afterFirstPaint(() => sales.loadSummary()))
       .catch((error: unknown) => console.error("Loading the sales badge failed:", error));
     if (!this.isAdmin) return;
