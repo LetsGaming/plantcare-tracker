@@ -22,7 +22,7 @@
               <strong class="current-price">{{ formatPrice(sale.price) }}</strong>
               <del v-if="hasDiscount" class="old-price">
                 <span class="sr-only">{{ t("saledetail.old_price") }}</span>
-                {{ formatPrice(sale.oldPrice) }}
+                {{ formatPrice(sale.oldPrice ?? 0) }}
               </del>
             </p>
             <p v-if="hasDiscount" class="saving">
@@ -48,7 +48,7 @@
             </ion-button>
           </section>
 
-          <section class="history" aria-labelledby="sale-history">
+          <section v-if="detail" class="history" aria-labelledby="sale-history">
             <h2 id="sale-history" class="section-title">{{ t("sales.price_history") }}</h2>
             <p v-if="priceHistory.length < 2" class="history-hint">
               {{ t("sales3.history_hint") }}
@@ -59,7 +59,7 @@
             <PriceHistoryChart
               v-else
               :history="priceHistory"
-              :reference-price="sale.oldPrice"
+              :reference-price="sale.oldPrice ?? undefined"
               :caption="t('saledetail.history_caption', { name: sale.name })"
             />
           </section>
@@ -137,6 +137,7 @@ export default defineComponent({
       phase: "loading" as LoadPhase,
       entering: null as Promise<void> | null,
       shown: false,
+      detail: null as { sale: Sale; history: readonly SalePricePoint[] } | null,
     };
   },
   async ionViewWillEnter() {
@@ -156,29 +157,29 @@ export default defineComponent({
     this.shown = false;
   },
   computed: {
-    ...mapState(useSalesStore, ["byId", "historyOf"]),
+    ...mapState(useSalesStore, ["byId"]),
     sale(): Sale | null {
-      return this.byId(this.id) ?? null;
+      return this.detail?.sale ?? this.byId(this.id) ?? null;
     },
-    priceHistory(): { price: number; timestamp: number }[] {
-      return this.historyOf(this.id);
+    priceHistory(): readonly SalePricePoint[] {
+      return this.detail?.history ?? [];
     },
     hasDiscount(): boolean {
       return !!this.sale?.oldPrice && this.sale.oldPrice > this.sale.price;
     },
     savingAmount(): number {
-      return this.sale ? this.sale.oldPrice - this.sale.price : 0;
+      return this.sale?.oldPrice ? this.sale.oldPrice - this.sale.price : 0;
     },
     savingPercent(): string {
       if (!this.sale || !this.hasDiscount) return "";
       return numberFormat(localizationService.getLocale(), {
         style: "percent",
         maximumFractionDigits: 0,
-      }).format(this.savingAmount / this.sale.oldPrice);
+      }).format(this.savingAmount / (this.sale.oldPrice ?? 1));
     },
     priceTrendLabel(): string {
       if (!this.priceHistory || this.priceHistory.length === 0) return "";
-      const sorted = [...this.priceHistory].sort((a, b) => a.timestamp - b.timestamp);
+      const sorted = [...this.priceHistory].sort((a, b) => a.observedAt - b.observedAt);
       const [first, last] = sorted;
       const diff = last.price - first.price;
       const diffAbs = this.formatPrice(Math.abs(diff));
@@ -193,30 +194,40 @@ export default defineComponent({
     },
   },
   methods: {
-    ...mapActions(useSalesStore, { loadSales: "load", markSeen: "markSeen" }),
+    ...mapActions(useSalesStore, {
+      restore: "restore",
+      loadDetail: "loadDetail",
+      markSeen: "markSeen",
+    }),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
     formatPrice,
-    async reload(force = false) {
+    async reload() {
+      const id = this.id;
       if (!this.sale) this.phase = "loading";
+      await this.restore().catch(() => undefined);
+      if (this.sale) this.phase = "ready";
       try {
-        await this.loadSales({ force });
+        const loaded = await this.loadDetail(id);
+        if (loaded && id === this.id) this.detail = loaded;
       } catch (error) {
-        this.phase = phaseFromError(error);
-        return;
+        if (!this.sale) {
+          this.phase = phaseFromError(error);
+          return;
+        }
       }
       this.phase = this.sale ? "ready" : "not-found";
     },
     markShownSeen() {
-      if (this.shown && this.sale) this.markSeen(this.id);
+      if (this.shown && this.sale) this.markSeen(this.id, this.sale.firstSeenAt);
     },
-    async retry(force = false) {
-      await this.reload(force);
+    async retry() {
+      await this.reload();
       this.markShownSeen();
     },
     refresh() {
-      return this.retry(true);
+      return this.retry();
     },
     goToList() {
       this.$router.replace({ name: "sales" });

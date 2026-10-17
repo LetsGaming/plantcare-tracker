@@ -8,6 +8,8 @@
       :is-loading="isLoadingList"
       :has-error="failed"
       presorted
+      :active="pageActive"
+      :list-key="listKey"
       :empty-title="filtersHideAll ? t('sales.filter.none_title') : t('state.empty_sales_title')"
       :empty-message="
         filtersHideAll ? t('sales.filter.none_message') : t('state.empty_sales_message')
@@ -47,6 +49,7 @@
             <ion-badge v-if="filterCount > 0" class="filter-badge">{{ filterCount }}</ion-badge>
           </ion-button>
         </div>
+        <p v-if="updatedText" class="shown">{{ updatedText }}</p>
         <p v-if="filterCount > 0 && sales.length" class="shown" aria-live="polite">
           {{ t("sales.filter.shown", { shown: sales.length, total: allCount }) }}
         </p>
@@ -98,6 +101,8 @@ import {
 } from "@/utils/salesQuery";
 import localizationService from "@/services/general/LocalizationService";
 import { discountPercent, formatDiscount, formatPrice } from "@/utils/formatPrice";
+import { dateTimeFormat } from "@/utils/intlCache";
+import { isActive, pageActive } from "@/utils/pageActive";
 
 import { mapActions, mapState } from "pinia";
 import { useSalesStore } from "@/stores/sales";
@@ -106,17 +111,23 @@ type CardText = Pick<OverviewItem, "priceText" | "oldPriceText" | "discountText"
 
 const cardText = (sale: Sale, locale: string): CardText => ({
   priceText: sale.price ? formatPrice(sale.price, locale) : undefined,
-  oldPriceText: discountPercent(sale.price, sale.oldPrice)
-    ? formatPrice(sale.oldPrice, locale)
-    : undefined,
-  discountText: formatDiscount(sale.price, sale.oldPrice, locale) || undefined,
+  oldPriceText:
+    sale.oldPrice !== null && discountPercent(sale.price, sale.oldPrice)
+      ? formatPrice(sale.oldPrice, locale)
+      : undefined,
+  discountText:
+    sale.oldPrice !== null
+      ? formatDiscount(sale.price, sale.oldPrice, locale) || undefined
+      : undefined,
 });
 
 /** Card texts of the last rendered list, by id, prices and locale. */
 let cardTexts = new Map<string, CardText>();
+let lastCards: OverviewItem[] = [];
 
 export default defineComponent({
   name: "SalesOverview",
+  mixins: [pageActive],
   components: {
     IonPage,
     IonButton,
@@ -148,7 +159,21 @@ export default defineComponent({
       streaming: "streaming",
       isNew: "isNew",
       byId: "byId",
+      summary: "summary",
     }),
+    listKey(): string {
+      const { sort, shops, onlyNew, minDiscount, minPrice, maxPrice } = this.query;
+      return [sort, shops.join(","), onlyNew, minDiscount, minPrice, maxPrice].join("|");
+    },
+    updatedText(): string {
+      const at = this.summary.listRefreshedAt;
+      if (at === null) return "";
+      const time = dateTimeFormat(localizationService.getLocale(), {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(at);
+      return this.t("sales.updated_at", { time });
+    },
     allCount(): number {
       return this.allSales.length;
     },
@@ -159,9 +184,10 @@ export default defineComponent({
       return this.sales.length === 0 && this.allCount > 0 && this.filterCount > 0;
     },
     isLoadingList(): boolean {
-      return this.streaming || !this.loadedOnce;
+      return this.allCount === 0 && (this.streaming || !this.loadedOnce);
     },
     mappedSales(): OverviewItem[] {
+      if (!isActive(this)) return lastCards;
       const locale = localizationService.getLocale();
       const texts = new Map<string, CardText>();
       const items = this.sales.map((sale: Sale) => {
@@ -179,15 +205,21 @@ export default defineComponent({
         });
       });
       cardTexts = texts;
+      lastCards = items;
       return items;
     },
   },
   mounted() {
-    void this.fetchSales(false);
+    void this.restore().catch((error: unknown) => console.error("Restoring sales failed:", error));
+  },
+  async ionViewDidEnter() {
+    await this.fetchSales(false);
   },
   methods: {
     ...mapActions(useSalesStore, {
-      loadSales: "load",
+      restore: "restore",
+      replaySales: "replay",
+      ensureFresh: "ensureFresh",
       markAllSeen: "markAllSeen",
       setQuery: "setQuery",
       resetQuery: "resetQuery",
@@ -209,7 +241,8 @@ export default defineComponent({
     async fetchSales(force = true) {
       this.failed = false;
       try {
-        await this.loadSales({ force: force === true });
+        if (force === true) await this.replaySales();
+        else await this.ensureFresh();
       } catch (err) {
         // handleRequest has already shown the error toast.
         this.failed = true;

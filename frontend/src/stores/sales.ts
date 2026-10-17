@@ -1,15 +1,18 @@
 /**
  * stores/sales.ts
  *
- * Plant sales streamed from the backend (SSE), the ids still flagged "new" and
- * a short price history per sale. Sales, new ids and history survive logout
- * (keepOnClear): they are not account data.
+ * The sales the server stored, replayed over SSE from its database, plus what
+ * the user has seen of them. Sales, the seen record and the badge summary
+ * survive logout (keepOnClear): they are not account data.
  *
- * A stream collects its sales outside the store and replaces `items` once,
- * when it completes, so a failed or aborted stream never leaves partial data
+ * A replay collects its sales outside the store and replaces `items` once,
+ * when it completes, so a failed or aborted replay never leaves partial data
  * behind (or persists it as if it were complete). Only a store with nothing
- * to show publishes the running stream, at most every 250 ms, so the first
+ * to show publishes the running replay, at most every 250 ms, so the first
  * screen fills.
+ *
+ * NEW is a watermark plus a few ids: a sale is new when the server first saw
+ * it after the watermark and the user has not opened it since.
  */
 
 import { defineStore } from "pinia";
@@ -17,33 +20,57 @@ import { markRaw } from "vue";
 import ApiUtils from "@/utils/apiUtils";
 import SaleMapper from "@/mapping/SaleMapping";
 import { handleRequest } from "@/utils/requestFeedback";
-import { coalesced, isStale, resourceState } from "./resource";
+import { coalesced, epoch, resourceState } from "./resource";
 import { applySalesQuery, defaultSalesQuery, type SalesQuery } from "@/utils/salesQuery";
 import { compareText } from "@/utils/intlCache";
 import localizationService from "@/services/general/LocalizationService";
 
 const ENDPOINT = "/sales";
 const RESOURCE_KEY = "sales.title";
-export const MAX_PRICE_POINTS = 30;
 const PROGRESSIVE_COMMIT_MS = 250;
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const NEW_WINDOW_DAYS = 7;
 
-/** Storage key of the new ids, all the tab badge needs. */
-export const SALES_NEW_KEY = "sales_new";
-const LIST_KEYS = ["sales_data", "sales_price_history", "sales_query"] as const;
-const STREAM_ACTIONS = ["load", "runStream"] as const;
+/** Storage keys of the badge: all the tab bar needs at boot. */
+export const SALES_SUMMARY_KEY = "sales_summary";
+export const SALES_SEEN_KEY = "sales_seen";
+export const SALES_BOOT_KEYS = [SALES_SUMMARY_KEY, SALES_SEEN_KEY] as const;
+const LIST_KEYS = ["sales_data", "sales_query"] as const;
+const REPLAY_ACTIONS = ["replay", "runStream"] as const;
 
-export interface PricePoint {
-  price: number;
-  timestamp: number;
+/** What the user has seen: sales first seen at or before `watermark`, and the listed ids opened since. */
+export interface SalesSeen {
+  readonly watermark: number;
+  readonly ids: readonly string[];
 }
 
-export type PriceHistory = Record<string, PricePoint[]>;
+/** The badge: counts as of the last server summary or completed replay. */
+export interface SalesSummary {
+  readonly total: number;
+  readonly newCount: number;
+  /** The server's `refreshed_at` last seen, null until it has refreshed any source. */
+  readonly refreshedAt: number | null;
+  /** The server's `refreshed_at` the stored list was replayed at. */
+  readonly listRefreshedAt: number | null;
+  readonly latestFirstSeenAt: number | null;
+}
 
-/** A sale as older releases stored it: with an `isNew` flag and without a search key. */
-type StoredSale = Omit<Sale, "searchKey"> & { searchKey?: string; isNew?: boolean };
+/** A sale as written to storage: the search key is derived again on restore. */
+type StoredSale = Omit<Sale, "searchKey">;
 
 const NO_IDS: readonly string[] = Object.freeze([]);
-const NO_POINTS = Object.freeze([]) as readonly PricePoint[] as PricePoint[];
+
+const freshSeen = (): SalesSeen =>
+  Object.freeze({ watermark: Date.now() - NEW_WINDOW_DAYS * DAY_MS, ids: NO_IDS });
+
+const emptySummary = (): SalesSummary =>
+  Object.freeze({
+    total: 0,
+    newCount: 0,
+    refreshedAt: null,
+    listRefreshedAt: null,
+    latestFirstSeenAt: null,
+  });
 
 const idSets = new WeakMap<readonly string[], Set<string>>();
 const idSet = (ids: readonly string[]): Set<string> => {
@@ -65,80 +92,92 @@ const indexOf = (items: readonly Sale[]): Map<string, Sale> => {
   return index;
 };
 
+const fingerprints = new WeakMap<readonly Sale[], string>();
+/** Count and newest scrape: a replay of an unchanged list leaves both as they were. */
+const fingerprintOf = (items: readonly Sale[]): string => {
+  let fingerprint = fingerprints.get(items);
+  if (fingerprint === undefined) {
+    let newest = 0;
+    for (const sale of items) if (sale.scrapedAt > newest) newest = sale.scrapedAt;
+    fingerprint = `${items.length}:${newest}`;
+    fingerprints.set(items, fingerprint);
+  }
+  return fingerprint;
+};
+
 /** Sales are replaced wholesale and never edited, so neither they nor the list get proxies. */
 const saleList = (sales: Iterable<Sale>): Sale[] => markRaw(Array.from(sales));
 
-const restoreSale = (stored: StoredSale): Sale => {
-  const sale = { ...stored };
-  delete sale.isNew;
-  delete sale.searchKey;
-  return Object.freeze({
-    ...sale,
-    searchKey: SaleMapper.searchKeyOf(sale.nameFull ?? sale.name ?? "", sale.seller ?? ""),
-  });
+const isStoredSale = (value: unknown): value is StoredSale => {
+  const sale = value as Partial<Record<keyof StoredSale, unknown>> | null;
+  return (
+    !!sale &&
+    typeof sale.id === "string" &&
+    typeof sale.name === "string" &&
+    typeof sale.nameFull === "string" &&
+    typeof sale.seller === "string" &&
+    typeof sale.price === "number" &&
+    typeof sale.link === "string" &&
+    typeof sale.firstSeenAt === "number" &&
+    typeof sale.scrapedAt === "number"
+  );
 };
 
-/** A sale as written to storage: the search key is derived again on restore. */
+const restoreSale = (stored: StoredSale): Sale =>
+  Object.freeze({
+    ...stored,
+    searchKey: SaleMapper.searchKeyOf(stored.nameFull, stored.seller),
+  });
+
 const storedSale = ({ searchKey: _searchKey, ...sale }: Sale): StoredSale => sale;
 
-const notNew = (): boolean => false;
+const isNumberOrNull = (value: unknown): value is number | null =>
+  value === null || typeof value === "number";
 
-/**
- * The price history after a snapshot: a point is added where the price
- * changed, ids no longer listed are dropped, every id keeps at most
- * MAX_PRICE_POINTS points. Returns `prev` itself when nothing changed.
- */
-export const nextHistory = (
-  prev: PriceHistory,
-  items: readonly Sale[],
-  now: number,
-): PriceHistory => {
-  const next: PriceHistory = {};
-  let changed = Object.keys(prev).length !== items.length;
-  for (const sale of items) {
-    const points = Object.hasOwn(prev, sale.id) ? prev[sale.id] : NO_POINTS;
-    let kept = points.length > MAX_PRICE_POINTS ? points.slice(-MAX_PRICE_POINTS) : points;
-    if (kept.at(-1)?.price !== sale.price) {
-      kept = [...kept, { price: sale.price, timestamp: now }].slice(-MAX_PRICE_POINTS);
-    }
-    if (kept !== points) changed = true;
-    next[sale.id] = kept;
-  }
-  return changed ? markRaw(next) : prev;
+const isNewIn = (sale: Sale, seen: SalesSeen, ids: Set<string>): boolean =>
+  sale.firstSeenAt > seen.watermark && !ids.has(sale.id);
+
+const countNew = (items: readonly Sale[], seen: SalesSeen): number => {
+  const ids = idSet(seen.ids);
+  let count = 0;
+  for (const sale of items) if (isNewIn(sale, seen, ids)) count += 1;
+  return count;
 };
 
-/**
- * New ids after a snapshot: those still new, plus those the previous list did
- * not have; ids no longer listed are dropped. Returns `prev` itself when the
- * set is unchanged.
- */
-const nextNewIds = (
-  prev: readonly string[],
-  before: readonly Sale[],
-  after: readonly Sale[],
-): readonly string[] => {
-  const known = indexOf(before);
-  const pending = idSet(prev);
-  const next = after
-    .filter((sale) => pending.has(sale.id) || !known.has(sale.id))
-    .map((sale) => sale.id);
-  const unchanged = next.length === prev.length && next.every((id) => pending.has(id));
-  return unchanged ? prev : Object.freeze(next);
+const latestFirstSeen = (items: readonly Sale[]): number | null => {
+  let latest: number | null = null;
+  for (const sale of items)
+    if (latest === null || sale.firstSeenAt > latest) latest = sale.firstSeenAt;
+  return latest;
+};
+
+/** Drops ids at or below the watermark or no longer listed; returns `prev` itself when nothing goes. */
+const prunedSeen = (prev: SalesSeen, items: readonly Sale[]): SalesSeen => {
+  const index = indexOf(items);
+  const kept = prev.ids.filter((id) => {
+    const sale = index.get(id);
+    return !!sale && sale.firstSeenAt > prev.watermark;
+  });
+  return kept.length === prev.ids.length
+    ? prev
+    : Object.freeze({ watermark: prev.watermark, ids: Object.freeze(kept) });
+};
+
+const sessionGuard = (): (() => boolean) => {
+  const started = epoch.current();
+  return () => !epoch.isStale(started);
 };
 
 export const useSalesStore = defineStore("sales", {
   state: () => ({
     items: saleList([]),
     streaming: false,
-    priceHistory: markRaw({}) as PriceHistory,
-    /** Ids of listed sales the user has not opened since they appeared. */
-    newIds: NO_IDS,
+    seen: freshSeen(),
+    summary: emptySummary(),
     /** How the list is ordered and narrowed; a browser preference, not account data. */
     query: defaultSalesQuery(),
     /** Every persisted entry was read (or tried) since the store was created or reset. */
     restored: false,
-    /** `isNew` flags found in a stored list of an older release, adopted by `restore`. */
-    legacyNewIds: null as string[] | null,
     /**
      * Replaced by `$reset`: reads and streams begun before a logout check it
      * and leave the state alone once it changed.
@@ -152,47 +191,71 @@ export const useSalesStore = defineStore("sales", {
   persist: {
     entries: [
       {
-        key: SALES_NEW_KEY,
+        key: SALES_SEEN_KEY,
         keepOnClear: true,
         allowExpired: true,
-        dirtyOn: [...STREAM_ACTIONS, "restore", "markSeen", "markAllSeen"],
-        version: (state) => state.newIds,
-        pick: (state) => ({ ids: state.newIds }),
-        apply: (state, data: { ids?: string[] }) => {
-          state.newIds = Object.freeze([...(data.ids ?? [])]);
+        dirtyOn: [...REPLAY_ACTIONS, "restore", "markSeen", "markAllSeen"],
+        version: (state) => state.seen,
+        pick: (state) => state.seen,
+        apply: (state, data: Partial<SalesSeen> | null) => {
+          if (
+            !data ||
+            typeof data.watermark !== "number" ||
+            !Array.isArray(data.ids) ||
+            !data.ids.every((id) => typeof id === "string")
+          ) {
+            return;
+          }
+          state.seen = Object.freeze({
+            watermark: data.watermark,
+            ids: Object.freeze([...data.ids]),
+          });
+        },
+      },
+      {
+        key: SALES_SUMMARY_KEY,
+        keepOnClear: true,
+        allowExpired: true,
+        dirtyOn: [...REPLAY_ACTIONS, "restore", "loadSummary", "markSeen", "markAllSeen"],
+        version: (state) => state.summary,
+        pick: (state) => state.summary,
+        apply: (state, data: Partial<SalesSummary> | null) => {
+          if (
+            !data ||
+            typeof data.total !== "number" ||
+            typeof data.newCount !== "number" ||
+            !isNumberOrNull(data.refreshedAt ?? null)
+          ) {
+            return;
+          }
+          state.summary = Object.freeze({
+            total: data.total,
+            newCount: data.newCount,
+            refreshedAt: data.refreshedAt ?? null,
+            listRefreshedAt: isNumberOrNull(data.listRefreshedAt ?? null)
+              ? (data.listRefreshedAt ?? null)
+              : null,
+            latestFirstSeenAt: isNumberOrNull(data.latestFirstSeenAt ?? null)
+              ? (data.latestFirstSeenAt ?? null)
+              : null,
+          });
         },
       },
       {
         key: "sales_data",
         keepOnClear: true,
         allowExpired: true,
-        dirtyOn: [...STREAM_ACTIONS, "restore"],
-        version: (state) => state.items,
+        dirtyOn: [...REPLAY_ACTIONS, "restore"],
+        version: (state) => fingerprintOf(state.items),
         pick: (state) => state.items.map(storedSale),
-        // A running stream's partial list is never stored: the entry stays dirty until it settles.
+        // A running replay's partial list is never stored: the entry stays dirty until it settles.
         timestamp: (state) => (state.streaming ? null : state.fetchedAt),
-        apply: (state, data: StoredSale[], timestamp) => {
-          const flagged = data.some((sale) => "isNew" in sale);
-          state.legacyNewIds = flagged
-            ? data.filter((sale) => sale.isNew === true).map((sale) => sale.id)
-            : null;
+        // A list of an older release lacks fields the new model needs: it is ignored, not migrated.
+        apply: (state, data: unknown[], timestamp) => {
+          if (!Array.isArray(data) || !data.every(isStoredSale)) return;
           state.items = saleList(data.map(restoreSale));
           state.fetchedAt = timestamp;
           state.status = "ready";
-        },
-      },
-      {
-        key: "sales_price_history",
-        keepOnClear: true,
-        allowExpired: true,
-        dirtyOn: STREAM_ACTIONS,
-        version: (state) => state.priceHistory,
-        // Stored as a list of { id, points }, the shape older releases wrote.
-        pick: (state) => Object.entries(state.priceHistory).map(([id, points]) => ({ id, points })),
-        apply: (state, data: { id: string; points: PricePoint[] }[]) => {
-          state.priceHistory = markRaw(
-            Object.fromEntries(data.map((entry) => [entry.id, entry.points])),
-          );
         },
       },
       {
@@ -210,10 +273,14 @@ export const useSalesStore = defineStore("sales", {
   },
 
   getters: {
-    isStale: (state): boolean => isStale(state.fetchedAt),
     isNew: (state): ((id: string) => boolean) => {
-      const ids = idSet(state.newIds);
-      return (id) => ids.has(id);
+      const index = indexOf(state.items);
+      const ids = idSet(state.seen.ids);
+      const seen = state.seen;
+      return (id) => {
+        const sale = index.get(id);
+        return !!sale && isNewIn(sale, seen, ids);
+      };
     },
     /** Sales after the user's filters, in the user's order. */
     filteredSales(): Sale[] {
@@ -221,7 +288,7 @@ export const useSalesStore = defineStore("sales", {
       const asksNew = this.query.sort === "new" || this.query.onlyNew;
       return applySalesQuery(this.items, this.query, {
         locale: localizationService.getLocale(),
-        isNew: asksNew ? this.isNew : notNew,
+        isNew: asksNew ? this.isNew : () => false,
       });
     },
     sellers(): string[] {
@@ -229,15 +296,11 @@ export const useSalesStore = defineStore("sales", {
         compareText(localizationService.getLocale()),
       );
     },
-    newCount: (state): number => state.newIds.length,
+    newCount: (state): number => state.summary.newCount,
     byId: (state): ((id: string) => Sale | undefined) => {
       const index = indexOf(state.items);
       return (id) => index.get(id);
     },
-    historyOf:
-      (state) =>
-      (id: string): PricePoint[] =>
-        Object.hasOwn(state.priceHistory, id) ? state.priceHistory[id] : NO_POINTS,
   },
 
   actions: {
@@ -246,30 +309,64 @@ export const useSalesStore = defineStore("sales", {
       if (this.restored) return Promise.resolve();
       const session = this.session;
       return coalesced(session, "restore", async () => {
-        // The badge may already be reading the new ids; joining that read keeps it from
-        // landing after (and over) the adoption of legacy flags below.
-        await Promise.all([this.$hydrate([SALES_NEW_KEY]), this.$hydrate(LIST_KEYS)]);
+        await Promise.all([this.$hydrate(SALES_BOOT_KEYS), this.$hydrate(LIST_KEYS)]);
         if (this.session !== session) return;
-        if (this.legacyNewIds) {
-          const listed = indexOf(this.items);
-          const adopted = this.legacyNewIds.filter((id) => listed.has(id));
-          this.newIds = Object.freeze([...new Set([...this.newIds, ...adopted])]);
-          // A new list reference rewrites the stored list without the old flags.
-          this.items = saleList(this.items);
-          this.legacyNewIds = null;
-        }
         this.restored = true;
       });
     },
 
-    /** Streams the sales unless fresh ones are in memory; concurrent callers share one stream. */
-    load({ force = false }: { force?: boolean } = {}): Promise<void> {
-      if (!force && this.status === "ready" && !this.isStale) return Promise.resolve();
+    /** Reads the server's counts for the badge; null when the account ended meanwhile. */
+    async loadSummary(): Promise<APISalesSummary | null> {
       const session = this.session;
-      return coalesced(session, "stream", async () => {
+      const isCurrent = sessionGuard();
+      await this.$hydrate(SALES_BOOT_KEYS);
+      if (!isCurrent() || this.session !== session) return null;
+      const dto = await ApiUtils.get<APISalesSummary>(
+        `${ENDPOINT}/summary?since=${this.seen.watermark}`,
+      );
+      if (!isCurrent() || this.session !== session) return null;
+      this.summary = Object.freeze({
+        ...this.summary,
+        total: dto.total,
+        newCount: Math.max(0, dto.new_since - this.seen.ids.length),
+        refreshedAt: dto.refreshed_at,
+        latestFirstSeenAt: dto.latest_first_seen_at ?? this.summary.latestFirstSeenAt,
+      });
+      return dto;
+    },
+
+    /**
+     * Replays the sales when none are stored or the server refreshed since the stored ones were
+     * replayed. A failing summary keeps a stored list as it is.
+     */
+    async ensureFresh(): Promise<void> {
+      const isCurrent = sessionGuard();
+      await this.restore();
+      if (!isCurrent()) return;
+      let summary: APISalesSummary | null = null;
+      try {
+        summary = await this.loadSummary();
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (this.items.length > 0) {
+          console.error("Loading the sales summary failed:", error);
+          return;
+        }
+      }
+      if (!isCurrent()) return;
+      const refreshedAt = summary?.refreshed_at ?? null;
+      const listRefreshedAt = this.summary.listRefreshedAt;
+      const newer =
+        refreshedAt !== null && (listRefreshedAt === null || refreshedAt > listRefreshedAt);
+      if (this.items.length === 0 || newer) await this.replay();
+    },
+
+    /** Replays the sales now; concurrent callers share one stream. */
+    replay(): Promise<void> {
+      const session = this.session;
+      return coalesced(session, "stream", async (isCurrent) => {
         await this.restore();
-        if (this.session !== session) return;
-        if (!force && this.status === "ready" && !this.isStale) return;
+        if (this.session !== session || !isCurrent()) return;
         await handleRequest(this.runStream(), RESOURCE_KEY);
       });
     },
@@ -278,6 +375,8 @@ export const useSalesStore = defineStore("sales", {
       const before = this.items;
       const received = new Map<string, Sale>();
       const progressive = before.length === 0;
+      const refreshedAt = this.summary.refreshedAt;
+      const isCurrent = sessionGuard();
       let lastPublish = Number.NEGATIVE_INFINITY;
       let pending: ReturnType<typeof setTimeout> | undefined;
       const run = markRaw({});
@@ -292,14 +391,20 @@ export const useSalesStore = defineStore("sales", {
       return new Promise<void>((resolve, reject) => {
         let stop: (() => void) | null = null;
         let settled = false;
+        let stopListening: (() => void) | null = null;
         const cleanup = () => {
           stop?.();
+          stopListening?.();
           stopPublishing();
         };
-        /** Stops a stream that was superseded or reset; true when it may no longer commit. */
+        /** Stops a stream that was superseded, reset or ended with its session. */
         const superseded = (): boolean => {
-          if (this.activeRun === run) return false;
+          if (this.activeRun === run && isCurrent()) return false;
           cleanup();
+          if (this.activeRun === run) {
+            this.activeRun = null;
+            this.streaming = false;
+          }
           if (!settled) {
             settled = true;
             resolve();
@@ -311,6 +416,10 @@ export const useSalesStore = defineStore("sales", {
           this.activeRun = null;
           this.streaming = false;
         };
+
+        stopListening = epoch.onAbortAll(() => {
+          superseded();
+        });
 
         const publish = () => {
           pending = undefined;
@@ -341,7 +450,7 @@ export const useSalesStore = defineStore("sales", {
               let added = false;
               for (const sale of SaleMapper.convertToSales(event.data as APISale[])) {
                 if (received.has(sale.id)) continue;
-                received.set(sale.id, Object.freeze(sale));
+                received.set(sale.id, sale);
                 added = true;
               }
               if (added) publishSoon();
@@ -355,8 +464,15 @@ export const useSalesStore = defineStore("sales", {
             cleanup();
             const items = saleList(received.values());
             const now = Date.now();
-            this.priceHistory = nextHistory(this.priceHistory, items, now);
-            this.newIds = nextNewIds(this.newIds, before, items);
+            const seen = prunedSeen(this.seen, items);
+            if (seen !== this.seen) this.seen = seen;
+            this.summary = Object.freeze({
+              total: items.length,
+              newCount: countNew(items, seen),
+              refreshedAt: this.summary.refreshedAt,
+              listRefreshedAt: refreshedAt,
+              latestFirstSeenAt: latestFirstSeen(items) ?? this.summary.latestFirstSeenAt,
+            });
             this.items = items;
             this.fetchedAt = now;
             this.status = "ready";
@@ -373,6 +489,17 @@ export const useSalesStore = defineStore("sales", {
       });
     },
 
+    /** The sale and its price history from the server, for the details page; null after logout. */
+    async loadDetail(
+      id: string,
+    ): Promise<{ sale: Sale; history: readonly SalePricePoint[] } | null> {
+      const session = this.session;
+      const isCurrent = sessionGuard();
+      const dto = await ApiUtils.get<APISaleDetail>(`${ENDPOINT}/${encodeURIComponent(id)}`);
+      if (!isCurrent() || this.session !== session) return null;
+      return SaleMapper.mapDetail(dto);
+    },
+
     setQuery(query: Partial<SalesQuery>): void {
       this.query = { ...this.query, ...query };
     },
@@ -381,13 +508,29 @@ export const useSalesStore = defineStore("sales", {
       this.query = { ...defaultSalesQuery(), sort: this.query.sort };
     },
 
-    markSeen(id: string): void {
-      if (!idSet(this.newIds).has(id)) return;
-      this.newIds = Object.freeze(this.newIds.filter((newId) => newId !== id));
+    /** One sale opened; `firstSeenAt` covers a sale the stored list does not have. */
+    markSeen(id: string, firstSeenAt?: number): void {
+      const first = this.byId(id)?.firstSeenAt ?? firstSeenAt;
+      if (first === undefined || first <= this.seen.watermark) return;
+      if (idSet(this.seen.ids).has(id)) return;
+      this.seen = Object.freeze({
+        watermark: this.seen.watermark,
+        ids: Object.freeze([...this.seen.ids, id]),
+      });
+      if (this.summary.newCount > 0) {
+        this.summary = Object.freeze({ ...this.summary, newCount: this.summary.newCount - 1 });
+      }
     },
 
     markAllSeen(): void {
-      if (this.newIds.length > 0) this.newIds = NO_IDS;
+      const latest = Math.max(
+        this.seen.watermark,
+        this.summary.latestFirstSeenAt ?? 0,
+        latestFirstSeen(this.items) ?? 0,
+      );
+      if (latest === this.seen.watermark && this.seen.ids.length === 0) return;
+      this.seen = Object.freeze({ watermark: latest, ids: NO_IDS });
+      this.summary = Object.freeze({ ...this.summary, newCount: 0 });
     },
   },
 });

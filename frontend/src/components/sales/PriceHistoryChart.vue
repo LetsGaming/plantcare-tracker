@@ -16,8 +16,8 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="point in sorted" :key="point.timestamp">
-          <td>{{ formatDate(point.timestamp) }}</td>
+        <tr v-for="point in sorted" :key="point.observedAt">
+          <td>{{ formatDate(point.observedAt) }}</td>
           <td>{{ formatPrice(point.price) }}</td>
         </tr>
       </tbody>
@@ -32,17 +32,12 @@ import localizationService from "@/services/general/LocalizationService";
 import { dateTimeFormat, numberFormat } from "@/utils/intlCache";
 import { formatDisplayDate } from "@/utils/localDate";
 
-interface PricePoint {
-  price: number;
-  timestamp: number;
-}
-
 export default defineComponent({
   name: "PriceHistoryChart",
   components: { LineChart },
   props: {
     history: {
-      type: Array as () => PricePoint[],
+      type: Array as () => readonly SalePricePoint[],
       required: true,
     },
     referencePrice: {
@@ -55,8 +50,8 @@ export default defineComponent({
     },
   },
   computed: {
-    sorted(): PricePoint[] {
-      return [...this.history].sort((a, b) => a.timestamp - b.timestamp);
+    sorted(): SalePricePoint[] {
+      return [...this.history].sort((a, b) => a.observedAt - b.observedAt);
     },
     prices(): number[] {
       return this.sorted.map((p) => p.price);
@@ -69,7 +64,7 @@ export default defineComponent({
           dateTimeFormat(localizationService.getLocale(), {
             day: "numeric",
             month: "numeric",
-          }).format(new Date(p.timestamp)),
+          }).format(new Date(p.observedAt)),
         ),
         datasets: [
           {
@@ -103,8 +98,8 @@ export default defineComponent({
       const prices = this.prices;
       return this.t("chart.line_summary", {
         count: prices.length,
-        from: this.formatDate(this.sorted[0].timestamp),
-        to: this.formatDate(this.sorted[this.sorted.length - 1].timestamp),
+        from: this.formatDate(this.sorted[0].observedAt),
+        to: this.formatDate(this.sorted[this.sorted.length - 1].observedAt),
         min: this.formatPrice(Math.min(...prices)),
         max: this.formatPrice(Math.max(...prices)),
         last: this.formatPrice(prices[prices.length - 1]),

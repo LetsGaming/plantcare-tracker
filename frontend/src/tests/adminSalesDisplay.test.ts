@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createInstalledPinia, resetStore } from "./helpers";
+import { apiSale, createInstalledPinia, resetStore } from "./helpers";
 
 vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
@@ -162,16 +162,7 @@ describe("sale prices", () => {
   });
 
   it("treats generated letter tiles as no photo", () => {
-    const sale = (url: string | null) =>
-      SaleMapper.mapSale({
-        sale_id: "1",
-        sale_name: "x",
-        sale_seller: "s",
-        sale_new_price: 1,
-        sale_old_price: 2,
-        sale_link: "l",
-        sale_image_url: url,
-      } as APISale);
+    const sale = (url: string | null) => SaleMapper.mapSale(apiSale({ sale_image_url: url }));
     expect(sale("data:image/svg+xml;base64,AAA").imageUrl).toBeUndefined();
     expect(sale("https://cdn.example.com/a.webp").imageUrl).toBe("https://cdn.example.com/a.webp");
     expect(sale(null).imageUrl).toBeUndefined();

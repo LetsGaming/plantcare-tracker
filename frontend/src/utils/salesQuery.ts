@@ -46,7 +46,10 @@ export interface SalesQueryContext {
 const keeps = (sale: Sale, query: SalesQuery, isNew: (id: string) => boolean): boolean => {
   if (query.shops.length > 0 && !query.shops.includes(sale.seller)) return false;
   if (query.onlyNew && !isNew(sale.id)) return false;
-  if (query.minDiscount > 0 && discountPercent(sale.price, sale.oldPrice) < query.minDiscount) {
+  if (
+    query.minDiscount > 0 &&
+    discountPercent(sale.price, sale.oldPrice ?? 0) < query.minDiscount
+  ) {
     return false;
   }
   if (query.minPrice !== null && sale.price < query.minPrice) return false;
@@ -59,7 +62,7 @@ const compare = (a: Sale, b: Sale, sort: SalesSort, isNew: (id: string) => boole
     case "new":
       return Number(isNew(b.id)) - Number(isNew(a.id));
     case "discount":
-      return discountPercent(b.price, b.oldPrice) - discountPercent(a.price, a.oldPrice);
+      return discountPercent(b.price, b.oldPrice ?? 0) - discountPercent(a.price, a.oldPrice ?? 0);
     case "priceAsc":
       return a.price - b.price;
     case "priceDesc":

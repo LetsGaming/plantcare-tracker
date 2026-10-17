@@ -21,6 +21,7 @@ import { filterOverviewItems, type OverviewItem } from "@/components/overview/It
 import SalesOverview from "@/views/sales/SalesOverview.vue";
 import localizationService from "@/services/general/LocalizationService";
 import { formatPrice } from "@/utils/formatPrice";
+import { apiSale } from "./helpers";
 
 const sale = (id: string, over: Partial<Sale> = {}): Sale => ({
   id,
@@ -30,6 +31,9 @@ const sale = (id: string, over: Partial<Sale> = {}): Sale => ({
   price: 20,
   oldPrice: 40,
   link: `https://shop.example/${id}`,
+  discountPct: null,
+  firstSeenAt: 1000,
+  scrapedAt: 2000,
   searchKey: `plant ${id} leafy`,
   ...over,
 });
@@ -38,7 +42,7 @@ const sales: Sale[] = [
   sale("a", { price: 30, oldPrice: 40, seller: "Leafy" }),
   sale("b", { price: 10, oldPrice: 40, seller: "Jungle" }),
   sale("c", { price: 50, oldPrice: 50, seller: "Jungle" }),
-  sale("d", { price: 20, oldPrice: null as unknown as number, seller: "Leafy" }),
+  sale("d", { price: 20, oldPrice: null, seller: "Leafy" }),
 ];
 
 const newIds = new Set(["b", "d"]);
@@ -125,15 +129,17 @@ describe("activeFilterCount", () => {
 });
 
 describe("sales search", () => {
-  const mapped = SaleMapper.mapSale({
-    sale_id: "monstera-4711",
-    sale_name: "Monstera Thai Constellation",
-    sale_seller: "Leafy Rarities",
-    sale_new_price: 89,
-    sale_old_price: 120,
-    sale_link: "https://leafy.example/p/monstera-4711",
-    sale_image_url: "https://cdn.example/img/monstera.webp",
-  });
+  const mapped = SaleMapper.mapSale(
+    apiSale({
+      sale_id: "monstera-4711",
+      sale_name: "Monstera Thai Constellation",
+      sale_seller: "Leafy Rarities",
+      sale_new_price: 89,
+      sale_old_price: 120,
+      sale_link: "https://leafy.example/p/monstera-4711",
+      sale_image_url: "https://cdn.example/img/monstera.webp",
+    }),
+  );
 
   /** The cards SalesOverview hands to ItemsOverview, searched the way ItemsOverview searches. */
   const search = (query: string): OverviewItem[] => {

@@ -56,8 +56,16 @@ import {
 import { navIcons, type NavDestination } from "@/theme/icons";
 import localizationService from "@/services/general/LocalizationService";
 import { useSessionStore } from "@/stores/session";
-import { SALES_NEW_KEY, useSalesStore } from "@/stores/sales";
+import { SALES_BOOT_KEYS, useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
+
+/** Runs `task` once the first frame is out, so boot does not wait for it. */
+const afterFirstPaint = (task: () => Promise<unknown>): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const run = () => task().then(resolve, reject);
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else setTimeout(run, 0);
+  });
 
 export default defineComponent({
   name: "TabsPage",
@@ -85,13 +93,10 @@ export default defineComponent({
   },
   async mounted() {
     const sales = useSalesStore();
-    // Without stored new ids the list may still carry an older release's flags; restore adopts them.
     void sales
-      .$hydrate([SALES_NEW_KEY])
-      .then(async (found) => {
-        if (!found) await sales.restore();
-      })
-      .catch((error: unknown) => console.error("Restoring the new sales failed:", error));
+      .$hydrate(SALES_BOOT_KEYS)
+      .then(() => afterFirstPaint(() => sales.loadSummary()))
+      .catch((error: unknown) => console.error("Loading the sales badge failed:", error));
     if (!this.isAdmin) return;
     try {
       await this.loadSourceHealth();
