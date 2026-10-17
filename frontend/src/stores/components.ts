@@ -43,6 +43,7 @@ import {
   pageSearchParams,
   type ApiPage,
   type FetchPage,
+  type PagedState,
 } from "./paged";
 
 const ENDPOINT = "/components";

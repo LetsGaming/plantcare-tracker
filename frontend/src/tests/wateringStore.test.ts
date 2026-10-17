@@ -140,10 +140,14 @@ describe("reading the history", () => {
   });
 
   it("keeps at most 20 plants and evicts the least recently used", async () => {
-    api.get.mockImplementation(async (url: string) =>
-      envelope([
-        item(Number(url.split("/")[3].split("?")[0]) * 10, Number(url.split("/")[3].split("?")[0])),
-      ]).data,
+    api.get.mockImplementation(
+      async (url: string) =>
+        envelope([
+          item(
+            Number(url.split("/")[3].split("?")[0]) * 10,
+            Number(url.split("/")[3].split("?")[0]),
+          ),
+        ]).data,
     );
     const store = await newStore();
     for (let plantId = 1; plantId <= HISTORY_CACHE_SIZE; plantId += 1) {
