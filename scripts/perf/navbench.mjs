@@ -16,13 +16,15 @@ import { loadSession, parseFlags, repoRoot, requireId } from "./lib/session.mjs"
 const HELP = `Navigation benchmark against the served production build (4x CPU, Fast 4G, mobile profile).
 
 Usage: node scripts/perf/navbench.mjs --id <dev-up session id> --url <served url>
-         [--scenario tabs|sales-entry|plants-cold|mark-all-seen|search|all (comma list ok)]
+         [--scenario tabs|sales-entry|plants-cold|mark-all-seen|search|public-scroll|sales-replay|round-tap|heap-20-switches|all (comma list ok)]
          [--runs 5] [--n 300] [--label <name>] [--compare <baseline.json>] [--targets]
          [--user grower] [--headed]
 
 Every run uses a fresh browser context; the grower logs in through the login form.
 Results: scripts/perf/results/<label>-navbench.json and .md. --n is the injected Sales count
-(plants-cold injects nothing unless --n is given).`;
+(plants-cold injects nothing unless --n is given).
+sales-replay measures the replay of the sales the server holds: seed them first with
+inject-sales.mjs --mode db --n 2000. public-scroll expects a large public plant set (amplify.mjs).`;
 
 const PASSWORD = "DevPass123!";
 const SETTLE_QUIET_MS = 500;
@@ -33,18 +35,26 @@ const POLL_MS = 100;
 const NO_THROTTLE_NETWORK = { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 };
 const COLD_QUIET_MS = 2000;
 const COLD_TIMEOUT_MS = 300000;
-const ACCOUNT_CACHE_KEYS = [
-  "plants_all",
-  "substrates_all",
-  "components_all",
-  "components_fineness_levels",
-  "watering_records_data",
-  "fertilizer_types_data",
-  "more_info_data",
-  "sales_data",
-  "sales_price_history",
+const KV_DB = "_ionicstorage";
+const CACHE_DB = "plantcare_cache";
+const KV_STORE = "_ionickv";
+const KV_ACCOUNT_KEYS = ["sales_data", "sales_summary", "sales_seen"];
+const SCENARIOS = [
+  "tabs",
+  "sales-entry",
+  "plants-cold",
+  "mark-all-seen",
+  "search",
+  "public-scroll",
+  "sales-replay",
+  "round-tap",
+  "heap-20-switches",
 ];
-const SCENARIOS = ["tabs", "sales-entry", "plants-cold", "mark-all-seen", "search"];
+const PUBLIC_PAGES = 6;
+const ROUND_TAPS = 5;
+const SWITCHES = 20;
+const SWITCH_ROUTE = ["substrates", "components", "sales", "plants"];
+const VISIBLE_PAGE = "ion-router-outlet .ion-page:not(.ion-page-hidden)";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -74,6 +84,7 @@ class Bench {
     this.headed = headed;
     this.requestLog = [];
     this.wateringResponses = [];
+    this.apiResponses = [];
     this.lastRequestAt = Date.now();
   }
 
@@ -88,6 +99,7 @@ class Bench {
     });
     page.on("response", (response) => {
       if (/\/watering\/plant\//.test(response.url())) this.wateringResponses.push(Date.now());
+      if (/\/api\//.test(response.url())) this.apiResponses.push(Date.now());
     });
     await client.send("Performance.enable");
     await client.send("HeapProfiler.enable");
@@ -135,29 +147,54 @@ class Bench {
     await throttle(this.client, { cpu: 1, network: NO_THROTTLE_NETWORK });
   }
 
-  /** Removes every account-data cache entry (keeps the auth token and settings keys) and returns the remaining keys. */
+  /**
+   * Empties the account cache database and removes the sales entries from the kv database (the
+   * auth token and settings stay). Returns the keys still present in each.
+   */
   async clearAccountCache() {
     return this.page.evaluate(
-      (keys) =>
-        new Promise((resolve, reject) => {
-          const open = indexedDB.open("_ionicstorage");
-          open.onerror = () => reject(open.error);
-          open.onsuccess = () => {
-            const db = open.result;
-            const tx = db.transaction("_ionickv", "readwrite");
-            const store = tx.objectStore("_ionickv");
-            for (const key of keys) store.delete(key);
-            const remaining = store.getAllKeys();
-            tx.oncomplete = () => {
-              db.close();
-              resolve(remaining.result);
+      ({ kvName, cacheName, storeName, kvKeys }) => {
+        const open = (name) =>
+          new Promise((resolve, reject) => {
+            const request = indexedDB.open(name);
+            request.onupgradeneeded = () => {
+              if (!request.result.objectStoreNames.contains(storeName)) request.result.createObjectStore(storeName);
             };
-            tx.onerror = () => reject(tx.error);
-            tx.onabort = () => reject(tx.error);
-          };
-        }),
-      ACCOUNT_CACHE_KEYS,
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+        const run = async (name, work) => {
+          const db = await open(name);
+          try {
+            return await new Promise((resolve, reject) => {
+              const tx = db.transaction(storeName, "readwrite");
+              const store = tx.objectStore(storeName);
+              work(store);
+              const keys = store.getAllKeys();
+              tx.oncomplete = () => resolve(keys.result);
+              tx.onerror = () => reject(tx.error);
+              tx.onabort = () => reject(tx.error);
+            });
+          } finally {
+            db.close();
+          }
+        };
+        return Promise.all([
+          run(kvName, (store) => {
+            for (const key of kvKeys) store.delete(key);
+          }),
+          run(cacheName, (store) => store.clear()),
+        ]).then(([kv, cache]) => ({ kv, cache }));
+      },
+      { kvName: KV_DB, cacheName: CACHE_DB, storeName: KV_STORE, kvKeys: KV_ACCOUNT_KEYS },
     );
+  }
+
+  /** Used JS heap in MB after a forced collection, read through Runtime.getHeapUsage. */
+  async heapUsageMb() {
+    await this.client.send("HeapProfiler.collectGarbage");
+    const { usedSize } = await this.client.send("Runtime.getHeapUsage");
+    return usedSize / (1024 * 1024);
   }
 
   async heapMb() {
@@ -177,24 +214,30 @@ class Bench {
   }
 
   /** Runs `action` (a short page.evaluate or navigation), waits for the DOM to settle, returns the step record. */
-  async step(action, { networkQuietMs = 0, domQuietMs, timeoutMs, reinstallObserver = false } = {}) {
+  async step(action, { networkQuietMs = 0, domQuietMs, timeoutMs, reinstallObserver = false, until, extra } = {}) {
     const { page } = this;
     const tasksBefore = reinstallObserver ? 0 : await page.evaluate(() => window.__longtasks.length);
     const requestsBefore = this.requestLog.length;
     const wateringBefore = this.wateringResponses.length;
+    const apiBefore = this.apiResponses.length;
     const startedAt = Date.now();
     await action();
     if (reinstallObserver) {
       await page.waitForSelector("ion-tab-button", { timeout: STEP_TIMEOUT_MS });
       await installSettleObserver(page);
     }
+    if (until) await until();
     await this.settle({ networkQuietMs, domQuietMs, timeoutMs });
     const tasks = (await page.evaluate((from) => window.__longtasks.slice(from), tasksBefore)).filter(Boolean);
     const requests = summarizeRequests(this.requestLog.slice(requestsBefore));
     const domNodes = await page.evaluate(() => document.querySelectorAll("*").length);
     const cards = await this.visibleImageCount();
     const lastWatering = this.wateringResponses.length > wateringBefore ? this.wateringResponses.at(-1) : null;
+    const lastApi = this.apiResponses.length > apiBefore ? this.apiResponses.at(-1) : null;
+    const extras = extra ? await extra() : {};
     return {
+      ...extras,
+      lastApiResponseMs: lastApi === null ? null : lastApi - startedAt,
       longTasks: tasks.length,
       blockedMs: blockedTime(tasks),
       longestMs: longestTask(tasks),
@@ -270,7 +313,7 @@ const scenarios = {
       const out = {};
       await bench.removeThrottle();
       const remaining = await bench.clearAccountCache();
-      const leftover = remaining.filter((key) => ACCOUNT_CACHE_KEYS.includes(key));
+      const leftover = [...remaining.kv.filter((key) => KV_ACCOUNT_KEYS.includes(key)), ...remaining.cache];
       if (leftover.length > 0) throw new Error(`Account cache keys survived: ${leftover.join(", ")}`);
       await bench.page.goto("about:blank");
       await bench.applyThrottle();
@@ -328,6 +371,138 @@ const scenarios = {
       out["search/type-ros"] = await bench.step(type("ros"));
       out["search/clear"] = await bench.step(type(""));
       return out;
+    } finally {
+      await bench.close();
+    }
+  },
+
+  async "public-scroll"(context) {
+    const bench = await newSession(context, { injectCount: 0 });
+    try {
+      const out = {};
+      const extra = async () => ({
+        cards: await bench.page.evaluate((root) => document.querySelectorAll(`${root} .tag-card`).length, VISIBLE_PAGE),
+        publicPageRequests: bench.requestLog.filter((url) => /scope=public/.test(url) && /cursor=/.test(url)).length,
+      });
+      await bench.step(bench.tap("plants"));
+      out["public-scroll/first-page"] = await bench.step(
+        async () => {
+          const found = await bench.page.evaluate((root) => {
+            const button = document.querySelector(`${root} ion-segment-button[value="public"]`);
+            if (!button) return false;
+            window.__lastMutation = performance.now();
+            button.click();
+            return true;
+          }, VISIBLE_PAGE);
+          if (!found) throw new Error("No public segment button on the Plants page");
+        },
+        { networkQuietMs: NETWORK_QUIET_MS, extra },
+      );
+      for (let page = 1; page <= PUBLIC_PAGES; page++) {
+        out[`public-scroll/next-page-${String(page).padStart(2, "0")}`] = await bench.step(
+          async () => {
+            const scrolled = await bench.page.evaluate(async (root) => {
+              const content = document.querySelector(`${root} ion-content`);
+              if (!content) return false;
+              const scroller = await content.getScrollElement();
+              window.__lastMutation = performance.now();
+              scroller.scrollTop = scroller.scrollHeight;
+              return true;
+            }, VISIBLE_PAGE);
+            if (!scrolled) throw new Error("No scrollable ion-content on the Plants page");
+          },
+          { networkQuietMs: NETWORK_QUIET_MS, extra },
+        );
+      }
+      return out;
+    } finally {
+      await bench.close();
+    }
+  },
+
+  async "sales-replay"(context) {
+    const bench = await newSession(context, { injectCount: 0 });
+    try {
+      await bench.page.evaluate((root) => {
+        window.__countTexts = [];
+        new MutationObserver(() => {
+          const text = document.querySelector(`${root} .count`)?.textContent?.trim();
+          if (text && window.__countTexts.at(-1) !== text) window.__countTexts.push(text);
+        }).observe(document.body, { subtree: true, childList: true, characterData: true });
+      }, VISIBLE_PAGE);
+      const out = {};
+      out["sales-replay/replay"] = await bench.step(bench.tap("sales"), {
+        domQuietMs: 2000,
+        networkQuietMs: NETWORK_QUIET_MS,
+        until: () => bench.page.waitForSelector(`${VISIBLE_PAGE} .count`, { timeout: STEP_TIMEOUT_MS }),
+        extra: async () => {
+          const texts = await bench.page.evaluate(() => window.__countTexts);
+          return { listCommits: texts.length, replayedItems: Number.parseInt(texts.at(-1) ?? "0", 10) || 0 };
+        },
+      });
+      return out;
+    } finally {
+      await bench.close();
+    }
+  },
+
+  async "round-tap"(context) {
+    const bench = await newSession(context, { injectCount: 0 });
+    try {
+      const out = {};
+      const rows = `${VISIBLE_PAGE} .round-row`;
+      out["round-tap/open"] = await bench.step(
+        async () => {
+          await bench.page.evaluate(() => {
+            window.__lastMutation = performance.now();
+            window.location.hash = "#/tabs/plants/water";
+          });
+        },
+        {
+          networkQuietMs: NETWORK_QUIET_MS,
+          until: () => bench.page.waitForSelector(rows, { timeout: STEP_TIMEOUT_MS }),
+        },
+      );
+      for (let tap = 1; tap <= ROUND_TAPS; tap++) {
+        out[`round-tap/tap-${String(tap).padStart(2, "0")}`] = await bench.step(async () => {
+          const ok = await bench.page.evaluate(
+            ({ selector, index }) => {
+              const box = document.querySelectorAll(`${selector} .tick-box`)[index];
+              if (!box) return false;
+              window.__lastMutation = performance.now();
+              box.click();
+              return true;
+            },
+            { selector: rows, index: tap - 1 },
+          );
+          if (!ok) throw new Error(`Watering round has no row ${tap}`);
+        });
+      }
+      return out;
+    } finally {
+      await bench.close();
+    }
+  },
+
+  async "heap-20-switches"(context) {
+    const bench = await newSession(context, { injectCount: 0 });
+    try {
+      for (const tab of SWITCH_ROUTE) await bench.step(bench.tap(tab), { networkQuietMs: NETWORK_QUIET_MS });
+      const before = await bench.heapUsageMb();
+      for (let index = 0; index < SWITCHES; index++) {
+        await bench.step(bench.tap(SWITCH_ROUTE[index % SWITCH_ROUTE.length]), { networkQuietMs: NETWORK_QUIET_MS });
+      }
+      const after = await bench.heapUsageMb();
+      const domNodes = await bench.page.evaluate(() => document.querySelectorAll("*").length);
+      return {
+        "heap-20-switches/switches": {
+          heapBeforeMb: before,
+          heapAfterMb: after,
+          heapGrowthPct: before > 0 ? ((after - before) / before) * 100 : null,
+          domNodes,
+          requestsByPath: {},
+        },
+      };
     } finally {
       await bench.close();
     }

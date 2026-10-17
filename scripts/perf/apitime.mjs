@@ -7,10 +7,13 @@ import { loadSession, parseFlags, repoRoot, requireId } from "./lib/session.mjs"
 
 const PASSWORD = "DevPass123!";
 const DEFAULT_ENDPOINTS = [
-  "/plants",
-  "/substrates",
+  "/plants?scope=mine&limit=100",
+  "/plants?scope=public&limit=30",
+  "/substrates?scope=mine&limit=30",
+  "/substrates?scope=public",
   "/components",
-  "/watering/plant/{firstPlantId}",
+  "/sales/summary",
+  "/watering/plant/{firstPlantId}?limit=50",
   "/watering/fertilizer-types",
 ];
 
@@ -168,7 +171,7 @@ const main = async () => {
 
   let plantId = null;
   if (templates.some((t) => t.includes("{firstPlantId}"))) {
-    const res = await request(`${session.apiBase}/plants`, {
+    const res = await request(`${session.apiBase}/plants?scope=mine&limit=1`, {
       headers: { ...auth, "accept-encoding": "identity" },
     });
     plantId = firstPlantId(unwrap(res.body));

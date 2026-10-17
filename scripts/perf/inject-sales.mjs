@@ -9,14 +9,16 @@ import {
   requireId,
 } from "./lib/session.mjs";
 
-const HELP = `Writes N Sales and their price history into the served app's IndexedDB (Ionic Storage).
+const HELP = `Writes N Sales into the served app's IndexedDB (Ionic Storage) or into the session database.
 
 Usage: node scripts/perf/inject-sales.mjs --id <dev-up session id> --url <served url> [--n 300] [--points 12] [--mode idb|db] [--reset]
 
---mode idb  opens a fresh browser context on --url, writes sales_data and sales_price_history
-            (database _ionicstorage, object store _ionickv) and reads them back. The context is
-            discarded afterwards, so this CLI is a smoke check; navbench imports injectSales to
-            inject into the context it measures.
+--mode idb  opens a fresh browser context on --url, writes sales_data, sales_seen and sales_summary
+            (database _ionicstorage, object store _ionickv, the kv area the sales store keeps across
+            logouts) and reads the list back. Items carry firstSeenAt and scrapedAt in ms; about one
+            in seven is NEW against the 7 day watermark. --points does not apply (history is loaded
+            from the API). The context is discarded afterwards, so this CLI is a smoke check; navbench
+            imports injectSales to inject into the context it measures.
 --mode db   writes N synthetic rows (ids perf-sale-<i>) and --points price points each straight
             into the session's SQLite database (sales_items, sales_price_points) in one
             transaction; about a quarter have first_seen_at within the last 24 h (NEW), the rest
@@ -45,12 +47,13 @@ const GENERA = [
   "Pothos",
   "Anthurium",
 ];
+const NEW_WINDOW_DAYS = 7;
 const ID_LIKE = "perf-sale-%";
 
 const collectUploadUrls = (value, found) => {
   if (found.size >= MAX_IMAGE_URLS) return;
   if (typeof value === "string") {
-    if (value.startsWith("/uploads/")) found.add(value);
+    if (value.startsWith("/uploads/") && !/s/.test(value)) found.add(value);
   } else if (Array.isArray(value)) {
     for (const item of value) collectUploadUrls(item, found);
   } else if (value && typeof value === "object") {
@@ -69,7 +72,7 @@ export const fetchImageUrls = async (apiBase, username = "grower") => {
     throw new Error(`Login as ${username} answered ${login.status}`);
   const body = await login.json();
   const token = (body.data ?? body).accessToken;
-  const plants = await fetch(`${apiBase}/plants`, {
+  const plants = await fetch(`${apiBase}/plants?scope=mine&limit=100`, {
     headers: { authorization: `Bearer ${token}` },
   });
   if (!plants.ok) throw new Error(`GET /plants answered ${plants.status}`);
@@ -78,56 +81,44 @@ export const fetchImageUrls = async (apiBase, username = "grower") => {
   return [...found];
 };
 
-const writeEnvelopes = async ({ n, points, imageUrls, allNew }) => {
+const writeEnvelopes = async ({ n, imageUrls, allNew, sellers, genera, newWindowDays }) => {
   const now = Date.now();
   const DAY_MS = 24 * 60 * 60 * 1000;
-  const sellers = [
-    "Leafy Rarities",
-    "Jungle Corner",
-    "Broken Botanics",
-    "Patchy Plants",
-    "Green Atelier",
-    "Monstera Mart",
-    "Fern Factory",
-    "Root & Rosette",
-  ];
-  const genera = [
-    "Monstera",
-    "Philodendron",
-    "Calathea",
-    "Alocasia",
-    "Hoya",
-    "Ficus",
-    "Pothos",
-    "Anthurium",
-  ];
+  const watermark = now - newWindowDays * DAY_MS;
   const items = [];
-  const history = [];
   for (let i = 0; i < n; i++) {
     const seller = sellers[i % sellers.length];
     const price = 6 + ((i * 7) % 90) + 0.5;
+    const oldPrice = Math.round(price * 1.35 * 100) / 100;
     const nameFull = `${genera[i % genera.length]} variegata cultivar number ${i} in a decorative pot`;
-    items.push({
+    const isNew = allNew ? true : i % 7 === 0;
+    const item = {
       id: `perf-sale-${i}`,
-      name: nameFull.length > 45 ? `${nameFull.slice(0, 44)}...` : nameFull,
+      name: nameFull.length > 45 ? `${nameFull.slice(0, 42)}...` : nameFull,
       nameFull,
       seller,
       price,
-      oldPrice: Math.round(price * 1.35 * 100) / 100,
+      oldPrice,
+      discountPct: Math.round((1 - price / oldPrice) * 100),
       link: `https://shop.example/${i % sellers.length}/item-${i}`,
-      imageUrl: imageUrls.length ? imageUrls[i % imageUrls.length] : undefined,
-      scrapedAt: new Date(now - (i % 600) * 1000).toISOString(),
-      isNew: allNew ? true : i % 7 === 0,
-    });
-    const pts = [];
-    for (let p = 0; p < points; p++) {
-      pts.push({
-        price: Math.round(price * (1 + ((points - p) % 5) * 0.04) * 100) / 100,
-        timestamp: now - (points - p) * DAY_MS,
-      });
-    }
-    history.push({ id: `perf-sale-${i}`, points: pts });
+      firstSeenAt: isNew ? now - ((i * 37) % 1380 + 1) * 60 * 1000 : now - 20 * DAY_MS - i * 1000,
+      scrapedAt: now - (i % 600) * 1000,
+    };
+    if (imageUrls.length) item.imageUrl = imageUrls[i % imageUrls.length];
+    items.push(item);
   }
+  const newCount = items.filter((item) => item.firstSeenAt > watermark).length;
+  const latestFirstSeenAt = items.reduce((max, item) => Math.max(max, item.firstSeenAt), 0) || null;
+  // A list stamped far in the future counts as newer than any server refresh, so the first
+  // visit shows the injected list instead of replaying it from the server.
+  const listRefreshedAt = now + 3650 * DAY_MS;
+  const summary = {
+    total: n,
+    newCount,
+    refreshedAt: listRefreshedAt,
+    listRefreshedAt,
+    latestFirstSeenAt,
+  };
 
   const db = await new Promise((resolve, reject) => {
     const request = indexedDB.open("_ionicstorage");
@@ -140,37 +131,21 @@ const writeEnvelopes = async ({ n, points, imageUrls, allNew }) => {
   });
   if (!db.objectStoreNames.contains("_ionickv")) {
     db.close();
-    throw new Error(
-      "IndexedDB _ionicstorage exists without object store _ionickv",
-    );
+    throw new Error("IndexedDB _ionicstorage exists without object store _ionickv");
   }
   await new Promise((resolve, reject) => {
     const tx = db.transaction("_ionickv", "readwrite");
     const store = tx.objectStore("_ionickv");
-    store.put({ data: items, timestamp: now, keepOnClear: true }, "sales_data");
-    store.put(
-      { data: history, timestamp: now, keepOnClear: true },
-      "sales_price_history",
-    );
-    store.put(
-      {
-        data: {
-          ids: items.filter((item) => item.isNew).map((item) => item.id),
-        },
-        timestamp: now,
-        keepOnClear: true,
-      },
-      "sales_new",
-    );
+    const put = (key, data) => store.put({ data, timestamp: now, keepOnClear: true }, key);
+    put("sales_data", items);
+    put("sales_seen", { watermark, ids: [] });
+    put("sales_summary", summary);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);
   });
   const count = await new Promise((resolve, reject) => {
-    const request = db
-      .transaction("_ionickv")
-      .objectStore("_ionickv")
-      .get("sales_data");
+    const request = db.transaction("_ionickv").objectStore("_ionickv").get("sales_data");
     request.onsuccess = () => resolve(request.result?.data?.length ?? 0);
     request.onerror = () => reject(request.error);
   });
@@ -179,18 +154,22 @@ const writeEnvelopes = async ({ n, points, imageUrls, allNew }) => {
 };
 
 /**
- * Writes both envelopes through the open page. Reload the page afterwards so the stores hydrate
- * from the new data. The page must have booted once so Ionic Storage created its database.
+ * Writes sales_data, sales_seen and sales_summary into the kv Ionic Storage area (database
+ * _ionicstorage) through the open page. Reload the page afterwards so the stores hydrate from the
+ * new data. The page must have booted once so Ionic Storage created its database. Price history is
+ * not stored client side any more: the detail page loads it from the API.
  */
 export const injectSales = async (
   page,
-  { n = 300, points = 12, imageUrls = [], allNew = false } = {},
+  { n = 300, imageUrls = [], allNew = false } = {},
 ) => {
   const written = await page.evaluate(writeEnvelopes, {
     n,
-    points,
     imageUrls,
     allNew,
+    sellers: SELLERS,
+    genera: GENERA,
+    newWindowDays: NEW_WINDOW_DAYS,
   });
   if (written !== n)
     throw new Error(`Injected ${n} sales but read back ${written}`);
@@ -315,9 +294,9 @@ const main = async () => {
   try {
     await browser.page.goto(flags.url, { waitUntil: "load" });
     await browser.page.waitForSelector("ion-input input", { timeout: 60000 });
-    const written = await injectSales(browser.page, { n, points, imageUrls });
+    const written = await injectSales(browser.page, { n, imageUrls });
     console.log(
-      `Injected ${written} sales with ${points} price points each (${imageUrls.length} distinct image urls).`,
+      `Injected ${written} sales (${imageUrls.length} distinct image urls).`,
     );
   } finally {
     await browser.close();
