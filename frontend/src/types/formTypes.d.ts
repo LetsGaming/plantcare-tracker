@@ -41,6 +41,13 @@ interface SelectField extends FormFieldBase {
   options: Array<{ value: string | number | null; label: string }>;
 }
 
+interface SubstratePickerField extends FormFieldBase {
+  type: "substrate-picker";
+  placeholder?: string;
+  /** Name shown while the substrate is in no loaded list, for example the plant's own. */
+  selectedName?: string;
+}
+
 interface RadioField extends FormFieldBase {
   type: "radio";
   options: Array<{ value: string | boolean | number; label: string }>;
@@ -69,6 +76,7 @@ type FormField =
   | TextareaField
   | PasswordField
   | SelectField
+  | SubstratePickerField
   | RadioField
   | SwitchField
   | DateField

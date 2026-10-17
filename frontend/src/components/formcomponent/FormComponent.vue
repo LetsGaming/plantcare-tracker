@@ -69,6 +69,7 @@ import InputField from "@/components/formcomponent/fields/InputField.vue";
 import TextareaField from "@/components/formcomponent/fields/TextareaField.vue";
 import PasswordField from "@/components/formcomponent/fields/PasswordField.vue";
 import SelectField from "@/components/formcomponent/fields/SelectField.vue";
+import SubstratePickerField from "@/components/formcomponent/fields/SubstratePickerField.vue";
 import RadioField from "@/components/formcomponent/fields/RadioField.vue";
 import SwitchField from "@/components/formcomponent/fields/SwitchField.vue";
 import DateField from "@/components/formcomponent/fields/DateField.vue";
@@ -84,6 +85,7 @@ const FIELD_COMPONENTS = {
   textarea: TextareaField,
   password: PasswordField,
   select: SelectField,
+  "substrate-picker": SubstratePickerField,
   radio: RadioField,
   date: DateField,
   switch: SwitchField,
@@ -241,7 +243,7 @@ export default defineComponent({
       return hasFormValue(value);
     },
     requiredMessage(field: FormField): string {
-      if (field.type === "select" || field.type === "radio") {
+      if (field.type === "select" || field.type === "radio" || field.type === "substrate-picker") {
         return this.t("form2.error_choose", undefined, "Please choose an option.");
       }
       if (field.type === "file") {

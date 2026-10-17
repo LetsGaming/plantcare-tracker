@@ -41,15 +41,13 @@ import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import PlantOverview from "@/views/plants/PlantOverview.vue";
 import { usePlantsStore } from "@/stores/plants";
 
-const substrates = [{ id: 5, name: "Aroid Mix" }] as Substrate[];
-
 const fieldFor = (fields: FormField[], key: string) => fields.find((f) => f.modelKey === key)!;
 
 describe("PlantAddingModal", () => {
   const mountModal = () => {
     const push = vi.fn();
     const wrapper = shallowMount(PlantAddingModal, {
-      props: { isOpen: true, substrates },
+      props: { isOpen: true },
       global: { mocks: { $router: { push } } },
     });
     return { wrapper, push };
@@ -63,24 +61,23 @@ describe("PlantAddingModal", () => {
     expect(fieldFor(fields, "substrateId").required).toBeFalsy();
   });
 
-  it("starts without a substrate and offers an explicit not-set choice first", () => {
+  it("starts without a substrate and uses the searchable picker", () => {
     const { wrapper } = mountModal();
     expect((wrapper.vm as any).plant.substrateId).toBeNull();
-    const select = fieldFor((wrapper.vm as any).plantFormFields, "substrateId") as SelectField;
-    expect(select.options[0]).toEqual({ value: null, label: "plant.field.substrate_none" });
-    expect(select.options.slice(1)).toEqual([{ value: 5, label: "Aroid Mix" }]);
+    const picker = fieldFor((wrapper.vm as any).plantFormFields, "substrateId");
+    expect(picker.type).toBe("substrate-picker");
+    expect("options" in picker).toBe(false);
   });
 
   it("submits a name-only plant without a validation error", async () => {
     const wrapper = mount(FormComponent, {
       props: {
         item: { name: "Erste Pflanze", species: "", substrateId: null },
-        formFields: (
-          shallowMount(PlantAddingModal, { props: { isOpen: true, substrates } }).vm as any
-        ).plantFormFields,
+        formFields: (shallowMount(PlantAddingModal, { props: { isOpen: true } }).vm as any)
+          .plantFormFields,
         onSubmitClick: vi.fn(),
       },
-      global: { stubs: { UploadField: true, RadioField: true } },
+      global: { stubs: { UploadField: true, RadioField: true, SubstratePickerField: true } },
     });
     await wrapper.find("form").trigger("submit");
     expect(wrapper.props("onSubmitClick")).toHaveBeenCalledTimes(1);
@@ -134,13 +131,13 @@ describe("PlantEditingModal", () => {
 
   it("lets species and substrate be cleared", () => {
     const wrapper = shallowMount(PlantEditingModal, {
-      props: { isOpen: true, plant, substrates },
+      props: { isOpen: true, plant },
     });
     const fields = (wrapper.vm as any).formFields as FormField[];
     expect(fieldFor(fields, "species").required).toBeFalsy();
-    const select = fieldFor(fields, "substrateId") as SelectField;
-    expect(select.required).toBeFalsy();
-    expect(select.options[0]).toEqual({ value: null, label: "plant.field.substrate_none" });
+    const picker = fieldFor(fields, "substrateId");
+    expect(picker.required).toBeFalsy();
+    expect(picker.type).toBe("substrate-picker");
     expect((wrapper.vm as any).editPlantData).toMatchObject({ species: "", substrateId: null });
   });
 });

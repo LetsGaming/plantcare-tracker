@@ -42,7 +42,6 @@
     <plant-adding-modal
       :isOpen="showAddingModal"
       :isLoading="isAddingLoading"
-      :substrates="substrates"
       @save="addPlant"
       @close="closeAddModal"
     />
@@ -60,7 +59,6 @@ import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 
 import { mapActions, mapState } from "pinia";
 import { usePlantsStore } from "@/stores/plants";
-import { useSubstratesStore } from "@/stores/substrates";
 import { useSessionStore } from "@/stores/session";
 import { isActive, pageActive } from "@/utils/pageActive";
 import { relativeDaysText, wateringStatus } from "@/utils/wateringStats";
@@ -143,7 +141,6 @@ export default defineComponent({
   computed: {
     ...mapState(usePlantsStore, { mineList: "mine", publicList: "public" }),
     ...mapState(useSessionStore, ["isGuest", "userId"]),
-    ...mapState(useSubstratesStore, { substrates: "items" }),
     isPublic() {
       return this.showPublic === "public";
     },
@@ -232,7 +229,6 @@ export default defineComponent({
       this.scheduleDayTick();
     },
 
-    ...mapActions(useSubstratesStore, { ensureSubstratesLoaded: "ensureLoaded" }),
     ...mapActions(usePlantsStore, {
       ensureMine: "ensureMine",
       ensurePublic: "ensurePublic",
@@ -350,13 +346,8 @@ export default defineComponent({
     },
 
     /* -------------------- ADD PLANT -------------------- */
-    async openAddModal() {
+    openAddModal() {
       this.showAddingModal = true;
-      try {
-        await this.ensureSubstratesLoaded();
-      } catch (e) {
-        console.error("Failed to fetch substrates", e);
-      }
     },
 
     closeAddModal() {

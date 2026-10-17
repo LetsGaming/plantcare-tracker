@@ -97,7 +97,6 @@
         v-if="plant"
         :is-open="showEditModal"
         :plant="plant"
-        :substrates="substrates"
         :is-loading="isEditLoading"
         @close="showEditModal = false"
         @save="handlePlantSave"
@@ -183,7 +182,7 @@ export default defineComponent({
     return {
       icons,
       /** Full substrate object, fetched separately after plant loads (V2 only sends substrate ref) */
-      fullSubstrate: null as Substrate | null,
+      fullSubstrate: null as SubstrateView | null,
 
       showEditModal: false,
       showUploadModal: false,
@@ -203,12 +202,11 @@ export default defineComponent({
     // A re-entry refreshes in the background; the cached plant stays on screen meanwhile.
     const refetch = this.hasEntered;
     this.hasEntered = true;
-    await Promise.all([this.loadPlantData(refetch), this.fetchSubstrates()]);
+    await this.loadPlantData(refetch);
   },
 
   computed: {
     ...mapState(usePlantsStore, ["byId"]),
-    ...mapState(useSubstratesStore, { substrates: "items" }),
     ...mapState(useSessionStore, ["isGuest", "userId"]),
     /** This page's plant, straight from the store so every update repaints it. */
     hasGallery(): boolean {
@@ -257,10 +255,7 @@ export default defineComponent({
   },
 
   methods: {
-    ...mapActions(useSubstratesStore, {
-      loadSubstrate: "getSubstrate",
-      ensureSubstratesLoaded: "ensureLoaded",
-    }),
+    ...mapActions(useSubstratesStore, { loadSubstrate: "getSubstrate" }),
     ...mapActions(usePlantsStore, {
       loadPlant: "getPlant",
       savePlant: "editPlant",
@@ -312,14 +307,6 @@ export default defineComponent({
         ]);
       } finally {
         (event.target as HTMLIonRefresherElement).complete();
-      }
-    },
-
-    async fetchSubstrates() {
-      try {
-        await this.ensureSubstratesLoaded();
-      } catch (e) {
-        console.error("Failed to fetch substrates", e);
       }
     },
 
