@@ -26,7 +26,7 @@ const buildJpeg = ({
   width = 4000,
   height = 3000,
   exif = true,
-}: JpegSpec = {}): Uint8Array => {
+}: JpegSpec = {}): Uint8Array<ArrayBuffer> => {
   const parts: number[] = [0xff, 0xd8];
   const u16 = (value: number, le = false) =>
     le ? [value & 0xff, value >> 8] : [value >> 8, value & 0xff];

@@ -145,7 +145,7 @@ describe("ProgressiveImage placeholder", () => {
     const name = placeholderClass("component", 1, 2);
     const count = () =>
       (document.head.querySelector("style[data-placeholder-art]")?.textContent ?? "").split(
-        `.${name}{`,
+        `.${name}{background-color`,
       ).length - 1;
     expect(count()).toBe(1);
     placeholderClass("component", 1, 2);
@@ -172,10 +172,11 @@ describe("ProgressiveImage placeholder", () => {
 });
 
 describe("ProgressiveImage load state", () => {
-  it("is loaded at mount without a load event when the image is already cached", () => {
+  it("is loaded at mount without a load event when the image is already cached", async () => {
     const complete = vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
     const width = vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(1024);
     const wrapper = mountImage();
+    await wrapper.vm.$nextTick();
     expect(wrapper.find("img").classes()).toContain("is-loaded");
     complete.mockRestore();
     width.mockRestore();

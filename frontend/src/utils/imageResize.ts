@@ -98,7 +98,7 @@ export const resizeImage = async (file: File, options: ResizeOptions): Promise<R
   }
   const bitmap = await createImageBitmap(file, decodeOptions);
   try {
-    if (bitmap.width <= maxWidth && small) {
+    if (knownWidth === null && bitmap.width <= maxWidth && small) {
       return { blob: file, width: bitmap.width, height: bitmap.height, name: file.name };
     }
     const width = Math.min(bitmap.width, maxWidth);
