@@ -92,9 +92,9 @@ const newStore = async (
   await createInstalledPinia();
   await useSessionStore().storeToken(fakeJwt(claims));
   const substrates = useSubstratesStore();
-  substrates.items = [{ id: 5, name: "Aroid Mix" } as Substrate];
-  substrates.status = "ready";
-  substrates.fetchedAt = Date.now();
+  substrates.mine.items = [Object.freeze({ id: 5, name: "Aroid Mix" }) as SubstrateView];
+  substrates.mine.status = "ready";
+  substrates.mine.fetchedAt = Date.now();
   return usePlantsStore();
 };
 

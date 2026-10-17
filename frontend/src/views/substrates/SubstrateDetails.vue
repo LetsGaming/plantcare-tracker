@@ -14,14 +14,14 @@
       <div v-if="substrate" class="detail-column">
         <detail-hero
           :title="substrate.name"
-          :image-url="substrate.imageUrl"
+          :image="substrate.cover"
           :image-alt="t('subdetail.image_alt', { name: substrate.name })"
           kind="substrate"
           :seed="String(substrate.id)"
           :is-public="substrate.isPublic"
         >
-          <span v-if="substrate.created_at">
-            {{ t("subdetail.created", { date: substrate.created_at }) }}
+          <span v-if="substrate.createdAt">
+            {{ t("subdetail.created", { date: createdLabel }) }}
           </span>
         </detail-hero>
 
@@ -67,7 +67,6 @@
         v-if="modalSubstrate"
         :is-open="showEditModal"
         :substrate="modalSubstrate"
-        :available-components="availableComponents"
         :is-loading="isSubmitting"
         @close="showEditModal = false"
         @save="handleSubstrateUpdate"
@@ -81,12 +80,11 @@
 import { defineComponent } from "vue";
 import { IonPage, IonContent } from "@ionic/vue";
 import { mapActions, mapState } from "pinia";
-import { useSubstratesStore } from "@/stores/substrates";
-import { useComponentsStore } from "@/stores/components";
+import { useSubstratesStore, type SubstrateWrite } from "@/stores/substrates";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
-import { finenessLabel } from "@/utils/enumLabels";
+import { dateTimeFormat } from "@/utils/intlCache";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailHero from "@/components/ui/DetailHero.vue";
@@ -121,31 +119,26 @@ export default defineComponent({
       isLoading: false, // For image upload
       isSubmitting: false, // For substrate editing
       /** Kept while the substrate is deleted so the open modal can finish closing. */
-      deletedSubstrate: null as Substrate | null,
+      deletedSubstrate: null as SubstrateView | null,
       phase: "loading" as LoadPhase,
     };
   },
   computed: {
-    ...mapState(useSubstratesStore, ["byId"]),
+    ...mapState(useSubstratesStore, ["detailOf"]),
     ...mapState(useSessionStore, ["userId"]),
-    ...mapState(useComponentsStore, { allComponents: "items" }),
     /** This page's substrate, straight from the store so every update repaints it. */
-    substrate(): Substrate | null {
-      return this.byId(this.substrateId) ?? null;
+    substrate(): SubstrateView | null {
+      return this.detailOf(this.substrateId) ?? null;
     },
-    modalSubstrate(): Substrate | null {
+    modalSubstrate(): SubstrateView | null {
       return this.substrate ?? this.deletedSubstrate;
     },
-    availableComponents(): SubstrateComponent[] {
-      return this.allComponents
-        .map((comp: Component) => ({
-          ...comp,
-          description: finenessLabel(comp.fineness),
-          parts: 0,
-        }))
-        .sort((a: SubstrateComponent, b: SubstrateComponent) =>
-          a.name.localeCompare(b.name, localizationService.getLocale()),
-        );
+    createdLabel(): string {
+      return this.substrate
+        ? dateTimeFormat(localizationService.getLocale(), { dateStyle: "medium" }).format(
+            this.substrate.createdAt,
+          )
+        : "";
     },
     substrateId(): number {
       return Number.parseInt(this.id);
@@ -160,12 +153,10 @@ export default defineComponent({
   methods: {
     ...mapActions(useSubstratesStore, {
       loadSubstrate: "getSubstrate",
-      saveSubstrateComponents: "editSubstrateComponents",
       saveSubstrate: "editSubstrate",
       removeSubstrate: "deleteSubstrate",
       uploadSubstrateImage: "uploadSubstrateImage",
     }),
-    ...mapActions(useComponentsStore, { ensureComponentsLoaded: "ensureLoaded" }),
 
     t(key: string, vars?: Record<string, any>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
@@ -173,12 +164,10 @@ export default defineComponent({
 
     async reload(forceUpdate = false) {
       if (!this.substrate) this.phase = "loading";
-      const [substrateResult] = await Promise.allSettled([
-        this.loadSubstrate(this.substrateId, forceUpdate),
-        this.ensureComponentsLoaded(),
-      ]);
-      if (substrateResult.status === "rejected") {
-        this.phase = phaseFromError(substrateResult.reason);
+      try {
+        await this.loadSubstrate(this.substrateId, forceUpdate);
+      } catch (error) {
+        this.phase = phaseFromError(error);
         return;
       }
       this.phase = this.substrate ? "ready" : "not-found";
@@ -250,7 +239,7 @@ export default defineComponent({
 
     /** Sort and map existing substrate components */
     sortedComponentsFromSubstrate() {
-      return this.substrate?.components
+      return (this.substrate?.components ?? [])
         .map((c) => ({ componentId: c.id, parts: c.parts }))
         .sort((a, b) => a.componentId - b.componentId);
     },
@@ -263,27 +252,14 @@ export default defineComponent({
       componentIds: number[],
       parts: Record<number, number>,
     ) {
-      const tasks = [];
-
-      if (componentsChanged) {
-        tasks.push(
-          this.saveSubstrateComponents(
-            this.substrate?.id || -1,
-            this.sortedComponents(componentIds, parts),
-          ),
-        );
-      }
-
+      const body: SubstrateWrite = {};
       if (metaChanged) {
-        tasks.push(
-          this.saveSubstrate(this.substrate?.id || -1, {
-            name: meta.name,
-            isPublic: meta.isPublic,
-          }),
-        );
+        body.name = meta.name;
+        body.isPublic = meta.isPublic;
       }
+      if (componentsChanged) body.components = this.sortedComponents(componentIds, parts);
 
-      await Promise.all(tasks);
+      await this.saveSubstrate(this.substrate?.id || -1, body);
 
       const toastKey =
         metaChanged && componentsChanged

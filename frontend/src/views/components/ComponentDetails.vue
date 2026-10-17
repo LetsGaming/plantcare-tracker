@@ -99,7 +99,8 @@ import StateBlock from "@/components/ui/StateBlock.vue";
 import { LoadPhase, phaseFromError } from "@/utils/loadPhase";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
 import { mapActions, mapState } from "pinia";
-import { useComponentsStore, type UsedInSubstrate } from "@/stores/components";
+import { useComponentsStore } from "@/stores/components";
+import { useSubstratesStore, type UsedInSubstrate } from "@/stores/substrates";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -131,7 +132,8 @@ export default defineComponent({
   },
   computed: {
     ...mapState(useSessionStore, ["isAdmin"]),
-    ...mapState(useComponentsStore, ["byId", "usedIn"]),
+    ...mapState(useComponentsStore, ["byId"]),
+    ...mapState(useSubstratesStore, { usedIn: "usedByComponent" }),
     usingSubstrates(): readonly UsedInSubstrate[] {
       return this.usedIn[this.componentId] ?? [];
     },
@@ -152,8 +154,8 @@ export default defineComponent({
       loadComponent: "getComponent",
       saveComponent: "editComponent",
       removeComponent: "deleteComponent",
-      loadUsedIn: "loadUsedIn",
     }),
+    ...mapActions(useSubstratesStore, { loadUsedIn: "loadUsedByComponent" }),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },

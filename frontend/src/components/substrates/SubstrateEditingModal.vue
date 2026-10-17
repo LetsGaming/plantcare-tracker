@@ -4,7 +4,6 @@
     :is-loading="isLoading"
     title="substrate.edit.title"
     selection-title="substrate.components.edit.title"
-    :available-components="availableComponents"
     :substrate="substrate"
     deletable
     @save="$emit('save', $event)"
@@ -27,11 +26,7 @@ export default defineComponent({
       required: true,
     },
     substrate: {
-      type: Object as PropType<Substrate>,
-      required: true,
-    },
-    availableComponents: {
-      type: Array as PropType<SubstrateComponent[]>,
+      type: Object as PropType<SubstrateView>,
       required: true,
     },
     isLoading: {

@@ -54,8 +54,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import PieChart from "@/components/charts/PieChart.vue";
+import { defineAsyncComponent, defineComponent } from "vue";
 import SearchBar from "@/components/SearchBar.vue";
 import localizationService from "@/services/general/LocalizationService";
 import { compareText, numberFormat } from "@/utils/intlCache";
@@ -65,7 +64,7 @@ import { seriesSlots } from "@/utils/seriesColors";
 
 const SEARCH_THRESHOLD = 5;
 
-interface CompositionRow extends SubstrateComponent {
+interface CompositionRow extends SubstrateComponentView {
   colorIndex: number;
   percent: string;
   share: number;
@@ -73,10 +72,13 @@ interface CompositionRow extends SubstrateComponent {
 
 export default defineComponent({
   name: "SubstrateContainer",
-  components: { PieChart, SearchBar },
+  components: {
+    PieChart: defineAsyncComponent(() => import("@/components/charts/PieChart.vue")),
+    SearchBar,
+  },
   props: {
     substrate: {
-      type: Object as () => Substrate,
+      type: Object as () => SubstrateView,
     },
   },
   data() {

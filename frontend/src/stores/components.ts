@@ -21,7 +21,6 @@
  * | POST   | /components                  | Create (admin)         |
  * | PUT    | /components/:id              | Update (admin)         |
  * | DELETE | /components/:id              | Delete (admin)         |
- * | GET    | /substrates?component_id=    | Substrates using one   |
  */
 
 import { defineStore } from "pinia";
@@ -44,7 +43,6 @@ import {
   pageSearchParams,
   type ApiPage,
   type FetchPage,
-  type PageParams,
 } from "./paged";
 
 const ENDPOINT = "/components";
@@ -59,46 +57,6 @@ export interface SelectableComponent {
   /** Lowercase name and fineness label for client search. */
   readonly searchText: string;
 }
-
-/** A substrate that uses a component, as the "Used in" list shows it. */
-export interface UsedInSubstrate {
-  readonly id: number;
-  readonly name: string;
-  readonly isPublic: boolean;
-}
-
-const USED_IN_PAGE_SIZE = 100;
-const USED_IN_MAX_PAGES = 10;
-
-/** One scope of the substrates visible to the viewer that contain a component, all pages. */
-const fetchUsedInScope = async (
-  componentId: number,
-  scope: "mine" | "public",
-): Promise<UsedInSubstrate[]> => {
-  const found: UsedInSubstrate[] = [];
-  let cursor: string | null = null;
-  for (let page = 0; page < USED_IN_MAX_PAGES; page += 1) {
-    const params: PageParams = {
-      limit: USED_IN_PAGE_SIZE,
-      cursor,
-      q: "",
-      sort: "name",
-      conditional: false,
-    };
-    const response: ApiPage<APISubstrateListItem> = await handleRequest(
-      ApiUtils.get<ApiPage<APISubstrateListItem>>(
-        `/substrates?${pageSearchParams(params, { scope, component_id: componentId })}`,
-      ),
-      RESOURCE_NAME,
-    );
-    for (const item of response.items) {
-      found.push({ id: item.id, name: item.name, isPublic: item.is_public });
-    }
-    cursor = response.next_cursor;
-    if (cursor === null) break;
-  }
-  return found;
-};
 
 const fetchCatalogue: FetchPage<ComponentView> = async (params) => {
   const page = await handleRequest(
@@ -125,8 +83,6 @@ export const useComponentsStore = defineStore("components", {
     ...pagedState<ComponentView>("name"),
     /** Details fetched by id (with images), kept apart from the catalogue. */
     details: markRaw({}) as Readonly<Record<number, ComponentView>>,
-    /** Substrates using a component, by component id, name order. */
-    usedIn: markRaw({}) as Readonly<Record<number, readonly UsedInSubstrate[]>>,
     finenessLevels: [] as APIFinenessLevel[],
     finenessFetchedAt: null as number | null,
   }),
@@ -206,22 +162,6 @@ export const useComponentsStore = defineStore("components", {
       return component;
     },
 
-    /** Loads the substrates visible to the viewer that use a component (own and public, deduplicated). */
-    async loadUsedIn(id: number): Promise<void> {
-      const started = epoch.current();
-      const [mine, shared] = await Promise.all([
-        fetchUsedInScope(id, "mine"),
-        fetchUsedInScope(id, "public"),
-      ]);
-      if (epoch.isStale(started)) return;
-      const byId = new Map<number, UsedInSubstrate>();
-      for (const substrate of [...mine, ...shared])
-        byId.set(substrate.id, Object.freeze(substrate));
-      const compare = compareText(localizationService.getLocale());
-      const sorted = [...byId.values()].sort((a, b) => compare(a.name, b.name) || a.id - b.id);
-      this.usedIn = Object.freeze(markRaw({ ...this.usedIn, [id]: Object.freeze(sorted) }));
-    },
-
     /** Fineness levels change only with the backend schema, so they load once. */
     async ensureFinenessLevels(): Promise<void> {
       if (this.finenessLevels.length > 0 && !isStale(this.finenessFetchedAt)) return;
@@ -279,8 +219,6 @@ export const useComponentsStore = defineStore("components", {
       this.items = commitList(removeItem(this.items, id));
       const { [id]: _removed, ...rest } = this.details;
       this.details = Object.freeze(markRaw(rest));
-      const { [id]: _unused, ...usedInRest } = this.usedIn;
-      this.usedIn = Object.freeze(markRaw(usedInRest));
       useSubstratesStore().invalidate();
     },
 

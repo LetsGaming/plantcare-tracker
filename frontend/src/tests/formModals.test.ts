@@ -3,6 +3,7 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
+import { createTestingPinia } from "@pinia/testing";
 
 const resize = vi.hoisted(() => ({ downscaleImage: vi.fn(async (file: File) => file) }));
 vi.mock("@/utils/imageResize", async (original) => ({
@@ -18,6 +19,7 @@ import ConfirmDialog from "@/components/modal/ConfirmDialog.vue";
 import UploadField from "@/components/formcomponent/fields/UploadField.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
 import SubstrateFormModal from "@/components/substrates/SubstrateFormModal.vue";
+import { useComponentsStore } from "@/stores/components";
 
 const passthrough = (tag = "div") =>
   defineComponent({
@@ -277,7 +279,7 @@ describe("SubstrateFormModal", () => {
       { id: 2, name: "Peat", fineness: "fine", parts: 2 },
       { id: 3, name: "Bark", fineness: "coarse", parts: 3 },
     ],
-  } as unknown as Substrate;
+  } as unknown as SubstrateView;
 
   it("saves the full remaining selection with parts after a component is unticked", async () => {
     const wrapper = mount(SubstrateFormModal, {
@@ -285,10 +287,10 @@ describe("SubstrateFormModal", () => {
         isOpen: true,
         title: "Edit",
         selectionTitle: "Select",
-        availableComponents: substrate.components,
         substrate,
       },
       global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn })],
         stubs: {
           ...stubs,
           IonContent: passthrough(),
@@ -300,6 +302,7 @@ describe("SubstrateFormModal", () => {
         },
       },
     });
+    expect(useComponentsStore().ensureLoaded).toHaveBeenCalledTimes(1);
     const vm = wrapper.vm as unknown as { toggleComponent(id: number): void; submit(): void };
     vm.toggleComponent(2);
     vm.submit();

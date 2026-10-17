@@ -203,28 +203,6 @@ describe("details by id", () => {
   });
 });
 
-describe("substrates that use a component", () => {
-  it("merges own and public results, removes duplicates and sorts by name", async () => {
-    api.get.mockImplementation(async (url: string) => {
-      const substrate = (id: number, name: string, isPublic: boolean) => ({
-        id,
-        name,
-        is_public: isPublic,
-      });
-      return url.includes("scope=mine")
-        ? envelope([substrate(2, "Beta", true), substrate(1, "alpha", false)]).data
-        : envelope([substrate(2, "Beta", true), substrate(3, "Gamma", true)]).data;
-    });
-    const store = await newStore();
-    await store.loadUsedIn(5);
-    expect(urlsOf().every((url) => url.includes("component_id=5"))).toBe(true);
-    expect(urlsOf().some((url) => url.includes("scope=mine"))).toBe(true);
-    expect(urlsOf().some((url) => url.includes("scope=public"))).toBe(true);
-    expect(store.usedIn[5].map((s) => s.name)).toEqual(["alpha", "Beta", "Gamma"]);
-    expect(store.usedIn[5].find((s) => s.id === 1)?.isPublic).toBe(false);
-  });
-});
-
 describe("admin mutations", () => {
   it("adds a component with the fineness id and upserts the server's version", async () => {
     api.get.mockResolvedValue(page([item(1)]));
@@ -287,8 +265,8 @@ describe("invalidating the substrates", () => {
     const store = await newStore();
     await store.ensureLoaded();
     const substrates = useSubstratesStore();
-    substrates.fetchedAt = Date.now();
-    substrates.status = "ready";
+    substrates.mine.fetchedAt = Date.now();
+    substrates.mine.status = "ready";
     return { store, substrates };
   };
 
