@@ -15,11 +15,26 @@ vi.mock("@/services/general/LocalizationService", () => ({
 
 import WateringStatus from "@/components/plants/watering/WateringStatus.vue";
 import { useWateringStore } from "@/stores/watering";
+import { usePlantsStore } from "@/stores/plants";
 
-const mountStatus = () => {
+const DAY = 86_400_000;
+
+const mountStatus = (watering: Partial<WateringSummary> | null = null) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const store = useWateringStore(pinia);
-  store.byPlantId = { 1: [] };
+  const plants = usePlantsStore(pinia);
+  plants.mine.items = [
+    {
+      id: 1,
+      name: "Monty",
+      watering: watering && {
+        lastWateredAt: null,
+        lastFertilizedAt: null,
+        avgIntervalDays: null,
+        ...watering,
+      },
+    } as PlantView,
+  ];
   const wrapper = shallowMount(WateringStatus, {
     props: { plantId: 1, plantName: "Monty", canWater: true },
     global: { plugins: [pinia] },
@@ -60,6 +75,29 @@ describe("WateringStatus watering moment", () => {
     await (wrapper.vm as unknown as { waterNow(): Promise<void> }).waterNow();
     await flushPromises();
     expect(wrapper.classes()).not.toContain("just-watered");
+    wrapper.unmount();
+  });
+});
+
+describe("WateringStatus without loaded records", () => {
+  it("reads the plant summary and requests no history", async () => {
+    const { wrapper, store } = mountStatus({
+      lastWateredAt: Date.now() - 3 * DAY,
+      avgIntervalDays: 4,
+    });
+    await flushPromises();
+    expect(store.ensureRecords).not.toHaveBeenCalled();
+    expect(store.isLoaded(1)).toBe(false);
+    const text = wrapper.text();
+    expect(text).toContain("3 days ago");
+    expect(text).toContain("watering.records.frequency.days");
+    wrapper.unmount();
+  });
+
+  it("says never watered for a plant with an empty summary", async () => {
+    const { wrapper } = mountStatus({});
+    await flushPromises();
+    expect(wrapper.text()).toContain("plantdetail.never_watered");
     wrapper.unmount();
   });
 });

@@ -42,23 +42,27 @@ const record = (id: number, millis: number) => ({
   id,
   plantId: 1,
   plantName: "Monstera",
-  date: new Date(millis).toISOString(),
-  date_millis: millis,
+  date: millis,
   usedFertilizer: false,
+  fertilizerTypeId: null,
 });
+
+const history = (items: unknown[]) => ({ items, nextCursor: null, loadedAt: Date.now() });
 
 // ── WateringRecords component ────────────────────────────────────────────────
 
 const mountRecords = (records: unknown[] = [], props: Record<string, unknown> = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const store = useWateringStore(pinia);
-  store.byPlantId = { 1: records as WateringRecord[] };
+  store.byPlantId = { 1: history(records) as never };
   const wrapper = shallowMount(WateringRecords, {
     props: { plantId: 1, ...props },
     global: { plugins: [pinia] },
   });
   return { wrapper, store };
 };
+
+const records1 = (store: ReturnType<typeof useWateringStore>) => [...store.recordsFor(1)];
 
 describe("WateringRecords: store-driven records", () => {
   it("loads through the store on mount and repaints when the store changes", async () => {
@@ -70,7 +74,9 @@ describe("WateringRecords: store-driven records", () => {
     expect((wrapper.vm as any).records).toHaveLength(1);
 
     // an optimistic paint elsewhere shows up without any event
-    store.byPlantId[1].push(record(-5, Date.now()) as WateringRecord);
+    store.byPlantId = {
+      1: history([...records1(store), record(-5, Date.now())]) as never,
+    };
     await flushPromises();
     expect((wrapper.vm as any).records).toHaveLength(2);
     expect(store.addRecord).not.toHaveBeenCalled();
@@ -135,14 +141,18 @@ describe("WateringRecords: store-driven records", () => {
 
   it("maps records to local day keys and per-type fertilizer markers", async () => {
     const day = new Date(2026, 4, 3, 23, 30).getTime();
-    const { wrapper } = mountRecords([
+    const { wrapper, store } = mountRecords([
       { ...record(1, day), usedFertilizer: false },
       { ...record(2, day + 86_400_000), usedFertilizer: true, fertilizerTypeId: 1 },
       { ...record(3, day + 2 * 86_400_000), usedFertilizer: true, fertilizerTypeId: 2 },
-      { ...record(4, day + 3 * 86_400_000), usedFertilizer: true, fertilizerType: "synthetic" },
-      { ...record(5, day + 4 * 86_400_000), usedFertilizer: true, fertilizerType: "organic" },
+      { ...record(4, day + 3 * 86_400_000), usedFertilizer: true, fertilizerTypeId: 3 },
+      { ...record(5, day + 4 * 86_400_000), usedFertilizer: true, fertilizerTypeId: 4 },
       { ...record(6, day + 5 * 86_400_000), usedFertilizer: false, fertilizerTypeId: 2 },
     ]);
+    store.fertilizerTypes = [
+      { id: 3, name: "synthetic" },
+      { id: 4, name: "organic" },
+    ];
     await flushPromises();
     expect(
       (wrapper.vm as any).mappedRecords.map((d: CalendarDates) => [d.date, d.category.name]),

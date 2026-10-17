@@ -318,7 +318,7 @@ export default defineComponent({
     async getPlants() {
       try {
         await usePlantsStore().ensureLoaded({ force: true });
-        const res = usePlantsStore().items;
+        const res = usePlantsStore().personalPlants;
         this.pushLog("Get Plants", res);
       } catch (err) {
         this.pushLog("Get Plants Error", err);
