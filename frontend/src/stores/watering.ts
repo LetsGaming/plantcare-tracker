@@ -72,11 +72,26 @@ interface WriteBody {
   tz_offset: number;
 }
 
-/** Counts writes per plant so a first page requested before a write is requested again. */
+const MAX_FIRST_PAGE_RETRIES = 2;
+
+let tempSeq = 0;
+
+/**
+ * Counts writes per plant so a first page requested before a write is requested again. Cleared
+ * whenever the session changes, which also bounds its size.
+ */
 const writeCounts = new Map<number, number>();
-const writeCount = (plantId: number): number => writeCounts.get(plantId) ?? 0;
+let writeCountsEpoch = epoch.current();
+const currentWriteCounts = (): Map<number, number> => {
+  if (writeCountsEpoch !== epoch.current()) {
+    writeCounts.clear();
+    writeCountsEpoch = epoch.current();
+  }
+  return writeCounts;
+};
+const writeCount = (plantId: number): number => currentWriteCounts().get(plantId) ?? 0;
 const noteWrite = (plantId: number): void => {
-  writeCounts.set(plantId, writeCount(plantId) + 1);
+  currentWriteCounts().set(plantId, writeCount(plantId) + 1);
 };
 
 const sortsBefore = (a: WateringEntry, b: WateringEntry): boolean =>
@@ -84,17 +99,23 @@ const sortsBefore = (a: WateringEntry, b: WateringEntry): boolean =>
 
 /**
  * A new list with the entry in its place. An entry older than everything loaded is left out while
- * older pages remain: it arrives with them.
+ * older pages remain: it arrives with them. `boundary` is the oldest loaded record before the
+ * operation (the stand-in for the paging cursor): an entry that sorts after everything but is not
+ * older than it still belongs to the window.
  */
 const inserted = (
   items: readonly WateringEntry[],
   entry: WateringEntry,
   hasOlder: boolean,
   replacing: ReadonlySet<number>,
+  boundary?: WateringEntry,
 ): readonly WateringEntry[] => {
   const rest = items.filter((item) => item.id !== entry.id && !replacing.has(item.id));
   const index = rest.findIndex((item) => sortsBefore(entry, item));
-  if (index === -1) return hasOlder ? markRaw(rest) : markRaw([...rest, entry]);
+  if (index === -1) {
+    const withinWindow = !hasOlder || (boundary !== undefined && !sortsBefore(boundary, entry));
+    return withinWindow ? markRaw([...rest, entry]) : markRaw(rest);
+  }
   return markRaw([...rest.slice(0, index), entry, ...rest.slice(index)]);
 };
 
@@ -200,9 +221,16 @@ export const useWateringStore = defineStore("watering", {
       }
       return coalesced(this, `records:${plantId}`, async (isCurrent) => {
         const request = () => handleRequest(fetchHistoryPage(plantId, null), RESOURCE_KEY);
-        const seen = writeCount(plantId);
+        let seen = writeCount(plantId);
         let page = await request();
-        if (isCurrent() && writeCount(plantId) !== seen) page = await request();
+        for (
+          let retry = 0;
+          retry < MAX_FIRST_PAGE_RETRIES && isCurrent() && writeCount(plantId) !== seen;
+          retry++
+        ) {
+          seen = writeCount(plantId);
+          page = await request();
+        }
         if (!isCurrent()) return;
         this.commitHistory(plantId, {
           items: markRaw(page.items),
@@ -287,10 +315,22 @@ export const useWateringStore = defineStore("watering", {
      * Puts an entry into a loaded window at its place (nothing when the plant's window is not
      * loaded); `replacing` ids leave the window in the same commit.
      */
-    applyEntry(plantId: number, entry: WateringEntry, replacing: number[] = []): void {
+    applyEntry(
+      plantId: number,
+      entry: WateringEntry,
+      replacing: number[] = [],
+      boundary?: WateringEntry,
+    ): void {
       const history = this.byPlantId[plantId];
       if (!history) return;
-      const items = inserted(history.items, entry, history.nextCursor !== null, new Set(replacing));
+      this.touch(plantId);
+      const items = inserted(
+        history.items,
+        entry,
+        history.nextCursor !== null,
+        new Set(replacing),
+        boundary,
+      );
       this.byPlantId = { ...toRaw(this.byPlantId), [plantId]: { ...history, items } };
     },
 
@@ -313,7 +353,7 @@ export const useWateringStore = defineStore("watering", {
     /** Adds a record (optimistic); resolves with the server record. */
     async addRecord(plantId: number, data: AddWateringRecord): Promise<WateringEntry> {
       const isCurrent = sessionGuard();
-      const optimistic = entryOf(-Date.now(), plantId, data.date ?? Date.now(), data);
+      const optimistic = entryOf(-++tempSeq, plantId, data.date ?? Date.now(), data);
       noteWrite(plantId);
       this.applyEntry(plantId, optimistic);
       try {
@@ -344,10 +384,15 @@ export const useWateringStore = defineStore("watering", {
       data: EditWateringRecord,
     ): Promise<WateringEntry> {
       const isCurrent = sessionGuard();
-      const existing = this.byPlantId[plantId]?.items.find((item) => item.id === recordId);
+      const { existing, boundary } = this.windowPosition(plantId, recordId);
       noteWrite(plantId);
       if (existing) {
-        this.applyEntry(plantId, entryOf(recordId, plantId, data.date ?? existing.date, data));
+        this.applyEntry(
+          plantId,
+          entryOf(recordId, plantId, data.date ?? existing.date, data),
+          [],
+          boundary,
+        );
       }
       try {
         const response = await handleRequest(
@@ -360,12 +405,12 @@ export const useWateringStore = defineStore("watering", {
         );
         const saved = WateringMapper.mapEntry(response.record);
         if (isCurrent()) {
-          this.applyEntry(plantId, saved);
+          this.applyEntry(plantId, saved, [], boundary);
           usePlantsStore().applySummaries(summaryOf(plantId, response.summary));
         }
         return saved;
       } catch (error) {
-        if (isCurrent() && existing) this.applyEntry(plantId, existing);
+        if (isCurrent() && existing) this.applyEntry(plantId, existing, [], boundary);
         throw error;
       }
     },
@@ -373,7 +418,7 @@ export const useWateringStore = defineStore("watering", {
     /** Deletes a record (optimistic); it returns to its position if the request fails. */
     async deleteRecord(plantId: number, recordId: number): Promise<void> {
       const isCurrent = sessionGuard();
-      const existing = this.byPlantId[plantId]?.items.find((item) => item.id === recordId);
+      const { existing, boundary } = this.windowPosition(plantId, recordId);
       noteWrite(plantId);
       this.dropEntries([recordId]);
       try {
@@ -386,9 +431,19 @@ export const useWateringStore = defineStore("watering", {
         );
         if (isCurrent()) usePlantsStore().applySummaries(summaryOf(plantId, response.summary));
       } catch (error) {
-        if (isCurrent() && existing) this.applyEntry(plantId, existing);
+        if (isCurrent() && existing) this.applyEntry(plantId, existing, [], boundary);
         throw error;
       }
+    },
+
+    /** A loaded record and the oldest loaded record of its window (the paging boundary). */
+    windowPosition(
+      plantId: number,
+      recordId: number,
+    ): { existing?: WateringEntry; boundary?: WateringEntry } {
+      const items = this.byPlantId[plantId]?.items;
+      const existing = items?.find((item) => item.id === recordId);
+      return existing ? { existing, boundary: items?.[items.length - 1] } : {};
     },
 
     /**
@@ -409,7 +464,7 @@ export const useWateringStore = defineStore("watering", {
             "watering.add",
           );
           ids.push(...created.records.map((record) => record.id));
-          if (!isCurrent()) continue;
+          if (!isCurrent()) return ids;
           for (const record of created.records) {
             noteWrite(record.plant_id);
             this.applyEntry(record.plant_id, WateringMapper.mapEntry(record));

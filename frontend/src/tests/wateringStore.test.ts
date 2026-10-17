@@ -260,6 +260,61 @@ describe("writes", () => {
     expect(ids(store, 7)).toEqual([1, 2]);
   });
 
+  describe("the oldest loaded record while older pages remain", () => {
+    it("stays after a successful edit that keeps its date", async () => {
+      const store = await loaded([item(1), item(2)], "c1");
+      api.patch.mockResolvedValue({
+        record: apiWateringItem({
+          id: 2,
+          plant_id: 7,
+          date: T0 - 2 * DAY,
+          used_fertilizer: true,
+          fertilizer_type_id: 1,
+        }),
+        summary: summary(T0),
+      });
+      await store.editRecord(7, 2, {
+        date: T0 - 2 * DAY,
+        usedFertilizer: true,
+        fertilizerTypeId: 1,
+      });
+      expect(ids(store, 7)).toEqual([1, 2]);
+      expect(store.recordsFor(7)[1].usedFertilizer).toBe(true);
+    });
+
+    it("comes back when its edit fails", async () => {
+      const store = await loaded([item(1), item(2)], "c1");
+      api.patch.mockRejectedValue(new Error("500"));
+      await expect(store.editRecord(7, 2, { usedFertilizer: true })).rejects.toThrow("500");
+      expect(ids(store, 7)).toEqual([1, 2]);
+      expect(store.recordsFor(7)[1].usedFertilizer).toBe(false);
+    });
+
+    it("comes back when its delete fails", async () => {
+      const store = await loaded([item(1), item(2)], "c1");
+      api.delete.mockRejectedValue(new Error("500"));
+      await expect(store.deleteRecord(7, 2)).rejects.toThrow("500");
+      expect(ids(store, 7)).toEqual([1, 2]);
+    });
+
+    it("leaves the window when an edit moves it beyond the loaded range, and returns on failure", async () => {
+      const old = T0 - 400 * DAY;
+      const store = await loaded([item(1), item(2)], "c1");
+      api.patch.mockResolvedValueOnce({
+        record: apiWateringItem({ id: 2, plant_id: 7, date: old }),
+        summary: summary(T0),
+      });
+      await store.editRecord(7, 2, { date: old, usedFertilizer: false });
+      expect(ids(store, 7)).toEqual([1]);
+
+      const again = await loaded([item(1), item(2)], "c1");
+      api.patch.mockRejectedValueOnce(new Error("500"));
+      await expect(again.editRecord(7, 2, { date: old, usedFertilizer: false })).rejects.toThrow();
+      expect(ids(again, 7)).toEqual([1, 2]);
+      expect(again.recordsFor(7)[1].date).toBe(T0 - 2 * DAY);
+    });
+  });
+
   it("add for a plant whose window is not loaded loads nothing", async () => {
     const store = await newStore();
     api.post.mockResolvedValue({ record: item(9, 8), summary: summary(T0) });
@@ -355,6 +410,37 @@ describe("writes", () => {
     expect(api.get).not.toHaveBeenCalled();
     expect(applySummaries).toHaveBeenCalledTimes(1);
     expect([...applySummaries.mock.calls[0][0].keys()]).toEqual([7, 8]);
+  });
+
+  it("batch add deletes the created records again when a later chunk fails", async () => {
+    const store = await loaded([item(1)]);
+    const entries = Array.from({ length: 201 }, () => ({ plantId: 7, usedFertilizer: false }));
+    api.post
+      .mockResolvedValueOnce({
+        records: [apiWateringItem({ id: 20, plant_id: 7, date: T0 })],
+        summaries: { "7": summary(T0) },
+      })
+      .mockRejectedValueOnce(new Error("500"))
+      .mockResolvedValueOnce({ summaries: { "7": summary(T0 - DAY) } });
+    await expect(store.addBatch(entries)).rejects.toThrow("500");
+    expect(api.post).toHaveBeenCalledTimes(3);
+    expect(api.post).toHaveBeenLastCalledWith("/watering/batch/delete", {
+      ids: [20],
+      tz_offset: -new Date().getTimezoneOffset(),
+    });
+    expect(ids(store, 7)).toEqual([1]);
+  });
+
+  it("batch add stops posting chunks after a logout", async () => {
+    const store = await loaded([item(1)]);
+    const entries = Array.from({ length: 201 }, () => ({ plantId: 7, usedFertilizer: false }));
+    let release!: (value: unknown) => void;
+    api.post.mockReturnValue(new Promise((res) => (release = res)));
+    const pending = store.addBatch(entries);
+    epoch.abortAll();
+    release({ records: [], summaries: {} });
+    await pending;
+    expect(api.post).toHaveBeenCalledTimes(1);
   });
 
   it("batch delete is one request, drops the records and applies the summaries", async () => {
