@@ -34,7 +34,10 @@ const apply = (dark: boolean): void => {
 
 export const isDarkMode = (): boolean => document.documentElement.classList.contains(DARK_CLASS);
 
+let changeCount = 0;
+
 export const setDarkMode = async (dark: boolean): Promise<void> => {
+  changeCount++;
   apply(dark);
   writeMirror(dark);
   await storageService.set(STORAGE_KEY, dark);
@@ -45,14 +48,19 @@ export const setDarkMode = async (dark: boolean): Promise<void> => {
  * reconciled in the background because storage stays the source of truth.
  */
 export const applyInitialTheme = (): Promise<void> => {
-  apply(readMirror() ?? systemPrefersDark());
+  try {
+    apply(readMirror() ?? systemPrefersDark());
+  } catch {
+    // Leave the inline script's result in place.
+  }
   return reconcileTheme();
 };
 
 const reconcileTheme = async (): Promise<void> => {
+  const startedAt = changeCount;
   try {
     const stored = await storageService.get<boolean>(STORAGE_KEY);
-    if (typeof stored !== "boolean") return;
+    if (typeof stored !== "boolean" || changeCount !== startedAt) return;
     writeMirror(stored);
     if (stored !== isDarkMode()) apply(stored);
   } catch {

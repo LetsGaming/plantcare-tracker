@@ -26,15 +26,16 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import LineChart from "@/components/charts/LineChart.vue";
+import { defineAsyncComponent, defineComponent } from "vue";
 import localizationService from "@/services/general/LocalizationService";
 import { dateTimeFormat, numberFormat } from "@/utils/intlCache";
 import { formatDisplayDate } from "@/utils/localDate";
 
 export default defineComponent({
   name: "PriceHistoryChart",
-  components: { LineChart },
+  components: {
+    LineChart: defineAsyncComponent(() => import("@/components/charts/LineChart.vue")),
+  },
   props: {
     history: {
       type: Array as () => readonly SalePricePoint[],

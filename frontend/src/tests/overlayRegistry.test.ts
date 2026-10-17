@@ -34,6 +34,13 @@ describe("overlay registry", () => {
     expect(openOverlayCount()).toBe(1);
   });
 
+  it("counts a modal as soon as it starts presenting", () => {
+    const host = document.createElement("ion-modal");
+    document.body.appendChild(host);
+    host.dispatchEvent(new CustomEvent("ionModalWillPresent", { bubbles: true }));
+    expect(openOverlayCount()).toBe(1);
+  });
+
   it("ignores a modal host removed without a dismiss event", () => {
     present().remove();
     expect(openOverlayCount()).toBe(0);

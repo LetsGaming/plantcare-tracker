@@ -34,28 +34,16 @@
             (mirror !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.classList.toggle("ion-palette-dark", dark);
           document.documentElement.style.colorScheme = dark ? "dark" : "light";
+          var chrome = document.querySelector('meta[name="theme-color"]');
+          if (chrome) chrome.setAttribute("content", dark ? "#14221a" : "#ffffff");
         } catch (e) {}
       })();
     </script>
 
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      crossorigin
-      href="/node_modules/@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2"
-    />
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      crossorigin
-      href="/node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2"
-    />
-
     <style>
       .boot-skeleton {
-        min-height: 100vh;
+        position: fixed;
+        inset: 0;
         background: var(--ion-background-color, transparent);
       }
       .boot-skeleton > div {

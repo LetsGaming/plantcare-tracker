@@ -12,6 +12,7 @@ const onDismiss = (event: Event): void => {
 export const startOverlayRegistry = (): void => {
   if (listening || typeof document === "undefined") return;
   listening = true;
+  document.addEventListener("ionModalWillPresent", onPresent);
   document.addEventListener("ionModalDidPresent", onPresent);
   document.addEventListener("ionModalDidDismiss", onDismiss);
 };

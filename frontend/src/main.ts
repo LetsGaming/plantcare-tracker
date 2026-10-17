@@ -56,6 +56,7 @@ for (const path in localeLoaders) {
 async function initializeApp() {
   document.title = Utils.getAppTitle();
   const localeReady = localizationService.resolveInitialLocale();
+  localeReady.catch(() => undefined);
   void applyInitialTheme();
   if (devToken) await TokenUtils.setToken(devToken);
   connectSessionToTransport(pinia);

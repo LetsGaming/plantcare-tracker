@@ -1,7 +1,8 @@
 /// <reference types="node" />
 import fs from "node:fs";
 import path from "node:path";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { ModulePreloadOptions } from "vite";
 
 vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
@@ -47,6 +48,10 @@ describe("setDarkMode", () => {
 });
 
 describe("theme mirror", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     localStorage.clear();
     window.matchMedia = vi
@@ -76,6 +81,21 @@ describe("theme mirror", () => {
     expect(localStorage.getItem(THEME_MIRROR_KEY)).toBe("light");
   });
 
+  it("does not let a slow reconcile override a newer setDarkMode", async () => {
+    let resolveStored: (value: boolean) => void = () => undefined;
+    vi.mocked(storageService.get).mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveStored = resolve;
+      }),
+    );
+    const pending = applyInitialTheme();
+    await setDarkMode(true);
+    resolveStored(false);
+    await pending;
+    expect(isDarkMode()).toBe(true);
+    expect(localStorage.getItem(THEME_MIRROR_KEY)).toBe("dark");
+  });
+
   it("survives an unavailable localStorage", async () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked");
@@ -85,21 +105,19 @@ describe("theme mirror", () => {
     });
     await expect(setDarkMode(true)).resolves.toBeUndefined();
     await expect(applyInitialTheme()).resolves.toBeUndefined();
-    vi.restoreAllMocks();
   });
 
   it("is read by the inline script in index.html under the same key", () => {
     const html = fs.readFileSync(path.resolve(__dirname, "../../index.html"), "utf8");
     expect(html).toContain(THEME_MIRROR_KEY);
+    expect(html).toContain("ion-palette-dark");
+    expect(html).toContain("colorScheme");
   });
 });
 
 describe("build config", () => {
-  const resolve = (vite as any).build.modulePreload.resolveDependencies as (
-    file: string,
-    deps: string[],
-    context: { hostId: string; hostType: "html" | "js" },
-  ) => string[];
+  const modulePreload = vite.build?.modulePreload as ModulePreloadOptions;
+  const resolve = modulePreload.resolveDependencies!;
   const deps = [
     "assets/vendor-ionic-a.js",
     "assets/vendor-charts-b.js",
