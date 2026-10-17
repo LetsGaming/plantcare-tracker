@@ -430,6 +430,7 @@ export const useSalesStore = defineStore("sales", {
           if (this.activeRun === run) {
             this.activeRun = null;
             this.streaming = false;
+            this.items = before;
           }
           if (!settled) {
             settled = true;

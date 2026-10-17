@@ -173,11 +173,11 @@ export default defineComponent({
       if (token === this.loadToken && cached) this.status = "ready";
     },
     /** Ends a running stream and returns to the start state, or to the cached guide. */
-    abort(plantName = this.plantName) {
+    abort(plantName?: string) {
       this.loadToken++;
       this.clearDoneNotice();
       if (this.status === "loading") {
-        this.stopInfo(plantName);
+        this.stopInfo(plantName ?? this.plantName);
         this.status = "idle";
       }
     },

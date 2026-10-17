@@ -697,10 +697,19 @@ describe("request helpers", () => {
 
   it("builds the query string, leaving out empty q and default sort", () => {
     expect(
-      pageSearchParams({ limit: 30, cursor: null, q: "", sort: null }, { scope: "public" }),
+      pageSearchParams(
+        { limit: 30, cursor: null, q: "", sort: null, conditional: false },
+        { scope: "public" },
+      ),
     ).toBe("limit=30&scope=public");
-    expect(pageSearchParams({ limit: 100, cursor: "abc", q: "a b", sort: "name" })).toBe(
-      "limit=100&cursor=abc&q=a+b&sort=name",
-    );
+    expect(
+      pageSearchParams({
+        limit: 100,
+        cursor: "abc",
+        q: "a b",
+        sort: "name",
+        conditional: false,
+      }),
+    ).toBe("limit=100&cursor=abc&q=a+b&sort=name");
   });
 });

@@ -1,4 +1,5 @@
 dist
+dist-perf
 coverage
 android
 ios

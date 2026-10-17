@@ -274,7 +274,7 @@ export const loadMore = <T extends object>(
       if (stillCurrent()) throw error;
     } finally {
       if (target.requestSeq === seq) target.loadingMore = false;
-      if (running.more?.promise === promise) running.more = undefined;
+      if (running.more?.seq === seq) running.more = undefined;
     }
   })();
   running.more = { seq, promise };
@@ -343,7 +343,7 @@ export const loadAll = <T extends object>(
       target.status = target.items.length > 0 ? "ready" : "error";
       throw error;
     } finally {
-      if (running.all?.promise === promise) running.all = undefined;
+      if (running.all?.seq === seq) running.all = undefined;
     }
   })();
   running.all = { seq, promise, live: stillCurrent };

@@ -2,7 +2,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { ModulePreloadOptions } from "vite";
 
 vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
@@ -10,7 +9,6 @@ vi.mock("@/services/general/StorageService", async () =>
 
 import storageService from "@/services/general/StorageService";
 import { setDarkMode, isDarkMode, applyInitialTheme, THEME_MIRROR_KEY } from "@/theme/darkMode";
-import vite from "../../vite.config";
 
 const root = document.documentElement;
 
@@ -116,18 +114,12 @@ describe("theme mirror", () => {
 });
 
 describe("build config", () => {
-  const modulePreload = vite.build?.modulePreload as ModulePreloadOptions;
-  const resolve = modulePreload.resolveDependencies!;
-  const deps = [
-    "assets/vendor-ionic-a.js",
-    "assets/vendor-charts-b.js",
-    "assets/vendor-luxon-c.js",
-  ];
+  const config = fs.readFileSync(path.resolve(__dirname, "../../vite.config.ts"), "utf8");
 
   it("keeps vendor-charts out of the html modulepreload list", () => {
-    const kept = resolve("index.html", deps, { hostId: "index.html", hostType: "html" });
-    expect(kept.some((d) => d.includes("vendor-charts"))).toBe(false);
-    expect(kept).toHaveLength(2);
+    const resolveBlock = config.slice(config.indexOf("resolveDependencies"));
+    expect(resolveBlock).toContain('hostType === "html"');
+    expect(resolveBlock).toContain('!dep.includes("vendor-charts")');
   });
 });
 

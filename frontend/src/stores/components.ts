@@ -89,9 +89,14 @@ export const useComponentsStore = defineStore("components", {
 
   persist: {
     entries: [
-      pagedPersistEntry("components_catalogue", (state) => state, "all", {
-        dirtyOn: ["ensureLoaded", "upsert", "deleteComponent"],
-      }),
+      pagedPersistEntry(
+        "components_catalogue",
+        (state) => state as PagedState<ComponentView>,
+        "all",
+        {
+          dirtyOn: ["ensureLoaded", "upsert", "deleteComponent"],
+        },
+      ),
       {
         key: "components_fineness_levels",
         pick: (state) => state.finenessLevels,

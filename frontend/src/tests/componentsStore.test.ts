@@ -363,7 +363,7 @@ describe("persistence", () => {
     expect(store.finenessLevels).toHaveLength(1);
   });
 
-  it("shows a stale snapshot first, then replaces it with the refreshed catalogue", async () => {
+  it("ignores an expired snapshot and loads the refreshed catalogue", async () => {
     const dayAgo = Date.now() - 25 * 60 * 60 * 1000;
     memoryStore.set("components_catalogue", snapshot([cachedView(4, "Old")], dayAgo));
     let resolve!: (value: unknown) => void;
@@ -372,7 +372,7 @@ describe("persistence", () => {
 
     const loading = store.ensureLoaded();
     await vi.waitFor(() => expect(api.get).toHaveBeenCalledTimes(1));
-    expect(ids(store)).toEqual([4]);
+    expect(ids(store)).toEqual([]);
 
     resolve(page([item(7, "Fresh")]));
     await loading;

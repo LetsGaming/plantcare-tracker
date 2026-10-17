@@ -136,6 +136,7 @@ describe("own substrates", () => {
     api.get.mockReturnValue(new Promise((_, fail) => (reject = fail)));
     const store = await newStore();
     const loading = store.ensureMine();
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalled());
     epoch.abortAll();
     reject(new Error("aborted"));
     await expect(loading).resolves.toBeUndefined();

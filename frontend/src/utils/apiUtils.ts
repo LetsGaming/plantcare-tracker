@@ -490,7 +490,6 @@ const ApiUtils = {
 
       const eventSource = new EventSource(url, { withCredentials: true });
       let idleTimer: ReturnType<typeof setTimeout> | undefined;
-      let stopListening: (() => void) | undefined;
       let closed = false;
 
       const cleanup = () => {
@@ -511,7 +510,7 @@ const ApiUtils = {
           cleanup();
         }, idleTimeoutMs);
       };
-      stopListening = epoch.onAbortAll(cleanup);
+      const stopListening = epoch.onAbortAll(cleanup);
       armIdleTimer();
 
       eventSource.onmessage = (e) => {

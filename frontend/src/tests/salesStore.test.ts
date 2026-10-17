@@ -539,7 +539,7 @@ describe("summary and freshness", () => {
 });
 
 describe("persistence", () => {
-  it("stores the list, the seen record and the summary after a replay", async () => {
+  it("stores the list and the summary after a replay, and the seen record only once it changed", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     emit([apiSale("a")]);
@@ -551,10 +551,7 @@ describe("persistence", () => {
     expect(sales.keepOnClear).toBe(true);
     expect(ids(sales.data)).toEqual(["a"]);
     expect(sales.data[0]).not.toHaveProperty("searchKey");
-    expect(memoryStore.get("sales_seen")).toMatchObject({
-      data: { watermark: NOW - 7 * DAY, ids: [] },
-      keepOnClear: true,
-    });
+    expect(memoryStore.has("sales_seen")).toBe(false);
     expect(memoryStore.get("sales_summary")).toMatchObject({
       data: { total: 1, newCount: 1 },
       keepOnClear: true,
@@ -581,6 +578,7 @@ describe("persistence", () => {
     stored("sales_seen", { watermark: NOW - DAY, ids: [] });
     stored("sales_data", [storedSale("x")]);
     stored("sales_query", {});
+    api.get.mockResolvedValue(summaryDto({ total: 5, new_since: 3 }));
     const store = await newStore();
 
     await (TabsPage as any).mounted.call({ isAdmin: false });
