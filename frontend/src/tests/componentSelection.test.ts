@@ -12,6 +12,7 @@ vi.mock("@/services/general/LocalizationService", () => ({
   },
 }));
 
+import { SEARCH_DEBOUNCE_MS } from "@/components/SearchBar.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
 
 const passthrough = (tag = "div") =>
@@ -75,6 +76,7 @@ const mountPicker = (
     selected?: number[];
     parts?: Record<number, number | string>;
     components?: ReturnType<typeof catalogue>;
+    loading?: boolean;
   } = {},
 ) => {
   const updates: string[] = [];
@@ -88,6 +90,7 @@ const mountPicker = (
       components: options.components ?? catalogue(options.count ?? 40),
       selectedComponentIds: selectedIds,
       componentParts: parts,
+      loading: options.loading,
     },
     global: {
       stubs,
@@ -182,6 +185,30 @@ describe("order and the selected block", () => {
   });
 });
 
+describe("unknown ids and loading", () => {
+  it("counts selected ids that are not in the catalogue yet", () => {
+    const { wrapper } = mountPicker({ count: 3, selected: [2, 99], parts: {} });
+    expect(wrapper.find(".selected-count").text()).toBe("components.selected_count 2");
+    expect(wrapper.findAll(".selected-chip").map((chip) => chip.text())).toEqual(["Component 02"]);
+  });
+
+  it("limits the status role to the count", () => {
+    const { wrapper } = mountPicker({ count: 3, selected: [1], parts: {} });
+    expect(wrapper.find(".selected-block").attributes("role")).toBeUndefined();
+    expect(wrapper.find(".selected-count").attributes("role")).toBe("status");
+  });
+
+  it("does not show the no matches state while loading", () => {
+    const { wrapper } = mountPicker({ components: [], selected: [], parts: {}, loading: true });
+    expect(wrapper.text()).not.toContain("subdetail.no_matches");
+  });
+
+  it("shows the no matches state once loaded", () => {
+    const { wrapper } = mountPicker({ components: [], selected: [], parts: {} });
+    expect(wrapper.text()).toContain("subdetail.no_matches");
+  });
+});
+
 describe("search", () => {
   it("filters after the search bar debounce and matches the precomputed search text", async () => {
     vi.useFakeTimers();
@@ -191,7 +218,7 @@ describe("search", () => {
     await field.setValue("component 0");
     await field.setValue("component 07");
     expect(rowNames(wrapper)).toHaveLength(40);
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS);
     expect(rowNames(wrapper)).toEqual(["Component 07"]);
   });
 
@@ -212,7 +239,7 @@ describe("search", () => {
       parts: {},
     });
     await wrapper.find(".search-field").setValue("peat");
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS);
     expect(rowNames(wrapper)).toEqual(["Peat"]);
   });
 });

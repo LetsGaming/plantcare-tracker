@@ -63,6 +63,15 @@ const overviewItemOf = (component: ComponentView): OverviewItem => {
     name: component.name,
     description,
     imageUrl: component.cover?.url,
+    image: component.cover
+      ? {
+          url: component.cover.url,
+          srcset: component.cover.srcset ?? undefined,
+          width: component.cover.width ?? undefined,
+          height: component.cover.height ?? undefined,
+          placeholder: component.cover.placeholder ?? undefined,
+        }
+      : undefined,
     searchText: ComponentMapper.searchTextOf(component.name, description),
   });
   itemCache.set(component, { locale, item });

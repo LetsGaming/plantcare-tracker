@@ -9,9 +9,9 @@
       </IonCheckbox>
     </IonItem>
 
-    <div class="selected-block" role="status">
-      <p class="selected-count">
-        {{ t("components.selected_count", { count: selectedComponents.length }) }}
+    <div class="selected-block">
+      <p class="selected-count" role="status">
+        {{ t("components.selected_count", { count: selectedComponentIds.length }) }}
       </p>
       <ul v-if="selectedComponents.length > 0" class="selected-chips">
         <li v-for="component in selectedComponents" :key="component.id" class="selected-chip">
@@ -33,6 +33,7 @@
         @touch="touchPart"
       />
     </ul>
+    <p v-else-if="loading" class="no-matches">{{ t("state.loading") }}</p>
     <p v-else class="no-matches">{{ t("subdetail.no_matches") }}</p>
   </section>
 </template>
@@ -90,6 +91,11 @@ export default defineComponent({
     },
     /** Show part errors for every selected component, not only the ones already visited. */
     showErrors: {
+      type: Boolean,
+      default: false,
+    },
+    /** The catalogue is still loading: an empty list is not "no matches" yet. */
+    loading: {
       type: Boolean,
       default: false,
     },
