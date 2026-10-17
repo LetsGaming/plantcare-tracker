@@ -90,7 +90,7 @@
           <substrate-container :substrate="fullSubstrate ?? undefined" />
         </div>
 
-        <more-info class="area-guide" :plantName="plant.name" />
+        <more-info class="area-guide" :plantName="plant.name" :active="pageActive" />
       </article>
 
       <PlantEditingModal
@@ -134,6 +134,7 @@ import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import { icons } from "@/theme/icons";
+import { pageActive } from "@/utils/pageActive";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
@@ -171,6 +172,7 @@ export default defineComponent({
     ImageUploadModal,
     ImageEditingModal,
   },
+  mixins: [pageActive],
 
   props: {
     id: { type: String, required: true },

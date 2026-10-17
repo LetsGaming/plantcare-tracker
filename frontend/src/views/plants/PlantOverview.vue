@@ -50,7 +50,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, toRaw } from "vue";
 import { IonButton, IonIcon, IonPage } from "@ionic/vue";
 import { icons } from "@/theme/icons";
 
@@ -79,6 +79,26 @@ const NO_ITEMS: readonly OverviewItem[] = Object.freeze([]);
 /** One overview item per plant object and render context, so an unchanged plant keeps its card props. */
 const itemCache = new WeakMap<PlantView, CachedItem>();
 const lastItems = new WeakMap<object, readonly OverviewItem[]>();
+const ownedByList = new WeakMap<object, ReadonlyMap<number, WateringSummary | null>>();
+
+/** The viewer's plants by id, built once per list array. */
+const ownedOf = (list: readonly PlantView[]): ReadonlyMap<number, WateringSummary | null> => {
+  const key = toRaw(list);
+  let owned = ownedByList.get(key);
+  if (!owned) {
+    owned = new Map(key.map((plant) => [plant.id, plant.watering]));
+    ownedByList.set(key, owned);
+  }
+  return owned;
+};
+
+const msUntilNextMidnight = (): number => {
+  const now = new Date();
+  return (
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1).getTime() -
+    now.getTime()
+  );
+};
 
 export default defineComponent({
   name: "PlantOverview",
@@ -94,10 +114,22 @@ export default defineComponent({
 
   data() {
     return {
-      showPublic: "private",
+      showPublic: useSessionStore().isGuest ? "public" : "private",
       showAddingModal: false,
       isAddingLoading: false,
+      dayTick: 0,
+      dayTimer: 0,
     };
+  },
+
+  mounted() {
+    this.scheduleDayTick();
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+  },
+
+  beforeUnmount() {
+    window.clearTimeout(this.dayTimer);
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
   },
 
   setup() {
@@ -167,15 +199,14 @@ export default defineComponent({
      */
     overviewItems(): readonly OverviewItem[] {
       if (!isActive(this)) return lastItems.get(this.$) ?? NO_ITEMS;
+      void this.dayTick;
       const now = Date.now();
       const stamp = [
         localizationService.getLocale(),
         new Date(now).toDateString(),
         this.t("plant.species_unknown"),
       ].join("|");
-      const owned = this.isPublic
-        ? new Map(this.mineList.items.map((plant) => [plant.id, plant.watering]))
-        : null;
+      const owned = this.isPublic ? ownedOf(this.mineList.items) : null;
       const items = this.activeList.items.map((plant) => this.cardFor(plant, stamp, now, owned));
       lastItems.set(this.$, items);
       return items;
@@ -185,6 +216,20 @@ export default defineComponent({
   methods: {
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);
+    },
+
+    scheduleDayTick() {
+      window.clearTimeout(this.dayTimer);
+      this.dayTimer = window.setTimeout(() => {
+        this.dayTick++;
+        this.scheduleDayTick();
+      }, msUntilNextMidnight());
+    },
+
+    onVisibilityChange() {
+      if (document.visibilityState !== "visible") return;
+      this.dayTick++;
+      this.scheduleDayTick();
     },
 
     ...mapActions(useSubstratesStore, { ensureSubstratesLoaded: "ensureLoaded" }),
@@ -214,6 +259,7 @@ export default defineComponent({
         name: plant.name,
         description: plant.speciesName ?? this.t("plant.species_unknown"),
         imageUrl: plant.cover?.url,
+        image: plant.cover,
         searchText: plant.searchText,
       };
       if (watering) {
@@ -282,8 +328,13 @@ export default defineComponent({
     },
 
     handleSegmentChange(value: string) {
-      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch();
+      // The new segment is set first so the clear below is not taken for a search of the old one.
       this.showPublic = value;
+      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch();
+      if (value === "public" && this.publicList.query.q !== "") {
+        this.changeQuery({ q: "" });
+        return;
+      }
       this.fetchPlants();
     },
 

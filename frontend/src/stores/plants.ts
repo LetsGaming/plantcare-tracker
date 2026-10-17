@@ -82,8 +82,108 @@ const sessionGuard = (): (() => boolean) => {
   return () => !epoch.isStale(started);
 };
 
+type Journal = Map<number, PlantView | null>;
+
+const journals = new WeakMap<object, Set<Journal>>();
+
+/** Records what a local commit changed in every load of this list that is still in flight. */
+const recordChange = (
+  target: PagedState<PlantView>,
+  before: readonly PlantView[],
+  after: readonly PlantView[],
+): void => {
+  const open = journals.get(toRaw(target));
+  if (!open || open.size === 0 || before === after) return;
+  const was = idIndexOf(before);
+  const now = idIndexOf(after);
+  const changes: [number, PlantView | null][] = [];
+  for (const [id, item] of now) if (was.get(id) !== item) changes.push([id as number, item]);
+  for (const id of was.keys()) if (!now.has(id)) changes.push([id as number, null]);
+  for (const journal of open) for (const [id, item] of changes) journal.set(id, item);
+};
+
+/** Every local commit to a list goes through here so a load in flight can be reconciled afterwards. */
+const setItems = (target: PagedState<PlantView>, next: PlantView[]): void => {
+  const before = target.items;
+  target.items = commitList(next);
+  recordChange(target, before, target.items);
+};
+
+/**
+ * Runs a load that replaces the list wholesale. Local edits committed while it was in flight
+ * (add, edit, delete, summaries, fetched details) are replayed onto the loaded list afterwards.
+ */
+const journaled = async (
+  target: PagedState<PlantView>,
+  isCurrent: () => boolean,
+  load: () => Promise<void>,
+  replay: (journal: Journal) => void,
+): Promise<void> => {
+  const key = toRaw(target);
+  let open = journals.get(key);
+  if (!open) journals.set(key, (open = new Set()));
+  const journal: Journal = new Map();
+  open.add(journal);
+  try {
+    const run = load();
+    const seq = target.requestSeq;
+    await run;
+    open.delete(journal);
+    if (journal.size > 0 && target.requestSeq === seq && target.status === "ready" && isCurrent()) {
+      replay(journal);
+    }
+  } finally {
+    open.delete(journal);
+  }
+};
+
+const positionsOf = (list: readonly PlantView[]): Map<number, number> => {
+  const positions = new Map<number, number>();
+  list.forEach((item, at) => {
+    if (!positions.has(item.id)) positions.set(item.id, at);
+  });
+  return positions;
+};
+
+/** Journal entries as an edit: changed plants replace, removed ones leave, new ones append when allowed. */
+const replaying =
+  (journal: Journal, append: boolean): ListEdit =>
+  (list) => {
+    const raw = toRaw(list) as readonly PlantView[];
+    const positions = positionsOf(raw);
+    const next = raw.slice();
+    const removed = new Set<number>();
+    const added: PlantView[] = [];
+    let changed = false;
+    for (const [id, item] of journal) {
+      const at = positions.get(id);
+      if (at === undefined) {
+        if (item && append) {
+          added.push(item);
+          changed = true;
+        }
+      } else if (item === null) {
+        removed.add(at);
+        changed = true;
+      } else if (raw[at] !== item) {
+        next[at] = item;
+        changed = true;
+      }
+    }
+    if (!changed) return null;
+    return [...next.filter((_, at) => !removed.has(at)), ...added];
+  };
+
+const carryImages = (item: PlantView, known: PlantView | undefined): PlantView =>
+  item.images ||
+  !known?.images ||
+  known.imageCount !== item.imageCount ||
+  known.cover?.url !== item.cover?.url
+    ? item
+    : Object.freeze({ ...item, images: known.images });
+
 const fetchScope =
-  (scope: Scope): FetchPage<PlantView> =>
+  (scope: Scope, target: PagedState<PlantView>): FetchPage<PlantView> =>
   async (params) => {
     const extra = scope === "mine" ? { scope, tz_offset: tzOffset() } : { scope };
     const path = `${BASE_ENDPOINT}?${pageSearchParams(params, extra)}`;
@@ -92,14 +192,14 @@ const fetchScope =
       : ApiUtils.get<ApiPage<APIPlantListItem>>(path);
     const page = await handleRequest(request, RESOURCE_KEY);
     if ((page as Partial<PageNotModified>).notModified === true) return { notModified: true };
-    return mapPage(page as ApiPage<APIPlantListItem>, PlantMapper.mapListItem);
+    const mapped = mapPage(page as ApiPage<APIPlantListItem>, PlantMapper.mapListItem);
+    const known = idIndexOf(target.items);
+    return { ...mapped, items: mapped.items.map((item) => carryImages(item, known.get(item.id))) };
   };
 
 const accessOf = (target: PagedState<PlantView>): ListAccess<PlantView> => ({
   get: () => target.items,
-  set: (next) => {
-    target.items = commitList(next);
-  },
+  set: (next) => setItems(target, next),
 });
 
 const replacing =
@@ -116,13 +216,13 @@ const applying =
   (summaries: ReadonlyMap<number, WateringSummary | null>): ListEdit =>
   (list) => {
     const raw = toRaw(list) as readonly PlantView[];
-    const index = idIndexOf(raw);
+    const positions = positionsOf(raw);
     let next: PlantView[] | null = null;
     for (const [id, summary] of summaries) {
-      const item = index.get(id);
-      if (!item) continue;
+      const at = positions.get(id);
+      if (at === undefined) continue;
       next ??= raw.slice();
-      next[raw.indexOf(item)] = PlantMapper.withWatering(item, summary);
+      next[at] = PlantMapper.withWatering(raw[at], summary);
     }
     return next;
   };
@@ -131,7 +231,7 @@ const editPublic = (lists: PlantLists, edit: ListEdit): void => {
   const target = lists.public;
   const before = target.items;
   const next = edit(before);
-  if (next) target.items = commitList(next);
+  if (next) setItems(target, next);
   const first = target.firstPage;
   if (!first) return;
   const sharesItems = first.items === before;
@@ -150,7 +250,7 @@ const editDetails = (lists: PlantLists, edit: ListEdit): void => {
 
 const editEverywhere = (lists: PlantLists, edit: ListEdit): void => {
   const next = edit(lists.mine.items);
-  if (next) lists.mine.items = commitList(next);
+  if (next) setItems(lists.mine, next);
   editPublic(lists, edit);
   editDetails(lists, edit);
 };
@@ -164,14 +264,35 @@ const mergeFetched = (lists: PlantLists, plant: PlantView): void => {
     editDetails(lists, removing(plant.id));
     return;
   }
-  const next = upsertItem(lists.details, plant);
+  const next = [...lists.details.filter((item) => item.id !== plant.id), plant];
   lists.details = commitList(next.length > DETAILS_LIMIT ? next.slice(-DETAILS_LIMIT) : next);
+};
+
+/** The details list is least recently used first: reading a plant moves it to the end. */
+const touchDetail = (lists: PlantLists, id: number): void => {
+  const held = idIndexOf(lists.details).get(id);
+  if (!held || lists.details[lists.details.length - 1] === held) return;
+  lists.details = commitList([...lists.details.filter((item) => item.id !== id), held]);
+};
+
+/** Drops a plant from the public list and its persisted first page, keeping both totals honest. */
+const leavePublic = (lists: PlantLists, id: number): void => {
+  const target = lists.public;
+  const inList = idIndexOf(target.items).has(id);
+  const first = target.firstPage;
+  const inFirst = first !== null && idIndexOf(first.items).has(id);
+  editPublic(lists, removing(id));
+  if (inList && target.total !== null) target.total = Math.max(0, target.total - 1);
+  const after = target.firstPage;
+  if (inFirst && after && after.total !== null) {
+    target.firstPage = Object.freeze({ ...after, total: Math.max(0, after.total - 1) });
+  }
 };
 
 /** Keeps `public` honest after an edit: a plant made private leaves it, a newly public one asks for a refresh. */
 const syncPublicMembership = (lists: PlantLists, plant: PlantView): void => {
   if (!plant.isPublic) {
-    editPublic(lists, removing(plant.id));
+    leavePublic(lists, plant.id);
   } else if (!idIndexOf(lists.public.items).has(plant.id)) {
     lists.public.fetchedAt = 0;
   }
@@ -235,7 +356,15 @@ export const usePlantsStore = defineStore("plants", {
           return;
         }
         if (!isCurrent()) return;
-        await loadAll(this.mine, fetchScope("mine"), { isCurrent });
+        await journaled(
+          this.mine,
+          isCurrent,
+          () => loadAll(this.mine, fetchScope("mine", this.mine), { isCurrent }),
+          (journal) => {
+            const next = replaying(journal, true)(this.mine.items);
+            if (next) setItems(this.mine, next);
+          },
+        );
       });
     },
 
@@ -252,7 +381,12 @@ export const usePlantsStore = defineStore("plants", {
           return;
         }
         if (!isCurrent()) return;
-        await loadFirst(this.public, fetchScope("public"), { isCurrent });
+        await journaled(
+          this.public,
+          isCurrent,
+          () => loadFirst(this.public, fetchScope("public", this.public), { isCurrent }),
+          (journal) => editPublic(this, replaying(journal, false)),
+        );
       });
     },
 
@@ -263,11 +397,19 @@ export const usePlantsStore = defineStore("plants", {
 
     /** Server search over the public plants; resets paging. The same query is a no-op. */
     setPublicQuery(q: string): Promise<void> {
-      return setQuery(this.public, { q }, fetchScope("public"), { isCurrent: sessionGuard() });
+      const isCurrent = sessionGuard();
+      return journaled(
+        this.public,
+        isCurrent,
+        () => setQuery(this.public, { q }, fetchScope("public", this.public), { isCurrent }),
+        (journal) => editPublic(this, replaying(journal, false)),
+      );
     },
 
     loadMorePublic(): Promise<void> {
-      return loadMore(this.public, fetchScope("public"), { isCurrent: sessionGuard() });
+      return loadMore(this.public, fetchScope("public", this.public), {
+        isCurrent: sessionGuard(),
+      });
     },
 
     /** Fetches one plant with its images (GET /plants/:id) and merges it into the lists. */
@@ -288,7 +430,10 @@ export const usePlantsStore = defineStore("plants", {
      */
     async getPlant(id: number, force = false): Promise<PlantView> {
       const cached = this.byId(id);
-      if (cached?.images && !force) return cached;
+      if (cached?.images && !force) {
+        touchDetail(this, id);
+        return cached;
+      }
       return this.fetchOne(id);
     },
 
@@ -419,7 +564,7 @@ export const usePlantsStore = defineStore("plants", {
           "error.action_failed",
         ),
       );
-      editPublic(this, removing(plantId));
+      leavePublic(this, plantId);
       editDetails(this, removing(plantId));
       useWateringStore().dropPlant(plantId);
     },

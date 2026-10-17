@@ -738,3 +738,164 @@ describe("copy-on-write lists", () => {
     expect(findIndex).not.toHaveBeenCalled();
   });
 });
+
+describe("local changes during a load in flight", () => {
+  const summary = (lastWateredAt: number | null): WateringSummary => ({
+    lastWateredAt,
+    lastFertilizedAt: null,
+    avgIntervalDays: null,
+  });
+
+  const startReload = async (gate: ReturnType<typeof deferred<unknown>>) => {
+    route({
+      mine: () => page([item(1), item(2)]),
+      one: (id) => apiPlantDetail({ plant_id: id, user_id: 1, plant_name: "Renamed" }),
+    });
+    const store = await newStore();
+    await store.ensureMine();
+    route({
+      mine: () => gate.promise,
+      one: (id) => apiPlantDetail({ plant_id: id, user_id: 1, plant_name: "Renamed" }),
+    });
+    const calls = requested().length;
+    const pending = store.ensureMine({ force: true });
+    await vi.waitFor(() => expect(requested().length).toBe(calls + 1));
+    return { store, pending };
+  };
+
+  it("keeps a plant fetched in full while the list reloads", async () => {
+    const gate = deferred<unknown>();
+    const { store, pending } = await startReload(gate);
+    await store.fetchOne(1);
+    gate.resolve(page([item(1), item(2)]));
+    await pending;
+    expect(store.byId(1)?.name).toBe("Renamed");
+    expect(store.byId(1)?.images).toHaveLength(1);
+    expect(ids(store.personalPlants)).toEqual([1, 2]);
+  });
+
+  it("does not bring back a plant deleted while the list reloads", async () => {
+    const gate = deferred<unknown>();
+    const { store, pending } = await startReload(gate);
+    vi.mocked(ApiUtils.delete).mockResolvedValue(undefined as never);
+    await store.deletePlant(2);
+    gate.resolve(page([item(1), item(2)]));
+    await pending;
+    expect(ids(store.personalPlants)).toEqual([1]);
+  });
+
+  it("keeps summaries applied while the list reloads", async () => {
+    const gate = deferred<unknown>();
+    const { store, pending } = await startReload(gate);
+    store.applySummaries(new Map([[1, summary(777)]]));
+    gate.resolve(page([item(1), item(2)]));
+    await pending;
+    expect(store.byId(1)?.watering).toEqual(summary(777));
+    expect(store.byId(2)?.watering?.lastWateredAt).toBeNull();
+  });
+
+  it("keeps a plant added while the list reloads", async () => {
+    const gate = deferred<unknown>();
+    const { store, pending } = await startReload(gate);
+    vi.mocked(ApiUtils.post).mockResolvedValue(
+      apiPlantDetail({ plant_id: 50, plant_name: "Fresh", user_id: 1 }),
+    );
+    await store.addPlant({ name: "Fresh", species: null, substrateId: null } as AddPlant);
+    gate.resolve(page([item(1), item(2)]));
+    await pending;
+    expect(ids(store.personalPlants)).toEqual([1, 2, 50]);
+  });
+
+  it("keeps summaries applied while the public first page reloads", async () => {
+    const gate = deferred<unknown>();
+    route({ public: () => page([item(1, { user_id: 7, watering: null })]) });
+    const store = await newStore();
+    await store.ensurePublic();
+    route({ public: () => gate.promise });
+    const calls = requested().length;
+    const pending = store.ensurePublic({ force: true });
+    await vi.waitFor(() => expect(requested().length).toBe(calls + 1));
+    store.applySummaries(new Map([[1, summary(5)]]));
+    gate.resolve(page([item(1, { user_id: 7, watering: null })]));
+    await pending;
+    expect(store.publicPlants[0].watering).toEqual(summary(5));
+    expect(store.public.firstPage?.items[0].watering).toEqual(summary(5));
+  });
+});
+
+describe("list details", () => {
+  it("carries the loaded images over to a reloaded list item without images", async () => {
+    route({
+      mine: () => page([item(1)]),
+      one: (id) => apiPlantDetail({ plant_id: id, user_id: 1 }),
+    });
+    const store = await newStore();
+    await store.ensureMine();
+    const detailed = await store.fetchOne(1);
+    await store.ensureMine({ force: true });
+    expect(store.byId(1)?.images).toBe(detailed.images);
+  });
+
+  it("drops the images when the reloaded plant has a different image count", async () => {
+    route({
+      mine: () => page([item(1)]),
+      one: (id) => apiPlantDetail({ plant_id: id, user_id: 1 }),
+    });
+    const store = await newStore();
+    await store.ensureMine();
+    await store.fetchOne(1);
+    route({ mine: () => page([item(1, { image_count: 2 })]) });
+    await store.ensureMine({ force: true });
+    expect(store.byId(1)?.images).toBeUndefined();
+  });
+
+  it("keeps the 20 most recently used plants opened by link", async () => {
+    route({ one: (id) => apiPlantDetail({ plant_id: id, user_id: 7 }) });
+    const store = await newStore();
+    for (let id = 100; id < 120; id++) await store.getPlant(id);
+    await store.getPlant(100);
+    await store.getPlant(120);
+    expect(store.details).toHaveLength(20);
+    expect(store.byId(100)).toBeDefined();
+    expect(store.byId(101)).toBeUndefined();
+    expect(store.byId(120)).toBeDefined();
+  });
+
+  it("builds a position map once instead of searching per plant", async () => {
+    route({ mine: () => page(Array.from({ length: 50 }, (_, i) => item(i + 1))) });
+    const store = await newStore();
+    await store.ensureMine();
+    const indexOf = vi.spyOn(Array.prototype, "indexOf");
+    store.applySummaries(
+      new Map(
+        Array.from({ length: 40 }, (_, i): [number, WateringSummary] => [
+          i + 1,
+          { lastWateredAt: i, lastFertilizedAt: null, avgIntervalDays: null },
+        ]),
+      ),
+    );
+    expect(indexOf).not.toHaveBeenCalled();
+    expect(store.byId(40)?.watering?.lastWateredAt).toBe(39);
+  });
+
+  it("lowers the public total when a plant leaves the public list", async () => {
+    route({
+      mine: () => page([item(2, { is_public: true })]),
+      public: () =>
+        page(
+          [item(2, { is_public: true, watering: null }), item(9, { user_id: 7, watering: null })],
+          null,
+          2,
+        ),
+    });
+    const store = await newStore();
+    await store.ensureMine();
+    await store.ensurePublic();
+    vi.mocked(ApiUtils.patch).mockResolvedValue(
+      apiPlantDetail({ plant_id: 2, is_public: false, user_id: 1 }),
+    );
+    await store.editPlant(2, { isPublic: false });
+    expect(store.public.total).toBe(1);
+    expect(store.public.firstPage?.total).toBe(1);
+  });
+});

@@ -22,9 +22,19 @@ vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
 );
 vi.mock("@/services/general/ToastService", async () => (await import("./helpers")).toastModule());
-vi.mock("@/services/general/LocalizationService", async () =>
-  (await import("./helpers")).localizationModule(),
-);
+const localeState = vi.hoisted(() => ({ value: "en" }));
+
+vi.mock("@/services/general/LocalizationService", async () => {
+  const base = (await import("./helpers")).localizationModule();
+  return {
+    default: {
+      ...base.default,
+      getLocale: () => localeState.value,
+      t: (key: string, _vars?: unknown, fallback?: string) =>
+        fallback ?? `${localeState.value}:${key}`,
+    },
+  };
+});
 vi.mock("@/utils/apiUtils", () => ({
   default: {
     get: vi.fn(),
@@ -146,15 +156,17 @@ const cards = (wrapper: VueWrapper<any>) => wrapper.findAllComponents(OverviewCa
 const leave = (vm: any) => vm.onIonViewDidLeave.forEach((hook: () => void) => hook());
 const enter = (vm: any) => vm.onIonViewWillEnter.forEach((hook: () => void) => hook());
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const fakeClock = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
 
 beforeEach(() => {
+  localeState.value = "en";
   resetStore();
   vi.mocked(ApiUtils.get).mockReset();
   vi.mocked(wateringStatus).mockClear();
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -266,12 +278,13 @@ describe("PlantOverview public segment", () => {
     await flushPromises();
     const before = paths().length;
 
+    fakeClock();
     const input = wrapper.find("input");
     await input.setValue("f");
     await input.setValue("fe");
     await input.setValue("fern");
     expect(paths()).toHaveLength(before);
-    await wait(SEARCH_DEBOUNCE_MS + 60);
+    await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 60);
     await flushPromises();
 
     const searches = paths().slice(before);
@@ -321,6 +334,36 @@ describe("PlantOverview public segment", () => {
     wrapper.unmount();
   });
 
+  it("sends no request when the segment is left with a search active, and enters public unfiltered", async () => {
+    const { wrapper, vm } = await mountPage({
+      mine: () => page([item(1)]),
+      public: (params) =>
+        params.get("q") === "fern" ? page([foreign(5)], null, 1) : page([foreign(1)], null, 1),
+    });
+    await vm.fetchPlants();
+    vm.handleSegmentChange("public");
+    await flushPromises();
+
+    fakeClock();
+    await wrapper.find("input").setValue("fern");
+    await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 60);
+    await flushPromises();
+    const before = paths().length;
+
+    vm.handleSegmentChange("private");
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 60);
+    expect(paths()).toHaveLength(before);
+
+    vm.handleSegmentChange("public");
+    await flushPromises();
+    const entered = paths().slice(before);
+    expect(entered).toHaveLength(1);
+    expect(entered[0].searchParams.get("q")).toBeNull();
+    expect(shown(wrapper).map((card) => card.id)).toEqual([1]);
+    wrapper.unmount();
+  });
+
   it("shows a guest the public plants only", async () => {
     const { wrapper, vm } = await mountPage(
       { public: () => page([foreign(3)]) },
@@ -333,6 +376,91 @@ describe("PlantOverview public segment", () => {
     expect(paths().map((url) => url.searchParams.get("scope"))).toEqual(["public"]);
     expect(shown(wrapper).map((card) => card.id)).toEqual([3]);
     expect(vm.showRoundButton).toBe(false);
+    wrapper.unmount();
+  });
+});
+
+describe("PlantOverview guest", () => {
+  it("starts on the public segment instead of waiting on an own list that never loads", async () => {
+    const { wrapper, vm } = await mountPage(
+      { public: () => page([foreign(3)]) },
+      { id: 0, username: "guest", role: "guest" },
+    );
+    await vm.fetchPlants();
+    await flushPromises();
+
+    expect(vm.showPublic).toBe("public");
+    expect(list(wrapper).props("isLoading")).toBe(false);
+    expect(shown(wrapper).map((card) => card.id)).toEqual([3]);
+    wrapper.unmount();
+  });
+});
+
+describe("PlantOverview day and locale", () => {
+  it("rebuilds the cards after the local midnight and when the tab becomes visible", async () => {
+    fakeClock();
+    vi.setSystemTime(new Date(2026, 9, 12, 23, 59, 0));
+    const { wrapper, vm } = await mountPage({
+      mine: () =>
+        page([
+          item(1, {
+            watering: apiWateringSummary({
+              last_watered_at: new Date(2026, 9, 12, 8).getTime(),
+              avg_interval_days: 7,
+            }),
+          }),
+        ]),
+    });
+    await vm.fetchPlants();
+    await flushPromises();
+    const first = shown(wrapper);
+    const computed = vi.mocked(wateringStatus).mock.calls.length;
+
+    await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+    await flushPromises();
+    const nextDay = shown(wrapper);
+    expect(nextDay).not.toBe(first);
+    expect(nextDay[0]).not.toBe(first[0]);
+    expect(vi.mocked(wateringStatus).mock.calls.length).toBe(computed + 1);
+
+    vi.setSystemTime(new Date(2026, 9, 14, 9, 0, 0));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await flushPromises();
+    expect(shown(wrapper)[0]).not.toBe(nextDay[0]);
+
+    const removed = vi.spyOn(document, "removeEventListener");
+    wrapper.unmount();
+    expect(removed).toHaveBeenCalledWith("visibilitychange", expect.any(Function));
+    const afterUnmount = vi.mocked(wateringStatus).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(3 * DAY);
+    expect(vi.mocked(wateringStatus).mock.calls.length).toBe(afterUnmount);
+  });
+
+  it("rebuilds the cards when the locale changes", async () => {
+    const { wrapper, vm } = await mountPage({
+      mine: () => page([item(1, { species_name: null })]),
+    });
+    await vm.fetchPlants();
+    await flushPromises();
+    const before = shown(wrapper);
+    expect(before[0].description).toBe("en:plant.species_unknown");
+
+    localeState.value = "de";
+    vm.dayTick++;
+    await flushPromises();
+    const after = shown(wrapper);
+    expect(after[0]).not.toBe(before[0]);
+    expect(after[0].description).toBe("de:plant.species_unknown");
+    wrapper.unmount();
+  });
+
+  it("hands the cover image to the card", async () => {
+    const { wrapper, vm } = await mountPage({ mine: () => page([item(1)]) });
+    await vm.fetchPlants();
+    await flushPromises();
+    const card = shown(wrapper)[0];
+    expect(card.image).toBeTruthy();
+    expect(card.image?.url).toBe(card.imageUrl);
     wrapper.unmount();
   });
 });

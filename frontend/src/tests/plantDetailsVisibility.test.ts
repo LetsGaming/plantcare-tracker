@@ -78,6 +78,16 @@ describe("PlantDetails watering visibility", () => {
     expect((wrapper.vm as any).canEdit).toBe(false);
   });
 
+  it("tells the care guide when the page is hidden", async () => {
+    const wrapper = mountDetails(1);
+    await flushPromises();
+    const guide = () => wrapper.findComponent({ name: "MoreInfo" });
+    expect(guide().props("active")).toBe(true);
+    (wrapper.vm as any).pageActive = false;
+    await flushPromises();
+    expect(guide().props("active")).toBe(false);
+  });
+
   it("does the same for a guest", async () => {
     session.role = "guest";
     session.userId = 0;
