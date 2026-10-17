@@ -75,6 +75,8 @@
           <round-list
             v-else
             :rows="visibleRows"
+            :checked-ids="checkedIds"
+            :overrides="overrides"
             :fertilizer-types="fertilizerTypes"
             @toggle="toggle"
             @set-fertilizer="setFertilizer"
@@ -121,7 +123,7 @@
       :confident="confident"
       :busy="snapBusy"
       :logged-name="logged?.name ?? ''"
-      :logged-image-url="loggedImageUrl"
+      :logged-image="loggedImage"
       :logged-plant-id="logged?.plantId ?? null"
       :selected-fertilizer-id="logged?.fertilizerTypeId ?? null"
       :fertilizer-types="fertilizerTypes"
@@ -173,6 +175,7 @@ import {
   buildBatchEntries,
   buildRoundRows,
   rerankCandidates,
+  resolveChecked,
   type RoundRow,
 } from "@/utils/waterRound";
 
@@ -216,7 +219,10 @@ export default defineComponent({
       loadError: false,
       saving: false,
       roundFertilizer: null as number | null,
-      overrides: {} as Record<number, Partial<RoundRow>>,
+      checkedIds: new Set<number>(),
+      checkedCount: 0,
+      touched: new Map<number, boolean>(),
+      overrides: new Map<number, number | null>(),
       recognitionAvailable: false,
       sheet: { open: false, state: "matching" as "matching" | "candidates" | "logged" },
       pickerOpen: false,
@@ -241,21 +247,20 @@ export default defineComponent({
   },
   computed: {
     ...mapState(usePlantsStore, ["personalPlants"]),
-    ...mapState(useWateringStore, ["byPlantId", "fertilizerTypes"]),
+    ...mapState(useWateringStore, ["fertilizerTypes"]),
     ...mapState(useSessionStore, ["isGuest"]),
     ...mapState(useSnapSettingsStore, ["keepPhoto"]),
-    loggedImageUrl(): string {
-      const plant = this.personalPlants.find((p) => p.id === this.logged?.plantId);
-      return plant?.imageUrl ?? plant?.images?.at(-1)?.url ?? "";
+    loggedImage(): ImageView | null {
+      return this.rowById.get(this.logged?.plantId ?? -1)?.image ?? null;
     },
     showSnap(): boolean {
       return this.recognitionAvailable && !this.isGuest && this.rows.length > 0;
     },
     sheetCandidates(): SnapCandidate[] {
       return this.candidates.flatMap((candidate) => {
-        const row = this.rows.find((r) => r.plantId === candidate.plantId);
+        const row = this.rowById.get(candidate.plantId);
         return row
-          ? [{ plantId: row.plantId, name: row.name, imageUrl: row.imageUrl, tone: row.tone }]
+          ? [{ plantId: row.plantId, name: row.name, image: row.image, tone: row.tone }]
           : [];
       });
     },
@@ -267,29 +272,32 @@ export default defineComponent({
       return !!raw && raw.score >= this.threshold;
     },
     rows(): RoundRow[] {
-      return buildRoundRows(this.personalPlants, (id) => this.byPlantId[id]).map((row) => ({
-        ...row,
-        ...this.overrides[row.plantId],
-      }));
+      return buildRoundRows(this.personalPlants);
+    },
+    rowById(): Map<number, RoundRow> {
+      return new Map(this.rows.map((row) => [row.plantId, row]));
     },
     visibleRows(): RoundRow[] {
       const needle = this.query.trim().toLowerCase();
-      return needle
-        ? this.rows.filter((row) => row.name.toLowerCase().includes(needle))
-        : this.rows;
+      return needle ? this.rows.filter((row) => row.key.includes(needle)) : this.rows;
     },
     hiddenCheckedCount(): number {
-      const visible = new Set(this.visibleRows.map((row) => row.plantId));
-      return this.rows.filter((row) => row.checked && !visible.has(row.plantId)).length;
-    },
-    checkedCount(): number {
-      return this.rows.filter((row) => row.checked).length;
+      if (!this.query.trim()) return 0;
+      let visibleChecked = 0;
+      for (const row of this.visibleRows) if (this.checkedIds.has(row.plantId)) visibleChecked += 1;
+      return this.checkedCount - visibleChecked;
     },
     segmentValue(): string {
       return this.roundFertilizer === null ? "none" : String(this.roundFertilizer);
     },
     saveLabel(): string {
       return this.t("water.log_count", { count: this.checkedCount });
+    },
+  },
+  watch: {
+    rows: {
+      handler: "syncChecked",
+      immediate: true,
     },
   },
   async created() {
@@ -309,8 +317,6 @@ export default defineComponent({
     ...mapActions(useWateringStore, [
       "addBatch",
       "removeBatch",
-      "ensureRecordsFor",
-      "ensureRecords",
       "ensureFertilizerTypes",
       "editRecord",
       "deleteRecord",
@@ -323,7 +329,6 @@ export default defineComponent({
       this.loadError = false;
       try {
         await Promise.all([this.ensureLoaded(), this.ensureFertilizerTypes()]);
-        await this.ensureRecordsFor(this.personalPlants.map((plant) => plant.id));
       } catch (error) {
         console.error("Failed to load the watering round:", error);
         this.loadError = true;
@@ -341,21 +346,39 @@ export default defineComponent({
       const value = event.detail.value;
       this.roundFertilizer = value === undefined || value === "none" ? null : Number(value);
     },
+    syncChecked() {
+      this.checkedIds = resolveChecked(this.rows, this.touched);
+      this.checkedCount = this.checkedIds.size;
+    },
     toggle(plantId: number) {
-      const row = this.rows.find((candidate) => candidate.plantId === plantId);
-      if (row) this.overrides[plantId] = { ...this.overrides[plantId], checked: !row.checked };
+      if (!this.rowById.has(plantId)) return;
+      const next = !this.checkedIds.has(plantId);
+      this.touched.set(plantId, next);
+      if (next) this.checkedIds.add(plantId);
+      else this.checkedIds.delete(plantId);
+      this.checkedCount += next ? 1 : -1;
     },
     setFertilizer(plantId: number, fertilizerTypeId: number | null | undefined) {
-      this.overrides[plantId] = { ...this.overrides[plantId], fertilizerTypeId };
+      if (fertilizerTypeId === undefined) this.overrides.delete(plantId);
+      else this.overrides.set(plantId, fertilizerTypeId);
     },
     async save() {
       if (this.saving || this.checkedCount === 0) return;
-      const entries = buildBatchEntries(this.rows, this.roundFertilizer);
+      const entries = buildBatchEntries(
+        this.rows,
+        this.checkedIds,
+        this.overrides,
+        this.roundFertilizer,
+      );
       const plantIds = entries.map((entry) => entry.plantId);
       this.saving = true;
       try {
         const ids = await this.addBatch(entries);
-        for (const plantId of plantIds) delete this.overrides[plantId];
+        for (const plantId of plantIds) {
+          this.touched.delete(plantId);
+          this.overrides.delete(plantId);
+        }
+        this.syncChecked();
         this.rememberRound({ ids, plantIds, count: ids.length });
         ToastService.showToastWithAction(
           { key: "water.round_logged", vars: { count: ids.length } },
@@ -400,7 +423,7 @@ export default defineComponent({
         return;
       }
       if (token !== this.matchToken) return;
-      const toneOf = (id: number) => this.rows.find((row) => row.plantId === id)?.tone;
+      const toneOf = (id: number) => this.rowById.get(id)?.tone;
       this.snapshotId = match.snapshotId;
       this.rawTopId = match.candidates[0]?.plantId ?? null;
       this.candidates = rerankCandidates(match.candidates, toneOf);
@@ -422,13 +445,10 @@ export default defineComponent({
           plantId,
           keepPhoto: this.keepPhoto,
         });
-        const name = this.rows.find((row) => row.plantId === plantId)?.name ?? "";
+        const name = this.rowById.get(plantId)?.name ?? "";
         this.logged = { plantId, name, fertilizerTypeId: null, ...result };
         try {
-          await Promise.all([
-            this.ensureRecords(plantId, { force: true }),
-            this.getPlant(plantId, true),
-          ]);
+          await this.getPlant(plantId, true);
         } catch (error) {
           console.error("Refreshing the plant after a snap failed:", error);
         }

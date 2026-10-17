@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
-import { shallowMount } from "@vue/test-utils";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mount, shallowMount } from "@vue/test-utils";
+import { defineComponent, h, nextTick, reactive } from "vue";
 
 vi.mock("@/services/general/LocalizationService", () => ({
   default: {
@@ -10,29 +11,38 @@ vi.mock("@/services/general/LocalizationService", () => ({
 }));
 
 import RoundList from "@/components/water/RoundList.vue";
-import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
+import RoundRow from "@/components/water/RoundRow.vue";
+import ProgressiveImage from "@/components/ProgressiveImage.vue";
+import PlantMapper from "@/mapping/PlantMapping";
+import { apiImageDto, apiPlantListItem } from "@/tests/helpers";
+import type { RoundRow as RoundRowData } from "@/utils/waterRound";
 
-describe("RoundList", () => {
+const types = [
+  { id: 1, name: "organic" },
+  { id: 2, name: "synthetic" },
+] as FertilizerType[];
+
+const rowProps = (over: Record<string, unknown> = {}) => ({
+  plantId: 7,
+  name: "Monty",
+  image: null,
+  tone: "ok",
+  checked: false,
+  hasOverride: false,
+  overrideId: null,
+  fertilizerTypes: types,
+  ...over,
+});
+
+const mountRow = (over: Record<string, unknown> = {}) =>
+  shallowMount(RoundRow, {
+    props: rowProps(over) as never,
+    global: { renderStubDefaultSlot: true },
+  });
+
+describe("RoundRow", () => {
   it("names the fertilizer options in the app language", async () => {
-    const wrapper = shallowMount(RoundList, {
-      props: {
-        rows: [
-          {
-            plantId: 1,
-            name: "Monty",
-            checked: false,
-            tone: "ok",
-            rank: 0,
-            fertilizerTypeId: undefined,
-          },
-        ],
-        fertilizerTypes: [
-          { id: 1, name: "organic" },
-          { id: 2, name: "synthetic" },
-        ],
-      },
-      global: { renderStubDefaultSlot: true },
-    });
+    const wrapper = mountRow();
     await wrapper.find(".override-edit").trigger("click");
     const options = wrapper.findAll("ion-select-option-stub").map((o) => o.text());
     expect(options).toContain("copy2.fertilizer.organic");
@@ -40,50 +50,17 @@ describe("RoundList", () => {
   });
 
   it("labels a never watered row with its own chip", () => {
-    const wrapper = shallowMount(RoundList, {
-      props: {
-        rows: [
-          {
-            plantId: 1,
-            name: "Fresh",
-            checked: true,
-            tone: "new",
-            rank: -8.5,
-            fertilizerTypeId: undefined,
-          },
-        ],
-        fertilizerTypes: [],
-      },
-      global: { renderStubDefaultSlot: true },
-    });
-    const chip = wrapper.find(".tone-chip");
+    const chip = mountRow({ name: "Fresh", checked: true, tone: "new" }).find(".tone-chip");
     expect(chip.text()).toBe("plantlist.new");
     expect(chip.classes()).toContain("tone-new");
   });
-});
 
-const row = (over: Record<string, unknown> = {}) => ({
-  plantId: 7,
-  name: "Monty",
-  checked: false,
-  tone: "ok",
-  rank: 0,
-  fertilizerTypeId: undefined,
-  ...over,
-});
-const types = [
-  { id: 1, name: "organic" },
-  { id: 2, name: "synthetic" },
-];
-const mountList = (rows: unknown[]) =>
-  shallowMount(RoundList, {
-    props: { rows: rows as never, fertilizerTypes: types as never },
-    global: { renderStubDefaultSlot: true },
+  it("shows no tone chip for a plant that is fine", () => {
+    expect(mountRow().find(".tone-chip").exists()).toBe(false);
   });
 
-describe("RoundList row details", () => {
   it("keeps the fertilizer select closed until the edit button is pressed", async () => {
-    const wrapper = mountList([row()]);
+    const wrapper = mountRow();
     expect(wrapper.find("ion-select-stub").exists()).toBe(false);
     const edit = wrapper.find(".override-edit");
     expect(edit.attributes("aria-label")).toBe("water.override_edit");
@@ -94,8 +71,13 @@ describe("RoundList row details", () => {
     expect(wrapper.find("ion-select-stub").exists()).toBe(false);
   });
 
+  it("offers no editor without fertilizer types", () => {
+    const wrapper = mountRow({ fertilizerTypes: [] });
+    expect(wrapper.find(".override-edit").exists()).toBe(false);
+  });
+
   it("shows only the chip, inside the text column, while an override is set and the editor is closed", () => {
-    const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    const wrapper = mountRow({ hasOverride: true, overrideId: 1 });
     expect(wrapper.find("ion-select-stub").exists()).toBe(false);
     const chip = wrapper.find(".override-chip");
     expect(chip.text()).toBe("copy2.fertilizer.organic");
@@ -103,7 +85,7 @@ describe("RoundList row details", () => {
   });
 
   it("swaps the chip for the select when the editor opens and back when it closes", async () => {
-    const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    const wrapper = mountRow({ hasOverride: true, overrideId: 1 });
     await wrapper.find(".override-edit").trigger("click");
     expect(wrapper.find("ion-select-stub").exists()).toBe(true);
     expect(wrapper.find(".override-chip").exists()).toBe(false);
@@ -113,31 +95,149 @@ describe("RoundList row details", () => {
   });
 
   it("names an explicit no fertilizer override in the chip", () => {
-    const wrapper = mountList([row({ fertilizerTypeId: null })]);
+    const wrapper = mountRow({ hasOverride: true, overrideId: null });
     expect(wrapper.find(".override-chip").text()).toBe("water.fertilizer_none");
   });
 
   it("shows no chip while the row follows the round", () => {
-    expect(mountList([row()]).find(".override-chip").exists()).toBe(false);
+    expect(mountRow().find(".override-chip").exists()).toBe(false);
+  });
+
+  it("preselects the current override in the open editor", async () => {
+    const wrapper = mountRow({ hasOverride: true, overrideId: 2 });
+    await wrapper.find(".override-edit").trigger("click");
+    expect(wrapper.findComponent({ name: "IonSelect" }).props("value")).toBe(2);
+    const none = mountRow({ hasOverride: true, overrideId: null });
+    await none.find(".override-edit").trigger("click");
+    expect(none.findComponent({ name: "IonSelect" }).props("value")).toBe("none");
+    const follow = mountRow();
+    await follow.find(".override-edit").trigger("click");
+    expect(follow.findComponent({ name: "IonSelect" }).props("value")).toBe("default");
   });
 
   it("emits the new override and closes the editor when the select changes", async () => {
-    const wrapper = mountList([row({ fertilizerTypeId: 1 })]);
+    const wrapper = mountRow({ hasOverride: true, overrideId: 1 });
     await wrapper.find(".override-edit").trigger("click");
     wrapper.findComponent({ name: "IonSelect" }).vm.$emit("ionChange", {
       detail: { value: "default" },
     });
-    await wrapper.vm.$nextTick();
+    await nextTick();
     expect(wrapper.emitted("set-fertilizer")?.[0]).toEqual([7, undefined]);
     expect(wrapper.find("ion-select-stub").exists()).toBe(false);
   });
 
-  it("tints the placeholder per plant when there is no photo", () => {
-    const wrapper = mountList([row({ plantId: 7 }), row({ plantId: 8, imageUrl: "/a.jpg" })]);
-    const placeholders = wrapper.findAllComponents(PlantPlaceholder);
-    expect(placeholders).toHaveLength(1);
-    expect(placeholders[0].props("seed")).toBe("7");
-    expect(placeholders[0].props("kind")).toBe("plant");
-    expect(wrapper.findAll("img")).toHaveLength(1);
+  it("emits the plant id when the box is ticked", async () => {
+    const wrapper = mountRow();
+    await wrapper.find(".tick-box").trigger("change");
+    expect(wrapper.emitted("toggle")?.[0]).toEqual([7]);
+  });
+
+  it("renders the thumbnail through the image component at the 64px size, seeded per plant", () => {
+    const image = PlantMapper.mapListItem(apiPlantListItem({ cover: apiImageDto() })).cover;
+    const thumb = mountRow({ image }).findComponent(ProgressiveImage);
+    expect(thumb.props("image")).toEqual(image);
+    expect(thumb.props("sizes")).toBe("64px");
+    expect(thumb.props("seed")).toBe("7");
+    expect(mountRow().findComponent(ProgressiveImage).props("image")).toBeNull();
+  });
+});
+
+const base = (plantId: number): RoundRowData => ({
+  plantId,
+  name: `Plant ${plantId}`,
+  key: `plant ${plantId}`,
+  image: null,
+  tone: "ok",
+  rank: 0,
+  preChecked: false,
+});
+
+describe("RoundList", () => {
+  const renders = new Map<number, number>();
+  const CountingRow = defineComponent({
+    name: "RoundRow",
+    props: {
+      plantId: { type: Number, required: true },
+      name: String,
+      image: Object,
+      tone: String,
+      checked: Boolean,
+      hasOverride: Boolean,
+      overrideId: Number,
+      fertilizerTypes: Array,
+    },
+    render() {
+      renders.set(this.plantId, (renders.get(this.plantId) ?? 0) + 1);
+      return h("li");
+    },
+  });
+
+  beforeEach(() => renders.clear());
+
+  const mountList = () => {
+    const checkedIds = reactive(new Set<number>([2]));
+    const overrides = reactive(new Map<number, number | null>());
+    const wrapper = mount(RoundList, {
+      props: {
+        rows: [base(1), base(2), base(3), base(4)],
+        checkedIds,
+        overrides,
+        fertilizerTypes: types,
+      },
+      global: { stubs: { RoundRow: CountingRow } },
+    });
+    return { wrapper, checkedIds, overrides };
+  };
+
+  it("renders one row per plant with primitive state taken from the sets", () => {
+    const { wrapper } = mountList();
+    const rows = wrapper.findAllComponents(CountingRow);
+    expect(rows.map((row) => row.props("plantId"))).toEqual([1, 2, 3, 4]);
+    expect(rows.map((row) => row.props("checked"))).toEqual([false, true, false, false]);
+  });
+
+  it("re-renders only the tapped row when a box is ticked", async () => {
+    const { checkedIds } = mountList();
+    renders.clear();
+    checkedIds.add(3);
+    await nextTick();
+    expect([...renders.entries()]).toEqual([[3, 1]]);
+  });
+
+  it("re-renders only the tapped row when a box is unticked", async () => {
+    const { checkedIds } = mountList();
+    renders.clear();
+    checkedIds.delete(2);
+    await nextTick();
+    expect([...renders.entries()]).toEqual([[2, 1]]);
+  });
+
+  it("re-renders only the row whose fertilizer override changes", async () => {
+    const { wrapper, overrides } = mountList();
+    renders.clear();
+    overrides.set(4, 2);
+    await nextTick();
+    expect([...renders.entries()]).toEqual([[4, 1]]);
+    const row = wrapper.findAllComponents(CountingRow)[3];
+    expect(row.props("hasOverride")).toBe(true);
+    expect(row.props("overrideId")).toBe(2);
+  });
+
+  it("passes an explicit no fertilizer override as a null id", async () => {
+    const { wrapper, overrides } = mountList();
+    overrides.set(1, null);
+    await nextTick();
+    const row = wrapper.findAllComponents(CountingRow)[0];
+    expect(row.props("hasOverride")).toBe(true);
+    expect(row.props("overrideId")).toBeNull();
+  });
+
+  it("relays the row events", () => {
+    const { wrapper } = mountList();
+    const first = wrapper.findAllComponents(CountingRow)[0];
+    first.vm.$emit("toggle", 1);
+    first.vm.$emit("set-fertilizer", 1, null);
+    expect(wrapper.emitted("toggle")?.[0]).toEqual([1]);
+    expect(wrapper.emitted("set-fertilizer")?.[0]).toEqual([1, null]);
   });
 });

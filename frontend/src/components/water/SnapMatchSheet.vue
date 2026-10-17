@@ -31,8 +31,11 @@
                 @click="pick(candidate.plantId)"
               >
                 <span class="thumb" aria-hidden="true">
-                  <img v-if="candidate.imageUrl" :src="candidate.imageUrl" alt="" />
-                  <plant-placeholder v-else :seed="String(candidate.plantId)" />
+                  <progressive-image
+                    :image="candidate.image"
+                    sizes="64px"
+                    :seed="String(candidate.plantId)"
+                  />
                 </span>
                 <span class="text">
                   <span class="name break-words">{{ candidate.name }}</span>
@@ -62,8 +65,11 @@
         <template v-else>
           <div class="logged-head">
             <span class="logged-thumb" aria-hidden="true">
-              <img v-if="loggedImageUrl" :src="loggedImageUrl" alt="" />
-              <plant-placeholder v-else :seed="String(loggedPlantId ?? '')" />
+              <progressive-image
+                :image="loggedImage"
+                sizes="64px"
+                :seed="String(loggedPlantId ?? '')"
+              />
             </span>
             <h2 ref="title" class="sheet-title break-words" tabindex="-1">
               {{ t("water.snap_logged", { name: loggedName }) }}
@@ -117,7 +123,7 @@ import { defineComponent, type PropType } from "vue";
 import { IonButton, IonContent, IonModal, IonSpinner } from "@ionic/vue";
 import localizationService from "@/services/general/LocalizationService";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
-import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
+import ProgressiveImage from "@/components/ProgressiveImage.vue";
 import { nextFieldId } from "@/components/formcomponent/fieldShared";
 import { fertilizerKind, fertilizerLabel } from "@/utils/enumLabels";
 import type { WateringTone } from "@/utils/wateringStats";
@@ -125,7 +131,7 @@ import type { WateringTone } from "@/utils/wateringStats";
 export interface SnapCandidate {
   plantId: number;
   name: string;
-  imageUrl?: string;
+  image: ImageView | null;
   tone: WateringTone;
 }
 
@@ -133,7 +139,7 @@ const MAX_SHOWN = 3;
 
 export default defineComponent({
   name: "SnapMatchSheet",
-  components: { IonButton, IonContent, IonModal, IonSpinner, PlantPlaceholder },
+  components: { IonButton, IonContent, IonModal, IonSpinner, ProgressiveImage },
   props: {
     isOpen: { type: Boolean, required: true },
     state: {
@@ -144,7 +150,7 @@ export default defineComponent({
     confident: { type: Boolean, default: false },
     busy: { type: Boolean, default: false },
     loggedName: { type: String, default: "" },
-    loggedImageUrl: { type: String, default: "" },
+    loggedImage: { type: Object as PropType<ImageView | null>, default: null },
     loggedPlantId: { type: Number as PropType<number | null>, default: null },
     selectedFertilizerId: { type: Number as PropType<number | null>, default: null },
     fertilizerTypes: { type: Array as PropType<FertilizerType[]>, default: () => [] },
@@ -245,13 +251,6 @@ export default defineComponent({
   background: var(--surface-sunken);
 }
 
-.logged-thumb img,
-.logged-thumb :deep(.placeholder) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .chips-label {
   margin: 0;
   font-size: var(--text-sm);
@@ -303,26 +302,13 @@ export default defineComponent({
 }
 
 .thumb {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 48px;
   height: 48px;
   flex: none;
   overflow: hidden;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
-  color: var(--ink-soft);
-}
-
-.thumb img,
-.thumb :deep(.placeholder) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.thumb :deep(.placeholder) {
-  min-height: 0;
 }
 
 .text {

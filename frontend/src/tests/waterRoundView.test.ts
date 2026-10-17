@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
 import { createTestingPinia } from "@pinia/testing";
+import { markRaw } from "vue";
 
 const toast = vi.hoisted(() => ({
   showSuccess: vi.fn(),
@@ -36,10 +37,31 @@ import { usePlantsStore } from "@/stores/plants";
 import { useWateringStore } from "@/stores/watering";
 import { useSessionStore } from "@/stores/session";
 import { UNDO_TOAST_MS } from "@/utils/undo";
+import PlantMapper from "@/mapping/PlantMapping";
+import { apiPlantListItem, apiWateringSummary } from "@/tests/helpers";
+import type { RoundRow } from "@/utils/waterRound";
 
 const DAY = 86_400_000;
-const rec = (daysAgo: number) => ({ date_millis: Date.now() - daysAgo * DAY }) as WateringRecord;
-const plant = (id: number, name: string) => ({ id, name, images: [] }) as unknown as Plant;
+const summaryOf = (daysAgo: number | null, interval: number | null = 7) =>
+  apiWateringSummary(
+    daysAgo === null
+      ? {}
+      : { last_watered_at: Date.now() - daysAgo * DAY, avg_interval_days: interval },
+  );
+const plant = (id: number, name: string, daysAgo: number | null = 1, interval = 7): PlantView =>
+  PlantMapper.mapListItem(
+    apiPlantListItem({
+      plant_id: id,
+      plant_name: name,
+      cover: null,
+      watering: summaryOf(daysAgo, interval),
+    }),
+  );
+const defaultPlants = () => [
+  plant(1, "Fine"),
+  plant(2, "Thirsty", 20),
+  plant(3, "Parched", 30, 14),
+];
 
 type Vm = { save(): Promise<void>; saveLabel: string };
 
@@ -47,12 +69,15 @@ const push = vi.fn();
 
 const mountRound = ({
   guest = false,
-  plantList = [plant(1, "Fine"), plant(2, "Thirsty"), plant(3, "Parched")],
+  plantList = defaultPlants(),
   prepare,
 }: {
   guest?: boolean;
-  plantList?: Plant[];
-  prepare?: (watering: ReturnType<typeof useWateringStore>) => void;
+  plantList?: PlantView[];
+  prepare?: (
+    watering: ReturnType<typeof useWateringStore>,
+    plants: ReturnType<typeof usePlantsStore>,
+  ) => void;
 } = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const plants = usePlantsStore(pinia);
@@ -60,19 +85,24 @@ const mountRound = ({
   const session = useSessionStore(pinia);
   const overridable = (store: object) => store as unknown as Record<string, unknown>;
   overridable(plants).personalPlants = plantList;
-  watering.byPlantId = {
-    1: [rec(1), rec(8)],
-    2: [rec(20), rec(27)],
-    3: [rec(30), rec(44)],
-  };
   watering.fertilizerTypes = [{ id: 4, name: "Bloom" } as FertilizerType];
   overridable(session).isGuest = guest;
   vi.mocked(watering.addBatch).mockResolvedValue([11, 12]);
-  prepare?.(watering);
+  prepare?.(watering, plants);
   const wrapper = shallowMount(WaterRound, {
     global: { plugins: [pinia], renderStubDefaultSlot: true, mocks: { $router: { push } } },
   });
-  return { wrapper, watering, session, vm: wrapper.vm as unknown as Vm };
+  return { wrapper, watering, plants, session, vm: wrapper.vm as unknown as Vm };
+};
+
+type Wrapper = ReturnType<typeof mountRound>["wrapper"];
+const listProps = (wrapper: Wrapper) => wrapper.findComponent(RoundList).props();
+const checkedNames = (wrapper: Wrapper) => {
+  const { rows, checkedIds } = listProps(wrapper) as unknown as {
+    rows: RoundRow[];
+    checkedIds: Set<number>;
+  };
+  return rows.filter((row) => checkedIds.has(row.plantId)).map((row) => row.name);
 };
 
 describe("WaterRound", () => {
@@ -82,35 +112,61 @@ describe("WaterRound", () => {
     const { wrapper } = mountRound();
     await flushPromises();
     expect(wrapper.find(".log-button").text()).toContain('"count":2');
-    const list = wrapper.findComponent(RoundList);
-    const names = (list.props("rows") as { name: string; checked: boolean }[]).map(
-      (row) => `${row.name}:${row.checked}`,
-    );
-    expect(names.sort()).toEqual(["Fine:false", "Parched:true", "Thirsty:true"]);
+    expect(checkedNames(wrapper).sort()).toEqual(["Parched", "Thirsty"]);
   });
 
-  it("treats a plant whose records fetch failed (never stored) as neutral, not never watered", async () => {
-    const { wrapper } = mountRound({
-      prepare: (w) => {
-        w.byPlantId = { 1: [rec(1), rec(8)], 2: [rec(20), rec(27)] };
-      },
-    });
+  it("lists the thirstiest plant first", async () => {
+    const { wrapper } = mountRound();
     await flushPromises();
-    const rows = wrapper.findComponent(RoundList).props("rows") as {
-      name: string;
-      tone: string;
-      checked: boolean;
-    }[];
-    const parched = rows.find((row) => row.name === "Parched");
-    expect(parched?.tone).toBe("ok");
-    expect(parched?.checked).toBe(false);
+    const rows = listProps(wrapper).rows as RoundRow[];
+    expect(rows.map((row) => row.name)).toEqual(["Parched", "Thirsty", "Fine"]);
   });
 
-  it("loads plants, fertilizer types and records on creation", async () => {
-    const { watering } = mountRound();
+  it("treats a plant that was never watered as due and ticks it", async () => {
+    const { wrapper } = mountRound({ plantList: [plant(1, "Fine"), plant(2, "Fresh", null)] });
     await flushPromises();
+    const rows = listProps(wrapper).rows as RoundRow[];
+    expect(rows.find((row) => row.name === "Fresh")?.tone).toBe("new");
+    expect(checkedNames(wrapper)).toEqual(["Fresh"]);
+  });
+
+  it("loads plants and fertilizer types on creation and no watering history", async () => {
+    const { watering, plants } = mountRound();
+    await flushPromises();
+    expect(plants.ensureLoaded).toHaveBeenCalled();
     expect(watering.ensureFertilizerTypes).toHaveBeenCalled();
-    expect(watering.ensureRecordsFor).toHaveBeenCalledWith([1, 2, 3]);
+    expect(watering.ensureRecordsFor).not.toHaveBeenCalled();
+    expect(watering.ensureRecords).not.toHaveBeenCalled();
+    expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it("keeps the base rows when a box is ticked and moves only the checked state", async () => {
+    const { wrapper } = mountRound();
+    await flushPromises();
+    const before = listProps(wrapper).rows;
+    wrapper.findComponent(RoundList).vm.$emit("toggle", 1);
+    await flushPromises();
+    expect(listProps(wrapper).rows).toBe(before);
+    expect(checkedNames(wrapper).sort()).toEqual(["Fine", "Parched", "Thirsty"]);
+    expect(wrapper.find(".log-button").text()).toContain('"count":3');
+    wrapper.findComponent(RoundList).vm.$emit("toggle", 1);
+    wrapper.findComponent(RoundList).vm.$emit("toggle", 2);
+    await flushPromises();
+    expect(checkedNames(wrapper)).toEqual(["Parched"]);
+    expect(wrapper.find(".log-button").text()).toContain('"count":1');
+  });
+
+  it("keeps a manual choice when another plant changes", async () => {
+    const { wrapper, plants } = mountRound();
+    await flushPromises();
+    wrapper.findComponent(RoundList).vm.$emit("toggle", 2);
+    (plants as unknown as Record<string, unknown>).personalPlants = [
+      plant(1, "Fine"),
+      plant(2, "Thirsty", 20),
+      plant(3, "Parched", 0),
+    ];
+    await flushPromises();
+    expect(checkedNames(wrapper)).toEqual([]);
   });
 
   it("logs the ticked plants with the round fertilizer on save", async () => {
@@ -119,6 +175,7 @@ describe("WaterRound", () => {
     wrapper.findComponent(RoundList).vm.$emit("toggle", 1);
     wrapper.findComponent(RoundList).vm.$emit("set-fertilizer", 2, null);
     await flushPromises();
+    expect((listProps(wrapper).overrides as Map<number, number | null>).get(2)).toBeNull();
     await wrapper.find(".log-button").trigger("click");
     await flushPromises();
     const entries = vi.mocked(watering.addBatch).mock.calls[0][0];
@@ -131,6 +188,18 @@ describe("WaterRound", () => {
       ]),
     );
     expect(vm.saveLabel).toContain("water.log_count");
+  });
+
+  it("drops a row override when the choice returns to the round default", async () => {
+    const { wrapper } = mountRound();
+    await flushPromises();
+    wrapper.findComponent(RoundList).vm.$emit("set-fertilizer", 2, 4);
+    await flushPromises();
+    const overrides = () => listProps(wrapper).overrides as Map<number, number | null>;
+    expect(overrides().get(2)).toBe(4);
+    wrapper.findComponent(RoundList).vm.$emit("set-fertilizer", 2, undefined);
+    await flushPromises();
+    expect(overrides().has(2)).toBe(false);
   });
 
   it("sends the chosen round fertilizer for rows that follow it", async () => {
@@ -163,7 +232,7 @@ describe("WaterRound", () => {
   describe("last round row", () => {
     const FIVE_MINUTES = 5 * 60 * 1000;
     const settle = () => vi.advanceTimersByTimeAsync(0);
-    const saveRound = async (wrapper: ReturnType<typeof mountRound>["wrapper"]) => {
+    const saveRound = async (wrapper: Wrapper) => {
       await wrapper.find(".log-button").trigger("click");
       await settle();
     };
@@ -320,8 +389,8 @@ describe("WaterRound", () => {
   describe("screen states", () => {
     it("shows the loading state instead of the list while the round loads", async () => {
       const { wrapper } = mountRound({
-        prepare: (watering) =>
-          vi.mocked(watering.ensureRecordsFor).mockReturnValue(new Promise(() => {})),
+        prepare: (_watering, plants) =>
+          vi.mocked(plants.ensureLoaded).mockReturnValue(new Promise(() => {})),
       });
       await flushPromises();
       expect(wrapper.findComponent(StateBlock).props("kind")).toBe("loading");
@@ -330,8 +399,9 @@ describe("WaterRound", () => {
 
     it("shows an error with a retry that loads again and recovers", async () => {
       const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const { wrapper, watering } = mountRound({
-        prepare: (w) => vi.mocked(w.ensureRecordsFor).mockRejectedValueOnce(new Error("offline")),
+      const { wrapper, plants } = mountRound({
+        prepare: (_watering, store) =>
+          vi.mocked(store.ensureLoaded).mockRejectedValueOnce(new Error("offline")),
       });
       await flushPromises();
       const block = wrapper.findComponent(StateBlock);
@@ -342,7 +412,7 @@ describe("WaterRound", () => {
 
       block.vm.$emit("action");
       await flushPromises();
-      expect(watering.ensureRecordsFor).toHaveBeenCalledTimes(2);
+      expect(plants.ensureLoaded).toHaveBeenCalledTimes(2);
       expect(wrapper.findComponent(StateBlock).exists()).toBe(false);
       expect(wrapper.findComponent(RoundList).exists()).toBe(true);
       spy.mockRestore();
@@ -361,11 +431,11 @@ describe("WaterRound", () => {
   });
 
   describe("search", () => {
-    const search = async (wrapper: ReturnType<typeof mountRound>["wrapper"], value: string) => {
+    const search = async (wrapper: Wrapper, value: string) => {
       wrapper.findComponent(SearchBar).vm.$emit("search", value);
       await flushPromises();
     };
-    const visibleNames = (wrapper: ReturnType<typeof mountRound>["wrapper"]) =>
+    const visibleNames = (wrapper: Wrapper) =>
       (wrapper.findComponent(RoundList).props("rows") as { name: string }[]).map((r) => r.name);
 
     it("tells how many ticked plants a search hides, and still logs them", async () => {
@@ -391,7 +461,10 @@ describe("WaterRound", () => {
       const { wrapper } = mountRound();
       await flushPromises();
       await search(wrapper, "thirsty");
-      expect(wrapper.find(".hidden-ticked").exists()).toBe(true);
+      expect(wrapper.find(".hidden-ticked").text()).toContain('"hidden":1');
+      wrapper.findComponent(RoundList).vm.$emit("toggle", 2);
+      await flushPromises();
+      expect(wrapper.find(".hidden-ticked").text()).toContain('"hidden":1');
       await search(wrapper, "");
       expect(wrapper.find(".hidden-ticked").exists()).toBe(false);
     });
@@ -448,30 +521,78 @@ describe("WaterRound", () => {
       ["2", "mineral"],
     ]);
   });
-  it("still shows the success toast with undo when refreshing the records fails", async () => {
+});
+
+describe("WaterRound with the real stores", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const mountReal = async () => {
     const pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false });
     const plants = usePlantsStore(pinia);
     const watering = useWateringStore(pinia);
-    const overridable = (store: object) => store as unknown as Record<string, unknown>;
     vi.spyOn(plants, "ensureLoaded").mockResolvedValue();
-    vi.spyOn(watering, "ensureRecordsFor").mockResolvedValue();
     vi.spyOn(watering, "ensureFertilizerTypes").mockResolvedValue();
-    overridable(plants).personalPlants = [plant(2, "Thirsty")];
-    watering.byPlantId = { 2: [rec(20), rec(27)] };
-    api.post.mockResolvedValue({ ids: [31] });
-    api.get.mockRejectedValue(new Error("offline"));
+    plants.mine.items = markRaw([
+      plant(2, "Thirsty", 20),
+      plant(3, "Parched", 30, 14),
+    ]) as PlantView[];
     const wrapper = shallowMount(WaterRound, {
       global: { plugins: [pinia], renderStubDefaultSlot: true },
     });
     await flushPromises();
+    return { wrapper, plants, watering };
+  };
+
+  const batchResponse = () => ({
+    records: [2, 3].map((plantId) => ({
+      id: 30 + plantId,
+      plant_id: plantId,
+      date: Date.now(),
+      used_fertilizer: false,
+      fertilizer_type_id: null,
+    })),
+    summaries: {
+      2: summaryOf(0),
+      3: summaryOf(0),
+    },
+  });
+
+  const lastWatered = (plants: ReturnType<typeof usePlantsStore>, id: number) =>
+    plants.byId(id)?.watering?.lastWateredAt ?? null;
+
+  it("logs the round from the returned summaries without any history request", async () => {
+    const { wrapper, plants } = await mountReal();
+    api.post.mockResolvedValue(batchResponse());
+    const before = lastWatered(plants, 2);
 
     await wrapper.find(".log-button").trigger("click");
     await flushPromises();
 
+    expect(api.get).not.toHaveBeenCalled();
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post.mock.calls[0][0]).toBe("/watering/batch");
+    expect(lastWatered(plants, 2)).toBeGreaterThan(before!);
+    expect(wrapper.find(".log-button").text()).toContain('"count":0');
     expect(toast.showToastWithAction).toHaveBeenCalledTimes(1);
-    expect(toast.showToastWithAction.mock.calls[0][0]).toEqual({
-      key: "water.round_logged",
-      vars: { count: 1 },
+  });
+
+  it("undoes the round from the returned summaries and restores the ticks", async () => {
+    const { wrapper, plants } = await mountReal();
+    const before = lastWatered(plants, 3);
+    api.post.mockResolvedValueOnce(batchResponse());
+    await wrapper.find(".log-button").trigger("click");
+    await flushPromises();
+
+    api.post.mockResolvedValueOnce({
+      summaries: { 2: summaryOf(20), 3: summaryOf(30, 14) },
     });
+    await wrapper.find(".last-round-undo").trigger("click");
+    await flushPromises();
+
+    expect(api.post.mock.calls[1][0]).toBe("/watering/batch/delete");
+    expect(api.get).not.toHaveBeenCalled();
+    expect(Math.abs(lastWatered(plants, 3)! - before!)).toBeLessThan(DAY / 24);
+    expect(wrapper.find(".log-button").text()).toContain('"count":2');
+    expect(toast.showSuccess).toHaveBeenCalledWith({ key: "plantdetail.undone" });
   });
 });

@@ -7,18 +7,20 @@
   >
     <modal-header :header-title="t('water.picker_title')" @close="$emit('close')" />
     <ion-content>
-      <ion-searchbar :placeholder="t('water.search')" :debounce="150" @ionInput="onInput" />
+      <search-bar :placeholder="t('water.search')" @search="onSearch" />
       <ul class="plants">
-        <li v-for="plant in filtered" :key="plant.id">
-          <button type="button" class="plant" @click="$emit('pick', plant.id)">
+        <li v-for="plant in shown" :key="plant.plantId">
+          <button type="button" class="plant" @click="$emit('pick', plant.plantId)">
             <span class="thumb" aria-hidden="true">
-              <img v-if="plant.imageUrl" :src="plant.imageUrl" alt="" loading="lazy" />
-              <plant-placeholder v-else :seed="String(plant.id)" />
+              <progressive-image :image="plant.image" sizes="64px" :seed="String(plant.plantId)" />
             </span>
             <span class="name break-words">{{ plant.name }}</span>
           </button>
         </li>
       </ul>
+      <ion-infinite-scroll :disabled="!canGrow" @ionInfinite="onInfinite">
+        <ion-infinite-scroll-content :loading-text="t('list.loading_more')" />
+      </ion-infinite-scroll>
     </ion-content>
   </ion-modal>
 </template>
@@ -26,16 +28,35 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { mapState } from "pinia";
-import { IonContent, IonModal, IonSearchbar } from "@ionic/vue";
+import { IonContent, IonInfiniteScroll, IonInfiniteScrollContent, IonModal } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
-import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
+import ProgressiveImage from "@/components/ProgressiveImage.vue";
+import SearchBar from "@/components/SearchBar.vue";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
 import { usePlantsStore } from "@/stores/plants";
+import { compareText } from "@/utils/intlCache";
+
+export const PICKER_WINDOW = 40;
+
+interface PickerPlant {
+  readonly plantId: number;
+  readonly name: string;
+  readonly key: string;
+  readonly image: ImageView | null;
+}
 
 export default defineComponent({
   name: "PlantPickerModal",
-  components: { IonContent, IonModal, IonSearchbar, ModalHeader, PlantPlaceholder },
+  components: {
+    IonContent,
+    IonInfiniteScroll,
+    IonInfiniteScrollContent,
+    IonModal,
+    ModalHeader,
+    ProgressiveImage,
+    SearchBar,
+  },
   props: {
     isOpen: { type: Boolean, required: true },
   },
@@ -44,27 +65,53 @@ export default defineComponent({
     return useMountWhileOpen(() => props.isOpen);
   },
   data() {
-    return { query: "" };
+    return { query: "", windowSize: PICKER_WINDOW };
   },
   computed: {
     ...mapState(usePlantsStore, ["personalPlants"]),
-    filtered(): Plant[] {
+    sorted(): PickerPlant[] {
+      const compare = compareText();
+      return this.personalPlants
+        .map((plant) => ({
+          plantId: plant.id,
+          name: plant.name,
+          key: plant.name.toLowerCase(),
+          image: plant.cover ?? plant.images?.at(-1) ?? null,
+        }))
+        .sort((a, b) => compare(a.name, b.name));
+    },
+    filtered(): PickerPlant[] {
       const needle = this.query.trim().toLowerCase();
-      const plants = [...this.personalPlants].sort((a, b) => a.name.localeCompare(b.name));
-      return needle ? plants.filter((plant) => plant.name.toLowerCase().includes(needle)) : plants;
+      return needle ? this.sorted.filter((plant) => plant.key.includes(needle)) : this.sorted;
+    },
+    shown(): PickerPlant[] {
+      return this.filtered.length > this.windowSize
+        ? this.filtered.slice(0, this.windowSize)
+        : this.filtered;
+    },
+    canGrow(): boolean {
+      return this.windowSize < this.filtered.length;
     },
   },
   watch: {
     isOpen(open: boolean) {
-      if (open) this.query = "";
+      if (open) {
+        this.query = "";
+        this.windowSize = PICKER_WINDOW;
+      }
     },
   },
   methods: {
     t(key: string) {
       return localizationService.t(key, undefined, key);
     },
-    onInput(event: CustomEvent<{ value?: string | null }>) {
-      this.query = event.detail.value ?? "";
+    onSearch(value: string) {
+      this.query = value;
+      this.windowSize = PICKER_WINDOW;
+    },
+    onInfinite(event: CustomEvent) {
+      this.windowSize += PICKER_WINDOW;
+      (event.target as unknown as { complete(): void }).complete();
     },
     onDismiss() {
       this.release();
@@ -98,26 +145,13 @@ export default defineComponent({
 }
 
 .thumb {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 44px;
   height: 44px;
   flex: none;
   overflow: hidden;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
-  color: var(--ink-soft);
-}
-
-.thumb img,
-.thumb :deep(.placeholder) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.thumb :deep(.placeholder) {
-  min-height: 0;
 }
 
 .name {

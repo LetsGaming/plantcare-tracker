@@ -1,15 +1,21 @@
+import { compareText } from "@/utils/intlCache";
 import { wateringStatus, type WateringTone } from "@/utils/wateringStats";
 
+/** What a plant contributes to the round; it changes only when the plant itself changes. */
 export interface RoundRow {
-  plantId: number;
-  name: string;
-  imageUrl?: string;
-  tone: WateringTone;
-  rank: number;
-  checked: boolean;
-  /** undefined follows the round's fertilizer, null means none for this plant */
-  fertilizerTypeId: number | null | undefined;
+  readonly plantId: number;
+  readonly name: string;
+  /** Lower-cased name for the search filter. */
+  readonly key: string;
+  readonly image: ImageView | null;
+  readonly tone: WateringTone;
+  readonly rank: number;
+  /** Ticked from the start: the plant is due, overdue or was never watered. */
+  readonly preChecked: boolean;
 }
+
+/** A fertilizer chosen for one row; a row without an entry follows the round's fertilizer. */
+export type FertilizerOverrides = ReadonlyMap<number, number | null>;
 
 const TONE_BONUS: Record<WateringTone, number> = {
   overdue: 0.05,
@@ -18,37 +24,49 @@ const TONE_BONUS: Record<WateringTone, number> = {
   ok: 0,
 };
 
-/** `recordsFor` answers undefined for a plant whose records never loaded; such a row stays neutral. */
-export const buildRoundRows = (
-  plants: Plant[],
-  recordsFor: (id: number) => WateringRecord[] | undefined,
-  now = Date.now(),
-): RoundRow[] =>
-  plants
-    .map((plant) => {
-      const records = recordsFor(plant.id);
-      const status = records ? wateringStatus(records, now) : undefined;
+/** Statuses come from the plant summaries; rows are sorted once, thirstiest first, then by name. */
+export const buildRoundRows = (plants: readonly PlantView[], now = Date.now()): RoundRow[] => {
+  const compare = compareText();
+  return plants
+    .map((plant): RoundRow => {
+      const status = wateringStatus(plant.watering, now);
       return {
         plantId: plant.id,
         name: plant.name,
-        imageUrl: plant.imageUrl,
-        tone: status?.tone ?? "ok",
-        rank: status?.rank ?? 0,
-        checked: !!status && status.tone !== "ok",
-        fertilizerTypeId: undefined,
+        key: plant.name.toLowerCase(),
+        image: plant.cover ?? plant.images?.at(-1) ?? null,
+        tone: status.tone,
+        rank: status.rank,
+        preChecked: status.tone !== "ok",
       };
     })
-    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+    .sort((a, b) => a.rank - b.rank || compare(a.name, b.name));
+};
+
+/** The ids ticked when nothing was touched yet, with `touched` taking precedence per plant. */
+export const resolveChecked = (
+  rows: readonly RoundRow[],
+  touched: ReadonlyMap<number, boolean>,
+): Set<number> => {
+  const checked = new Set<number>();
+  for (const row of rows) {
+    if (touched.get(row.plantId) ?? row.preChecked) checked.add(row.plantId);
+  }
+  return checked;
+};
 
 export const buildBatchEntries = (
-  rows: RoundRow[],
+  rows: readonly RoundRow[],
+  checked: ReadonlySet<number>,
+  overrides: FertilizerOverrides,
   roundFertilizer: number | null,
 ): WateringBatchEntry[] =>
   rows
-    .filter((row) => row.checked)
+    .filter((row) => checked.has(row.plantId))
     .map((row) => {
-      const fertilizer =
-        row.fertilizerTypeId === undefined ? roundFertilizer : row.fertilizerTypeId;
+      const fertilizer = overrides.has(row.plantId)
+        ? (overrides.get(row.plantId) ?? null)
+        : roundFertilizer;
       return {
         plantId: row.plantId,
         usedFertilizer: fertilizer !== null,
