@@ -223,10 +223,12 @@ export default defineComponent({
   },
   methods: {
     ...mapActions(useComponentsStore, { ensureComponentsLoaded: "ensureLoaded" }),
-    loadCatalogue() {
-      this.ensureComponentsLoaded().catch((error: unknown) => {
+    async loadCatalogue() {
+      try {
+        await this.ensureComponentsLoaded();
+      } catch (error: unknown) {
         console.error("Error loading components", error);
-      });
+      }
     },
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);

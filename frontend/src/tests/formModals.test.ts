@@ -331,6 +331,8 @@ describe("SubstrateFormModal", () => {
       },
     });
     const components = useComponentsStore();
+    (wrapper.vm as unknown as { goToComponents(): void }).goToComponents();
+    await wrapper.vm.$nextTick();
     const loading = () => wrapper.findComponent(ComponentSelection).props("loading");
 
     expect(loading()).toBe(true);
