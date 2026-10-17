@@ -67,7 +67,7 @@ afterEach(() => {
 
 describe("reading the history", () => {
   it("loads the newest 50 records of a plant", async () => {
-    api.get.mockResolvedValue(envelope([item(1), item(2)], "c1"));
+    api.get.mockResolvedValue(envelope([item(1), item(2)], "c1").data);
     const store = await newStore();
     await store.ensureRecords(7);
     expect(api.get).toHaveBeenCalledWith("/watering/plant/7?limit=50");
@@ -79,7 +79,7 @@ describe("reading the history", () => {
   });
 
   it("loads each plant once and shares concurrent requests", async () => {
-    api.get.mockResolvedValue(envelope([item(1)]));
+    api.get.mockResolvedValue(envelope([item(1)]).data);
     const store = await newStore();
     await Promise.all([store.ensureRecords(7), store.ensureRecords(7)]);
     await store.ensureRecords(7);
@@ -87,7 +87,7 @@ describe("reading the history", () => {
   });
 
   it("refetches the first page when forced", async () => {
-    api.get.mockResolvedValue(envelope([item(1)]));
+    api.get.mockResolvedValue(envelope([item(1)]).data);
     const store = await newStore();
     await store.ensureRecords(7);
     await store.ensureRecords(7, { force: true });
@@ -96,9 +96,9 @@ describe("reading the history", () => {
 
   it("show older appends the next pages in order until the history ends", async () => {
     api.get
-      .mockResolvedValueOnce(envelope([item(1), item(2)], "c1"))
-      .mockResolvedValueOnce(envelope([item(3), item(4)], "c2"))
-      .mockResolvedValueOnce(envelope([item(5)], null));
+      .mockResolvedValueOnce(envelope([item(1), item(2)], "c1").data)
+      .mockResolvedValueOnce(envelope([item(3), item(4)], "c2").data)
+      .mockResolvedValueOnce(envelope([item(5)], null).data);
     const store = await newStore();
     await store.ensureRecords(7);
     await store.loadOlder(7);
@@ -113,8 +113,8 @@ describe("reading the history", () => {
 
   it("shares a concurrent loadOlder", async () => {
     api.get
-      .mockResolvedValueOnce(envelope([item(1)], "c1"))
-      .mockResolvedValueOnce(envelope([item(2)]));
+      .mockResolvedValueOnce(envelope([item(1)], "c1").data)
+      .mockResolvedValueOnce(envelope([item(2)]).data);
     const store = await newStore();
     await store.ensureRecords(7);
     await Promise.all([store.loadOlder(7), store.loadOlder(7)]);
@@ -143,7 +143,7 @@ describe("reading the history", () => {
     api.get.mockImplementation(async (url: string) =>
       envelope([
         item(Number(url.split("/")[3].split("?")[0]) * 10, Number(url.split("/")[3].split("?")[0])),
-      ]),
+      ]).data,
     );
     const store = await newStore();
     for (let plantId = 1; plantId <= HISTORY_CACHE_SIZE; plantId += 1) {
@@ -159,7 +159,7 @@ describe("reading the history", () => {
 
   it("does not persist histories", async () => {
     vi.useFakeTimers();
-    api.get.mockResolvedValue(envelope([item(1)]));
+    api.get.mockResolvedValue(envelope([item(1)]).data);
     const store = await newStore();
     await store.ensureRecords(7);
     await vi.advanceTimersByTimeAsync(500);
@@ -172,7 +172,7 @@ describe("reading the history", () => {
     const store = await newStore();
     const loading = store.ensureRecords(7);
     epoch.abortAll();
-    release(envelope([item(1)]));
+    release(envelope([item(1)]).data);
     await loading;
     expect(store.isLoaded(7)).toBe(false);
   });
@@ -201,7 +201,7 @@ describe("fertilizer types", () => {
 
 describe("writes", () => {
   const loaded = async (items: APIWateringItem[], next: string | null = null) => {
-    api.get.mockResolvedValue(envelope(items, next));
+    api.get.mockResolvedValue(envelope(items, next).data);
     const store = await newStore();
     await store.ensureRecords(7);
     api.get.mockClear();
@@ -486,7 +486,7 @@ describe("writes", () => {
 
 describe("dropPlant and the round wrapper", () => {
   it("forgets one plant's history and keeps the others", async () => {
-    api.get.mockResolvedValue(envelope([item(1)]));
+    api.get.mockResolvedValue(envelope([item(1)]).data);
     const store = await newStore();
     await store.ensureRecords(7);
     await store.ensureRecords(8);

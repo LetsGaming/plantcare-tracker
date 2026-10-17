@@ -60,7 +60,7 @@ describe("WateringStatus watering moment", () => {
     await flushPromises();
     expect(wrapper.classes()).not.toContain("just-watered");
 
-    vi.mocked(store.addRecord).mockResolvedValueOnce({ id: 5 } as WateringRecord);
+    vi.mocked(store.addRecord).mockResolvedValueOnce({ id: 5 } as WateringEntry);
     await (wrapper.vm as unknown as { waterNow(): Promise<void> }).waterNow();
     await flushPromises();
     expect(wrapper.classes()).toContain("just-watered");
@@ -71,7 +71,7 @@ describe("WateringStatus watering moment", () => {
     stubReducedMotion(true);
     const { wrapper, store } = mountStatus();
     await flushPromises();
-    vi.mocked(store.addRecord).mockResolvedValueOnce({ id: 6 } as WateringRecord);
+    vi.mocked(store.addRecord).mockResolvedValueOnce({ id: 6 } as WateringEntry);
     await (wrapper.vm as unknown as { waterNow(): Promise<void> }).waterNow();
     await flushPromises();
     expect(wrapper.classes()).not.toContain("just-watered");
