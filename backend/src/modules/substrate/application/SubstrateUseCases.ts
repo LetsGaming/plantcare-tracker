@@ -77,19 +77,6 @@ function parseComponentFilter(raw: unknown): number | null {
   return value;
 }
 
-// ── Shared guards ─────────────────────────────────────────────────────────────
-
-/** Missing and foreign substrates are both answered as 404. */
-async function loadOwnedSubstrate(
-  repo: SubstrateRepository,
-  substrateId: number,
-  userId: number,
-): Promise<SubstrateData> {
-  const existing = await repo.findById(substrateId);
-  if (!existing || existing.substrate_user_id !== userId) throw new NotFoundError('Substrate');
-  return existing;
-}
-
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
 export interface SubstrateViewer {

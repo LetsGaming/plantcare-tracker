@@ -80,7 +80,7 @@ const range = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
 
 describe('EmbedImagesService', () => {
   it('backfill embeds only the missing images and never scans for orphans', async () => {
-    const { service, embedded, calls, log } = await setup({ ids: [1, 2, 3] });
+    const { service, embedded, log } = await setup({ ids: [1, 2, 3] });
     embedded.add(2);
     expect(await service.backfill()).toBe(2);
     expect([...embedded].sort()).toEqual([1, 2, 3]);
