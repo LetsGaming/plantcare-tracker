@@ -54,7 +54,7 @@ const PUBLIC_PAGES = 6;
 const ROUND_TAPS = 5;
 const SWITCHES = 20;
 const SWITCH_ROUTE = ["substrates", "components", "sales", "plants"];
-const VISIBLE_PAGE = "ion-router-outlet .ion-page:not(.ion-page-hidden)";
+const VISIBLE_PAGE = "ion-tabs ion-router-outlet .ion-page:not(.ion-page-hidden)";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -387,8 +387,15 @@ const scenarios = {
       await bench.step(bench.tap("plants"));
       out["public-scroll/first-page"] = await bench.step(
         async () => {
-          const found = await bench.page.evaluate((root) => {
-            const button = document.querySelector(`${root} ion-segment-button[value="public"]`);
+          const found = await bench.page.evaluate(async (root) => {
+            const find = () =>
+              [...document.querySelectorAll(`${root} ion-segment-button`)].find((b) => b.value === "public");
+            const deadline = performance.now() + 10000;
+            let button = find();
+            while (!button && performance.now() < deadline) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              button = find();
+            }
             if (!button) return false;
             window.__lastMutation = performance.now();
             button.click();
