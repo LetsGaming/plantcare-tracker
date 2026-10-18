@@ -49,10 +49,6 @@ export default {
 
   "toast.dismiss": "Dismiss",
 
-  /* Accordion */
-
-  "accordion.no_details": "No details available.",
-
   /* =====================================================
 
 

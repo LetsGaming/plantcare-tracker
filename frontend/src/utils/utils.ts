@@ -97,13 +97,6 @@ const Utils = {
     return dt.toLocaleString({ day: "2-digit", month: "2-digit", year: "numeric" });
   },
 
-  /**
-   * BACKWARD COMPAT: your original function
-   */
-  convertDateMillis(epoch: number): string {
-    return this.convertDate(epoch, { format: "readable" });
-  },
-
   convertToMillis(input: string | number | Date): number {
     const dt = toDateTime(input);
     return dt.isValid ? dt.toMillis() : 0;
@@ -120,17 +113,6 @@ const Utils = {
       window.clearTimeout(timeout);
       timeout = window.setTimeout(() => fn(...args), delay);
     };
-  },
-
-  async closeOpenModal(): Promise<void> {
-    try {
-      const topModal = await modalController.getTop();
-      if (topModal) {
-        await modalController.dismiss();
-      }
-    } catch (error) {
-      console.warn("Closing the open modal failed:", error);
-    }
   },
 
   /**

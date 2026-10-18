@@ -37,11 +37,6 @@ const ImageService = {
     const url = `${BASE_ENDPOINT}/${imageId}`;
     return handleRequest(ApiUtils.delete(url), RESOURCE_KEY, "error.action_failed");
   },
-
-  async deleteAllImages(entityType: string, entityId: number) {
-    const url = `${BASE_ENDPOINT}/${entityType}/${entityId}`;
-    return handleRequest(ApiUtils.delete(url), RESOURCE_KEY, "error.action_failed");
-  },
 };
 
 export default ImageService;
