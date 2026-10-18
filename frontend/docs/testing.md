@@ -27,11 +27,11 @@ src/tests/
 ├── helpers.ts                    In-memory storage, toast and localization mocks, JWT builder, createInstalledPinia()
 ├── setup.ts                      Global afterEach that cancels storage writes still pending from the test
 ├── sessionStore.test.ts          Login, logout, single-flight refresh, identity getters
-├── plantsStore.test.ts           Reads, staleness, optimistic add/edit/delete, image refresh, persistence
-├── wateringStore.test.ts         Records per plant, 404 as empty, optimistic mutations, persistence
-├── substratesStore.test.ts       List, owner/public views, pessimistic mutations
-├── componentsStore.test.ts       Catalogue, fineness levels, admin mutations
-├── salesStore.test.ts            SSE accumulation, new flags, price history, persistence
+├── plantsStore.test.ts           Paged mine/public loads, search, summaries, optimistic add/edit/delete, persistence
+├── wateringStore.test.ts         Windowed history, older records, write summaries, LRU, batches
+├── substratesStore.test.ts       Paged lists, details, used-in, single POST/PATCH mutations
+├── componentsStore.test.ts       Paged catalogue, picker getter, fineness levels, admin mutations
+├── salesStore.test.ts            Replay from the server model, NEW watermark, summary badge, details
 ├── moreInfoStore.test.ts         SSE draft/commit, language keys, persistence
 ├── calendarAndAdminStores.test.ts Settings store and live source health
 ├── persistence.test.ts           The L2 plugin on its own

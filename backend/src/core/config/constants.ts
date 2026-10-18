@@ -30,8 +30,6 @@ export const AUTH = {
   MAX_GUEST_SESSIONS: 1000,
   /** Lifetime of a one-time SSE ticket. */
   SSE_TICKET_TTL_MS: 60_000,
-  /** bcrypt cost factor for password hashing. */
-  BCRYPT_SALT_ROUNDS: 10,
   /** Cookie name used on the wire, shared with the frontend contract. */
   REFRESH_TOKEN_COOKIE: 'refreshToken',
   /** Refresh cookie lifetime for a full login (mirrors JWT_REFRESH_EXPIRATION default). */
@@ -55,6 +53,17 @@ export const USER_RATE_LIMIT = {
   MAX_TICKETS: 60,
   /** AI care guide streams per user per window. */
   MAX_AI_STREAMS: 20,
+} as const;
+
+// ── List endpoints (keyset pagination) ────────────────────────────────────────
+
+export const LIST = {
+  DEFAULT_LIMIT: 30,
+  MAX_LIMIT: 100,
+  /** Longest accepted search term after trimming. */
+  MAX_QUERY_LENGTH: 100,
+  /** Longest accepted encoded cursor; real cursors are far shorter. */
+  MAX_CURSOR_LENGTH: 512,
 } as const;
 
 // ── Server-Sent Events ─────────────────────────────────────────────────────────

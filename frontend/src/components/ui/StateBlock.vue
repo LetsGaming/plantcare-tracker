@@ -105,14 +105,8 @@ export default defineComponent({
 .skeleton-image,
 .skeleton-line {
   border-radius: var(--radius-sm);
-  background: linear-gradient(
-    90deg,
-    var(--surface-sunken) 25%,
-    var(--line) 50%,
-    var(--surface-sunken) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.4s var(--ease-out) infinite;
+  background: var(--surface-sunken);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
 }
 
 .skeleton-image {
@@ -140,16 +134,12 @@ export default defineComponent({
   .skeleton-image,
   .skeleton-line {
     animation: none;
-    background: var(--surface-sunken);
   }
 }
 
-@keyframes shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.5;
   }
 }
 </style>

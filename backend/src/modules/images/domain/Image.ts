@@ -9,9 +9,8 @@
  * against:
  *
  *  - ImageRepository: metadata persistence (implemented by SQLite).
- *  - ImageStorage:    the file side — converting an upload to the
- *                     stored format, reading it back (optionally
- *                     resized), and deleting it. Implemented by the
+ *  - ImageStorage:    the file side: converting an upload to the
+ *                     stored variants and deleting them. Implemented by the
  *                     local-disk adapter; a future object-storage
  *                     backend only has to satisfy this interface.
  *
@@ -28,7 +27,15 @@ export const isEntityType = (value: string): value is EntityType =>
 
 // ── Image record ──────────────────────────────────────────────────────────────
 
-export interface ImageRecord {
+/** Variant metadata persisted with every image row; variants = 1 means the 160 and 480 files exist. */
+export interface ImageVariantMeta {
+  width: number | null;
+  height: number | null;
+  placeholder: string | null;
+  variants: number;
+}
+
+export interface ImageRecord extends ImageVariantMeta {
   id: number;
   /** Absolute public URL the client loads the image from (the database stores the path only). */
   url: string;
@@ -72,7 +79,7 @@ export interface EntityImageCleanup {
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 
-export interface UpdateImageDTO {
+export interface UpdateImageDTO extends Partial<ImageVariantMeta> {
   imageUrl?: string;
   /** Unix epoch seconds. */
   uploadDate?: number;
@@ -94,14 +101,15 @@ export interface ImageRepository {
     entityId: number,
     imageUrl: string,
     uploadDate?: number,
+    meta?: ImageVariantMeta,
   ): Promise<number>;
   update(imageId: number, fields: UpdateImageDTO): Promise<void>;
   delete(imageId: number): Promise<void>;
   deleteByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]>;
 }
 
-export interface ProcessedUpload {
-  /** Filename (webp) as written to storage. */
+export interface ProcessedUpload extends ImageVariantMeta {
+  /** Filename (webp) of the 1024 px variant as written to storage. */
   filename: string;
   /** Best-known capture date (EXIF when present, otherwise now). */
   capturedAt: Date;
@@ -109,17 +117,16 @@ export interface ProcessedUpload {
 
 export interface ImageStorage {
   /**
-   * Converts and persists an upload; returns the stored filename and
-   * the capture date extracted from its metadata.
+   * Converts and persists an upload as three webp variants; returns the
+   * stored filename, the capture date extracted from its metadata and the
+   * dimensions and placeholder colour of the largest variant.
    */
   processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload>;
 
   /**
-   * Reads a stored image as webp, optionally resized to resizeWidth.
-   * Throws NotFoundError when the file is missing on disk.
+   * Deletes the stored file and, for variants = 1, its 160 and 480 variants.
+   * With variants undefined the variant files are removed when they exist.
+   * Missing files are ignored.
    */
-  readAsWebp(entityType: string, imageUrl: string, resizeWidth?: number): Promise<Buffer>;
-
-  /** Deletes the stored file; missing files are ignored. */
-  remove(entityType: string, imageUrl: string): Promise<void>;
+  remove(entityType: string, imageUrl: string, variants?: number): Promise<void>;
 }

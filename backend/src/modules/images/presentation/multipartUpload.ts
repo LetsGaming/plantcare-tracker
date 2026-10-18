@@ -10,7 +10,7 @@ import type { MultipartFile, MultipartValue } from '@fastify/multipart';
 import { ValidationError } from '../../../core/errors';
 import type { UploadedFile } from '../domain/Image';
 
-const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 
 export interface ParsedUpload {
   /** The `image` part, when one was sent. */
@@ -35,7 +35,7 @@ export const readUpload = async (request: FastifyRequest): Promise<ParsedUpload>
   if (!isFilePart(image)) return { fields };
 
   if (!ALLOWED_MIME_TYPES.includes(image.mimetype)) {
-    throw new ValidationError('Invalid file type. Only png, jpeg, and jpg are allowed.');
+    throw new ValidationError('Invalid file type. Only png, jpeg, jpg, and webp are allowed.');
   }
   return { file: { buffer: await image.toBuffer(), originalName: image.filename }, fields };
 };

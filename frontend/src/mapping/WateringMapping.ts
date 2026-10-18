@@ -3,43 +3,40 @@
  *
  * Maps V2 API watering shapes to frontend models.
  *
- * V2 source types:
- *   - APIWateringRecord: record_id, plant_id, plant_name, owner_id,
- *                        watering_date, used_fertilizer,
- *                        fertilizer_type_id (int|null), fertilizer_type (string|null)
- *   - APIFertilizerType: fertilizer_id, fertilizer_name
  */
-import Utils from "@/utils/utils";
 
 export default class WateringMapper {
-  /**
-   * Maps a single V2 watering record to the frontend WateringRecord model.
-   *
-   * plant_name is included in V2 API responses, removing the need for
-   * additional plant lookups when rendering the calendar view.
-   */
-  static mapWateringRecord(watering: APIWateringRecord): WateringRecord {
-    return {
-      id: watering.record_id,
-      plantId: watering.plant_id,
-      plantName: watering.plant_name,
-      date: Utils.convertDateMillis(watering.watering_date),
-      date_millis: Utils.convertToMillis(watering.watering_date),
-      usedFertilizer: watering.used_fertilizer,
-      fertilizerTypeId: watering.fertilizer_type_id ?? undefined,
-      fertilizerType: watering.fertilizer_type ?? undefined,
-    };
+  static mapEntry(item: APIWateringItem): WateringEntry {
+    return Object.freeze({
+      id: item.id,
+      plantId: item.plant_id,
+      date: item.date,
+      usedFertilizer: item.used_fertilizer,
+      fertilizerTypeId: item.fertilizer_type_id ?? null,
+    });
   }
 
-  /**
-   * Converts a V2 API response (single item or array) to WateringRecord[].
-   */
-  static convertToWateringRecords(
-    response: APIWateringRecord | APIWateringRecord[],
-  ): WateringRecord[] {
-    return Array.isArray(response)
-      ? response.map((w) => this.mapWateringRecord(w))
-      : [this.mapWateringRecord(response)];
+  static mapEntries(items: readonly APIWateringItem[]): WateringEntry[] {
+    return items.map((item) => WateringMapper.mapEntry(item));
+  }
+
+  static mapSummary(summary: APIWateringSummary): WateringSummary {
+    return Object.freeze({
+      lastWateredAt: summary.last_watered_at ?? null,
+      lastFertilizedAt: summary.last_fertilized_at ?? null,
+      avgIntervalDays: summary.avg_interval_days ?? null,
+    });
+  }
+
+  /** Summaries keyed by numeric plant id; plants missing from the response stay missing. */
+  static mapSummaries(
+    summaries: APIWateringSummaries | null | undefined,
+  ): Map<number, WateringSummary> {
+    const byPlant = new Map<number, WateringSummary>();
+    for (const [plantId, summary] of Object.entries(summaries ?? {})) {
+      byPlant.set(Number(plantId), WateringMapper.mapSummary(summary));
+    }
+    return byPlant;
   }
 
   /**

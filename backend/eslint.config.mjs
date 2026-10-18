@@ -49,6 +49,11 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': ['error', { patterns: ['fastify', '@fastify/*'] }] },
   },
   {
+    // Database-backed core helpers: pagination builds kysely queries and fastify replies, sessions persist to SQLite.
+    files: ['src/core/pagination/**', 'src/core/auth/sessions.ts'],
+    rules: { 'no-restricted-imports': 'off' },
+  },
+  {
     files: ['src/modules/*/domain/**', 'src/modules/*/application/**'],
     rules: {
       'no-restricted-imports': [

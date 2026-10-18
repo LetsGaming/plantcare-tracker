@@ -25,6 +25,33 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/favicons/android-chrome-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/favicons/android-chrome-512x512.png" />
 
+    <script>
+      (function () {
+        try {
+          var mirror = localStorage.getItem("plantcare.theme");
+          var dark =
+            mirror === "dark" ||
+            (mirror !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("ion-palette-dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+          var chrome = document.querySelector('meta[name="theme-color"]');
+          if (chrome) chrome.setAttribute("content", dark ? "#14221a" : "#ffffff");
+        } catch (e) {}
+      })();
+    </script>
+
+    <style>
+      .boot-skeleton {
+        position: fixed;
+        inset: 0;
+        background: var(--ion-background-color, transparent);
+      }
+      .boot-skeleton > div {
+        height: 56px;
+        background: var(--chrome-bg, transparent);
+      }
+    </style>
+
     <!-- Manifest File -->
     <link rel="manifest" href="/favicons/manifest.json" />
 
@@ -36,7 +63,9 @@
   </head>
 
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="boot-skeleton" aria-hidden="true"><div></div></div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -20,6 +20,7 @@ import { Chart as ChartJS, Title, Tooltip, ArcElement, TooltipItem } from "chart
 import type { ChartData, ChartOptions } from "chart.js";
 import localizationService from "@/services/general/LocalizationService";
 import { partsLabel } from "@/utils/enumLabels";
+import { numberFormat } from "@/utils/intlCache";
 import { SERIES_SIZE, seriesSlots } from "@/utils/seriesColors";
 
 interface PieSlice {
@@ -60,7 +61,7 @@ export default defineComponent({
       return this.data.reduce((sum, slice) => sum + slice.parts, 0);
     },
     slices(): { name: string; parts: number; partsText: string; percent: string }[] {
-      const formatter = new Intl.NumberFormat(localizationService.getLocale(), {
+      const formatter = numberFormat(localizationService.getLocale(), {
         style: "percent",
         maximumFractionDigits: 0,
       });

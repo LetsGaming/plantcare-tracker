@@ -16,8 +16,8 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="point in sorted" :key="point.timestamp">
-          <td>{{ formatDate(point.timestamp) }}</td>
+        <tr v-for="point in sorted" :key="point.observedAt">
+          <td>{{ formatDate(point.observedAt) }}</td>
           <td>{{ formatPrice(point.price) }}</td>
         </tr>
       </tbody>
@@ -26,22 +26,19 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import LineChart from "@/components/charts/LineChart.vue";
+import { defineAsyncComponent, defineComponent } from "vue";
 import localizationService from "@/services/general/LocalizationService";
+import { dateTimeFormat, numberFormat } from "@/utils/intlCache";
 import { formatDisplayDate } from "@/utils/localDate";
-
-interface PricePoint {
-  price: number;
-  timestamp: number;
-}
 
 export default defineComponent({
   name: "PriceHistoryChart",
-  components: { LineChart },
+  components: {
+    LineChart: defineAsyncComponent(() => import("@/components/charts/LineChart.vue")),
+  },
   props: {
     history: {
-      type: Array as () => PricePoint[],
+      type: Array as () => readonly SalePricePoint[],
       required: true,
     },
     referencePrice: {
@@ -54,8 +51,8 @@ export default defineComponent({
     },
   },
   computed: {
-    sorted(): PricePoint[] {
-      return [...this.history].sort((a, b) => a.timestamp - b.timestamp);
+    sorted(): SalePricePoint[] {
+      return [...this.history].sort((a, b) => a.observedAt - b.observedAt);
     },
     prices(): number[] {
       return this.sorted.map((p) => p.price);
@@ -65,10 +62,10 @@ export default defineComponent({
       const lastIndex = prices.length - 1;
       return {
         labels: this.sorted.map((p) =>
-          new Date(p.timestamp).toLocaleDateString(localizationService.getLocale(), {
+          dateTimeFormat(localizationService.getLocale(), {
             day: "numeric",
             month: "numeric",
-          }),
+          }).format(new Date(p.observedAt)),
         ),
         datasets: [
           {
@@ -102,8 +99,8 @@ export default defineComponent({
       const prices = this.prices;
       return this.t("chart.line_summary", {
         count: prices.length,
-        from: this.formatDate(this.sorted[0].timestamp),
-        to: this.formatDate(this.sorted[this.sorted.length - 1].timestamp),
+        from: this.formatDate(this.sorted[0].observedAt),
+        to: this.formatDate(this.sorted[this.sorted.length - 1].observedAt),
         min: this.formatPrice(Math.min(...prices)),
         max: this.formatPrice(Math.max(...prices)),
         last: this.formatPrice(prices[prices.length - 1]),
@@ -118,7 +115,7 @@ export default defineComponent({
       return formatDisplayDate(timestamp, localizationService.getLocale());
     },
     formatPrice(value: number): string {
-      return new Intl.NumberFormat(localizationService.getLocale(), {
+      return numberFormat(localizationService.getLocale(), {
         style: "currency",
         currency: "EUR",
       }).format(value);

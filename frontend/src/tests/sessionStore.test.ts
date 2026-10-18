@@ -15,17 +15,34 @@ vi.mock("@/services/general/ToastService", async () => (await import("./helpers"
 vi.mock("@/services/general/LocalizationService", async () =>
   (await import("./helpers")).localizationModule(),
 );
+vi.mock("@/stores/pinia", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/stores/pinia")>()),
+  resetAllStores: vi.fn(),
+}));
 vi.mock("@/utils/apiUtils", () => ({
-  default: { post: vi.fn(), patch: vi.fn(), delete: vi.fn(), get: vi.fn(), configureAuth: vi.fn() },
+  default: {
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    get: vi.fn(),
+    configureAuth: vi.fn(),
+    ensureFresh: vi.fn(async () => undefined),
+  },
 }));
 
 import ApiUtils from "@/utils/apiUtils";
-import { setLoginRedirect, useSessionStore } from "@/stores/session";
+import TokenUtils from "@/utils/tokenUtils";
+import storageService from "@/services/general/StorageService";
+import { resetAllStores } from "@/stores/pinia";
+import { epoch } from "@/stores/resource";
+import { connectSessionToTransport, setLoginRedirect, useSessionStore } from "@/stores/session";
+import type { AuthBridge } from "@/utils/apiUtils";
 
 const redirect = vi.fn(async () => undefined);
 
 beforeEach(() => {
   resetStore();
+  TokenUtils.forget();
   vi.clearAllMocks();
   setActivePinia(createPinia());
   setLoginRedirect(redirect);
@@ -112,6 +129,59 @@ describe("logout and local logout", () => {
   });
 });
 
+describe("logout ordering", () => {
+  it("ends the epoch, resets the stores, then clears storage", async () => {
+    let epochAtReset = -1;
+    const before = epoch.current();
+    vi.mocked(resetAllStores).mockImplementation(() => {
+      epochAtReset = epoch.current();
+    });
+    await useSessionStore().localLogout();
+    expect(epochAtReset).toBe(before + 1);
+    expect(vi.mocked(resetAllStores).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(storageService.clear).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("deleteProfile resets the stores before the full wipe", async () => {
+    vi.mocked(ApiUtils.delete).mockResolvedValue(null);
+    await useSessionStore().deleteProfile();
+    expect(vi.mocked(resetAllStores).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(storageService.clearAll).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("deleteProfile drops the token from memory before the full wipe starts", async () => {
+    await TokenUtils.setToken("jwt-doomed");
+    vi.mocked(ApiUtils.delete).mockResolvedValue(null);
+    const wipe = vi.mocked(storageService.clearAll).getMockImplementation();
+    let tokenAtWipe: string | null | undefined;
+    vi.mocked(storageService.clearAll).mockImplementationOnce(async () => {
+      tokenAtWipe = TokenUtils.getTokenSync();
+      await wipe?.();
+    });
+    await useSessionStore().deleteProfile();
+    expect(tokenAtWipe).toBeNull();
+  });
+
+  it("keeps the token in memory only after a login until logout", async () => {
+    vi.mocked(ApiUtils.post).mockResolvedValue({ accessToken: "jwt-mem" });
+    await useSessionStore().login({ username: "a", password: "b" });
+    expect(TokenUtils.getTokenSync()).toBe("jwt-mem");
+    await useSessionStore().localLogout();
+    expect(TokenUtils.getTokenSync()).toBeNull();
+  });
+
+  it("hydrates the token from storage once", async () => {
+    memoryStore.set("authToken", "stored");
+    const session = useSessionStore();
+    await session.hydrate();
+    expect(session.token).toBe("stored");
+    expect(TokenUtils.getTokenSync()).toBe("stored");
+    expect(storageService.get).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("refresh", () => {
   it("stores and returns the new access token on success", async () => {
     const fetchMock = vi
@@ -180,6 +250,58 @@ describe("refresh", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("gives up on a refresh that hangs and aborts it on logout", async () => {
+    let signal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+      signal = init.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const session = useSessionStore();
+    const result = session.refresh().catch((e: Error) => e);
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    await session.localLogout();
+    expect(signal?.aborted).toBe(true);
+    expect(((await result) as Error).name).toBe("AbortError");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not store a token that arrives after logout", async () => {
+    let release: (r: Response) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => (release = resolve)));
+    vi.stubGlobal("fetch", fetchMock);
+    const session = useSessionStore();
+    const result = session.refresh().catch((e: Error) => e);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await session.localLogout();
+    release(jsonResponse(200, { data: { accessToken: "late" } }));
+    await result;
+    expect(memoryStore.has("authToken")).toBe(false);
+    expect(session.token).toBeNull();
+  });
+
+  it("never joins a refresh that started in an earlier epoch", async () => {
+    const fetchMock = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const session = useSessionStore();
+    const first = session.refresh(1).catch((e: Error) => e);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    epoch.abortAll();
+    const second = session.refresh(1).catch((e: Error) => e);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    epoch.abortAll();
+    await Promise.all([first, second]);
+  });
+
   it("starts a new request after the previous one has settled", async () => {
     const fetchMock = vi
       .fn()
@@ -189,6 +311,34 @@ describe("refresh", () => {
     await session.refresh();
     await session.refresh();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("transport connection", () => {
+  const connect = (): AuthBridge => {
+    connectSessionToTransport(createPinia());
+    return vi.mocked(ApiUtils.configureAuth).mock.calls.at(-1)![0] as AuthBridge;
+  };
+
+  it("passes the attempt count of the transport through to the refresh", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(500, { error: { message: "down" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(connect().refresh(1)).rejects.toThrow("down");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks the token when the app becomes visible again or comes back online", () => {
+    connect();
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(ApiUtils.ensureFresh).not.toHaveBeenCalled();
+    visibility.mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(ApiUtils.ensureFresh).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event("online"));
+    expect(ApiUtils.ensureFresh).toHaveBeenCalledTimes(2);
+    visibility.mockRestore();
   });
 });
 

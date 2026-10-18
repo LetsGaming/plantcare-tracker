@@ -269,10 +269,26 @@ const rhsSearcher =
 
 // ── Registry factory ──────────────────────────────────────────────────────────
 
+/** Concurrent lookups of the same plant share one upstream request. */
+export const singleFlightSearcher = (search: Searcher): Searcher => {
+  const inflight = new Map<string, Promise<string | null>>();
+  return (plantName) => {
+    const key = plantName.toLowerCase();
+    let pending = inflight.get(key);
+    if (!pending) {
+      pending = search(plantName).finally(() => inflight.delete(key));
+      inflight.set(key, pending);
+    }
+    return pending;
+  };
+};
+
 export const createPlantLinkSearchers = (
   cache: CacheService,
   health?: SourceHealthReporter,
-): Searcher[] => [
+): Searcher[] => createRawSearchers(cache, health).map(singleFlightSearcher);
+
+const createRawSearchers = (cache: CacheService, health?: SourceHealthReporter): Searcher[] => [
   shopSearcher({
     key: 'jungleLeaves',
     seller: 'Jungle Leaves',

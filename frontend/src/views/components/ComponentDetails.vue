@@ -11,7 +11,7 @@
       <div v-if="component" class="detail-column">
         <detail-hero
           :title="component.name"
-          :image-url="component.imageUrl"
+          :image="component.cover"
           :image-alt="t('compdetail.image_alt', { name: component.name })"
           kind="component"
           :seed="String(component.id)"
@@ -100,7 +100,7 @@ import { LoadPhase, phaseFromError } from "@/utils/loadPhase";
 import ComponentEditingModal from "@/components/components/ComponentEditingModal.vue";
 import { mapActions, mapState } from "pinia";
 import { useComponentsStore } from "@/stores/components";
-import { useSubstratesStore } from "@/stores/substrates";
+import { useSubstratesStore, type UsedInSubstrate } from "@/stores/substrates";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
@@ -123,7 +123,7 @@ export default defineComponent({
       showEditingModal: false,
       isEditing: false,
       /** Kept while the component is deleted so the open modal can finish closing. */
-      deletedComponent: null as Component | null,
+      deletedComponent: null as ComponentView | null,
       phase: "loading" as LoadPhase,
     };
   },
@@ -133,20 +133,15 @@ export default defineComponent({
   computed: {
     ...mapState(useSessionStore, ["isAdmin"]),
     ...mapState(useComponentsStore, ["byId"]),
-    ...mapState(useSubstratesStore, { allSubstrates: "items" }),
-    usingSubstrates(): Substrate[] {
-      const locale = localizationService.getLocale();
-      return this.allSubstrates
-        .filter((substrate: Substrate) =>
-          substrate.components.some((c) => c.id === this.componentId),
-        )
-        .sort((a: Substrate, b: Substrate) => a.name.localeCompare(b.name, locale));
+    ...mapState(useSubstratesStore, { usedIn: "usedByComponent" }),
+    usingSubstrates(): readonly UsedInSubstrate[] {
+      return this.usedIn[this.componentId] ?? [];
     },
     /** This page's component, straight from the store so every update repaints it. */
-    component(): Component | null {
+    component(): ComponentView | null {
       return this.byId(this.componentId) ?? null;
     },
-    modalComponent(): Component | null {
+    modalComponent(): ComponentView | null {
       return this.component ?? this.deletedComponent;
     },
     componentId() {
@@ -160,7 +155,7 @@ export default defineComponent({
       saveComponent: "editComponent",
       removeComponent: "deleteComponent",
     }),
-    ...mapActions(useSubstratesStore, { ensureSubstratesLoaded: "ensureLoaded" }),
+    ...mapActions(useSubstratesStore, { loadUsedIn: "loadUsedByComponent" }),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
@@ -168,7 +163,7 @@ export default defineComponent({
       if (!this.component) this.phase = "loading";
       const [componentResult] = await Promise.allSettled([
         this.loadComponent(this.componentId, forceUpdate),
-        this.ensureSubstratesLoaded(),
+        this.loadUsedIn(this.componentId),
       ]);
       if (componentResult.status === "rejected") {
         this.phase = phaseFromError(componentResult.reason);

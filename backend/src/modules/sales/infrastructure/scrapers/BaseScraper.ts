@@ -42,6 +42,14 @@ const isComplete = (item: RawSaleItem): boolean =>
 
 const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
+/** No extraction strategy produced an acceptable result for a page. */
+export class ScrapeFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ScrapeFailedError';
+  }
+}
+
 export abstract class BaseScraper implements SalesSource {
   public readonly key: string;
   public readonly seller: string;
@@ -132,8 +140,11 @@ export abstract class BaseScraper implements SalesSource {
       this.report(accepted, items.length, failures, issues);
     }
     // An accepted empty page is a real answer (the sale ended or the pages ran
-    // out); only a page every strategy failed on must be retried next time.
-    if (accepted) this.cache.set(cacheKey, items);
+    // out); a page every strategy failed on throws, so callers never read it as the end of the list.
+    if (!accepted) {
+      throw new ScrapeFailedError(`${this.key} page ${page}: every strategy failed`);
+    }
+    this.cache.set(cacheKey, items);
     return items;
   }
 

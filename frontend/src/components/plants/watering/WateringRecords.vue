@@ -30,6 +30,13 @@
       @dismissed-popover="showPopover = false"
     />
 
+    <div v-if="hasOlder" class="older">
+      <ion-button fill="clear" size="small" :disabled="loadingOlder" @click="showOlder">
+        <ion-spinner v-if="loadingOlder" name="crescent" slot="start" />
+        {{ t("watering.show_older") }}
+      </ion-button>
+    </div>
+
     <watering-record-modal
       :is-open="showModal"
       :mode="modalMode"
@@ -47,7 +54,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { mapActions, mapState } from "pinia";
-import { IonButton, IonIcon } from "@ionic/vue";
+import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
 import { add } from "ionicons/icons";
 
 import Calendar from "@/components/calendar/Calendar.vue";
@@ -68,10 +75,9 @@ const ORGANIC_CATEGORY = "watering.category.organic";
 const MINERAL_CATEGORY = "watering.category.mineral";
 const SYNTHETIC_FERTILIZER_ID = 2;
 
-const recordCategory = (record: WateringRecord): string => {
+const recordCategory = (record: WateringEntry, typeName: string | undefined): string => {
   if (!record.usedFertilizer) return NO_FERTILIZER_CATEGORY;
-  return record.fertilizerType === "synthetic" ||
-    record.fertilizerTypeId === SYNTHETIC_FERTILIZER_ID
+  return typeName === "synthetic" || record.fertilizerTypeId === SYNTHETIC_FERTILIZER_ID
     ? MINERAL_CATEGORY
     : ORGANIC_CATEGORY;
 };
@@ -84,6 +90,7 @@ export default defineComponent({
   components: {
     IonButton,
     IonIcon,
+    IonSpinner,
     Calendar,
     WateringRecordModal,
   },
@@ -98,13 +105,14 @@ export default defineComponent({
   data() {
     return {
       selectedDate: null as string | null,
-      selectedRecord: null as WateringRecord | null,
+      selectedRecord: null as WateringEntry | null,
 
       showPopover: false,
       showModal: false,
       modalMode: "add" as "add" | "edit",
       modalDay: "",
       isSaving: false,
+      loadingOlder: false,
       headingId: `watering-records-${++recordsCount}`,
     };
   },
@@ -118,18 +126,22 @@ export default defineComponent({
   computed: {
     ...mapState(useSessionStore, ["isGuest"]),
     ...mapState(useWateringStore, ["recordsFor", "fertilizerTypes"]),
+    ...mapState(useWateringStore, { hasOlderFor: "hasOlder" }),
+    hasOlder(): boolean {
+      return this.hasOlderFor(this.plantId);
+    },
     canAdd(): boolean {
       return this.showAddButton && !this.isGuest;
     },
     /** This plant's records, straight from the store so every update repaints. */
-    records(): WateringRecord[] {
+    records(): readonly WateringEntry[] {
       return this.recordsFor(this.plantId);
     },
     mappedRecords(): CalendarDates[] {
       return this.records.map((record) => ({
-        date: toDayKey(record.date_millis),
+        date: toDayKey(record.date),
         category: {
-          name: recordCategory(record),
+          name: recordCategory(record, this.typeName(record.fertilizerTypeId)),
           textColor: "",
           backgroundColor: "",
         },
@@ -154,7 +166,7 @@ export default defineComponent({
       const fields: PopoverField[] = [
         {
           label: this.t("watering.records.date"),
-          value: formatDisplayDate(record.date_millis, localizationService.getLocale()),
+          value: formatDisplayDate(record.date, localizationService.getLocale()),
         },
         {
           label: this.t("watering.records.fertilizer_used"),
@@ -162,10 +174,11 @@ export default defineComponent({
         },
       ];
 
-      if (record.usedFertilizer && record.fertilizerType) {
+      const typeName = this.typeName(record.fertilizerTypeId);
+      if (record.usedFertilizer && typeName) {
         fields.push({
           label: this.t("watering.records.fertilizer_type"),
-          value: fertilizerLabel(record.fertilizerType),
+          value: fertilizerLabel(typeName),
         });
       }
 
@@ -187,6 +200,7 @@ export default defineComponent({
   methods: {
     ...mapActions(useWateringStore, {
       ensureRecords: "ensureRecords",
+      loadOlder: "loadOlder",
       ensureFertilizerTypes: "ensureFertilizerTypes",
       createRecord: "addRecord",
       updateRecord: "editRecord",
@@ -194,6 +208,20 @@ export default defineComponent({
     }),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
+    },
+    typeName(typeId: number | null): string | undefined {
+      return typeId === null ? undefined : this.fertilizerTypes.find((t) => t.id === typeId)?.name;
+    },
+    async showOlder() {
+      if (this.loadingOlder) return;
+      this.loadingOlder = true;
+      try {
+        await this.loadOlder(this.plantId);
+      } catch (error) {
+        console.error("Failed to load older watering records:", error);
+      } finally {
+        this.loadingOlder = false;
+      }
     },
 
     /** Opens the add form; also called by the parent's "add with details" action. */
@@ -215,8 +243,7 @@ export default defineComponent({
     },
 
     onDateChange(day: string) {
-      this.selectedRecord =
-        this.records.find((record) => toDayKey(record.date_millis) === day) ?? null;
+      this.selectedRecord = this.records.find((record) => toDayKey(record.date) === day) ?? null;
       this.showPopover = !!this.selectedRecord;
 
       if (!this.selectedRecord) this.openAdd(day);
@@ -302,10 +329,10 @@ export default defineComponent({
       }
     },
 
-    async restore(record: WateringRecord) {
+    async restore(record: WateringEntry) {
       try {
         await this.createRecord(this.plantId, {
-          date: record.date_millis,
+          date: record.date,
           usedFertilizer: record.usedFertilizer,
           fertilizerTypeId: record.fertilizerTypeId,
         });
@@ -337,6 +364,11 @@ export default defineComponent({
 
 .records-title {
   font-size: var(--text-lg);
+}
+
+.older {
+  display: flex;
+  justify-content: center;
 }
 
 .fertilizer-stat,

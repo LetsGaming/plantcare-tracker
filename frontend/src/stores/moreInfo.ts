@@ -11,14 +11,21 @@
  * Failures are not toasted: the guide section presents them inline.
  */
 
+import { toRaw } from "vue";
 import { defineStore } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
 import MoreInfoMapper from "@/mapping/MoreInfoMapping";
 import localizationService from "@/services/general/LocalizationService";
 import { renderMarkdown } from "@/utils/markdown";
-import { coalesced, isStale } from "./resource";
+import { coalesced, epoch, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/more-info";
+const MAX_GUIDES = 30;
+/** The AI can think silently for minutes before its first chunk arrives. */
+const CARE_GUIDE_IDLE_TIMEOUT_MS = 180_000;
+
+/** Monotonic recency counter shared by all guide reads and writes. */
+let useClock = 0;
 
 /** Halts the running stream per key; kept outside the reactive state. */
 const haltByKey = new Map<string, () => void>();
@@ -27,6 +34,12 @@ const haltByKey = new Map<string, () => void>();
 const pendingKeys = new Set<string>();
 const stopRequested = new Set<string>();
 
+interface PersistedGuides {
+  byKey: Record<string, MoreInfo[]>;
+  fetchedAtByKey: Record<string, number>;
+  usedAtByKey: Record<string, number>;
+}
+
 /** One guide per plant name and language. */
 export const moreInfoKey = (plantName: string, lang: string): string => `${lang}:${plantName}`;
 
@@ -34,6 +47,8 @@ export const useMoreInfoStore = defineStore("moreInfo", {
   state: () => ({
     byKey: {} as Record<string, MoreInfo[]>,
     fetchedAtByKey: {} as Record<string, number>,
+    /** Recency rank per stored guide (higher is newer); decides which guide is evicted. */
+    usedAtByKey: {} as Record<string, number>,
     drafts: {} as Record<string, MoreInfo[]>,
     streaming: {} as Record<string, boolean>,
   }),
@@ -42,12 +57,33 @@ export const useMoreInfoStore = defineStore("moreInfo", {
     entries: [
       {
         key: "more_info_data",
-        pick: (state) => state.byKey,
+        pick: (state): PersistedGuides => ({
+          byKey: state.byKey,
+          fetchedAtByKey: state.fetchedAtByKey,
+          usedAtByKey: state.usedAtByKey,
+        }),
         timestamp: (state) => Math.max(0, ...Object.values(state.fetchedAtByKey)) || null,
-        apply: (state, data: Record<string, MoreInfo[]>, timestamp) => {
-          state.byKey = data;
+        dirtyOn: ["runStream"],
+        version: (state) => state.byKey,
+        apply: (state, stored: PersistedGuides | Record<string, MoreInfo[]>, timestamp) => {
+          const data: PersistedGuides =
+            "byKey" in stored && typeof stored.byKey === "object"
+              ? (stored as PersistedGuides)
+              : {
+                  byKey: stored as Record<string, MoreInfo[]>,
+                  fetchedAtByKey: {},
+                  usedAtByKey: {},
+                };
+          const usedAt = (key: string): number => data.usedAtByKey?.[key] ?? 0;
+          const keys = Object.keys(data.byKey)
+            .sort((a, b) => usedAt(a) - usedAt(b))
+            .slice(-MAX_GUIDES);
+          state.byKey = Object.fromEntries(keys.map((key) => [key, data.byKey[key]]));
           state.fetchedAtByKey = Object.fromEntries(
-            Object.keys(data).map((key) => [key, timestamp]),
+            keys.map((key) => [key, data.fetchedAtByKey?.[key] ?? timestamp]),
+          );
+          state.usedAtByKey = Object.fromEntries(
+            keys.map((key, index) => [key, -keys.length + index]),
           );
         },
       },
@@ -72,14 +108,18 @@ export const useMoreInfoStore = defineStore("moreInfo", {
     ensureInfo(plantName: string, { force = false }: { force?: boolean } = {}): Promise<void> {
       const key = moreInfoKey(plantName, localizationService.getLocale());
       const fresh = this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null);
-      if (!force && fresh) return Promise.resolve();
+      if (!force && fresh) {
+        this.usedAtByKey[key] = ++useClock;
+        return Promise.resolve();
+      }
 
-      return coalesced(this, key, async () => {
+      return coalesced(this, key, async (isCurrent) => {
         pendingKeys.add(key);
         stopRequested.delete(key);
         try {
           if (!force && Object.keys(this.byKey).length === 0) {
             await this.$hydrate();
+            if (!isCurrent()) return;
             if (this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null)) return;
           }
           if (stopRequested.has(key)) return;
@@ -91,6 +131,18 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       });
     },
 
+    /**
+     * Loads stored guides when none are in memory and reports whether a fresh
+     * guide for this plant is available. Never opens a stream.
+     */
+    async loadCached(plantName: string): Promise<boolean> {
+      const key = moreInfoKey(plantName, localizationService.getLocale());
+      if (Object.keys(this.byKey).length === 0) await this.$hydrate();
+      const fresh = !!this.byKey[key] && !isStale(this.fetchedAtByKey[key] ?? null);
+      if (fresh) this.usedAtByKey[key] = ++useClock;
+      return fresh;
+    },
+
     /** Stops the running stream for this plant; every waiting caller resolves. */
     stopInfo(plantName: string): void {
       const key = moreInfoKey(plantName, localizationService.getLocale());
@@ -99,9 +151,40 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       else if (pendingKeys.has(key)) stopRequested.add(key);
     },
 
+    /** Keeps the guide as the newest one and evicts the least recently used beyond `MAX_GUIDES`. */
+    storeGuide(key: string, guide: MoreInfo[]): void {
+      const { [key]: _replaced, ...others } = toRaw(this.byKey);
+      const byKey = { ...others, [key]: guide };
+      const fetchedAtByKey = { ...toRaw(this.fetchedAtByKey), [key]: Date.now() };
+      const usedAtByKey = { ...toRaw(this.usedAtByKey), [key]: ++useClock };
+      const stored = Object.keys(byKey);
+      if (stored.length > MAX_GUIDES) {
+        stored.sort((a, b) => (usedAtByKey[a] ?? 0) - (usedAtByKey[b] ?? 0));
+        for (const evicted of stored.slice(0, stored.length - MAX_GUIDES)) {
+          delete byKey[evicted];
+          delete fetchedAtByKey[evicted];
+          delete usedAtByKey[evicted];
+        }
+      }
+      this.byKey = byKey;
+      this.fetchedAtByKey = fetchedAtByKey;
+      this.usedAtByKey = usedAtByKey;
+    },
+
+    /** Failed drafts stay visible, but only the newest `MAX_GUIDES` runs are remembered. */
+    pruneRuns(keep: string): void {
+      for (const record of [this.drafts, this.streaming] as Record<string, unknown>[]) {
+        const keys = Object.keys(record);
+        for (const old of keys.slice(0, Math.max(0, keys.length - MAX_GUIDES))) {
+          if (old !== keep && !this.streaming[old]) delete record[old];
+        }
+      }
+    },
+
     runStream(plantName: string, key: string): Promise<void> {
       this.streaming[key] = true;
       delete this.drafts[key];
+      this.pruneRuns(key);
 
       return new Promise<void>((resolve, reject) => {
         const raw = { links: [] as string[], ai: "" };
@@ -111,9 +194,11 @@ export const useMoreInfoStore = defineStore("moreInfo", {
         const render = (): MoreInfo[] =>
           MoreInfoMapper.convertToMoreInfo({ ...raw, ai: renderMarkdown(raw.ai) });
 
+        let unsubscribe: (() => void) | null = null;
         const end = () => {
           ended = true;
           haltByKey.delete(key);
+          unsubscribe?.();
         };
         const finish = () => {
           this.streaming[key] = false;
@@ -135,13 +220,15 @@ export const useMoreInfoStore = defineStore("moreInfo", {
           lang: localizationService.getLocale(),
         });
 
-        haltByKey.set(key, () => {
+        const halt = () => {
           if (ended) return;
           end();
           stop?.();
           this.streaming[key] = false;
           resolve();
-        });
+        };
+        haltByKey.set(key, halt);
+        unsubscribe = epoch.onAbortAll(halt);
 
         void ApiUtils.stream<{ type: string; value: string }>(
           `${BASE_ENDPOINT}?${params.toString()}`,
@@ -168,11 +255,11 @@ export const useMoreInfoStore = defineStore("moreInfo", {
             }
             end();
             stop?.();
-            this.byKey[key] = render();
-            this.fetchedAtByKey[key] = Date.now();
+            this.storeGuide(key, render());
             finish();
             resolve();
           },
+          { idleTimeoutMs: CARE_GUIDE_IDLE_TIMEOUT_MS },
         )
           .then((cleanup) => {
             stop = cleanup;

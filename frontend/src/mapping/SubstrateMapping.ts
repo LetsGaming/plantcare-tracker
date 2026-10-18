@@ -1,40 +1,51 @@
 /**
  * mapping/SubstrateMapping.ts
  *
- * Maps V2 API substrate shapes to frontend models.
+ * Maps the substrate API shapes to frozen view models.
  *
- * V2 source type (SubstrateData):
- *   substrate_id, substrate_user_id, substrate_name,
- *   is_public (boolean), substrate_created_at,
- *   image_url (string|null), images[], components[]
+ * Lists (GET /substrates, envelope): APISubstrateListItem with id, name,
+ * user_id, is_public, created_at (epoch ms), cover and component_count; the
+ * mix itself (`components`) is null on list items.
+ * Details (GET /substrates/:id, POST/PATCH): APISubstrateDetail with the
+ * legacy substrate_* field names, images and components.
  */
 import ComponentMapper from "./ComponentMapping";
-import ImageMapper from "./ImageMapping";
-import Utils from "@/utils/utils";
+import { toCoverView, toImageViews } from "./ImageMapping";
 
 export default class SubstrateMapper {
-  /**
-   * Maps a single V2 APISubstrate to the frontend Substrate model.
-   */
-  static mapSubstrate(substrate: APISubstrate): Substrate {
-    return {
-      id: substrate.substrate_id,
-      userId: substrate.substrate_user_id,
-      name: substrate.substrate_name,
-      isPublic: substrate.is_public,
-      created_at: Utils.convertDateMillis(substrate.substrate_created_at),
-      imageUrl: substrate.image_url ?? undefined,
-      images: ImageMapper.convertToImages(substrate.images ?? []),
-      components: ComponentMapper.convertToSubstrateComponents(substrate.components ?? []),
-    };
+  static searchTextOf(name: string): string {
+    return name.toLowerCase();
   }
 
-  /**
-   * Converts a V2 API response (single item or array) to Substrate[].
-   */
-  static convertToSubstrates(response: APISubstrate | APISubstrate[]): Substrate[] {
-    return Array.isArray(response)
-      ? response.map((s) => this.mapSubstrate(s))
-      : [this.mapSubstrate(response)];
+  static mapListItem(substrate: APISubstrateListItem): SubstrateView {
+    return Object.freeze({
+      id: substrate.id,
+      name: substrate.name,
+      userId: substrate.user_id,
+      isPublic: substrate.is_public,
+      createdAt: substrate.created_at,
+      cover: toCoverView(substrate.cover),
+      componentCount: substrate.component_count ?? 0,
+      components: null,
+      searchText: SubstrateMapper.searchTextOf(substrate.name),
+    });
+  }
+
+  static mapDetail(substrate: APISubstrateDetail): SubstrateView {
+    const components = Object.freeze(
+      (substrate.components ?? []).map((component) => ComponentMapper.mapSubstratePart(component)),
+    );
+    return Object.freeze({
+      id: substrate.substrate_id,
+      name: substrate.substrate_name,
+      userId: substrate.substrate_user_id,
+      isPublic: substrate.is_public,
+      createdAt: substrate.substrate_created_at,
+      cover: toCoverView(substrate.cover),
+      componentCount: components.length,
+      components,
+      images: toImageViews(substrate.images),
+      searchText: SubstrateMapper.searchTextOf(substrate.substrate_name),
+    });
   }
 }

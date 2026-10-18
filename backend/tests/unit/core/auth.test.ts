@@ -1,6 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import jwt from 'jsonwebtoken';
+
+vi.hoisted(() => {
+  process.env.DB_PATH = ':memory:';
+});
 
 import {
   generateTokens,
@@ -8,6 +12,8 @@ import {
   verifyRefreshToken,
   sessionStore,
   ticketStore,
+  sweepSessions,
+  sweepTickets,
   GUEST_SESSION_POLICY,
   type JwtPayload,
   type TokenIdentity,
@@ -18,7 +24,8 @@ import {
   makeGuestReadOnly,
 } from '../../../src/core/middleware/auth';
 import type { Hook } from '../../../src/core/middleware';
-import { getConfig } from '../../../src/core/config';
+import { AUTH, getConfig } from '../../../src/core/config';
+import { closeDb, getSqlite, initDatabase } from '../../../src/core/database/db';
 
 const jwtConfig = {
   JWT_SECRET: getConfig().jwt.secret,
@@ -28,6 +35,19 @@ import { UnauthorizedError, ForbiddenError } from '../../../src/core/errors';
 
 const user: TokenIdentity = { id: 1, username: 'testuser', role: 'user' };
 const guest: TokenIdentity = { id: 2, username: 'guest', role: 'guest' };
+
+beforeAll(async () => {
+  await initDatabase();
+  getSqlite()
+    .prepare(
+      "INSERT INTO users (id, username, password, role_id) VALUES (?, 'session-user', 'x', 2), (?, 'session-guest', 'x', 3)",
+    )
+    .run(user.id, guest.id);
+});
+
+afterAll(async () => {
+  await closeDb();
+});
 
 beforeEach(() => {
   sessionStore.deleteAll(user.id);
@@ -100,6 +120,23 @@ describe('tokens and sessions', () => {
     sessionStore.end(user.id, a);
     expect(sessionStore.has(user.id, a)).toBe(false);
     expect(sessionStore.has(user.id, b)).toBe(true);
+  });
+
+  it('requires the matching user id to read or end a session', async () => {
+    const sid = sessionStore.create(user.id);
+    expect(sessionStore.has(guest.id, sid)).toBe(false);
+    sessionStore.end(guest.id, sid);
+    expect(sessionStore.has(user.id, sid)).toBe(true);
+  });
+
+  it('does not count expired sessions and sweeps them', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    sessionStore.create(user.id, { maxSessions: 3, ttlMs: 1000 });
+    const live = sessionStore.create(user.id);
+    vi.setSystemTime(Date.now() + 1500);
+    expect(sessionStore.count(user.id)).toBe(1);
+    expect(sweepSessions()).toBe(1);
+    expect(sessionStore.has(user.id, live)).toBe(true);
   });
 
   it('verifies refresh tokens and rejects access tokens and garbage', async () => {
@@ -247,6 +284,31 @@ describe('ticketStore', () => {
     const ticket = ticketStore.create(user.id);
     vi.setSystemTime(Date.now() + 61_000);
     expect(ticketStore.validateAndBurn(ticket)).toBeNull();
+  });
+
+  it('prunes expired tickets when a new one is created', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    sweepTickets();
+    const stale = ticketStore.create(user.id);
+    vi.setSystemTime(Date.now() + AUTH.SSE_TICKET_TTL_MS + 1000);
+    const fresh = ticketStore.create(user.id);
+    vi.setSystemTime(Date.now() + AUTH.SSE_TICKET_TTL_MS + 1000);
+    expect(sweepTickets()).toBe(1);
+    expect(ticketStore.validateAndBurn(stale)).toBeNull();
+    expect(ticketStore.validateAndBurn(fresh)).toBeNull();
+  });
+
+  it('sweeps expired tickets and keeps live ones', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    sweepTickets();
+    const start = Date.now();
+    const expired = ticketStore.create(user.id);
+    vi.setSystemTime(start + AUTH.SSE_TICKET_TTL_MS / 2);
+    const live = ticketStore.create(guest.id);
+    vi.setSystemTime(start + AUTH.SSE_TICKET_TTL_MS + 1000);
+    expect(sweepTickets()).toBe(1);
+    expect(ticketStore.validateAndBurn(live)).toBe(guest.id);
+    expect(ticketStore.validateAndBurn(expired)).toBeNull();
   });
 });
 

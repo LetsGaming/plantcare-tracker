@@ -24,13 +24,27 @@ vi.mock("@/services/general/LocalizationService", () => ({
 
 import { toast } from "./helpers";
 import { ApiError } from "@/utils/apiUtils";
-import { classifyFailure, handleRequest, withoutErrorToasts } from "@/utils/requestFeedback";
+import {
+  classifyFailure,
+  handleRequest,
+  showRequestFailure,
+  withoutErrorToasts,
+} from "@/utils/requestFeedback";
 
 const lastMessage = () => toast.showError.mock.calls.at(-1)![0] as string;
 const swallow = () => undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("cancelled requests", () => {
+  it("shows no toast for an aborted request but still rethrows it", async () => {
+    const aborted = new DOMException("The request was aborted.", "AbortError");
+    await expect(handleRequest(Promise.reject(aborted), "plants.title")).rejects.toBe(aborted);
+    showRequestFailure(aborted, "plants.title");
+    expect(toast.showError).not.toHaveBeenCalled();
+  });
 });
 
 describe("handleRequest messages", () => {

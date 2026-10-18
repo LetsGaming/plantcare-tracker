@@ -54,17 +54,17 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import PieChart from "@/components/charts/PieChart.vue";
+import { defineAsyncComponent, defineComponent } from "vue";
 import SearchBar from "@/components/SearchBar.vue";
 import localizationService from "@/services/general/LocalizationService";
+import { compareText, numberFormat } from "@/utils/intlCache";
 import Utils from "@/utils/utils";
 import { finenessLabel, partsLabel } from "@/utils/enumLabels";
 import { seriesSlots } from "@/utils/seriesColors";
 
 const SEARCH_THRESHOLD = 5;
 
-interface CompositionRow extends SubstrateComponent {
+interface CompositionRow extends SubstrateComponentView {
   colorIndex: number;
   percent: string;
   share: number;
@@ -72,10 +72,13 @@ interface CompositionRow extends SubstrateComponent {
 
 export default defineComponent({
   name: "SubstrateContainer",
-  components: { PieChart, SearchBar },
+  components: {
+    PieChart: defineAsyncComponent(() => import("@/components/charts/PieChart.vue")),
+    SearchBar,
+  },
   props: {
     substrate: {
-      type: Object as () => Substrate,
+      type: Object as () => SubstrateView,
     },
   },
   data() {
@@ -87,11 +90,12 @@ export default defineComponent({
   computed: {
     components(): CompositionRow[] {
       const locale = localizationService.getLocale();
+      const compareNames = compareText(locale);
       const list = [...(this.substrate?.components ?? [])].sort((a, b) =>
-        a.parts !== b.parts ? b.parts - a.parts : a.name.localeCompare(b.name, locale),
+        a.parts !== b.parts ? b.parts - a.parts : compareNames(a.name, b.name),
       );
       const total = list.reduce((sum, c) => sum + c.parts, 0);
-      const formatter = new Intl.NumberFormat(locale, {
+      const formatter = numberFormat(locale, {
         style: "percent",
         maximumFractionDigits: 0,
       });

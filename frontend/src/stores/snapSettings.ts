@@ -12,6 +12,8 @@ const keepPhotoEntry: PersistEntry<SnapSettingsState> = {
   key: "snap_keep_photo",
   keepOnClear: true,
   allowExpired: true,
+  dirtyOn: ["setKeepPhoto"],
+  version: (state) => state.keepPhoto,
   pick: (state) => state.keepPhoto,
   apply: (state, data: unknown) => {
     state.keepPhoto = data !== false;

@@ -1,7 +1,15 @@
 <template>
   <header class="hero">
     <div class="media">
-      <ProgressiveImage :src="imageUrl" :alt="imageAlt" :kind="kind" :seed="seed || title" />
+      <ProgressiveImage
+        :image="image"
+        :src="imageUrl"
+        sizes="100vw"
+        priority
+        :alt="imageAlt"
+        :kind="kind"
+        :seed="seed || title"
+      />
     </div>
     <div class="tag">
       <span class="hole" aria-hidden="true" />
@@ -35,6 +43,8 @@ export default defineComponent({
   components: { ProgressiveImage, IonIcon },
   props: {
     title: { type: String, required: true },
+    /** Server image with its variants; takes precedence over `imageUrl`. */
+    image: { type: Object as PropType<ImageView | null>, default: null },
     imageUrl: { type: String, default: "" },
     imageAlt: { type: String, default: "" },
     kind: { type: String as PropType<PlaceholderKind>, default: "plant" },

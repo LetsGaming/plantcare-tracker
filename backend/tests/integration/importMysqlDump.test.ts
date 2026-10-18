@@ -88,6 +88,11 @@ describe('importMysqlDump', () => {
       { name: '0003_relative_image_paths' },
       { name: '0004_source_health_issues' },
       { name: '0005_image_embeddings' },
+      { name: '0006_list_indexes' },
+      { name: '0007_image_variants' },
+      { name: '0008_sales' },
+      { name: '0009_sessions' },
+      { name: '0010_watering_history_id_index' },
     ]);
   });
 

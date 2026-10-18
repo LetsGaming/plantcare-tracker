@@ -168,9 +168,15 @@ describe("WaterRound round fertilizer segment", () => {
   it("is named by its visible label", async () => {
     const pinia = createTestingPinia({ createSpy: vi.fn });
     const plants = usePlantsStore(pinia) as unknown as Record<string, unknown>;
-    plants.personalPlants = [{ id: 1, name: "Fine", images: [] }];
+    plants.personalPlants = [
+      {
+        id: 1,
+        name: "Fine",
+        cover: null,
+        watering: { lastWateredAt: Date.now(), lastFertilizedAt: null, avgIntervalDays: null },
+      },
+    ];
     const watering = useWateringStore(pinia);
-    watering.byPlantId = { 1: [{ date_millis: Date.now() } as WateringRecord] };
     watering.fertilizerTypes = [{ id: 4, name: "Bloom" } as FertilizerType];
     const wrapper = shallowMount(WaterRound, {
       global: {

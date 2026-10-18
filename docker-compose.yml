@@ -7,7 +7,12 @@
 #
 # Only the frontend container publishes a port; the backend is reachable from
 # the frontend container only. Put a TLS-terminating reverse proxy in front of
-# the frontend for public use (see docs in backend/docs/deployment.md).
+# the frontend for public use (see docs in backend/docs/deployment.md). That
+# proxy should speak HTTP/2 to browsers; the frontend container itself serves
+# plain HTTP/1.1 on port 80.
+#
+# nginx reads the uploaded images straight from the data volume (mounted
+# read-only below), so /uploads/ never goes through Node.
 
 name: plantcare
 
@@ -27,12 +32,24 @@ services:
       RECOGNITION_MODEL_PATH: ${RECOGNITION_MODEL_PATH-/app/models/dinov2-small-q8.onnx}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      SALES_REFRESH_ENABLED: ${SALES_REFRESH_ENABLED:-true}
+      SALES_REFRESH_INTERVAL_MIN: ${SALES_REFRESH_INTERVAL_MIN:-120}
+      IMAGE_BACKFILL_ON_START: ${IMAGE_BACKFILL_ON_START:-true}
+      UV_THREADPOOL_SIZE: "8"
+      NODE_OPTIONS: --max-old-space-size=384
     volumes:
       - plantcare-data:/data
       - plantcare-logs:/app/logs
     expose:
       - "5000"
     shm_size: 512m
+    mem_limit: 2g
+    logging: &log-rotation
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
 
@@ -47,6 +64,10 @@ services:
         condition: service_healthy
     ports:
       - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - plantcare-data:/data:ro
+    mem_limit: 128m
+    logging: *log-rotation
     security_opt:
       - no-new-privileges:true
 

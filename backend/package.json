@@ -19,11 +19,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "model:fetch": "node scripts/fetch-model.mjs",
-    "db:import": "tsx src/tools/importMysqlDumpCli.ts"
+    "db:vacuum": "tsx src/tools/vacuumDb.ts",
+    "db:import": "tsx src/tools/importMysqlDumpCli.ts",
+    "images:backfill": "tsx src/tools/backfillImageVariants.ts"
   },
   "dependencies": {
+    "@fastify/compress": "^9.2.1",
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
+    "@fastify/etag": "^6.2.1",
     "@fastify/multipart": "^10.1.2",
     "@fastify/rate-limit": "^11.2.0",
     "@fastify/static": "^10.1.5",

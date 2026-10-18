@@ -33,10 +33,33 @@ import { useSessionStore } from "@/stores/session";
 import { useSnapSettingsStore } from "@/stores/snapSettings";
 import ToastService from "@/services/general/ToastService";
 import { UNDO_TOAST_MS } from "@/utils/undo";
+import PlantMapper from "@/mapping/PlantMapping";
+import { apiImageDto, apiPlantDetail, apiPlantListItem, apiWateringSummary } from "@/tests/helpers";
 
 const DAY = 86_400_000;
-const rec = (daysAgo: number) => ({ date_millis: Date.now() - daysAgo * DAY }) as WateringRecord;
-const plant = (id: number, name: string) => ({ id, name, images: [] }) as unknown as Plant;
+const plant = (
+  id: number,
+  name: string,
+  daysAgo: number,
+  interval: number,
+  cover: APIImageDTO | null = null,
+): PlantView =>
+  PlantMapper.mapListItem(
+    apiPlantListItem({
+      plant_id: id,
+      plant_name: name,
+      cover,
+      watering: apiWateringSummary({
+        last_watered_at: Date.now() - daysAgo * DAY,
+        avg_interval_days: interval,
+      }),
+    }),
+  );
+const defaultPlants = (cover: APIImageDTO | null = null) => [
+  plant(1, "Fine", 1, 7, cover),
+  plant(2, "Thirsty", 20, 7),
+  plant(3, "Parched", 30, 14),
+];
 
 type Vm = {
   onPhoto(file: File): Promise<void>;
@@ -57,13 +80,16 @@ const SnapButtonStub = defineComponent({
   template: "<div />",
 });
 
-const mountRound = async ({ guest = false, keepPhoto = true } = {}) => {
+const mountRound = async ({
+  guest = false,
+  keepPhoto = true,
+  cover = null as APIImageDTO | null,
+} = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const plants = usePlantsStore(pinia);
   const watering = useWateringStore(pinia);
   const overridable = (store: object) => store as unknown as Record<string, unknown>;
-  overridable(plants).personalPlants = [plant(1, "Fine"), plant(2, "Thirsty"), plant(3, "Parched")];
-  watering.byPlantId = { 1: [rec(1), rec(8)], 2: [rec(20), rec(27)], 3: [rec(30), rec(44)] };
+  overridable(plants).personalPlants = defaultPlants(cover);
   watering.fertilizerTypes = [{ id: 4, name: "Bloom" } as FertilizerType];
   overridable(useSessionStore(pinia)).isGuest = guest;
   useSnapSettingsStore(pinia).keepPhoto = keepPhoto;
@@ -174,7 +200,7 @@ describe("WaterRound snap flow", () => {
     expect(vm.rawTopId).toBeNull();
     expect(recognition.confirm).toHaveBeenCalledTimes(1);
     expect(recognition.confirm).toHaveBeenCalledWith("snap1", { plantId: 1, keepPhoto: false });
-    expect(watering.ensureRecords).toHaveBeenCalledWith(1, { force: true });
+    expect(watering.ensureRecords).not.toHaveBeenCalled();
     expect(plants.getPlant).toHaveBeenCalledWith(1, true);
     expect(sheetProps(wrapper).state).toBe("logged");
     expect(sheetProps(wrapper).loggedName).toBe("Fine");
@@ -262,26 +288,40 @@ describe("WaterRound snap flow", () => {
   });
 
   it("passes the logged plant image and id to the sheet", async () => {
-    const { wrapper, plants, vm } = await mountRound();
-    (plants.personalPlants[0] as unknown as { images: unknown[] }).images = [
-      { id: 1, url: "/img/fine.jpg" },
-    ];
+    const { wrapper, vm } = await mountRound({ cover: apiImageDto({ id: 9 }) });
     await vm.onPhoto(photo());
     await vm.onPick(1);
-    expect(sheetProps(wrapper).loggedImageUrl).toBe("/img/fine.jpg");
+    expect(sheetProps(wrapper).loggedImage).toEqual(
+      expect.objectContaining({ id: 9, srcset: expect.stringContaining("160w") }),
+    );
     expect(sheetProps(wrapper).loggedPlantId).toBe(1);
   });
 
-  it("shows the latest photo of the logged plant", async () => {
+  it("shows the latest photo of the logged plant when it has no cover", async () => {
     const { wrapper, plants, vm } = await mountRound();
-    (plants.personalPlants[0] as unknown as { images: unknown[] }).images = [
-      { id: 1, url: "/img/first.jpg" },
-      { id: 2, url: "/img/second.jpg" },
-      { id: 3, url: "/img/latest.jpg" },
+    const detail = PlantMapper.mapDetail(
+      apiPlantDetail({
+        plant_id: 1,
+        plant_name: "Fine",
+        cover: null,
+        images: [apiImageDto({ id: 1 }), apiImageDto({ id: 2 }), apiImageDto({ id: 3 })],
+      }),
+    );
+    (plants as unknown as Record<string, unknown>).personalPlants = [
+      detail,
+      ...defaultPlants().slice(1),
     ];
     await vm.onPhoto(photo());
     await vm.onPick(1);
-    expect(sheetProps(wrapper).loggedImageUrl).toBe("/img/latest.jpg");
+    expect(sheetProps(wrapper).loggedImage?.id).toBe(3);
+  });
+
+  it("hands the sheet candidates with their cover image and tone", async () => {
+    const { wrapper, vm } = await mountRound({ cover: apiImageDto({ id: 9 }) });
+    await vm.onPhoto(photo());
+    const first = sheetProps(wrapper).candidates?.find((c: { plantId: number }) => c.plantId === 1);
+    expect(first?.image?.id).toBe(9);
+    expect(first?.tone).toBe("ok");
   });
 
   it("returns focus to the snap button when the sheet closes", async () => {
@@ -536,5 +576,87 @@ describe("WaterRound snap flow", () => {
     expect(vm.rawTopId).toBe(99);
     expect(sheetProps(wrapper).candidates?.[0].plantId).toBe(3);
     expect(sheetProps(wrapper).confident).toBe(false);
+  });
+});
+
+describe("PlantPickerModal", () => {
+  const manyPlants = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      PlantMapper.mapListItem(
+        apiPlantListItem({
+          plant_id: index + 1,
+          plant_name: `Plant ${String(index + 1).padStart(3, "0")}`,
+          cover: null,
+        }),
+      ),
+    ).reverse();
+
+  const mountPicker = (count = 100) => {
+    const pinia = createTestingPinia({ createSpy: vi.fn });
+    (usePlantsStore(pinia) as unknown as Record<string, unknown>).personalPlants =
+      manyPlants(count);
+    return shallowMount(PlantPickerModal, {
+      props: { isOpen: true },
+      global: { plugins: [pinia], renderStubDefaultSlot: true },
+    });
+  };
+
+  const names = (wrapper: ReturnType<typeof mountPicker>) =>
+    wrapper.findAll(".plant .name").map((node) => node.text());
+
+  it("mounts only the first 40 plants of a long library, sorted by name", () => {
+    const wrapper = mountPicker();
+    const shown = names(wrapper);
+    expect(shown).toHaveLength(40);
+    expect(shown[0]).toBe("Plant 001");
+    expect(shown[39]).toBe("Plant 040");
+  });
+
+  it("grows by 40 on each infinite scroll event and completes the event", async () => {
+    const wrapper = mountPicker();
+    const complete = vi.fn();
+    wrapper
+      .findComponent({ name: "IonInfiniteScroll" })
+      .vm.$emit("ionInfinite", { target: { complete } });
+    await nextTick();
+    expect(names(wrapper)).toHaveLength(80);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops offering more once everything is shown", async () => {
+    const wrapper = mountPicker(45);
+    expect(wrapper.findComponent({ name: "IonInfiniteScroll" }).props("disabled")).toBe(false);
+    wrapper
+      .findComponent({ name: "IonInfiniteScroll" })
+      .vm.$emit("ionInfinite", { target: { complete: vi.fn() } });
+    await nextTick();
+    expect(names(wrapper)).toHaveLength(45);
+    expect(wrapper.findComponent({ name: "IonInfiniteScroll" }).props("disabled")).toBe(true);
+  });
+
+  it("filters through the debounced search bar and resets the window", async () => {
+    const wrapper = mountPicker();
+    wrapper
+      .findComponent({ name: "IonInfiniteScroll" })
+      .vm.$emit("ionInfinite", { target: { complete: vi.fn() } });
+    await nextTick();
+    wrapper.findComponent({ name: "SearchBar" }).vm.$emit("search", "plant 09");
+    await nextTick();
+    expect(names(wrapper)).toHaveLength(10);
+    wrapper.findComponent({ name: "SearchBar" }).vm.$emit("search", "");
+    await nextTick();
+    expect(names(wrapper)).toHaveLength(40);
+  });
+
+  it("emits the id of the tapped plant", async () => {
+    const wrapper = mountPicker();
+    await wrapper.findAll(".plant")[1].trigger("click");
+    expect(wrapper.emitted("pick")?.[0]).toEqual([2]);
+  });
+
+  it("renders thumbnails through the 64px image component", () => {
+    const thumb = mountPicker(3).findComponent({ name: "ProgressiveImage" });
+    expect(thumb.props("sizes")).toBe("64px");
+    expect(thumb.props("seed")).toBe("1");
   });
 });

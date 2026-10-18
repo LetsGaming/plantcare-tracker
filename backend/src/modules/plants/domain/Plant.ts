@@ -3,13 +3,17 @@
  *
  * The Plant entity and PlantRepository interface.
  *
- * V1 problem: plantModel.js returned raw DB rows as plain objects.
- * Business logic (combining public + private, dedup) was in the controller.
- *
- * V2: Plant is a proper entity. PlantRepository is a pure interface —
- * the infrastructure layer (SQLite) implements it without the domain
- * knowing anything about SQL or the database driver.
+ * Plant is a proper entity. PlantRepository is a pure interface: the
+ * infrastructure layer (SQLite) implements it without the domain knowing
+ * anything about SQL or the database driver.
  */
+
+import type { Cursor } from '../../../core/pagination';
+import type { ImageDTO } from '../../images/domain/imageDto';
+import type { WateringSummary } from './wateringSummary';
+
+export type PlantSort = 'created' | 'name';
+export type PlantScope = 'mine' | 'public';
 
 // ── Value types ───────────────────────────────────────────────────────────────
 
@@ -18,22 +22,24 @@ export interface SubstrateRef {
   substrate_name: string;
 }
 
-export interface ImageRef {
-  id: number;
-  url: string;
-  date: number;
+/** One row of the paged list; `created_at` is epoch milliseconds. */
+export interface PlantListItem {
+  plant_id: number;
+  plant_name: string;
+  user_id: number;
+  is_public: boolean;
+  created_at: number;
+  species_name: string | null;
+  substrate: SubstrateRef | null;
+  cover: ImageDTO | null;
+  image_count: number;
+  /** Only for the owner's own list and detail; null for public items. */
+  watering: WateringSummary | null;
 }
 
-export interface PlantData {
-  plant_id: number;
-  plant_user_id: number;
-  plant_name: string;
-  plant_species: string | null;
-  is_public: boolean;
-  plant_created_at: number;
-  image_url: string | null;
-  substrate: SubstrateRef | null;
-  images: ImageRef[];
+export interface PlantData extends PlantListItem {
+  /** Oldest first. */
+  images: ImageDTO[];
 }
 
 // ── Entity ────────────────────────────────────────────────────────────────────
@@ -45,19 +51,23 @@ export class Plant {
   public readonly species: string | null;
   public readonly isPublic: boolean;
   public readonly createdAt: number;
-  public readonly imageUrl: string | null;
   public readonly substrate: SubstrateRef | null;
-  public readonly images: ImageRef[];
+  public readonly cover: ImageDTO | null;
+  public readonly imageCount: number;
+  public readonly watering: WateringSummary | null;
+  public readonly images: ImageDTO[];
 
   constructor(data: PlantData) {
     this.id = data.plant_id;
-    this.userId = data.plant_user_id;
+    this.userId = data.user_id;
     this.name = data.plant_name;
-    this.species = data.plant_species;
+    this.species = data.species_name;
     this.isPublic = Boolean(data.is_public);
-    this.createdAt = data.plant_created_at;
-    this.imageUrl = data.image_url;
+    this.createdAt = data.created_at;
     this.substrate = data.substrate;
+    this.cover = data.cover;
+    this.imageCount = data.image_count;
+    this.watering = data.watering;
     this.images = data.images;
   }
 
@@ -69,13 +79,15 @@ export class Plant {
   toJSON(): PlantData {
     return {
       plant_id: this.id,
-      plant_user_id: this.userId,
       plant_name: this.name,
-      plant_species: this.species,
+      user_id: this.userId,
       is_public: this.isPublic,
-      plant_created_at: this.createdAt,
-      image_url: this.imageUrl,
+      created_at: this.createdAt,
+      species_name: this.species,
       substrate: this.substrate,
+      cover: this.cover,
+      image_count: this.imageCount,
+      watering: this.watering,
       images: this.images,
     };
   }
@@ -100,10 +112,34 @@ export interface UpdatePlantDTO {
 
 // ── Repository interface (no framework imports allowed here) ──────────────────
 
+export interface PlantListQuery {
+  limit: number;
+  cursor: Cursor | null;
+  q: string | null;
+  sort: PlantSort;
+}
+
+export interface PlantListPage {
+  items: PlantListItem[];
+  nextCursor: string | null;
+  /** Set on the first page only (no cursor). */
+  total?: number;
+}
+
+export interface PlantOwnership {
+  userId: number;
+  substrateId: number | null;
+}
+
 export interface PlantRepository {
-  findAllPublic(): Promise<Plant[]>;
-  findAllByUser(userId: number): Promise<Plant[]>;
-  findById(id: number): Promise<Plant | null>;
+  /** The user's own plants with watering summaries; `tz` is minutes east of UTC. */
+  listMine(userId: number, query: PlantListQuery, tz: number): Promise<PlantListPage>;
+  /** Public plants of every owner; `watering` is always null. */
+  listPublic(query: PlantListQuery): Promise<PlantListPage>;
+  /** The watering summary is filled only when `viewerId` owns the plant. */
+  findById(id: number, viewerId: number | null, tz: number): Promise<Plant | null>;
+  /** Owner and substrate of a plant without loading the detail; null when it does not exist. */
+  findOwnership(id: number): Promise<PlantOwnership | null>;
   create(dto: CreatePlantDTO): Promise<number>; // returns new plant ID
   update(id: number, userId: number, dto: UpdatePlantDTO): Promise<boolean>;
   delete(id: number, userId: number): Promise<boolean>;

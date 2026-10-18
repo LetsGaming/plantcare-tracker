@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createInstalledPinia, resetStore } from "./helpers";
+import { createInstalledPinia, memoryStore, resetStore } from "./helpers";
 
 vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
@@ -30,5 +30,18 @@ describe("snap settings store", () => {
     const reloaded = useSnapSettingsStore();
     await reloaded.ensureLoaded();
     expect(reloaded.keepPhoto).toBe(false);
+  });
+
+  it("writes nothing until the choice changes", async () => {
+    await createInstalledPinia();
+    const store = useSnapSettingsStore();
+    await store.ensureLoaded();
+    store.setKeepPhoto(true);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.size).toBe(0);
+
+    store.setKeepPhoto(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.get("snap_keep_photo")).toMatchObject({ data: false });
   });
 });

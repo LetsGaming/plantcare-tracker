@@ -1,0 +1,3480 @@
+{
+  "metadata": {
+    "commit": "f4406dc",
+    "date": "2026-10-18T05:26:44.199Z",
+    "node": "v24.14.1",
+    "browser": "Microsoft Edge (playwright msedge channel, headless)",
+    "platform": "win32",
+    "throttling": {
+      "cpuRate": 4,
+      "network": {
+        "latencyMs": 150,
+        "downloadBytesPerSec": 209715,
+        "uploadBytesPerSec": 96000
+      },
+      "viewport": "390x844 DPR3 mobile touch"
+    },
+    "dataset": {
+      "plants": 193,
+      "publicPlants": 100008,
+      "wateringRecords": 21699,
+      "plantImageRows": 374,
+      "substrates": 97,
+      "components": 49,
+      "injectedSales": {
+        "sales-entry": [
+          300,
+          2000
+        ],
+        "mark-all-seen": 1000,
+        "tabs": 300,
+        "plants-cold": 300,
+        "sales-replay": "2000 (db)"
+      },
+      "salesInjectMode": "idb (navbench) plus db 2000 rows",
+      "pricePointsPerSale": 12
+    },
+    "runs": 5,
+    "medians": true,
+    "notes": [
+      "Final run of the perf/scaling work, session perfz.",
+      "Compare against main-f11430d.json (original code).",
+      "apitime runs 7 samples per endpoint."
+    ]
+  },
+  "navbench": {
+    "salesEntry300": {
+      "label": "fz-sales300",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "sales-entry"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-18T05:12:27.344Z",
+      "steps": {
+        "sales-entry/first-entry": {
+          "longTasks": 3,
+          "blockedMs": 178,
+          "longestMs": 150,
+          "domNodes": 1416,
+          "heapMb": 9.074089050292969,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/warm-reentry": {
+          "longTasks": 1,
+          "blockedMs": 13,
+          "longestMs": 63,
+          "domNodes": 1416,
+          "heapMb": 9.207698822021484,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/substrates-with-sales-mounted": {
+          "lastApiResponseMs": 534,
+          "longTasks": 3,
+          "blockedMs": 114,
+          "longestMs": 96,
+          "domNodes": 1791,
+          "heapMb": 10.213958740234375,
+          "apiRequests": 1,
+          "uploadRequests": 1,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0.029411764705882353,
+          "requestsByPath": {
+            "/api/v2/substrates": 1,
+            "/uploads/*": 1
+          }
+        }
+      },
+      "perRun": [
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 216,
+            "longestMs": 155,
+            "domNodes": 1416,
+            "heapMb": 9.074089050292969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 11,
+            "longestMs": 61,
+            "domNodes": 1416,
+            "heapMb": 9.207698822021484,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 537,
+            "longTasks": 3,
+            "blockedMs": 113,
+            "longestMs": 93,
+            "domNodes": 1791,
+            "heapMb": 10.212574005126953,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 169,
+            "longestMs": 150,
+            "domNodes": 1416,
+            "heapMb": 9.073013305664062,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 13,
+            "longestMs": 63,
+            "domNodes": 1416,
+            "heapMb": 9.206550598144531,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 534,
+            "longTasks": 3,
+            "blockedMs": 114,
+            "longestMs": 96,
+            "domNodes": 1791,
+            "heapMb": 10.213737487792969,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 178,
+            "longestMs": 142,
+            "domNodes": 1416,
+            "heapMb": 9.089607238769531,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 7,
+            "longestMs": 57,
+            "domNodes": 1416,
+            "heapMb": 9.223209381103516,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 533,
+            "longTasks": 3,
+            "blockedMs": 128,
+            "longestMs": 114,
+            "domNodes": 1791,
+            "heapMb": 10.227996826171875,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 151,
+            "longestMs": 136,
+            "domNodes": 1416,
+            "heapMb": 9.088878631591797,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 13,
+            "longestMs": 63,
+            "domNodes": 1416,
+            "heapMb": 9.222488403320312,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 539,
+            "longTasks": 3,
+            "blockedMs": 111,
+            "longestMs": 96,
+            "domNodes": 1791,
+            "heapMb": 10.227806091308594,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 224,
+            "longestMs": 168,
+            "domNodes": 1416,
+            "heapMb": 9.073883056640625,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 2,
+            "blockedMs": 20,
+            "longestMs": 70,
+            "domNodes": 1416,
+            "heapMb": 9.207538604736328,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 532,
+            "longTasks": 3,
+            "blockedMs": 128,
+            "longestMs": 101,
+            "domNodes": 1791,
+            "heapMb": 10.213958740234375,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        }
+      ]
+    },
+    "salesEntry2000": {
+      "label": "fz-sales2000",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "sales-entry"
+      ],
+      "runs": 5,
+      "n": 2000,
+      "date": "2026-10-18T05:12:58.958Z",
+      "steps": {
+        "sales-entry/first-entry": {
+          "longTasks": 2,
+          "blockedMs": 219,
+          "longestMs": 186,
+          "domNodes": 1416,
+          "heapMb": 10.141361236572266,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/warm-reentry": {
+          "longTasks": 1,
+          "blockedMs": 18,
+          "longestMs": 68,
+          "domNodes": 1416,
+          "heapMb": 10.278305053710938,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "sales-entry/substrates-with-sales-mounted": {
+          "lastApiResponseMs": 540,
+          "longTasks": 3,
+          "blockedMs": 119,
+          "longestMs": 97,
+          "domNodes": 1791,
+          "heapMb": 11.27407455444336,
+          "apiRequests": 1,
+          "uploadRequests": 1,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0.029411764705882353,
+          "requestsByPath": {
+            "/api/v2/substrates": 1,
+            "/uploads/*": 1
+          }
+        }
+      },
+      "perRun": [
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 2,
+            "blockedMs": 219,
+            "longestMs": 182,
+            "domNodes": 1416,
+            "heapMb": 10.136795043945312,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 2,
+            "blockedMs": 48,
+            "longestMs": 87,
+            "domNodes": 1416,
+            "heapMb": 10.273689270019531,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 543,
+            "longTasks": 3,
+            "blockedMs": 112,
+            "longestMs": 95,
+            "domNodes": 1791,
+            "heapMb": 11.27313232421875,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 271,
+            "longestMs": 222,
+            "domNodes": 1416,
+            "heapMb": 10.155574798583984,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 18,
+            "longestMs": 68,
+            "domNodes": 1416,
+            "heapMb": 10.29245376586914,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 533,
+            "longTasks": 4,
+            "blockedMs": 119,
+            "longestMs": 97,
+            "domNodes": 1791,
+            "heapMb": 11.291446685791016,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 204,
+            "longestMs": 180,
+            "domNodes": 1416,
+            "heapMb": 10.137027740478516,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 19,
+            "longestMs": 69,
+            "domNodes": 1416,
+            "heapMb": 10.273906707763672,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 545,
+            "longTasks": 3,
+            "blockedMs": 125,
+            "longestMs": 105,
+            "domNodes": 1791,
+            "heapMb": 11.27407455444336,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 2,
+            "blockedMs": 219,
+            "longestMs": 186,
+            "domNodes": 1416,
+            "heapMb": 10.156036376953125,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 13,
+            "longestMs": 63,
+            "domNodes": 1416,
+            "heapMb": 10.292915344238281,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 540,
+            "longTasks": 3,
+            "blockedMs": 132,
+            "longestMs": 100,
+            "domNodes": 1791,
+            "heapMb": 11.288375854492188,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        },
+        {
+          "sales-entry/first-entry": {
+            "lastApiResponseMs": null,
+            "longTasks": 2,
+            "blockedMs": 222,
+            "longestMs": 197,
+            "domNodes": 1416,
+            "heapMb": 10.141361236572266,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/warm-reentry": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 15,
+            "longestMs": 65,
+            "domNodes": 1416,
+            "heapMb": 10.278305053710938,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "sales-entry/substrates-with-sales-mounted": {
+            "lastApiResponseMs": 536,
+            "longTasks": 3,
+            "blockedMs": 107,
+            "longestMs": 95,
+            "domNodes": 1791,
+            "heapMb": 11.273204803466797,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          }
+        }
+      ]
+    },
+    "tabs": {
+      "label": "fz-tabs",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "tabs"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-18T05:14:37.590Z",
+      "steps": {
+        "tabs/01-substrates": {
+          "lastApiResponseMs": 513,
+          "longTasks": 3,
+          "blockedMs": 74,
+          "longestMs": 96,
+          "domNodes": 1057,
+          "heapMb": 8.63943099975586,
+          "apiRequests": 1,
+          "uploadRequests": 1,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0.029411764705882353,
+          "requestsByPath": {
+            "/api/v2/substrates": 1,
+            "/uploads/*": 1
+          }
+        },
+        "tabs/02-components": {
+          "lastApiResponseMs": 475,
+          "longTasks": 3,
+          "blockedMs": 101,
+          "longestMs": 103,
+          "domNodes": 1456,
+          "heapMb": 9.51180648803711,
+          "apiRequests": 2,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/components": 1,
+            "/api/v2/components/fineness-levels": 1
+          }
+        },
+        "tabs/03-sales": {
+          "longTasks": 3,
+          "blockedMs": 245,
+          "longestMs": 184,
+          "domNodes": 2190,
+          "heapMb": 10.819622039794922,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "tabs/04-plants": {
+          "longTasks": 1,
+          "blockedMs": 17,
+          "longestMs": 67,
+          "domNodes": 2190,
+          "heapMb": 10.885753631591797,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "tabs/05-substrates": {
+          "longTasks": 1,
+          "blockedMs": 7,
+          "longestMs": 57,
+          "domNodes": 2190,
+          "heapMb": 10.938373565673828,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "tabs/06-components": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 2190,
+          "heapMb": 10.972419738769531,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "tabs/07-sales": {
+          "longTasks": 1,
+          "blockedMs": 17,
+          "longestMs": 67,
+          "domNodes": 2190,
+          "heapMb": 11.081279754638672,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "tabs/08-plants": {
+          "longTasks": 1,
+          "blockedMs": 9,
+          "longestMs": 59,
+          "domNodes": 2190,
+          "heapMb": 11.099578857421875,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        }
+      },
+      "perRun": [
+        {
+          "tabs/01-substrates": {
+            "lastApiResponseMs": 513,
+            "longTasks": 3,
+            "blockedMs": 63,
+            "longestMs": 79,
+            "domNodes": 1057,
+            "heapMb": 8.653923034667969,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          },
+          "tabs/02-components": {
+            "lastApiResponseMs": 465,
+            "longTasks": 3,
+            "blockedMs": 103,
+            "longestMs": 103,
+            "domNodes": 1456,
+            "heapMb": 9.527297973632812,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/components/fineness-levels": 1,
+              "/api/v2/components": 1
+            }
+          },
+          "tabs/03-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 250,
+            "longestMs": 190,
+            "domNodes": 2190,
+            "heapMb": 10.836444854736328,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 19,
+            "longestMs": 69,
+            "domNodes": 2190,
+            "heapMb": 10.902576446533203,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 5,
+            "longestMs": 55,
+            "domNodes": 2190,
+            "heapMb": 10.954891204833984,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 7,
+            "longestMs": 57,
+            "domNodes": 2190,
+            "heapMb": 10.988964080810547,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 14,
+            "longestMs": 64,
+            "domNodes": 2190,
+            "heapMb": 11.0977783203125,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 13,
+            "longestMs": 63,
+            "domNodes": 2190,
+            "heapMb": 11.116077423095703,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "tabs/01-substrates": {
+            "lastApiResponseMs": 513,
+            "longTasks": 3,
+            "blockedMs": 74,
+            "longestMs": 96,
+            "domNodes": 1057,
+            "heapMb": 8.63943099975586,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          },
+          "tabs/02-components": {
+            "lastApiResponseMs": 465,
+            "longTasks": 3,
+            "blockedMs": 94,
+            "longestMs": 101,
+            "domNodes": 1456,
+            "heapMb": 9.510784149169922,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/components/fineness-levels": 1,
+              "/api/v2/components": 1
+            }
+          },
+          "tabs/03-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 267,
+            "longestMs": 210,
+            "domNodes": 2190,
+            "heapMb": 10.819622039794922,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 17,
+            "longestMs": 67,
+            "domNodes": 2190,
+            "heapMb": 10.885753631591797,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 3,
+            "longestMs": 53,
+            "domNodes": 2190,
+            "heapMb": 10.938072204589844,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 2190,
+            "heapMb": 10.972110748291016,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 21,
+            "longestMs": 71,
+            "domNodes": 2190,
+            "heapMb": 11.080924987792969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 7,
+            "longestMs": 57,
+            "domNodes": 2190,
+            "heapMb": 11.099235534667969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "tabs/01-substrates": {
+            "lastApiResponseMs": 528,
+            "longTasks": 3,
+            "blockedMs": 93,
+            "longestMs": 98,
+            "domNodes": 1057,
+            "heapMb": 8.638038635253906,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          },
+          "tabs/02-components": {
+            "lastApiResponseMs": 483,
+            "longTasks": 3,
+            "blockedMs": 112,
+            "longestMs": 116,
+            "domNodes": 1456,
+            "heapMb": 9.511455535888672,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/components/fineness-levels": 1,
+              "/api/v2/components": 1
+            }
+          },
+          "tabs/03-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 245,
+            "longestMs": 184,
+            "domNodes": 2190,
+            "heapMb": 10.818775177001953,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 17,
+            "longestMs": 67,
+            "domNodes": 2190,
+            "heapMb": 10.882392883300781,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 11,
+            "longestMs": 61,
+            "domNodes": 2190,
+            "heapMb": 10.937732696533203,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 2190,
+            "heapMb": 10.971778869628906,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 15,
+            "longestMs": 65,
+            "domNodes": 2190,
+            "heapMb": 11.080604553222656,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 7,
+            "longestMs": 57,
+            "domNodes": 2190,
+            "heapMb": 11.098915100097656,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "tabs/01-substrates": {
+            "lastApiResponseMs": 510,
+            "longTasks": 3,
+            "blockedMs": 64,
+            "longestMs": 88,
+            "domNodes": 1057,
+            "heapMb": 8.658100128173828,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          },
+          "tabs/02-components": {
+            "lastApiResponseMs": 484,
+            "longTasks": 3,
+            "blockedMs": 101,
+            "longestMs": 105,
+            "domNodes": 1456,
+            "heapMb": 9.531490325927734,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/components/fineness-levels": 1,
+              "/api/v2/components": 1
+            }
+          },
+          "tabs/03-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 244,
+            "longestMs": 181,
+            "domNodes": 2190,
+            "heapMb": 10.832389831542969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 17,
+            "longestMs": 67,
+            "domNodes": 2190,
+            "heapMb": 10.897762298583984,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 7,
+            "longestMs": 57,
+            "domNodes": 2190,
+            "heapMb": 10.953105926513672,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 1,
+            "longestMs": 51,
+            "domNodes": 2190,
+            "heapMb": 10.987197875976562,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 18,
+            "longestMs": 68,
+            "domNodes": 2190,
+            "heapMb": 11.096000671386719,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 9,
+            "longestMs": 59,
+            "domNodes": 2190,
+            "heapMb": 11.114299774169922,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "tabs/01-substrates": {
+            "lastApiResponseMs": 528,
+            "longTasks": 3,
+            "blockedMs": 92,
+            "longestMs": 96,
+            "domNodes": 1057,
+            "heapMb": 8.637908935546875,
+            "apiRequests": 1,
+            "uploadRequests": 1,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.029411764705882353,
+            "requestsByPath": {
+              "/api/v2/substrates": 1,
+              "/uploads/*": 1
+            }
+          },
+          "tabs/02-components": {
+            "lastApiResponseMs": 475,
+            "longTasks": 3,
+            "blockedMs": 91,
+            "longestMs": 100,
+            "domNodes": 1456,
+            "heapMb": 9.51180648803711,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/components/fineness-levels": 1,
+              "/api/v2/components": 1
+            }
+          },
+          "tabs/03-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 3,
+            "blockedMs": 237,
+            "longestMs": 179,
+            "domNodes": 2190,
+            "heapMb": 10.819412231445312,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/04-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 19,
+            "longestMs": 69,
+            "domNodes": 2190,
+            "heapMb": 10.88302993774414,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/05-substrates": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 13,
+            "longestMs": 63,
+            "domNodes": 2190,
+            "heapMb": 10.938373565673828,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/06-components": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 2190,
+            "heapMb": 10.972419738769531,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/07-sales": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 17,
+            "longestMs": 67,
+            "domNodes": 2190,
+            "heapMb": 11.081279754638672,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "tabs/08-plants": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 17,
+            "longestMs": 67,
+            "domNodes": 2190,
+            "heapMb": 11.099578857421875,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        }
+      ]
+    },
+    "markAllSeen1000": {
+      "label": "fz-mark-all-seen",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "mark-all-seen"
+      ],
+      "runs": 5,
+      "n": 1000,
+      "date": "2026-10-18T05:13:18.939Z",
+      "steps": {
+        "mark-all-seen/mark-all": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 1372,
+          "heapMb": 9.603191375732422,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        }
+      },
+      "perRun": [
+        {
+          "mark-all-seen/mark-all": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1372,
+            "heapMb": 9.601432800292969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "lastApiResponseMs": null,
+            "longTasks": 1,
+            "blockedMs": 0,
+            "longestMs": 50,
+            "domNodes": 1372,
+            "heapMb": 9.603191375732422,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1372,
+            "heapMb": 9.61142349243164,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1372,
+            "heapMb": 9.601287841796875,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "mark-all-seen/mark-all": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1372,
+            "heapMb": 9.621097564697266,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        }
+      ]
+    },
+    "plantsCold": {
+      "label": "fz-plants-cold",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "plants-cold"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-18T05:13:48.737Z",
+      "steps": {
+        "plants-cold/cold-load": {
+          "lastApiResponseMs": 999,
+          "longTasks": 2,
+          "blockedMs": 231,
+          "longestMs": 201,
+          "domNodes": 679,
+          "heapMb": 7.553852081298828,
+          "apiRequests": 3,
+          "uploadRequests": 14,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0.42424242424242425,
+          "requestsByPath": {
+            "/api/v2/plants": 2,
+            "/api/v2/sales/summary": 1,
+            "/uploads/*": 14
+          }
+        }
+      },
+      "perRun": [
+        {
+          "plants-cold/cold-load": {
+            "lastApiResponseMs": 989,
+            "longTasks": 2,
+            "blockedMs": 220,
+            "longestMs": 202,
+            "domNodes": 679,
+            "heapMb": 7.555141448974609,
+            "apiRequests": 3,
+            "uploadRequests": 14,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.42424242424242425,
+            "requestsByPath": {
+              "/api/v2/plants": 2,
+              "/api/v2/sales/summary": 1,
+              "/uploads/*": 14
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "lastApiResponseMs": 997,
+            "longTasks": 3,
+            "blockedMs": 226,
+            "longestMs": 198,
+            "domNodes": 679,
+            "heapMb": 7.553539276123047,
+            "apiRequests": 3,
+            "uploadRequests": 14,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.42424242424242425,
+            "requestsByPath": {
+              "/api/v2/plants": 2,
+              "/api/v2/sales/summary": 1,
+              "/uploads/*": 14
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "lastApiResponseMs": 1021,
+            "longTasks": 3,
+            "blockedMs": 239,
+            "longestMs": 200,
+            "domNodes": 679,
+            "heapMb": 7.553852081298828,
+            "apiRequests": 3,
+            "uploadRequests": 14,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.42424242424242425,
+            "requestsByPath": {
+              "/api/v2/plants": 2,
+              "/api/v2/sales/summary": 1,
+              "/uploads/*": 14
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "lastApiResponseMs": 1028,
+            "longTasks": 2,
+            "blockedMs": 231,
+            "longestMs": 210,
+            "domNodes": 679,
+            "heapMb": 7.555179595947266,
+            "apiRequests": 3,
+            "uploadRequests": 14,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.42424242424242425,
+            "requestsByPath": {
+              "/api/v2/plants": 2,
+              "/api/v2/sales/summary": 1,
+              "/uploads/*": 14
+            }
+          }
+        },
+        {
+          "plants-cold/cold-load": {
+            "lastApiResponseMs": 999,
+            "longTasks": 2,
+            "blockedMs": 233,
+            "longestMs": 201,
+            "domNodes": 679,
+            "heapMb": 7.553398132324219,
+            "apiRequests": 3,
+            "uploadRequests": 14,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.42424242424242425,
+            "requestsByPath": {
+              "/api/v2/plants": 2,
+              "/api/v2/sales/summary": 1,
+              "/uploads/*": 14
+            }
+          }
+        }
+      ]
+    },
+    "publicScroll": {
+      "label": "fz-public-scroll",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "public-scroll"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-18T05:15:36.944Z",
+      "steps": {
+        "public-scroll/first-page": {
+          "cards": 30,
+          "publicPageRequests": 0,
+          "lastApiResponseMs": 215,
+          "longTasks": 1,
+          "blockedMs": 1,
+          "longestMs": 51,
+          "domNodes": 485,
+          "heapMb": 7.6298675537109375,
+          "apiRequests": 1,
+          "uploadRequests": 4,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 1,
+          "requestsByPath": {
+            "/api/v2/plants": 1,
+            "/uploads/*": 4
+          }
+        },
+        "public-scroll/next-page-01": {
+          "cards": 40,
+          "publicPageRequests": 1,
+          "lastApiResponseMs": 195,
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 578,
+          "heapMb": 7.805461883544922,
+          "apiRequests": 1,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/plants": 1
+          }
+        },
+        "public-scroll/next-page-02": {
+          "cards": 80,
+          "publicPageRequests": 2,
+          "lastApiResponseMs": 213,
+          "longTasks": 1,
+          "blockedMs": 22,
+          "longestMs": 72,
+          "domNodes": 938,
+          "heapMb": 8.36114501953125,
+          "apiRequests": 1,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/plants": 1
+          }
+        },
+        "public-scroll/next-page-03": {
+          "cards": 120,
+          "publicPageRequests": 3,
+          "lastApiResponseMs": 209,
+          "longTasks": 1,
+          "blockedMs": 11,
+          "longestMs": 61,
+          "domNodes": 1298,
+          "heapMb": 8.898624420166016,
+          "apiRequests": 1,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/plants": 1
+          }
+        },
+        "public-scroll/next-page-04": {
+          "cards": 160,
+          "publicPageRequests": 5,
+          "lastApiResponseMs": 427,
+          "longTasks": 1,
+          "blockedMs": 19,
+          "longestMs": 69,
+          "domNodes": 1658,
+          "heapMb": 9.42333984375,
+          "apiRequests": 2,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/plants": 2
+          }
+        },
+        "public-scroll/next-page-05": {
+          "cards": 200,
+          "publicPageRequests": 6,
+          "lastApiResponseMs": 213,
+          "longTasks": 1,
+          "blockedMs": 26,
+          "longestMs": 76,
+          "domNodes": 2018,
+          "heapMb": 9.911785125732422,
+          "apiRequests": 1,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/plants": 1
+          }
+        },
+        "public-scroll/next-page-06": {
+          "cards": 240,
+          "publicPageRequests": 7,
+          "lastApiResponseMs": 210,
+          "longTasks": 1,
+          "blockedMs": 26,
+          "longestMs": 76,
+          "domNodes": 2378,
+          "heapMb": 10.376380920410156,
+          "apiRequests": 1,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/plants": 1
+          }
+        }
+      },
+      "perRun": [
+        {
+          "public-scroll/first-page": {
+            "cards": 30,
+            "publicPageRequests": 0,
+            "lastApiResponseMs": 214,
+            "longTasks": 1,
+            "blockedMs": 1,
+            "longestMs": 51,
+            "domNodes": 485,
+            "heapMb": 7.6299896240234375,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 1,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 4
+            }
+          },
+          "public-scroll/next-page-01": {
+            "cards": 40,
+            "publicPageRequests": 1,
+            "lastApiResponseMs": 195,
+            "longTasks": 1,
+            "blockedMs": 1,
+            "longestMs": 51,
+            "domNodes": 578,
+            "heapMb": 7.8058319091796875,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-02": {
+            "cards": 80,
+            "publicPageRequests": 2,
+            "lastApiResponseMs": 208,
+            "longTasks": 1,
+            "blockedMs": 22,
+            "longestMs": 72,
+            "domNodes": 938,
+            "heapMb": 8.36114501953125,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-03": {
+            "cards": 120,
+            "publicPageRequests": 3,
+            "lastApiResponseMs": 213,
+            "longTasks": 1,
+            "blockedMs": 13,
+            "longestMs": 63,
+            "domNodes": 1298,
+            "heapMb": 8.898624420166016,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-04": {
+            "cards": 160,
+            "publicPageRequests": 5,
+            "lastApiResponseMs": 427,
+            "longTasks": 1,
+            "blockedMs": 19,
+            "longestMs": 69,
+            "domNodes": 1658,
+            "heapMb": 9.422988891601562,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 2
+            }
+          },
+          "public-scroll/next-page-05": {
+            "cards": 200,
+            "publicPageRequests": 6,
+            "lastApiResponseMs": 211,
+            "longTasks": 1,
+            "blockedMs": 25,
+            "longestMs": 75,
+            "domNodes": 2018,
+            "heapMb": 9.911785125732422,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-06": {
+            "cards": 240,
+            "publicPageRequests": 7,
+            "lastApiResponseMs": 210,
+            "longTasks": 1,
+            "blockedMs": 26,
+            "longestMs": 76,
+            "domNodes": 2378,
+            "heapMb": 10.375988006591797,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          }
+        },
+        {
+          "public-scroll/first-page": {
+            "cards": 30,
+            "publicPageRequests": 0,
+            "lastApiResponseMs": 215,
+            "longTasks": 1,
+            "blockedMs": 3,
+            "longestMs": 53,
+            "domNodes": 485,
+            "heapMb": 7.6298675537109375,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 1,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 4
+            }
+          },
+          "public-scroll/next-page-01": {
+            "cards": 40,
+            "publicPageRequests": 1,
+            "lastApiResponseMs": 187,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 578,
+            "heapMb": 7.805461883544922,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-02": {
+            "cards": 80,
+            "publicPageRequests": 2,
+            "lastApiResponseMs": 213,
+            "longTasks": 1,
+            "blockedMs": 15,
+            "longestMs": 65,
+            "domNodes": 938,
+            "heapMb": 8.361026763916016,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-03": {
+            "cards": 120,
+            "publicPageRequests": 3,
+            "lastApiResponseMs": 212,
+            "longTasks": 1,
+            "blockedMs": 16,
+            "longestMs": 66,
+            "domNodes": 1298,
+            "heapMb": 8.898513793945312,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-04": {
+            "cards": 160,
+            "publicPageRequests": 5,
+            "lastApiResponseMs": 432,
+            "longTasks": 1,
+            "blockedMs": 22,
+            "longestMs": 72,
+            "domNodes": 1658,
+            "heapMb": 9.42333984375,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 2
+            }
+          },
+          "public-scroll/next-page-05": {
+            "cards": 200,
+            "publicPageRequests": 6,
+            "lastApiResponseMs": 225,
+            "longTasks": 1,
+            "blockedMs": 26,
+            "longestMs": 76,
+            "domNodes": 2018,
+            "heapMb": 9.911468505859375,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-06": {
+            "cards": 240,
+            "publicPageRequests": 7,
+            "lastApiResponseMs": 215,
+            "longTasks": 2,
+            "blockedMs": 30,
+            "longestMs": 77,
+            "domNodes": 2378,
+            "heapMb": 10.376380920410156,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          }
+        },
+        {
+          "public-scroll/first-page": {
+            "cards": 30,
+            "publicPageRequests": 0,
+            "lastApiResponseMs": 214,
+            "longTasks": 1,
+            "blockedMs": 3,
+            "longestMs": 53,
+            "domNodes": 485,
+            "heapMb": 7.629478454589844,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 1,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 4
+            }
+          },
+          "public-scroll/next-page-01": {
+            "cards": 40,
+            "publicPageRequests": 1,
+            "lastApiResponseMs": 198,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 578,
+            "heapMb": 7.805011749267578,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-02": {
+            "cards": 80,
+            "publicPageRequests": 2,
+            "lastApiResponseMs": 210,
+            "longTasks": 1,
+            "blockedMs": 15,
+            "longestMs": 65,
+            "domNodes": 938,
+            "heapMb": 8.360576629638672,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-03": {
+            "cards": 120,
+            "publicPageRequests": 3,
+            "lastApiResponseMs": 199,
+            "longTasks": 1,
+            "blockedMs": 11,
+            "longestMs": 61,
+            "domNodes": 1298,
+            "heapMb": 8.898063659667969,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-04": {
+            "cards": 160,
+            "publicPageRequests": 5,
+            "lastApiResponseMs": 423,
+            "longTasks": 1,
+            "blockedMs": 19,
+            "longestMs": 69,
+            "domNodes": 1658,
+            "heapMb": 9.422874450683594,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 2
+            }
+          },
+          "public-scroll/next-page-05": {
+            "cards": 200,
+            "publicPageRequests": 6,
+            "lastApiResponseMs": 209,
+            "longTasks": 1,
+            "blockedMs": 32,
+            "longestMs": 82,
+            "domNodes": 2018,
+            "heapMb": 9.911018371582031,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-06": {
+            "cards": 240,
+            "publicPageRequests": 7,
+            "lastApiResponseMs": 203,
+            "longTasks": 1,
+            "blockedMs": 23,
+            "longestMs": 73,
+            "domNodes": 2378,
+            "heapMb": 10.375835418701172,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          }
+        },
+        {
+          "public-scroll/first-page": {
+            "cards": 30,
+            "publicPageRequests": 0,
+            "lastApiResponseMs": 216,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 485,
+            "heapMb": 7.626457214355469,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 1,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 4
+            }
+          },
+          "public-scroll/next-page-01": {
+            "cards": 40,
+            "publicPageRequests": 1,
+            "lastApiResponseMs": 189,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 578,
+            "heapMb": 7.801979064941406,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-02": {
+            "cards": 80,
+            "publicPageRequests": 2,
+            "lastApiResponseMs": 215,
+            "longTasks": 1,
+            "blockedMs": 28,
+            "longestMs": 78,
+            "domNodes": 938,
+            "heapMb": 8.361839294433594,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-03": {
+            "cards": 120,
+            "publicPageRequests": 3,
+            "lastApiResponseMs": 201,
+            "longTasks": 1,
+            "blockedMs": 7,
+            "longestMs": 57,
+            "domNodes": 1298,
+            "heapMb": 8.899524688720703,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-04": {
+            "cards": 160,
+            "publicPageRequests": 5,
+            "lastApiResponseMs": 427,
+            "longTasks": 1,
+            "blockedMs": 26,
+            "longestMs": 76,
+            "domNodes": 1658,
+            "heapMb": 9.424358367919922,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 2
+            }
+          },
+          "public-scroll/next-page-05": {
+            "cards": 200,
+            "publicPageRequests": 6,
+            "lastApiResponseMs": 213,
+            "longTasks": 1,
+            "blockedMs": 22,
+            "longestMs": 72,
+            "domNodes": 2018,
+            "heapMb": 9.912487030029297,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-06": {
+            "cards": 240,
+            "publicPageRequests": 7,
+            "lastApiResponseMs": 203,
+            "longTasks": 1,
+            "blockedMs": 19,
+            "longestMs": 69,
+            "domNodes": 2378,
+            "heapMb": 10.377197265625,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          }
+        },
+        {
+          "public-scroll/first-page": {
+            "cards": 30,
+            "publicPageRequests": 0,
+            "lastApiResponseMs": 217,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 485,
+            "heapMb": 7.63470458984375,
+            "apiRequests": 1,
+            "uploadRequests": 4,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 1,
+            "requestsByPath": {
+              "/api/v2/plants": 1,
+              "/uploads/*": 4
+            }
+          },
+          "public-scroll/next-page-01": {
+            "cards": 40,
+            "publicPageRequests": 1,
+            "lastApiResponseMs": 197,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 578,
+            "heapMb": 7.8102264404296875,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-02": {
+            "cards": 80,
+            "publicPageRequests": 2,
+            "lastApiResponseMs": 215,
+            "longTasks": 1,
+            "blockedMs": 23,
+            "longestMs": 73,
+            "domNodes": 938,
+            "heapMb": 8.370086669921875,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-03": {
+            "cards": 120,
+            "publicPageRequests": 3,
+            "lastApiResponseMs": 209,
+            "longTasks": 1,
+            "blockedMs": 10,
+            "longestMs": 60,
+            "domNodes": 1298,
+            "heapMb": 8.90777587890625,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-04": {
+            "cards": 160,
+            "publicPageRequests": 5,
+            "lastApiResponseMs": 431,
+            "longTasks": 1,
+            "blockedMs": 17,
+            "longestMs": 67,
+            "domNodes": 1658,
+            "heapMb": 9.432598114013672,
+            "apiRequests": 2,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 2
+            }
+          },
+          "public-scroll/next-page-05": {
+            "cards": 200,
+            "publicPageRequests": 6,
+            "lastApiResponseMs": 215,
+            "longTasks": 1,
+            "blockedMs": 27,
+            "longestMs": 77,
+            "domNodes": 2018,
+            "heapMb": 9.920738220214844,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          },
+          "public-scroll/next-page-06": {
+            "cards": 240,
+            "publicPageRequests": 7,
+            "lastApiResponseMs": 210,
+            "longTasks": 1,
+            "blockedMs": 29,
+            "longestMs": 79,
+            "domNodes": 2378,
+            "heapMb": 10.385448455810547,
+            "apiRequests": 1,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/plants": 1
+            }
+          }
+        }
+      ]
+    },
+    "salesReplay": {
+      "label": "fz-sales-replay",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "sales-replay"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-18T05:16:19.331Z",
+      "steps": {
+        "sales-replay/replay": {
+          "listCommits": 15,
+          "replayedItems": 2036,
+          "lastApiResponseMs": 836,
+          "longTasks": 4,
+          "blockedMs": 191,
+          "longestMs": 134,
+          "domNodes": 1416,
+          "heapMb": 10.499343872070312,
+          "apiRequests": 3,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {
+            "/api/v2/auth/ticket": 1,
+            "/api/v2/sales": 1,
+            "/api/v2/sales/summary": 1
+          }
+        }
+      },
+      "perRun": [
+        {
+          "sales-replay/replay": {
+            "listCommits": 15,
+            "replayedItems": 2036,
+            "lastApiResponseMs": 867,
+            "longTasks": 4,
+            "blockedMs": 191,
+            "longestMs": 134,
+            "domNodes": 1416,
+            "heapMb": 10.517753601074219,
+            "apiRequests": 3,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/sales/summary": 1,
+              "/api/v2/auth/ticket": 1,
+              "/api/v2/sales": 1
+            }
+          }
+        },
+        {
+          "sales-replay/replay": {
+            "listCommits": 15,
+            "replayedItems": 2036,
+            "lastApiResponseMs": 836,
+            "longTasks": 5,
+            "blockedMs": 195,
+            "longestMs": 141,
+            "domNodes": 1416,
+            "heapMb": 10.499320983886719,
+            "apiRequests": 3,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/sales/summary": 1,
+              "/api/v2/auth/ticket": 1,
+              "/api/v2/sales": 1
+            }
+          }
+        },
+        {
+          "sales-replay/replay": {
+            "listCommits": 15,
+            "replayedItems": 2036,
+            "lastApiResponseMs": 839,
+            "longTasks": 4,
+            "blockedMs": 184,
+            "longestMs": 132,
+            "domNodes": 1416,
+            "heapMb": 10.499343872070312,
+            "apiRequests": 3,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/sales/summary": 1,
+              "/api/v2/auth/ticket": 1,
+              "/api/v2/sales": 1
+            }
+          }
+        },
+        {
+          "sales-replay/replay": {
+            "listCommits": 15,
+            "replayedItems": 2036,
+            "lastApiResponseMs": 836,
+            "longTasks": 4,
+            "blockedMs": 168,
+            "longestMs": 121,
+            "domNodes": 1416,
+            "heapMb": 10.52203369140625,
+            "apiRequests": 3,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/sales/summary": 1,
+              "/api/v2/auth/ticket": 1,
+              "/api/v2/sales": 1
+            }
+          }
+        },
+        {
+          "sales-replay/replay": {
+            "listCommits": 15,
+            "replayedItems": 2036,
+            "lastApiResponseMs": 834,
+            "longTasks": 4,
+            "blockedMs": 195,
+            "longestMs": 143,
+            "domNodes": 1416,
+            "heapMb": 10.498870849609375,
+            "apiRequests": 3,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {
+              "/api/v2/sales/summary": 1,
+              "/api/v2/auth/ticket": 1,
+              "/api/v2/sales": 1
+            }
+          }
+        }
+      ]
+    },
+    "roundTap": {
+      "label": "fz-round-tap",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "round-tap"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-18T05:16:56.193Z",
+      "steps": {
+        "round-tap/open": {
+          "lastApiResponseMs": 514,
+          "longTasks": 3,
+          "blockedMs": 194,
+          "longestMs": 202,
+          "domNodes": 1167,
+          "heapMb": 9.350269317626953,
+          "apiRequests": 2,
+          "uploadRequests": 15,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0.22727272727272727,
+          "requestsByPath": {
+            "/api/v2/recognition/status": 1,
+            "/api/v2/watering/fertilizer-types": 1,
+            "/uploads/*": 15
+          }
+        },
+        "round-tap/tap-01": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 1167,
+          "heapMb": 9.353412628173828,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "round-tap/tap-02": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 1167,
+          "heapMb": 9.360664367675781,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "round-tap/tap-03": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 1167,
+          "heapMb": 9.367103576660156,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "round-tap/tap-04": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 1167,
+          "heapMb": 9.367446899414062,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        },
+        "round-tap/tap-05": {
+          "longTasks": 0,
+          "blockedMs": 0,
+          "longestMs": 0,
+          "domNodes": 1167,
+          "heapMb": 9.377655029296875,
+          "apiRequests": 0,
+          "uploadRequests": 0,
+          "wateringPlantRequests": 0,
+          "imageRequestsPerCard": 0,
+          "requestsByPath": {}
+        }
+      },
+      "perRun": [
+        {
+          "round-tap/open": {
+            "lastApiResponseMs": 514,
+            "longTasks": 2,
+            "blockedMs": 194,
+            "longestMs": 202,
+            "domNodes": 1167,
+            "heapMb": 9.350269317626953,
+            "apiRequests": 2,
+            "uploadRequests": 15,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.22727272727272727,
+            "requestsByPath": {
+              "/api/v2/recognition/status": 1,
+              "/api/v2/watering/fertilizer-types": 1,
+              "/uploads/*": 15
+            }
+          },
+          "round-tap/tap-01": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.353412628173828,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-02": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.360664367675781,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-03": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.367103576660156,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-04": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.367446899414062,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-05": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.377655029296875,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "round-tap/open": {
+            "lastApiResponseMs": 513,
+            "longTasks": 3,
+            "blockedMs": 184,
+            "longestMs": 193,
+            "domNodes": 1167,
+            "heapMb": 9.351646423339844,
+            "apiRequests": 2,
+            "uploadRequests": 15,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.22727272727272727,
+            "requestsByPath": {
+              "/api/v2/recognition/status": 1,
+              "/api/v2/watering/fertilizer-types": 1,
+              "/uploads/*": 15
+            }
+          },
+          "round-tap/tap-01": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.354789733886719,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-02": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.362052917480469,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-03": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.368480682373047,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-04": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.368824005126953,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-05": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.379032135009766,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "round-tap/open": {
+            "lastApiResponseMs": 514,
+            "longTasks": 3,
+            "blockedMs": 206,
+            "longestMs": 213,
+            "domNodes": 1167,
+            "heapMb": 9.351726531982422,
+            "apiRequests": 2,
+            "uploadRequests": 15,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.22727272727272727,
+            "requestsByPath": {
+              "/api/v2/recognition/status": 1,
+              "/api/v2/watering/fertilizer-types": 1,
+              "/uploads/*": 15
+            }
+          },
+          "round-tap/tap-01": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.354869842529297,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-02": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.362133026123047,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-03": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.368560791015625,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-04": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.368892669677734,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-05": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.37912368774414,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "round-tap/open": {
+            "lastApiResponseMs": 524,
+            "longTasks": 3,
+            "blockedMs": 186,
+            "longestMs": 198,
+            "domNodes": 1167,
+            "heapMb": 9.35015869140625,
+            "apiRequests": 2,
+            "uploadRequests": 15,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.22727272727272727,
+            "requestsByPath": {
+              "/api/v2/recognition/status": 1,
+              "/api/v2/watering/fertilizer-types": 1,
+              "/uploads/*": 15
+            }
+          },
+          "round-tap/tap-01": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.353302001953125,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-02": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.360565185546875,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-03": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.366992950439453,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-04": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.36733627319336,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-05": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.377555847167969,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "round-tap/open": {
+            "lastApiResponseMs": 513,
+            "longTasks": 2,
+            "blockedMs": 214,
+            "longestMs": 220,
+            "domNodes": 1167,
+            "heapMb": 9.349628448486328,
+            "apiRequests": 2,
+            "uploadRequests": 15,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0.22727272727272727,
+            "requestsByPath": {
+              "/api/v2/recognition/status": 1,
+              "/api/v2/watering/fertilizer-types": 1,
+              "/uploads/*": 15
+            }
+          },
+          "round-tap/tap-01": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.352771759033203,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-02": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.360034942626953,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-03": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.366462707519531,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-04": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.366806030273438,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          },
+          "round-tap/tap-05": {
+            "lastApiResponseMs": null,
+            "longTasks": 0,
+            "blockedMs": 0,
+            "longestMs": 0,
+            "domNodes": 1167,
+            "heapMb": 9.377025604248047,
+            "apiRequests": 0,
+            "uploadRequests": 0,
+            "wateringPlantRequests": 0,
+            "lastWateringResponseMs": null,
+            "imageRequestsPerCard": 0,
+            "requestsByPath": {}
+          }
+        }
+      ]
+    },
+    "heap20Switches": {
+      "label": "fz-heap-20-switches",
+      "url": "http://127.0.0.1:51450",
+      "scenarios": [
+        "heap-20-switches"
+      ],
+      "runs": 5,
+      "n": 300,
+      "date": "2026-10-18T05:20:05.139Z",
+      "steps": {
+        "heap-20-switches/switches": {
+          "heapBeforeMb": 12.19375991821289,
+          "heapAfterMb": 12.417346954345703,
+          "heapGrowthPct": 1.832662941001825,
+          "domNodes": 2190,
+          "requestsByPath": {}
+        }
+      },
+      "perRun": [
+        {
+          "heap-20-switches/switches": {
+            "heapBeforeMb": 12.19375991821289,
+            "heapAfterMb": 12.417346954345703,
+            "heapGrowthPct": 1.833618487098943,
+            "domNodes": 2190,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "heap-20-switches/switches": {
+            "heapBeforeMb": 12.20181655883789,
+            "heapAfterMb": 12.425174713134766,
+            "heapGrowthPct": 1.8305319803803688,
+            "domNodes": 2190,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "heap-20-switches/switches": {
+            "heapBeforeMb": 12.193248748779297,
+            "heapAfterMb": 12.416709899902344,
+            "heapGrowthPct": 1.832662941001825,
+            "domNodes": 2190,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "heap-20-switches/switches": {
+            "heapBeforeMb": 12.19674301147461,
+            "heapAfterMb": 12.420146942138672,
+            "heapGrowthPct": 1.8316687533211584,
+            "domNodes": 2190,
+            "requestsByPath": {}
+          }
+        },
+        {
+          "heap-20-switches/switches": {
+            "heapBeforeMb": 12.18990707397461,
+            "heapAfterMb": 12.413494110107422,
+            "heapGrowthPct": 1.8341980359322811,
+            "domNodes": 2190,
+            "requestsByPath": {}
+          }
+        }
+      ]
+    }
+  },
+  "apitime": {
+    "label": "perfz",
+    "session": "perfz",
+    "user": "grower",
+    "runs": 7,
+    "timestamp": "2026-10-18T05:20:05.395Z",
+    "endpoints": [
+      {
+        "endpoint": "/plants?scope=mine&limit=100",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 4.4,
+          "p95": 5.17
+        },
+        "totalMs": {
+          "median": 4.59,
+          "p95": 5.45
+        },
+        "bytes": {
+          "raw": 50471,
+          "gzip": {
+            "served": 2623,
+            "servedEncoding": "gzip",
+            "wouldBe": 2623,
+            "serverCompressed": true
+          },
+          "br": {
+            "served": 2058,
+            "servedEncoding": "br",
+            "wouldBe": 2058,
+            "serverCompressed": true
+          }
+        },
+        "etag": "W/\"RZIyEggxiGnc5YmL0PSEBMZoM7Y=\"",
+        "cacheControl": "private, no-cache",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      },
+      {
+        "endpoint": "/plants?scope=public&limit=30",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 1.37,
+          "p95": 2.01
+        },
+        "totalMs": {
+          "median": 1.43,
+          "p95": 2.1
+        },
+        "bytes": {
+          "raw": 7818,
+          "gzip": {
+            "served": 1101,
+            "servedEncoding": "gzip",
+            "wouldBe": 1101,
+            "serverCompressed": true
+          },
+          "br": {
+            "served": 999,
+            "servedEncoding": "br",
+            "wouldBe": 999,
+            "serverCompressed": true
+          }
+        },
+        "etag": "W/\"fN2Gs5m4gB+pmjXyPtWMkirroBk=\"",
+        "cacheControl": "private, no-cache",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      },
+      {
+        "endpoint": "/substrates?scope=mine&limit=30",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.66,
+          "p95": 0.95
+        },
+        "totalMs": {
+          "median": 0.72,
+          "p95": 1.02
+        },
+        "bytes": {
+          "raw": 3940,
+          "gzip": {
+            "served": 385,
+            "servedEncoding": "gzip",
+            "wouldBe": 385,
+            "serverCompressed": true
+          },
+          "br": {
+            "served": 295,
+            "servedEncoding": "br",
+            "wouldBe": 295,
+            "serverCompressed": true
+          }
+        },
+        "etag": "W/\"MKSPp8PgAxjWGpt/lUulbPn9UUQ=\"",
+        "cacheControl": "private, no-cache",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      },
+      {
+        "endpoint": "/substrates?scope=public",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.64,
+          "p95": 0.71
+        },
+        "totalMs": {
+          "median": 0.75,
+          "p95": 0.77
+        },
+        "bytes": {
+          "raw": 980,
+          "gzip": {
+            "served": 980,
+            "servedEncoding": "identity",
+            "wouldBe": 367,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 980,
+            "servedEncoding": "identity",
+            "wouldBe": 316,
+            "serverCompressed": false
+          }
+        },
+        "etag": "W/\"Y1vw+Nd3xjuMTiBFoYSriZ4jX44=\"",
+        "cacheControl": "private, no-cache",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      },
+      {
+        "endpoint": "/components",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.59,
+          "p95": 0.76
+        },
+        "totalMs": {
+          "median": 0.68,
+          "p95": 0.95
+        },
+        "bytes": {
+          "raw": 2784,
+          "gzip": {
+            "served": 414,
+            "servedEncoding": "gzip",
+            "wouldBe": 414,
+            "serverCompressed": true
+          },
+          "br": {
+            "served": 361,
+            "servedEncoding": "br",
+            "wouldBe": 361,
+            "serverCompressed": true
+          }
+        },
+        "etag": "W/\"ItwG3D/lX17cMPIeWqf0covdK7A=\"",
+        "cacheControl": "private, no-cache",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      },
+      {
+        "endpoint": "/sales/summary",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.55,
+          "p95": 0.63
+        },
+        "totalMs": {
+          "median": 0.6,
+          "p95": 0.67
+        },
+        "bytes": {
+          "raw": 106,
+          "gzip": {
+            "served": 106,
+            "servedEncoding": "identity",
+            "wouldBe": 104,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 106,
+            "servedEncoding": "identity",
+            "wouldBe": 86,
+            "serverCompressed": false
+          }
+        },
+        "etag": "W/\"z0JGg/3mWFkO7FiZAVKqwBnIC9I=\"",
+        "cacheControl": "private, no-cache",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      },
+      {
+        "endpoint": "/watering/plant/377?limit=50",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.69,
+          "p95": 1.11
+        },
+        "totalMs": {
+          "median": 0.74,
+          "p95": 1.16
+        },
+        "bytes": {
+          "raw": 5002,
+          "gzip": {
+            "served": 605,
+            "servedEncoding": "gzip",
+            "wouldBe": 605,
+            "serverCompressed": true
+          },
+          "br": {
+            "served": 489,
+            "servedEncoding": "br",
+            "wouldBe": 489,
+            "serverCompressed": true
+          }
+        },
+        "etag": "W/\"huJatwQ9T+SlPcVdUrlGcX90aQE=\"",
+        "cacheControl": "private, no-cache",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      },
+      {
+        "endpoint": "/watering/fertilizer-types",
+        "runs": 7,
+        "status": 200,
+        "ttfbMs": {
+          "median": 0.36,
+          "p95": 0.38
+        },
+        "totalMs": {
+          "median": 0.39,
+          "p95": 0.42
+        },
+        "bytes": {
+          "raw": 108,
+          "gzip": {
+            "served": 108,
+            "servedEncoding": "identity",
+            "wouldBe": 83,
+            "serverCompressed": false
+          },
+          "br": {
+            "served": 108,
+            "servedEncoding": "identity",
+            "wouldBe": 69,
+            "serverCompressed": false
+          }
+        },
+        "etag": "W/\"8plX7Y/J3A8B+St2JIywHvHyKLI=\"",
+        "cacheControl": "private, max-age=3600",
+        "conditional": {
+          "status": 304,
+          "notModified": true
+        }
+      }
+    ]
+  },
+  "explain": {
+    "passed": 18,
+    "total": 18,
+    "queries": [
+      "PASS [A] plants mine by created",
+      "PASS [A] plants mine by name",
+      "PASS [A] plants public by created",
+      "PASS [A] plants public by name",
+      "PASS [A] substrates mine by created",
+      "PASS [A] substrates mine by name",
+      "PASS [A] substrates public by created",
+      "PASS [A] substrates public by name",
+      "PASS [A] components by name",
+      "PASS [A] substrate_components by component_id",
+      "PASS [A] plants by substrate_id",
+      "PASS [A] newest plant image",
+      "PASS [B] watering history first page",
+      "PASS [B] watering history next page",
+      "PASS [B] watering last watered per plant",
+      "PASS [B] sales active first page",
+      "PASS [B] sales active next page",
+      "PASS [B] sales summary counts"
+    ]
+  },
+  "targets": {
+    "salesEntry300": [
+      "PASS  sales-entry warm re-entry blocked: blockedMs 13 (max 50)",
+      "FAIL  sales-entry warm re-entry no long task: longTasks 1 (max 0)",
+      "SKIP  enter Substrates with N=2000 Sales mounted (needs N=2000, ran N=300)",
+      "SKIP  DOM nodes all tabs N=2000 under 12k (needs N=2000, ran N=300)",
+      "PASS  image requests per card (Sales): imageRequestsPerCard 0 (max 1)"
+    ],
+    "salesEntry2000": [
+      "PASS  sales-entry warm re-entry blocked: blockedMs 18 (max 50)",
+      "FAIL  sales-entry warm re-entry no long task: longTasks 1 (max 0)",
+      "FAIL  enter Substrates with N=2000 Sales mounted: blockedMs 119 (max 50)",
+      "PASS  DOM nodes all tabs N=2000 under 12k: domNodes 1416 (max 12000)",
+      "PASS  image requests per card (Sales): imageRequestsPerCard 0 (max 1)"
+    ],
+    "markAllSeen1000": [
+      "PASS  mark-all-seen N=1000 no long task over 200 ms: longestMs 0 (max 200)"
+    ],
+    "plantsCold": [
+      "FAIL  plants-cold first mount under 100 ms: longestMs 201 (max 100)",
+      "FAIL  plants-cold at most 2 API requests: apiRequests 3 (max 2)",
+      "PASS  plants-cold no history requests: wateringPlantRequests 0 (max 0)"
+    ],
+    "tabs": [
+      "FAIL  tab entry blocked (tabs/01-substrates): blockedMs 74 (max 50)",
+      "FAIL  tab entry blocked (tabs/02-components): blockedMs 101 (max 50)",
+      "FAIL  tab entry blocked (tabs/03-sales): blockedMs 245 (max 50)",
+      "PASS  tab entry blocked (tabs/04-plants): blockedMs 17 (max 50)",
+      "PASS  tab entry blocked (tabs/05-substrates): blockedMs 7 (max 50)",
+      "PASS  tab entry blocked (tabs/06-components): blockedMs 0 (max 50)",
+      "PASS  tab entry blocked (tabs/07-sales): blockedMs 17 (max 50)",
+      "PASS  tab entry blocked (tabs/08-plants): blockedMs 9 (max 50)",
+      "PASS  Plants entry no history requests (tabs/04-plants): wateringPlantRequests 0 (max 0)",
+      "PASS  Plants entry no history requests (tabs/08-plants): wateringPlantRequests 0 (max 0)"
+    ],
+    "publicScroll": [
+      "PASS  public-scroll first page under 100 ms: longestMs 51 (max 100)",
+      "PASS  public-scroll next page blocked (public-scroll/next-page-01): blockedMs 0 (max 50)",
+      "PASS  public-scroll next page blocked (public-scroll/next-page-02): blockedMs 22 (max 50)",
+      "PASS  public-scroll next page blocked (public-scroll/next-page-03): blockedMs 11 (max 50)",
+      "PASS  public-scroll next page blocked (public-scroll/next-page-04): blockedMs 19 (max 50)",
+      "PASS  public-scroll next page blocked (public-scroll/next-page-05): blockedMs 26 (max 50)",
+      "PASS  public-scroll next page blocked (public-scroll/next-page-06): blockedMs 26 (max 50)",
+      "PASS  image requests per card (public plants): imageRequestsPerCard 1 (max 1)"
+    ],
+    "salesReplay": [
+      "FAIL  sales-replay N=2000 no long task over 100 ms: longestMs 134 (max 100)"
+    ],
+    "roundTap": [
+      "PASS  round-tap blocked (round-tap/tap-01): blockedMs 0 (max 50)",
+      "PASS  round-tap blocked (round-tap/tap-02): blockedMs 0 (max 50)",
+      "PASS  round-tap blocked (round-tap/tap-03): blockedMs 0 (max 50)",
+      "PASS  round-tap blocked (round-tap/tap-04): blockedMs 0 (max 50)",
+      "PASS  round-tap blocked (round-tap/tap-05): blockedMs 0 (max 50)",
+      "PASS  round-tap no history requests (round-tap/open): wateringPlantRequests 0 (max 0)",
+      "PASS  round-tap no history requests (round-tap/tap-01): wateringPlantRequests 0 (max 0)",
+      "PASS  round-tap no history requests (round-tap/tap-02): wateringPlantRequests 0 (max 0)",
+      "PASS  round-tap no history requests (round-tap/tap-03): wateringPlantRequests 0 (max 0)",
+      "PASS  round-tap no history requests (round-tap/tap-04): wateringPlantRequests 0 (max 0)",
+      "PASS  round-tap no history requests (round-tap/tap-05): wateringPlantRequests 0 (max 0)"
+    ],
+    "heap20Switches": [
+      "PASS  heap growth over 20 tab switches under 10 percent: heapGrowthPct 1.8 (max 10)",
+      "PASS  DOM nodes after 20 tab switches under 12k: domNodes 2190 (max 12000)"
+    ]
+  }
+}

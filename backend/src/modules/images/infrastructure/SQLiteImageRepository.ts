@@ -2,18 +2,21 @@
  * modules/images/infrastructure/SQLiteImageRepository.ts
  *
  * SQLite implementation of the ImageRepository port.
- * Single table `images`: id, image_url, entity_type, entity_id, upload_date.
+ * Single table `images`: id, image_url, entity_type, entity_id, upload_date,
+ * plus the variant metadata (width, height, placeholder, variants).
  */
 
-import { sql } from 'kysely';
+import { sql, type Updateable } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import { toPublicImageUrl } from '../../../core/config';
+import type { ImagesTable } from '../../../core/database/schema';
 import type {
   ImageRepository,
   ImageRecord,
   StoredImage,
   EntityType,
   UpdateImageDTO,
+  ImageVariantMeta,
 } from '../domain/Image';
 
 const withPublicUrl = <T extends { url: string }>(row: T): T => ({
@@ -21,10 +24,18 @@ const withPublicUrl = <T extends { url: string }>(row: T): T => ({
   url: toPublicImageUrl(row.url),
 });
 
-const imageRecords = () =>
-  getKysely()
-    .selectFrom('images')
-    .select(['id', 'image_url as url', 'upload_date as date', 'entity_type as entityType']);
+const RECORD_COLUMNS = [
+  'id',
+  'image_url as url',
+  'upload_date as date',
+  'entity_type as entityType',
+  'width',
+  'height',
+  'placeholder',
+  'variants',
+] as const;
+
+const imageRecords = () => getKysely().selectFrom('images').select(RECORD_COLUMNS);
 
 export class SQLiteImageRepository implements ImageRepository {
   async findByEntity(entityType: EntityType, entityId: number): Promise<ImageRecord[]> {
@@ -50,6 +61,7 @@ export class SQLiteImageRepository implements ImageRepository {
     entityId: number,
     imageUrl: string,
     uploadDate?: number,
+    meta?: ImageVariantMeta,
   ): Promise<number> {
     const result = await getKysely()
       .insertInto('images')
@@ -58,17 +70,35 @@ export class SQLiteImageRepository implements ImageRepository {
         entity_type: entityType,
         entity_id: entityId,
         upload_date: sql<number>`COALESCE(${uploadDate ?? null}, strftime('%s','now'))`,
+        ...(meta && {
+          width: meta.width,
+          height: meta.height,
+          placeholder: meta.placeholder,
+          variants: meta.variants,
+        }),
       })
       .executeTakeFirstOrThrow();
     return Number(result.insertId);
   }
 
   async update(imageId: number, fields: UpdateImageDTO): Promise<void> {
-    const changes: { image_url?: string; upload_date?: number } = {};
+    const changes: Updateable<ImagesTable> = {};
     if (fields.imageUrl !== undefined) changes.image_url = fields.imageUrl;
     if (fields.uploadDate !== undefined) changes.upload_date = fields.uploadDate;
+    if (fields.width !== undefined) changes.width = fields.width;
+    if (fields.height !== undefined) changes.height = fields.height;
+    if (fields.placeholder !== undefined) changes.placeholder = fields.placeholder;
+    if (fields.variants !== undefined) changes.variants = fields.variants;
     if (!Object.keys(changes).length) return;
-    await getKysely().updateTable('images').set(changes).where('id', '=', imageId).execute();
+    await getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        await trx.updateTable('images').set(changes).where('id', '=', imageId).execute();
+        // The vector describes the old file; without a row the embedding backfill finds the image again.
+        if (fields.imageUrl !== undefined) {
+          await trx.deleteFrom('image_embeddings').where('image_id', '=', imageId).execute();
+        }
+      });
   }
 
   async delete(imageId: number): Promise<void> {
@@ -85,7 +115,7 @@ export class SQLiteImageRepository implements ImageRepository {
       .execute(async (trx) => {
         const images = await trx
           .selectFrom('images')
-          .select(['id', 'image_url as url', 'upload_date as date', 'entity_type as entityType'])
+          .select(RECORD_COLUMNS)
           .where('entity_type', '=', entityType)
           .where('entity_id', '=', entityId)
           .orderBy('upload_date', 'asc')

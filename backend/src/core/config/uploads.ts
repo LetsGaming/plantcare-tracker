@@ -39,3 +39,10 @@ export const toPublicImageUrl = (stored: string): string => {
   const origin = publicBaseUrl ?? requestContext.getStore()?.origin ?? `http://localhost:${port}`;
   return `${origin}${stored.startsWith('/') ? stored : `/${stored}`}`;
 };
+
+/**
+ * URL of a resized variant of a stored or public image URL. The 1024 px
+ * variant is the stored URL itself.
+ */
+export const variantUrl = (imageUrl: string, width: number): string =>
+  imageUrl.replace(/\.webp$/i, `-${width}.webp`);

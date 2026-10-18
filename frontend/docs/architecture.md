@@ -96,7 +96,7 @@ Component ── getter ──▶ Pinia state (L1, reactive, in memory)
                         l2Persistence plugin ──▶ @ionic/storage (L2, survives restarts)
 ```
 
-- Stores opt in with a `persist` option listing entries `{ key, pick, apply, timestamp, keepOnClear, allowExpired }`.
+- Stores opt in with a `persist` option listing entries `{ key, pick, apply, timestamp, keepOnClear, allowExpired, dirtyOn, version }`. Writes follow the action boundary: an entry is marked by the actions in `dirtyOn` and skipped when its `version` token is unchanged (see [Stores](./stores.md)).
   Entries use the envelope `{ data, timestamp, keepOnClear }`.
 - Hydration is explicit and on demand (`store.$hydrate()`, called by `ensureLoaded`). Expired
   entries are skipped unless the entry sets `allowExpired` (sales, calendar settings).

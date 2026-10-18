@@ -1,12 +1,35 @@
 import { Storage } from "@ionic/storage";
 
 /**
+ * `kv` holds the token, theme, settings and every entry that outlives a logout.
+ * `cache` holds account data and is dropped as a whole on logout.
+ */
+export type StorageArea = "kv" | "cache";
+
+const KV_NAME = "_ionicstorage";
+const CACHE_NAME = "plantcare_cache";
+const MIGRATION_FLAG = "storage_split_v2";
+const PREVIOUS_MIGRATION_FLAGS = ["storage_split_v1"] as const;
+
+const OBSOLETE_KEYS = [
+  "sales_price_history",
+  "sales_new",
+  "watering_records_data",
+  "plants_all",
+  "substrates_all",
+  "components_all",
+  "more_info_data",
+  "fertilizer_types_data",
+  "components_fineness_levels",
+] as const;
+
+/**
  * High-performance wrapper around @ionic/storage.
  * Ensures safe async initialization and optimized parallel operations.
  */
 class StorageService {
-  /** Internal Ionic Storage instance */
-  private storage!: Storage;
+  private kv!: Storage;
+  private cache!: Storage;
 
   /** Readiness semaphore */
   private readonly ready: Promise<void>;
@@ -16,6 +39,7 @@ class StorageService {
 
   constructor() {
     this.ready = this.init();
+    this.ready.catch((error) => console.error("Storage failed to initialize:", error));
   }
 
   /**
@@ -23,8 +47,29 @@ class StorageService {
    * @private
    */
   private async init(): Promise<void> {
-    const storage = new Storage();
-    this.storage = await storage.create();
+    // kv keeps the name of the former single store, so tokens and settings need no move.
+    [this.kv, this.cache] = await Promise.all([
+      new Storage({ name: KV_NAME }).create(),
+      new Storage({ name: CACHE_NAME }).create(),
+    ]);
+    await this.migrate();
+  }
+
+  /**
+   * Runs once. Account data of the former single store is not moved: its keys
+   * are replaced by the paged stores and the rest refetches, so only the large
+   * obsolete entries are deleted.
+   */
+  private async migrate(): Promise<void> {
+    if (await this.kv.get(MIGRATION_FLAG)) return;
+    await Promise.all(
+      [...OBSOLETE_KEYS, ...PREVIOUS_MIGRATION_FLAGS].map((key) => this.kv.remove(key)),
+    );
+    await this.kv.set(MIGRATION_FLAG, true);
+  }
+
+  private area(area: StorageArea): Storage {
+    return area === "cache" ? this.cache : this.kv;
   }
 
   /**
@@ -32,9 +77,9 @@ class StorageService {
    * @param {string} key
    * @param {any} value
    */
-  async set(key: string, value: any): Promise<void> {
+  async set(key: string, value: any, area: StorageArea = "kv"): Promise<void> {
     await this.ready;
-    return this.storage.set(key, value);
+    return this.area(area).set(key, value);
   }
 
   /**
@@ -43,66 +88,32 @@ class StorageService {
    * @param {string} key
    * @returns {Promise<T | null>}
    */
-  async get<T>(key: string): Promise<T | null> {
+  async get<T>(key: string, area: StorageArea = "kv"): Promise<T | null> {
     await this.ready;
-    return this.storage.get(key);
+    return this.area(area).get(key);
   }
 
   /**
    * Removes a specific key.
    * @param {string} key
    */
-  async remove(key: string): Promise<void> {
+  async remove(key: string, area: StorageArea = "kv"): Promise<void> {
     await this.ready;
-    return this.storage.remove(key);
+    return this.area(area).remove(key);
   }
 
-  /**
-   * Clears non-protected items.
-   * Optimized: Uses Promise.all with a single pass through keys.
-   */
+  /** Drops the account cache without reading any value. */
   async clear(): Promise<void> {
     await this.ready;
-    const keys = await this.storage.keys();
-
-    await Promise.all(
-      keys.map(async (key) => {
-        const val = await this.storage.get(key);
-        if (!val?.keepOnClear) {
-          return this.storage.remove(key);
-        }
-      }),
-    );
+    return this.cache.clear();
   }
 
   /**
-   * Destroys everything in storage.
+   * Destroys everything in storage, including settings and the migration flag.
    */
   async clearAll(): Promise<void> {
     await this.ready;
-    return this.storage.clear();
-  }
-
-  /**
-   * Batch storage update.
-   */
-  async setMultiple(items: { key: string; value: any }[]): Promise<void> {
-    await this.ready;
-    await Promise.all(items.map((i) => this.storage.set(i.key, i.value)));
-  }
-
-  /**
-   * Retrieves keys as a Record object.
-   */
-  async getMultiple(keys: string[]): Promise<Record<string, any>> {
-    await this.ready;
-    const results: Record<string, any> = {};
-    await Promise.all(
-      keys.map(async (key) => {
-        results[key] = await this.storage.get(key);
-      }),
-    );
-    return results;
+    await Promise.all([this.kv.clear(), this.cache.clear()]);
   }
 
   /**
@@ -111,16 +122,18 @@ class StorageService {
    */
   async getSizeInBytes(): Promise<number> {
     await this.ready;
-    const keys = await this.storage.keys();
     let totalSize = 0;
 
-    await Promise.all(
-      keys.map(async (key) => {
-        const val = await this.storage.get(key);
-        totalSize += StorageService.encoder.encode(key).length;
-        totalSize += StorageService.encoder.encode(JSON.stringify(val)).length;
-      }),
-    );
+    for (const storage of [this.kv, this.cache]) {
+      const keys = await storage.keys();
+      await Promise.all(
+        keys.map(async (key) => {
+          const val = await storage.get(key);
+          totalSize += StorageService.encoder.encode(key).length;
+          totalSize += StorageService.encoder.encode(JSON.stringify(val)).length;
+        }),
+      );
+    }
     return totalSize;
   }
 }

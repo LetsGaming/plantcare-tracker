@@ -42,7 +42,7 @@ export default defineComponent({
     },
   },
   async created() {
-    await this.ensureFinenessLevels();
+    await this.ensureFinenessLevels().catch(console.error);
   },
   computed: {
     ...mapState(useComponentsStore, ["finenessLevels"]),

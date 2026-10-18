@@ -14,6 +14,7 @@ export default defineConfigWithVueTs(
       "src/locales/**",
       "serve.js",
       "scripts/**",
+      "dist-perf/**",
     ],
   },
   pluginVue.configs["flat/essential"],

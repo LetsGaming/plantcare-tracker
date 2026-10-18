@@ -17,7 +17,7 @@ vi.mock("@/services/general/LocalizationService", async () =>
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import InputField from "@/components/formcomponent/fields/InputField.vue";
 import RadioField from "@/components/formcomponent/fields/RadioField.vue";
-import SearchBar from "@/components/SearchBar.vue";
+import SearchBar, { SEARCH_DEBOUNCE_MS } from "@/components/SearchBar.vue";
 
 const passthrough = (tag = "div") =>
   defineComponent({
@@ -255,14 +255,21 @@ describe("RadioField", () => {
 });
 
 describe("SearchBar", () => {
-  it("emits the empty query on mount so parents can initialize filters", () => {
+  it("emits nothing on mount", () => {
     const wrapper = mount(SearchBar, { global: { stubs } });
-    expect(wrapper.emitted("search")![0]).toEqual([""]);
+    expect(wrapper.emitted("search")).toBeUndefined();
   });
 
-  it("emits the current query on input", async () => {
-    const wrapper = mount(SearchBar, { global: { stubs } });
-    await wrapper.find("input").setValue("aloe");
-    expect(wrapper.emitted("search")!.at(-1)).toEqual(["aloe"]);
+  it("emits the current query after the debounce", async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mount(SearchBar, { global: { stubs } });
+      await wrapper.find("input").setValue("aloe");
+      expect(wrapper.emitted("search")).toBeUndefined();
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+      expect(wrapper.emitted("search")).toEqual([["aloe"]]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

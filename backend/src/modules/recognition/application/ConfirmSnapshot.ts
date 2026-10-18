@@ -36,6 +36,7 @@ export class ConfirmSnapshotUseCase {
     private readonly modelId: string,
     private readonly uploadsDir: string,
     private readonly log: Pick<RecognitionLogger, 'warn'>,
+    private readonly rescanEmbeddings: () => void = () => undefined,
   ) {}
 
   async execute(userId: number, snapshotId: string, input: unknown): Promise<ConfirmResult> {
@@ -43,14 +44,14 @@ export class ConfirmSnapshotUseCase {
     const snap = this.snapshots.take(snapshotId, userId);
     if (!snap) throw new NotFoundError('Snapshot');
     try {
-      const record = await this.createWatering.execute(data.plantId, userId, {
+      const { record } = await this.createWatering.execute(data.plantId, userId, {
         usedFertilizer: data.usedFertilizer,
         fertilizerTypeId: data.fertilizerTypeId,
       });
-      if (!data.keepPhoto) return { recordId: record.record_id, imageId: null };
+      if (!data.keepPhoto) return { recordId: record.id, imageId: null };
 
       const imageId = await this.keepPhoto(snap, data.plantId);
-      return { recordId: record.record_id, imageId };
+      return { recordId: record.id, imageId };
     } finally {
       await rm(snap.path, { force: true });
     }
@@ -79,6 +80,7 @@ export class ConfirmSnapshotUseCase {
       await this.embeddings.save(imageId, this.modelId, snap.vector);
     } catch (err) {
       this.log.warn({ err, imageId }, 'snapshot photo embedding failed');
+      this.rescanEmbeddings();
     }
     return imageId;
   }

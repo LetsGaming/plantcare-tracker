@@ -147,6 +147,38 @@ describe("calendar store", () => {
     expect(memoryStore.has("date_categories")).toBe(false);
   });
 
+  it("writes an entry only when its own action ran and its value changed", async () => {
+    vi.useFakeTimers();
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    await store.ensureLoaded();
+
+    store.saveFirstDayOfWeek(1);
+    store.saveDeleteAfterThirty(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.size).toBe(0);
+
+    store.saveDeleteAfterThirty(true);
+    store.deleteOldDates();
+    await vi.advanceTimersByTimeAsync(500);
+    expect([...memoryStore.keys()]).toEqual(["delete_after_thirty"]);
+  });
+
+  it("writes in-place edited reminders when they are saved again", async () => {
+    vi.useFakeTimers();
+    await createInstalledPinia();
+    const store = useCalendarStore();
+    await store.ensureLoaded();
+    const dates = [day("2026-01-01")];
+    store.saveDates(dates);
+    await vi.advanceTimersByTimeAsync(500);
+
+    dates[0].date = "2026-02-02";
+    store.saveDates(dates);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(JSON.stringify(memoryStore.get("reminder_dates"))).toContain("2026-02-02");
+  });
+
   it("resets the watering categories to the defaults", async () => {
     await createInstalledPinia();
     const store = useCalendarStore();

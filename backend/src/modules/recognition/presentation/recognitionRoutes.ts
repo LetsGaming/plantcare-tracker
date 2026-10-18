@@ -1,7 +1,7 @@
 import os from 'node:os';
 import multipart from '@fastify/multipart';
 import type { FastifyPluginAsync } from 'fastify';
-import { getUploadsDirectory } from '../../../core/config';
+import { getConfig, getUploadsDirectory } from '../../../core/config';
 import { authenticateToken, globalErrorHandler } from '../../../core/middleware';
 import { SQLiteImageRepository } from '../../images/infrastructure/SQLiteImageRepository';
 import { MAX_UPLOAD_BYTES, translateUploadError } from '../../images/presentation/uploadErrors';
@@ -9,6 +9,7 @@ import { CreateWateringRecordUseCase } from '../../watering/application/Watering
 import { SQLiteWateringRepository } from '../../watering/infrastructure/SQLiteWateringRepository';
 import { ConfirmSnapshotUseCase } from '../application/ConfirmSnapshot';
 import { MatchSnapshotUseCase } from '../application/MatchSnapshot';
+import type { Embedder } from '../domain/Recognition';
 import type { RecognitionContext } from '../index';
 import { TempSnapshotStore } from '../infrastructure/TempSnapshotStore';
 import { createRecognitionController } from './recognitionController';
@@ -18,18 +19,34 @@ export const recognitionRoutes =
   async (app) => {
     const snapshots = new TempSnapshotStore(os.tmpdir());
     await snapshots.init();
-    app.addHook('onClose', () => snapshots.stop());
+    app.addHook('onClose', async () => {
+      ctx.embedImages?.stop();
+      await snapshots.stop();
+    });
     app.addHook('onReady', async () => {
       ctx.embedImages
         ?.backfill()
         .catch((err) => app.log.warn({ err }, 'embedding backfill failed'));
     });
 
-    const { embedder } = ctx;
-    const ctrl = createRecognitionController(
-      embedder ? new MatchSnapshotUseCase(embedder, ctx.embeddings, snapshots) : null,
-      embedder
-        ? new ConfirmSnapshotUseCase(
+    let built: {
+      embedder: Embedder;
+      match: MatchSnapshotUseCase;
+      confirm: ConfirmSnapshotUseCase;
+    } | null = null;
+    const useCases = (): NonNullable<typeof built> | null => {
+      const { embedder } = ctx;
+      if (!embedder) return null;
+      if (built?.embedder !== embedder) {
+        built = {
+          embedder,
+          match: new MatchSnapshotUseCase(
+            embedder,
+            ctx.embeddings,
+            snapshots,
+            getConfig().uploadMaxPixels,
+          ),
+          confirm: new ConfirmSnapshotUseCase(
             new CreateWateringRecordUseCase(new SQLiteWateringRepository()),
             new SQLiteImageRepository(),
             ctx.embeddings,
@@ -37,8 +54,16 @@ export const recognitionRoutes =
             embedder.modelId,
             getUploadsDirectory(),
             app.log,
-          )
-        : null,
+            () => ctx.embedImages?.scheduleRescan(),
+          ),
+        };
+      }
+      return built;
+    };
+    const ctrl = createRecognitionController(
+      () => useCases()?.match ?? null,
+      () => useCases()?.confirm ?? null,
+      () => ctx.embedImages?.stats() ?? null,
     );
 
     await app.register(multipart, {

@@ -21,6 +21,27 @@ interface EditImage {
 interface APIImage {
   id: number;
   url: string;
-  /** Unix epoch seconds — stored as INTEGER in SQLite. Use Utils.convertToMillis() to get ms. */
+  /** Unix epoch seconds (stored as INTEGER in SQLite); the mappers convert to ms. */
   date: number;
+}
+
+/** Image as every list, detail and image endpoint returns it. */
+interface APIImageDTO extends APIImage {
+  /** "<url160> 160w, <url480> 480w, <url1024> 1024w"; null when the image has no variants. */
+  srcset: string | null;
+  width: number | null;
+  height: number | null;
+  /** Dominant colour "#rrggbb" shown until the image loads. */
+  placeholder: string | null;
+}
+
+/** Frozen frontend image; dates are epoch milliseconds everywhere in the app. */
+interface ImageView {
+  readonly id: number;
+  readonly url: string;
+  readonly srcset: string | null;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly placeholder: string | null;
+  readonly dateMs: number;
 }

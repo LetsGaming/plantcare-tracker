@@ -74,7 +74,7 @@ export default defineComponent({
     /** Day (YYYY-MM-DD) preselected when adding. */
     initialDay: { type: String, default: "" },
     /** The record being edited. */
-    record: { type: Object as PropType<WateringRecord | null>, default: null },
+    record: { type: Object as PropType<WateringEntry | null>, default: null },
     fertilizerOptions: {
       type: Array as PropType<{ label: string; value: number }[]>,
       required: true,
@@ -120,7 +120,7 @@ export default defineComponent({
       };
     },
     recordDateText(): string {
-      const millis = this.record?.date_millis ?? this.dateMillis ?? Date.now();
+      const millis = this.record?.date ?? this.dateMillis ?? Date.now();
       return formatLongDate(millis, localizationService.getLocale());
     },
   },
@@ -140,7 +140,7 @@ export default defineComponent({
     resetDraft() {
       this.showDelete = false;
       if (this.mode === "edit" && this.record) {
-        this.dateMillis = this.record.date_millis;
+        this.dateMillis = this.record.date;
         this.fertilizerId = this.record.fertilizerTypeId ?? -1;
       } else {
         this.dateMillis = dayKeyToMillis(this.initialDay || this.todayKey);
@@ -155,9 +155,9 @@ export default defineComponent({
       if (this.dateMillis === undefined || this.pending) return;
       const dayKey = toDayKey(this.dateMillis);
       const unchangedDay =
-        this.mode === "edit" && this.record && toDayKey(this.record.date_millis) === dayKey;
+        this.mode === "edit" && this.record && toDayKey(this.record.date) === dayKey;
       const draft: WateringDraft = {
-        date: unchangedDay ? this.record!.date_millis : dayKeyToMillis(dayKey),
+        date: unchangedDay ? this.record!.date : dayKeyToMillis(dayKey),
         fertilizerTypeId: this.fertilizerId === -1 ? undefined : this.fertilizerId,
       };
       this.$emit("submit", draft);

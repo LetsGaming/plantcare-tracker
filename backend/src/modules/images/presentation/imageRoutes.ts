@@ -12,16 +12,25 @@
 import multipart from '@fastify/multipart';
 import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteImageRepository } from '../infrastructure/SQLiteImageRepository';
-import { LocalImageStorage } from '../infrastructure/LocalImageStorage';
-import type { ImageStoredListener } from '../application/ImageUseCases';
+import { LocalImageStorage, configureSharp } from '../infrastructure/LocalImageStorage';
+import type { ImageRemovedListener, ImageStoredListener } from '../application/ImageUseCases';
 import { createImageController } from './imageController';
 import { SQLiteImageEntityLookup } from '../infrastructure/SQLiteImageEntityLookup';
 import { ImageAccessPolicy } from '../application/ImageAccessPolicy';
 import { IMAGE_ENTITY_TYPES, isEntityType } from '../domain/Image';
 import { ValidationError } from '../../../core/errors';
-import { authenticateToken, globalErrorHandler, numericParam } from '../../../core/middleware';
+import {
+  authenticateToken,
+  createLimiter,
+  globalErrorHandler,
+  numericParam,
+  perUserKey,
+} from '../../../core/middleware';
 import type { Hook } from '../../../core/middleware';
 import { MAX_UPLOAD_BYTES, translateUploadError } from './uploadErrors';
+
+const UPLOAD_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const UPLOAD_RATE_LIMIT_MAX_PER_USER = 30;
 
 const validateEntityType: Hook = async (request) => {
   const value = (request.params as { entityType?: string }).entityType;
@@ -33,15 +42,29 @@ const validateEntityType: Hook = async (request) => {
 export interface ImageRouterDeps {
   /** Called after a new image file is stored (upload or replacement). */
   onImageStored?: ImageStoredListener;
+  /** Called after images are deleted, with the user who owned them. */
+  onImageRemoved?: ImageRemovedListener;
 }
 
 export const imageRoutes =
   (deps: ImageRouterDeps = {}): FastifyPluginAsync =>
   async (app) => {
+    configureSharp();
+    const uploadLimiter = createLimiter(app, {
+      windowMs: UPLOAD_RATE_LIMIT_WINDOW_MS,
+      max: UPLOAD_RATE_LIMIT_MAX_PER_USER,
+      key: perUserKey,
+    });
     const repo = new SQLiteImageRepository();
     const storage = new LocalImageStorage();
     const access = new ImageAccessPolicy(new SQLiteImageEntityLookup());
-    const ctrl = createImageController(repo, storage, access, deps.onImageStored);
+    const ctrl = createImageController(
+      repo,
+      storage,
+      access,
+      deps.onImageStored,
+      deps.onImageRemoved,
+    );
 
     // Parts are buffered and attached to the body so handlers read them like
     // any other input; the size cap bounds memory per upload.
@@ -56,7 +79,7 @@ export const imageRoutes =
     // POST /:entityType/:entityId: upload image
     app.post(
       '/:entityType/:entityId',
-      { onRequest: [authenticateToken, validateEntityType] },
+      { onRequest: [authenticateToken, validateEntityType, uploadLimiter] },
       ctrl.uploadImage,
     );
 
@@ -67,15 +90,8 @@ export const imageRoutes =
       ctrl.listEntityImages,
     );
 
-    // GET /:entityType/:entityId: serve primary image file (optional ?size=)
-    app.get(
-      '/:entityType/:entityId',
-      { onRequest: [authenticateToken, validateEntityType] },
-      ctrl.serveEntityImage,
-    );
-
     // PATCH /:id: replace file and/or update date
-    app.patch('/:id', { onRequest: authenticateToken }, ctrl.updateImage);
+    app.patch('/:id', { onRequest: [authenticateToken, uploadLimiter] }, ctrl.updateImage);
 
     // DELETE /:id: delete single image by image ID, 204 No Content.
     // Only numeric image ids belong to this route; anything else is unknown.

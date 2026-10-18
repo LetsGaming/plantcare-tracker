@@ -43,6 +43,7 @@
         v-else
         :title="selectionTitle"
         :components="availableComponents"
+        :loading="catalogueLoading"
         :selectedComponentIds="selectedComponentIds"
         :componentParts="componentParts"
         :show-errors="showPartErrors"
@@ -89,11 +90,13 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
+import { mapActions, mapState } from "pinia";
 import { IonModal, IonContent, IonFooter, IonButton, IonSpinner } from "@ionic/vue";
 import ModalHeader from "@/components/modal/ModalHeader.vue";
 import ConfirmDialog from "@/components/modal/ConfirmDialog.vue";
 import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import ComponentSelection from "@/components/substrates/ComponentSelection.vue";
+import { useComponentsStore } from "@/stores/components";
 import localizationService from "@/services/general/LocalizationService";
 import { useMountWhileOpen } from "@/components/modal/useMountWhileOpen";
 import { formSnapshot } from "@/utils/formState";
@@ -127,9 +130,8 @@ export default defineComponent({
     isLoading: { type: Boolean, default: false },
     title: { type: String, required: true },
     selectionTitle: { type: String, required: true },
-    availableComponents: { type: Array as PropType<SubstrateComponent[]>, required: true },
     /** Existing substrate to edit; null starts an empty draft. */
-    substrate: { type: Object as PropType<Substrate | null>, default: null },
+    substrate: { type: Object as PropType<SubstrateView | null>, default: null },
     /** Offer the picture field (new substrates only; existing ones change pictures on the detail page). */
     allowImage: { type: Boolean, default: false },
     deletable: { type: Boolean, default: false },
@@ -150,8 +152,19 @@ export default defineComponent({
   },
   created() {
     this.resetDraft();
+    if (this.isOpen) this.loadCatalogue();
   },
   computed: {
+    ...mapState(useComponentsStore, {
+      availableComponents: "selectableComponents",
+      componentsStatus: (store) => store.status,
+    }),
+    catalogueLoading(): boolean {
+      return (
+        this.availableComponents.length === 0 &&
+        (this.componentsStatus === "idle" || this.componentsStatus === "loading")
+      );
+    },
     formFields(): FormField[] {
       const fields: FormField[] = [
         {
@@ -199,14 +212,24 @@ export default defineComponent({
   watch: {
     isOpen(open: boolean) {
       this.baseline = null;
-      if (open) this.resetDraft();
-      else this.showDiscard = false;
+      if (open) {
+        this.resetDraft();
+        this.loadCatalogue();
+      } else this.showDiscard = false;
     },
     "substrate.id"() {
       this.resetDraft();
     },
   },
   methods: {
+    ...mapActions(useComponentsStore, { ensureComponentsLoaded: "ensureLoaded" }),
+    async loadCatalogue() {
+      try {
+        await this.ensureComponentsLoaded();
+      } catch (error: unknown) {
+        console.error("Error loading components", error);
+      }
+    },
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
     },
@@ -226,9 +249,9 @@ export default defineComponent({
       this.form = source
         ? { name: source.name, isPublic: source.isPublic, image: null }
         : blankForm();
-      this.selectedComponentIds = source ? source.components.map((c) => c.id) : [];
+      this.selectedComponentIds = source ? (source.components ?? []).map((c) => c.id) : [];
       this.componentParts = source
-        ? Object.fromEntries(source.components.map((c) => [c.id, c.parts]))
+        ? Object.fromEntries((source.components ?? []).map((c) => [c.id, c.parts]))
         : {};
     },
     goToComponents() {

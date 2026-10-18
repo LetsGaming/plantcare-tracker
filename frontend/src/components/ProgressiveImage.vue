@@ -1,34 +1,67 @@
 <template>
-  <div class="progressive-img-container">
-    <PlantPlaceholder v-if="showPlaceholder" :kind="kind" :seed="seed || alt" :label="alt" />
-    <ion-img
-      v-else
-      :src="currentSrc"
+  <div class="progressive-img-container" :style="{ aspectRatio }">
+    <PlantPlaceholder
+      class="layer"
+      :kind="kind"
+      :seed="seed || alt"
+      :label="showImage ? '' : alt"
+      :class="{ covered: loaded && showImage }"
+      :color="showImage ? (image?.placeholder ?? '') : ''"
+    />
+    <img
+      v-if="showImage"
+      ref="img"
+      class="layer photo"
+      :class="{ 'is-loaded': loaded, fade: !reducedMotion }"
+      :src="url"
+      :srcset="image?.srcset || undefined"
+      :sizes="image?.srcset ? sizes || '100vw' : undefined"
+      :width="image?.width || undefined"
+      :height="image?.height || undefined"
       :alt="alt"
-      :class="{ 'is-loading': isLoading }"
-      @ion-error="failed = true"
+      :referrerpolicy="image ? undefined : 'no-referrer'"
+      :loading="priority ? 'eager' : 'lazy'"
+      :fetchpriority="priority ? 'high' : undefined"
+      decoding="async"
+      draggable="false"
+      @load="loaded = true"
+      @error="failed = true"
     />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { IonImg } from "@ionic/vue";
 import PlantPlaceholder, { PlaceholderKind } from "@/components/ui/PlantPlaceholder.vue";
 
-/** Inline sources cannot take a size query, so they skip the low resolution step. */
-const isInline = (url: string): boolean => url.startsWith("data:") || url.startsWith("blob:");
+/** The part of an ImageView the component renders. */
+type ImageSource = Pick<ImageView, "url"> &
+  Partial<Pick<ImageView, "srcset" | "width" | "height" | "placeholder">>;
+
+const FALLBACK_RATIO = "4 / 3";
 
 export default defineComponent({
   name: "ProgressiveImage",
-  components: {
-    IonImg,
-    PlantPlaceholder,
-  },
+  components: { PlantPlaceholder },
   props: {
+    /** Server image; `url` is the 1024 variant and `srcset` lists the smaller ones. */
+    image: {
+      type: Object as PropType<ImageSource | null>,
+      default: null,
+    },
+    /** Plain url for third-party images (sales) that have no variants. */
     src: {
       type: String,
-      default: null,
+      default: "",
+    },
+    sizes: {
+      type: String,
+      default: "",
+    },
+    /** Above-the-fold image: loaded eagerly with high fetch priority. */
+    priority: {
+      type: Boolean,
+      default: false,
     },
     alt: {
       type: String,
@@ -42,93 +75,38 @@ export default defineComponent({
       type: String,
       default: "",
     },
-    lowResSize: {
-      type: [String, Number],
-      default: 128,
-    },
   },
   data() {
     return {
-      currentSrc: "",
-      isLoading: false,
+      loaded: false,
       failed: false,
-      // Reference to the current loading high-res image to allow cancellation
-      highResLoader: null as HTMLImageElement | null,
+      reducedMotion:
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     };
   },
   computed: {
-    showPlaceholder(): boolean {
-      return this.failed || !this.src || !this.currentSrc;
+    url(): string {
+      return this.image?.url || this.src || "";
+    },
+    showImage(): boolean {
+      return !!this.url && !this.failed;
+    },
+    aspectRatio(): string {
+      const width = this.image?.width;
+      const height = this.image?.height;
+      return width && height ? `${width} / ${height}` : FALLBACK_RATIO;
     },
   },
   watch: {
-    src: {
-      immediate: true,
-      handler(newVal: string | null) {
-        this.processImage(newVal);
-      },
-    },
-  },
-  methods: {
-    processImage(url: string | null) {
-      this.cancelHighRes();
+    url() {
+      this.loaded = false;
       this.failed = false;
-      this.currentSrc = "";
-
-      if (!url) {
-        this.isLoading = false;
-        return;
-      }
-
-      this.isLoading = true;
-
-      if (isInline(url)) {
-        this.fetchHighRes(url);
-        return;
-      }
-
-      const separator = url.includes("?") ? "&" : "?";
-      const lowResUrl = `${url}${separator}size=${this.lowResSize}`;
-      const lowResImg = new Image();
-      lowResImg.src = lowResUrl;
-
-      lowResImg.onload = () => {
-        this.currentSrc = lowResUrl;
-        this.fetchHighRes(url);
-      };
-
-      lowResImg.onerror = () => {
-        this.fetchHighRes(url);
-      };
-    },
-
-    fetchHighRes(url: string) {
-      const img = new Image();
-      this.highResLoader = img;
-      img.src = url;
-
-      img.onload = () => {
-        this.currentSrc = url;
-        this.isLoading = false;
-        this.highResLoader = null;
-      };
-
-      img.onerror = () => {
-        if (!this.currentSrc) this.failed = true;
-        this.isLoading = false;
-        this.highResLoader = null;
-      };
-    },
-
-    cancelHighRes() {
-      if (!this.highResLoader) return;
-      this.highResLoader.onload = null;
-      this.highResLoader.onerror = null;
-      this.highResLoader = null;
     },
   },
-  beforeUnmount() {
-    this.cancelHighRes();
+  mounted() {
+    const img = this.$refs.img as HTMLImageElement | undefined;
+    if (img?.complete && img.naturalWidth > 0) this.loaded = true;
   },
 });
 </script>
@@ -137,28 +115,38 @@ export default defineComponent({
 .progressive-img-container {
   position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   height: 100%;
 }
 
-ion-img {
+.layer {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.layer.covered {
+  visibility: hidden;
+}
+
+.photo {
   display: block;
-}
-
-.progressive-img-container ion-img::part(image) {
-  width: 100%;
-  height: 100%;
   object-fit: cover;
-  border-radius: 0;
+  opacity: 0;
 }
 
-.is-loading {
-  filter: blur(10px);
-  transition: filter 0.2s var(--ease-out);
+.photo.is-loaded {
+  opacity: 1;
+}
+
+.photo.fade {
+  transition: opacity 0.25s var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo.fade {
+    transition: none;
+  }
 }
 </style>

@@ -5,8 +5,13 @@
  *
  * Everything filesystem/Sharp/EXIF related that used to sit at the top
  * of imageRoutes.ts lives here now: capture-date extraction, filename
- * anonymisation, webp conversion, resized reads for serving, and
- * deletion. The application layer sees only the port.
+ * anonymisation, variant generation and deletion. The application layer
+ * sees only the port.
+ *
+ * An upload is buffered once by the multipart layer; sharp decodes that
+ * buffer a single time into a raw intermediate (at most 1024 px wide) and
+ * the 160, 480 and 1024 px webp outputs are encoded from it. A module-level
+ * semaphore bounds concurrent encodes.
  */
 
 import crypto from 'crypto';
@@ -15,18 +20,25 @@ import fs from 'fs/promises';
 import sharp from 'sharp';
 import ExifParser from 'exif-parser';
 import type { ImageStorage, ProcessedUpload, UploadedFile, EntityType } from '../domain/Image';
-import { NotFoundError, ValidationError } from '../../../core/errors';
-import { getUploadsDirectory } from '../../../core/config';
+import { ValidationError } from '../../../core/errors';
+import { getConfig, getUploadsDirectory } from '../../../core/config';
 import { createModuleLogger } from '../../../core/logging';
+import { createSemaphore } from './semaphore';
 
 const log = createModuleLogger('LocalImageStorage');
 
 // ── Processing constants ──────────────────────────────────────────────────────
 
-/** Stored images are downscaled to at most this width. */
-const MAX_STORED_WIDTH = 1024;
-/** webp quality for stored files. */
-const WEBP_QUALITY = 70;
+/** Widths of the generated variants; the largest one is the stored image_url. */
+const VARIANT_WIDTHS = { small: 160, medium: 480, main: 1024 } as const;
+/** webp quality for all variants. */
+const WEBP_QUALITY = 78;
+/** Uploads processed at the same time; further uploads queue. */
+const MAX_CONCURRENT_UPLOADS = 2;
+/** Upper bound for decoding one source image. */
+const SOURCE_TIMEOUT_SECONDS = 30;
+/** libvips worker threads per operation. */
+const SHARP_CONCURRENCY = 2;
 /** Filename tokens that leak device or account context and are dropped. */
 const PII_REDLIST = ['admin', 'user', 'owner', 'desktop', 'download', 'iphone', 'android', 'tmp'];
 /** Maximum length of the descriptive part of a generated filename. */
@@ -105,70 +117,185 @@ const anonymizeImageName = (fileName: string, contextKeywords: string[] = []): s
   return `${base.substring(0, FILENAME_BASE_MAX_LENGTH)}-${hash}${ext}`;
 };
 
+const uploadSlots = createSemaphore(MAX_CONCURRENT_UPLOADS);
+
+let sharpConfigured = false;
+
+/** Applies the process-wide sharp settings once; safe to call repeatedly. */
+export const configureSharp = (): void => {
+  if (sharpConfigured) return;
+  sharpConfigured = true;
+  sharp.concurrency(SHARP_CONCURRENCY);
+  sharp.cache(false);
+};
+
+const toHex = (channel: number): string => channel.toString(16).padStart(2, '0');
+
+export const variantFilename = (filename: string, width: number): string =>
+  filename.replace(/\.webp$/i, `-${width}.webp`);
+
+const writeVariant = async (
+  raw: Buffer,
+  rawInfo: sharp.OutputInfo,
+  width: number | null,
+  target: string,
+): Promise<Buffer> => {
+  let pipeline = sharp(raw, {
+    raw: { width: rawInfo.width, height: rawInfo.height, channels: rawInfo.channels },
+  });
+  if (width !== null) pipeline = pipeline.resize({ width, withoutEnlargement: true });
+  const encoded = await pipeline.webp({ quality: WEBP_QUALITY }).toBuffer();
+  await fs.writeFile(target, encoded);
+  return encoded;
+};
+
+const dominantColour = async (encoded: Buffer): Promise<string> => {
+  const { dominant } = await sharp(encoded).stats();
+  return `#${toHex(dominant.r)}${toHex(dominant.g)}${toHex(dominant.b)}`;
+};
+
+const hasErrnoCode = (err: unknown): boolean =>
+  typeof (err as NodeJS.ErrnoException | null)?.code === 'string';
+
+const isPixelLimitError = (err: unknown): boolean =>
+  err instanceof Error && /pixel limit/i.test(err.message);
+
+configureSharp();
+
+export interface VariantsFromFile {
+  width: number;
+  height: number;
+  placeholder: string;
+}
+
+/**
+ * Writes the 160 and 480 px variants next to an already stored webp and
+ * leaves the stored file untouched. Existing variant files are overwritten.
+ */
+export const createVariantsFromFile = (
+  entityType: string,
+  filename: string,
+  options: { rootDir?: string } = {},
+): Promise<VariantsFromFile> =>
+  uploadSlots.run(async () => {
+    const mainPath = path.join(options.rootDir ?? getUploadsDirectory(), entityType, filename);
+    const { data, info } = await sharp(await fs.readFile(mainPath), {
+      failOn: 'error',
+      limitInputPixels: getConfig().uploadMaxPixels,
+    })
+      .timeout({ seconds: SOURCE_TIMEOUT_SECONDS })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const [small] = await Promise.all([
+      writeVariant(
+        data,
+        info,
+        VARIANT_WIDTHS.small,
+        variantFilename(mainPath, VARIANT_WIDTHS.small),
+      ),
+      writeVariant(
+        data,
+        info,
+        VARIANT_WIDTHS.medium,
+        variantFilename(mainPath, VARIANT_WIDTHS.medium),
+      ),
+    ]);
+    return { width: info.width, height: info.height, placeholder: await dominantColour(small) };
+  });
+
+export interface LocalImageStorageOptions {
+  rootDir?: string;
+  maxInputPixels?: number;
+}
+
 // ── Adapter ───────────────────────────────────────────────────────────────────
 
 export class LocalImageStorage implements ImageStorage {
   private readonly rootDir: string;
+  private readonly maxInputPixels: number | undefined;
 
-  constructor(rootDir: string = getUploadsDirectory()) {
-    this.rootDir = rootDir;
+  constructor(options: LocalImageStorageOptions = {}) {
+    this.rootDir = options.rootDir ?? getUploadsDirectory();
+    this.maxInputPixels = options.maxInputPixels;
   }
 
-  async processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload> {
+  processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload> {
+    return uploadSlots.run(() => this.encode(file, entityType));
+  }
+
+  async remove(entityType: string, imageUrl: string, variants?: number): Promise<void> {
+    const main = this.resolveLocalPath(entityType, imageUrl);
+    await this.unlink(main);
+    if (variants === 0) return;
+    for (const width of [VARIANT_WIDTHS.small, VARIANT_WIDTHS.medium]) {
+      await this.unlink(variantFilename(main, width));
+    }
+  }
+
+  // ── Private ────────────────────────────────────────────────────────────────
+
+  private async encode(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload> {
     const uploadPath = path.join(this.rootDir, entityType);
     await fs.mkdir(uploadPath, { recursive: true });
 
     const baseName = anonymizeImageName(file.originalName, [entityType]).replace(/\.[^/.]+$/, '');
     const filename = `${Date.now()}-${baseName}.webp`;
-    const outputPath = path.join(uploadPath, filename);
+    const mainPath = path.join(uploadPath, filename);
+    const smallPath = variantFilename(mainPath, VARIANT_WIDTHS.small);
+    const mediumPath = variantFilename(mainPath, VARIANT_WIDTHS.medium);
 
     const capturedAt = extractImageDate(file.buffer);
+    const limitInputPixels = this.maxInputPixels ?? getConfig().uploadMaxPixels;
 
     try {
-      await sharp(file.buffer)
-        .resize({ width: MAX_STORED_WIDTH, withoutEnlargement: true })
-        .toFormat('webp')
-        .webp({ quality: WEBP_QUALITY, nearLossless: true })
-        .toFile(outputPath);
-    } catch {
+      const { data, info } = await sharp(file.buffer, { failOn: 'error', limitInputPixels })
+        .timeout({ seconds: SOURCE_TIMEOUT_SECONDS })
+        .rotate()
+        .resize({ width: VARIANT_WIDTHS.main, withoutEnlargement: true })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const settled = await Promise.allSettled([
+        writeVariant(data, info, VARIANT_WIDTHS.small, smallPath).then(dominantColour),
+        writeVariant(data, info, VARIANT_WIDTHS.medium, mediumPath),
+        writeVariant(data, info, null, mainPath),
+      ]);
+      const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+      if (failed) throw failed.reason;
+      const placeholder = (settled[0] as PromiseFulfilledResult<string>).value;
+      return {
+        filename,
+        capturedAt,
+        width: info.width,
+        height: info.height,
+        placeholder,
+        variants: 1,
+      };
+    } catch (err) {
+      await Promise.all([mainPath, smallPath, mediumPath].map((p) => fs.rm(p, { force: true })));
+      log.debug('Image processing failed', { reason: (err as Error)?.message });
+      if (hasErrnoCode(err)) throw err;
+      if (isPixelLimitError(err)) {
+        throw new ValidationError(
+          'The uploaded image has too many pixels. Please upload a smaller image.',
+        );
+      }
       throw new ValidationError('The uploaded file is not a valid image.');
     }
-
-    return { filename, capturedAt };
   }
 
-  async readAsWebp(entityType: string, imageUrl: string, resizeWidth?: number): Promise<Buffer> {
-    const localPath = this.resolveLocalPath(entityType, imageUrl);
-    // No fs.access() pre-check — it creates a TOCTOU race (file can
-    // disappear between the check and the open). Let sharp throw ENOENT
-    // directly and translate it here.
-    let transform = sharp(localPath);
-    if (resizeWidth !== undefined && resizeWidth > 0) {
-      transform = transform.resize({ width: resizeWidth, withoutEnlargement: true });
-    }
-    try {
-      return await transform.toFormat('webp').toBuffer();
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new NotFoundError('File on disk');
-      }
-      throw err;
-    }
-  }
-
-  async remove(entityType: string, imageUrl: string): Promise<void> {
-    const localPath = this.resolveLocalPath(entityType, imageUrl);
+  private async unlink(localPath: string): Promise<void> {
     try {
       await fs.unlink(localPath);
       log.debug(`Deleted image: ${path.basename(localPath)}`);
-    } catch {
-      // Missing files are not an error for deletion — the goal state
+    } catch (err) {
+      // Missing files are not an error for deletion: the goal state
       // (file gone) is already reached.
-      log.warn(`Unlink failed (file may not exist): ${path.basename(localPath)}`);
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        log.warn(`Unlink failed: ${path.basename(localPath)}`, { reason: (err as Error).message });
+      }
     }
   }
-
-  // ── Private ────────────────────────────────────────────────────────────────
 
   private resolveLocalPath(entityType: string, imageUrl: string): string {
     // Stored URLs are absolute (protocol://host/uploads/type/file.webp);

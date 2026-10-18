@@ -4,6 +4,11 @@
  * so a day cannot shift when the local offset differs from UTC.
  */
 
+import { dateTimeFormat } from "./intlCache";
+
+/** Minutes east of UTC, the unit of the API's `tz_offset`. */
+export const tzOffsetMinutes = (): number => Math.round(-new Date().getTimezoneOffset());
+
 const pad = (value: number): string => String(value).padStart(2, "0");
 
 export const toDayKey = (input: number | Date): string => {
@@ -52,7 +57,7 @@ const toLocalDate = (input: DateInput): Date | null => {
 export const formatDisplayDate = (input: DateInput, locale: string): string => {
   const date = toLocalDate(input);
   if (!date) return String(input);
-  return new Intl.DateTimeFormat(locale, {
+  return dateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -63,7 +68,7 @@ export const formatDisplayDate = (input: DateInput, locale: string): string => {
 export const formatLongDate = (input: DateInput, locale: string): string => {
   const date = toLocalDate(input);
   if (!date) return String(input);
-  const text = new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(date);
+  const text = dateTimeFormat(locale, { dateStyle: "long" }).format(date);
   // Keep the day and the month name together when a title wraps.
   return text.replace(/^(\d{1,2}\.?) /, "$1 ");
 };

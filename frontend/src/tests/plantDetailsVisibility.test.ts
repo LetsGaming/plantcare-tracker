@@ -37,7 +37,17 @@ import { usePlantsStore } from "@/stores/plants";
 const mountDetails = (plantOwnerId: number) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const store = usePlantsStore(pinia);
-  store.items = [{ id: 5, userId: plantOwnerId, name: "Monty", isPublic: true } as Plant];
+  store.mine.items = [
+    {
+      id: 5,
+      userId: plantOwnerId,
+      name: "Monty",
+      isPublic: true,
+      speciesName: null,
+      cover: null,
+      images: [],
+    } as unknown as PlantView,
+  ];
   return shallowMount(PlantDetails, {
     props: { id: "5" },
     global: { plugins: [pinia], renderStubDefaultSlot: true },
@@ -66,6 +76,16 @@ describe("PlantDetails watering visibility", () => {
     expect(wrapper.findComponent({ name: "WateringRecords" }).exists()).toBe(false);
     expect(wrapper.find(".history-private").text()).toContain("plantdetail.history_private");
     expect((wrapper.vm as any).canEdit).toBe(false);
+  });
+
+  it("tells the care guide when the page is hidden", async () => {
+    const wrapper = mountDetails(1);
+    await flushPromises();
+    const guide = () => wrapper.findComponent({ name: "MoreInfo" });
+    expect(guide().props("active")).toBe(true);
+    (wrapper.vm as any).pageActive = false;
+    await flushPromises();
+    expect(guide().props("active")).toBe(false);
   });
 
   it("does the same for a guest", async () => {

@@ -14,6 +14,12 @@ vi.mock("@/services/general/LocalizationService", () => ({
   default: { t: (key: string) => key },
 }));
 
+const resize = vi.hoisted(() => ({ downscaleImage: vi.fn(async (file: File) => file) }));
+vi.mock("@/utils/imageResize", () => ({
+  SNAP_MAX_WIDTH: 768,
+  downscaleImage: resize.downscaleImage,
+}));
+
 import RecognitionService from "@/services/RecognitionService";
 
 const apiError = (status: number, message = "Unreadable image") =>
@@ -44,6 +50,17 @@ describe("RecognitionService", () => {
     expect((form as FormData).get("image")).toBeInstanceOf(File);
     expect(feedback.withoutErrorToasts).toHaveBeenCalled();
     expect(toast.showError).not.toHaveBeenCalled();
+  });
+
+  it("uploads the 768 px version of the photo", async () => {
+    api.upload.mockResolvedValue({});
+    const small = new File(["s"], "p.webp", { type: "image/webp" });
+    resize.downscaleImage.mockResolvedValueOnce(small);
+    const photo = new File(["x"], "p.jpg", { type: "image/jpeg" });
+    await RecognitionService.match(photo);
+    expect(resize.downscaleImage).toHaveBeenCalledWith(photo, 768);
+    const form = api.upload.mock.calls[0][1] as FormData;
+    expect((form.get("image") as File).name).toBe("p.webp");
   });
 
   it.each([

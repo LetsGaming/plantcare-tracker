@@ -31,6 +31,27 @@ export interface AppConfig {
   recognitionModelPath: string | null;
   /** Run the scraping browser without a window. Always true in production. */
   headlessBrowser: boolean;
+  /** Number of reverse proxies in front of the server whose X-Forwarded-For is trusted. */
+  trustProxyHops: number;
+  sales: SalesSettings;
+  /** Generate missing image variants in the background after the server listens. */
+  imageBackfillOnStart: boolean;
+  /** Decoder pixel limit for uploaded images (width x height). */
+  uploadMaxPixels: number;
+  /** Log to stdout only, without rotating files in ./logs. */
+  logToStdout: boolean;
+}
+
+export interface SalesSettings {
+  /** Refresh sale sources on a timer instead of only on demand. */
+  refreshEnabled: boolean;
+  refreshIntervalMin: number;
+  /** Delay after listen before stale sources are refreshed. */
+  refreshWarmDelayMs: number;
+  /** Days an inactive sale item is kept before it is pruned. */
+  retentionDays: number;
+  /** Price points kept per sale item. */
+  pricePointsMax: number;
 }
 
 /** Cheap check that does not require the rest of the configuration to be valid. */
@@ -46,6 +67,42 @@ const resolveDbPath = (configured: string | undefined): string => {
     : path.resolve(process.cwd(), 'data', 'plantcare.db');
 };
 
+const readInt = (
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number => {
+  const raw = env[key]?.trim();
+  if (!raw) return fallback;
+  const value = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw new Error(
+      `Environment variable ${key} must be a plain integer between ${min} and ${max}, got "${raw}".`,
+    );
+  }
+  return value;
+};
+
+const readBool = (env: NodeJS.ProcessEnv, key: string, fallback: boolean): boolean => {
+  const raw = env[key]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return false;
+  throw new Error(`Environment variable ${key} must be true, false, 1 or 0, got "${env[key]}".`);
+};
+
+/** Cheap check for the logger, which loads before the rest of the configuration is valid. */
+export const isLogToStdoutEnv = (env: NodeJS.ProcessEnv = process.env): boolean => {
+  try {
+    return readBool(env, 'LOG_TO_STDOUT', false);
+  } catch (err) {
+    process.emitWarning(`${(err as Error).message} Falling back to false.`);
+    return false;
+  }
+};
+
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const missing = ['JWT_SECRET', 'JWT_REFRESH_SECRET'].filter((key) => !env[key]);
   if (missing.length) {
@@ -58,7 +115,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const isProduction = isProductionEnv(env);
   return {
     isProduction,
-    port: Number(env.PORT ?? 5000),
+    port: readInt(env, 'PORT', 5000, 1, 65535),
     allowedOrigins: env.ALLOWED_ORIGINS
       ? env.ALLOWED_ORIGINS.split(',')
           .map((origin) => origin.trim())
@@ -77,6 +134,17 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
     openAiApiKey: env.OPENAI_API_KEY || null,
     recognitionModelPath: env.RECOGNITION_MODEL_PATH || null,
     headlessBrowser: env.headless_browser === 'true' || isProduction,
+    trustProxyHops: readInt(env, 'TRUST_PROXY_HOPS', 1, 0, 10),
+    sales: {
+      refreshEnabled: readBool(env, 'SALES_REFRESH_ENABLED', true),
+      refreshIntervalMin: readInt(env, 'SALES_REFRESH_INTERVAL_MIN', 120, 1, 10_080),
+      refreshWarmDelayMs: readInt(env, 'SALES_REFRESH_WARM_DELAY_MS', 5000, 0, 600_000),
+      retentionDays: readInt(env, 'SALES_RETENTION_DAYS', 30, 1, 3650),
+      pricePointsMax: readInt(env, 'SALES_PRICE_POINTS_MAX', 30, 1, 1000),
+    },
+    imageBackfillOnStart: readBool(env, 'IMAGE_BACKFILL_ON_START', false),
+    uploadMaxPixels: readInt(env, 'UPLOAD_MAX_PIXELS', 40_000_000, 1, 400_000_000),
+    logToStdout: readBool(env, 'LOG_TO_STDOUT', false),
   };
 };
 

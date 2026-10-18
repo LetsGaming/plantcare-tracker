@@ -41,15 +41,13 @@ import FormComponent from "@/components/formcomponent/FormComponent.vue";
 import PlantOverview from "@/views/plants/PlantOverview.vue";
 import { usePlantsStore } from "@/stores/plants";
 
-const substrates = [{ id: 5, name: "Aroid Mix" }] as Substrate[];
-
 const fieldFor = (fields: FormField[], key: string) => fields.find((f) => f.modelKey === key)!;
 
 describe("PlantAddingModal", () => {
   const mountModal = () => {
     const push = vi.fn();
     const wrapper = shallowMount(PlantAddingModal, {
-      props: { isOpen: true, substrates },
+      props: { isOpen: true },
       global: { mocks: { $router: { push } } },
     });
     return { wrapper, push };
@@ -63,24 +61,23 @@ describe("PlantAddingModal", () => {
     expect(fieldFor(fields, "substrateId").required).toBeFalsy();
   });
 
-  it("starts without a substrate and offers an explicit not-set choice first", () => {
+  it("starts without a substrate and uses the searchable picker", () => {
     const { wrapper } = mountModal();
     expect((wrapper.vm as any).plant.substrateId).toBeNull();
-    const select = fieldFor((wrapper.vm as any).plantFormFields, "substrateId") as SelectField;
-    expect(select.options[0]).toEqual({ value: null, label: "plant.field.substrate_none" });
-    expect(select.options.slice(1)).toEqual([{ value: 5, label: "Aroid Mix" }]);
+    const picker = fieldFor((wrapper.vm as any).plantFormFields, "substrateId");
+    expect(picker.type).toBe("substrate-picker");
+    expect("options" in picker).toBe(false);
   });
 
   it("submits a name-only plant without a validation error", async () => {
     const wrapper = mount(FormComponent, {
       props: {
         item: { name: "Erste Pflanze", species: "", substrateId: null },
-        formFields: (
-          shallowMount(PlantAddingModal, { props: { isOpen: true, substrates } }).vm as any
-        ).plantFormFields,
+        formFields: (shallowMount(PlantAddingModal, { props: { isOpen: true } }).vm as any)
+          .plantFormFields,
         onSubmitClick: vi.fn(),
       },
-      global: { stubs: { UploadField: true, RadioField: true } },
+      global: { stubs: { UploadField: true, RadioField: true, SubstratePickerField: true } },
     });
     await wrapper.find("form").trigger("submit");
     expect(wrapper.props("onSubmitClick")).toHaveBeenCalledTimes(1);
@@ -126,23 +123,21 @@ describe("PlantEditingModal", () => {
     id: 1,
     userId: 1,
     name: "Monty",
-    species: null,
-    description: "",
+    speciesName: null,
     isPublic: false,
-    created_at: "",
     substrate: null,
-    images: [],
-  } as unknown as Plant;
+    searchText: "monty",
+  } as unknown as PlantView;
 
   it("lets species and substrate be cleared", () => {
     const wrapper = shallowMount(PlantEditingModal, {
-      props: { isOpen: true, plant, substrates },
+      props: { isOpen: true, plant },
     });
     const fields = (wrapper.vm as any).formFields as FormField[];
     expect(fieldFor(fields, "species").required).toBeFalsy();
-    const select = fieldFor(fields, "substrateId") as SelectField;
-    expect(select.required).toBeFalsy();
-    expect(select.options[0]).toEqual({ value: null, label: "plant.field.substrate_none" });
+    const picker = fieldFor(fields, "substrateId");
+    expect(picker.required).toBeFalsy();
+    expect(picker.type).toBe("substrate-picker");
     expect((wrapper.vm as any).editPlantData).toMatchObject({ species: "", substrateId: null });
   });
 });
@@ -168,10 +163,12 @@ describe("species fallback", () => {
     const pinia = createTestingPinia({ createSpy: vi.fn });
     const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
     const store = usePlantsStore(pinia);
-    store.items = [
-      { id: 1, userId: 1, name: "Bare", species: null, description: "", isPublic: true },
-      { id: 2, userId: 1, name: "Named", species: "Ficus", description: "Ficus", isPublic: true },
-    ] as unknown as Plant[];
+    const plants = [
+      { id: 1, userId: 1, name: "Bare", speciesName: null, isPublic: true },
+      { id: 2, userId: 1, name: "Named", speciesName: "Ficus", isPublic: true },
+    ] as unknown as PlantView[];
+    store.mine.items = plants;
+    store.public.items = plants;
     await flushPromises();
     const descriptions = () =>
       (wrapper.vm as any).overviewItems.map((item: { description?: string }) => item.description);
@@ -188,7 +185,7 @@ describe("PlantOverview.addPlant", () => {
     const pinia = createTestingPinia({ createSpy: vi.fn });
     const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
     const store = usePlantsStore(pinia);
-    vi.mocked(store.addPlant).mockResolvedValue({ id: 9, name: "Solo" } as Plant);
+    vi.mocked(store.addPlant).mockResolvedValue({ id: 9, name: "Solo" } as PlantView);
     await (wrapper.vm as any).addPlant({ name: "Solo", substrateId: null });
     expect(store.addPlant).toHaveBeenCalledWith({ name: "Solo", substrateId: null });
     expect(ToastService.showError).not.toHaveBeenCalled();

@@ -37,7 +37,7 @@ export const createPlant = async (
     },
   });
   if (res.status !== 201) throw new Error(`createPlant failed: ${res.status} ${res.text}`);
-  return res.body.data as { plant_id: number; plant_name: string; plant_user_id: number };
+  return res.body.data as { plant_id: number; plant_name: string; user_id: number };
 };
 
 export const createComponent = async (app: ContractApp, adminAuth: Auth, name = 'Perlite') => {
@@ -48,7 +48,7 @@ export const createComponent = async (app: ContractApp, adminAuth: Auth, name = 
     json: { name, fineness: 1 },
   });
   if (res.status !== 201) throw new Error(`createComponent failed: ${res.status} ${res.text}`);
-  return res.body.data as { component_id: number; component_name: string };
+  return res.body.data as { id: number; name: string };
 };
 
 export interface SseFrame {

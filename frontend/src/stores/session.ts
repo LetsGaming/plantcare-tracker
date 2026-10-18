@@ -1,15 +1,17 @@
 import { defineStore, type Pinia } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
-import TokenUtils from "@/utils/tokenUtils";
+import TokenUtils, { decodeJwtPayload } from "@/utils/tokenUtils";
 import Utils from "@/utils/utils";
 import storageService from "@/services/general/StorageService";
 import { handleRequest } from "@/utils/requestFeedback";
 import { clearRuntimeCaches } from "@/pwa";
 import { pinia as appPinia, resetAllStores } from "./pinia";
+import { epoch, requestScope } from "./resource";
 
 const BASE_ENDPOINT = "/auth";
 const RESOURCE_KEY = "auth.title";
 const REFRESH_RETRY_DELAY_MS = 1000;
+const REFRESH_TIMEOUT_MS = 20_000;
 
 class RefreshError extends Error {
   constructor(message: string) {
@@ -21,20 +23,30 @@ class RefreshError extends Error {
 const decodeToken = (token: string | null): AuthToken | null => {
   if (!token) return null;
   try {
-    const bytes = Uint8Array.from(
-      atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
-      (c) => c.charCodeAt(0),
-    );
-    const payload = JSON.parse(new TextDecoder().decode(bytes));
-    return { id: payload.id, username: payload.username, role: payload.role };
+    const payload = decodeJwtPayload(token);
+    return { id: payload.id, username: payload.username, role: payload.role } as AuthToken;
   } catch (error) {
     console.error("Error decoding token:", error);
     return null;
   }
 };
 
-/** One refresh at a time: concurrent callers share the in-flight promise. */
-let inflightRefresh: Promise<string> | null = null;
+/**
+ * One refresh at a time per session epoch: concurrent callers share the
+ * in-flight promise, but a caller of a newer epoch never joins an older one.
+ */
+let inflightRefresh: { promise: Promise<string>; epoch: number } | null = null;
+
+/**
+ * Synchronous first step of every local session end: no request, stream or
+ * token of the old account survives past this call, even before its storage
+ * writes settle.
+ */
+const endSessionLocally = (): Promise<void> => {
+  epoch.abortAll();
+  resetAllStores();
+  return TokenUtils.clearToken();
+};
 
 /** Where to send the user once the local session is gone; set by the app shell. */
 let redirectToLogin: (() => Promise<void>) | null = null;
@@ -73,7 +85,7 @@ export const useSessionStore = defineStore("session", {
     /** Loads the persisted token once. */
     async hydrate(): Promise<void> {
       if (this.hydrated) return;
-      this.token = await TokenUtils.getToken();
+      this.token = await TokenUtils.load();
       this.hydrated = true;
     },
 
@@ -124,8 +136,7 @@ export const useSessionStore = defineStore("session", {
 
     /** Drops every trace of the account from memory and storage and leaves the app. */
     async localLogout(): Promise<void> {
-      resetAllStores();
-      await TokenUtils.clearToken();
+      await endSessionLocally();
       await storageService.clear();
       await clearRuntimeCaches();
       this.token = null;
@@ -139,21 +150,27 @@ export const useSessionStore = defineStore("session", {
      * failures are retried.
      */
     refresh(retryCount = 3): Promise<string> {
-      inflightRefresh ??= this.requestNewToken(retryCount).finally(() => {
-        inflightRefresh = null;
+      const current = epoch.current();
+      if (inflightRefresh?.epoch === current) return inflightRefresh.promise;
+      const promise: Promise<string> = this.requestNewToken(retryCount).finally(() => {
+        if (inflightRefresh?.promise === promise) inflightRefresh = null;
       });
-      return inflightRefresh;
+      inflightRefresh = { promise, epoch: current };
+      return promise;
     },
 
     async requestNewToken(retryCount: number): Promise<string> {
       const url = `${Utils.getApiBaseUrl()}${BASE_ENDPOINT}/refresh-token`;
+      const startEpoch = epoch.current();
 
       for (let attempt = 1; attempt <= retryCount; attempt++) {
+        const scope = requestScope(REFRESH_TIMEOUT_MS);
         try {
           const response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
+            signal: scope.signal,
           });
 
           if (response.status === 401) throw new RefreshError("Refresh token expired");
@@ -176,14 +193,19 @@ export const useSessionStore = defineStore("session", {
           const accessToken = (await response.json()).data?.accessToken;
           if (!accessToken) throw new RefreshError("Invalid response structure");
 
+          if (epoch.isStale(startEpoch))
+            throw new DOMException("Refresh superseded.", "AbortError");
           await this.storeToken(accessToken);
           return accessToken;
         } catch (error) {
           const final =
             attempt === retryCount ||
             (error instanceof RefreshError && error.message.includes("expired"));
-          if (final) throw error;
+          if (final || epoch.isStale(startEpoch)) throw error;
           await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS));
+          if (epoch.isStale(startEpoch)) throw error;
+        } finally {
+          scope.dispose();
         }
       }
       throw new RefreshError("Refresh failed");
@@ -210,21 +232,44 @@ export const useSessionStore = defineStore("session", {
         "profile.title",
         "profile.delete_failed",
       );
+      // Stop and reset everything first so no late action re-persists into the wipe.
+      const tokenCleared = endSessionLocally();
       // Full wipe including keepOnClear data: the account is gone.
-      await storageService.clearAll();
+      await Promise.all([tokenCleared, storageService.clearAll()]);
       await this.localLogout();
       return response;
     },
   },
 });
 
+let resumeListenersAttached = false;
+
+const onVisibilityChange = (): void => {
+  if (document.visibilityState === "visible") void ApiUtils.ensureFresh();
+};
+
+const onOnline = (): void => {
+  void ApiUtils.ensureFresh();
+};
+
 /** Lets the transport renew and tear down the session without importing the store. */
 export const connectSessionToTransport = (pinia: Pinia): void => {
   ApiUtils.configureAuth({
-    refresh: () => useSessionStore(pinia).refresh(),
+    refresh: (retryCount?: number) => useSessionStore(pinia).refresh(retryCount),
     onAuthFailure: () => useSessionStore(pinia).localLogout(),
   });
+  if (resumeListenersAttached || typeof document === "undefined") return;
+  resumeListenersAttached = true;
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("online", onOnline);
 };
+
+import.meta.hot?.dispose(() => {
+  if (!resumeListenersAttached) return;
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  window.removeEventListener("online", onOnline);
+  resumeListenersAttached = false;
+});
 
 /** The signed-in user's id for code that has no component context; -1 when signed out. */
 export const currentUserId = (): number => useSessionStore(appPinia).userId;

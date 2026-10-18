@@ -1,12 +1,13 @@
 /**
  * tests/unit/modules/sales.test.ts
  *
- * Tests for Sale entity, scrape helpers, and FetchSalesOverview use case.
+ * Tests for the Sale entity, scrape helpers, the sales replay and SSE framing.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import type { ServerResponse } from 'node:http';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { parse } from 'node-html-parser';
-import { Sale } from '../../../src/modules/sales/domain/Sale';
+import { Sale, type SaleRow } from '../../../src/modules/sales/domain/Sale';
 import {
   parsePrice,
   commercialRound,
@@ -15,8 +16,16 @@ import {
   normalizeImageUrl,
   extractImageUrl,
 } from '../../../src/modules/sales/infrastructure/scrapeHelpers';
-import { FetchSalesOverview } from '../../../src/modules/sales/application/FetchSalesOverview';
-import type { SalesSource } from '../../../src/modules/sales/domain/SalesSource';
+import {
+  REPLAY_PAGE_SIZE,
+  replayActiveSales,
+} from '../../../src/modules/sales/presentation/salesController';
+import type { SalesRepository } from '../../../src/modules/sales/domain/SalesRepository';
+import { SALES_CURSOR_TYPES, SALES_SORT } from '../../../src/modules/sales/domain/SalesRepository';
+import { decodeCursor, encodeCursor } from '../../../src/core/pagination';
+import { SseManager } from '../../../src/core/sse';
+
+const SCRAPED_AT = 1_700_000_000_000;
 
 // ── Sale entity ───────────────────────────────────────────────────────────────
 
@@ -27,6 +36,7 @@ describe('Sale.fromRaw', () => {
     const sale = Sale.fromRaw(
       { name: 'Monstera', link: 'https://shop.com/monstera', newPrice: 9.99, oldPrice: 19.99 },
       seller,
+      SCRAPED_AT,
     );
     expect(sale).not.toBeNull();
     expect(sale!.sale_name).toBe('Monstera');
@@ -35,22 +45,29 @@ describe('Sale.fromRaw', () => {
   });
 
   it('returns null when link is missing', () => {
-    expect(Sale.fromRaw({ name: 'x', newPrice: 5 }, seller)).toBeNull();
+    expect(Sale.fromRaw({ name: 'x', newPrice: 5 }, seller, SCRAPED_AT)).toBeNull();
   });
 
+  it.each(['javascript:alert(1)', 'data:text/html,x', 'ftp://shop.com/p', '/relative/path'])(
+    'returns null for the non-http(s) link %s',
+    (link) => {
+      expect(Sale.fromRaw({ name: 'x', link, newPrice: 5 }, seller, SCRAPED_AT)).toBeNull();
+    },
+  );
+
   it('returns null when newPrice is missing', () => {
-    expect(Sale.fromRaw({ name: 'x', link: 'https://shop.com' }, seller)).toBeNull();
+    expect(Sale.fromRaw({ name: 'x', link: 'https://shop.com' }, seller, SCRAPED_AT)).toBeNull();
   });
 
   it('generates a deterministic sale_id from seller + link', () => {
-    const a = Sale.fromRaw({ link: 'https://shop.com/p1', newPrice: 5 }, seller);
-    const b = Sale.fromRaw({ link: 'https://shop.com/p1', newPrice: 5 }, seller);
+    const a = Sale.fromRaw({ link: 'https://shop.com/p1', newPrice: 5 }, seller, SCRAPED_AT);
+    const b = Sale.fromRaw({ link: 'https://shop.com/p1', newPrice: 5 }, seller, SCRAPED_AT);
     expect(a!.sale_id).toBe(b!.sale_id);
   });
 
   it('normalizes URLs for ID generation (strips www, trailing slash, hash)', () => {
-    const a = Sale.fromRaw({ link: 'https://www.shop.com/p', newPrice: 5 }, seller);
-    const b = Sale.fromRaw({ link: 'https://shop.com/p', newPrice: 5 }, seller);
+    const a = Sale.fromRaw({ link: 'https://www.shop.com/p', newPrice: 5 }, seller, SCRAPED_AT);
+    const b = Sale.fromRaw({ link: 'https://shop.com/p', newPrice: 5 }, seller, SCRAPED_AT);
     expect(a!.sale_id).toBe(b!.sale_id);
   });
 
@@ -61,30 +78,99 @@ describe('Sale.fromRaw', () => {
       'https://www.shop.com/de/products/monstera/',
       'https://shop.com/de/collections/sale/products/monstera#reviews',
     ];
-    const ids = paths.map((link) => Sale.fromRaw({ link, newPrice: 5 }, seller)!.sale_id);
+    const ids = paths.map(
+      (link) => Sale.fromRaw({ link, newPrice: 5 }, seller, SCRAPED_AT)!.sale_id,
+    );
     expect(new Set(ids).size).toBe(1);
   });
 
   it('keeps different products distinct', () => {
-    const a = Sale.fromRaw({ link: 'https://shop.com/products/monstera', newPrice: 5 }, seller)!;
-    const b = Sale.fromRaw({ link: 'https://shop.com/products/pilea', newPrice: 5 }, seller)!;
+    const a = Sale.fromRaw(
+      { link: 'https://shop.com/products/monstera', newPrice: 5 },
+      seller,
+      SCRAPED_AT,
+    )!;
+    const b = Sale.fromRaw(
+      { link: 'https://shop.com/products/pilea', newPrice: 5 },
+      seller,
+      SCRAPED_AT,
+    )!;
     expect(a.sale_id).not.toBe(b.sale_id);
   });
 
   it('uses "Unnamed Product" as fallback name', () => {
-    const sale = Sale.fromRaw({ link: 'https://shop.com', newPrice: 5, name: null }, seller);
+    const sale = Sale.fromRaw(
+      { link: 'https://shop.com', newPrice: 5, name: null },
+      seller,
+      SCRAPED_AT,
+    );
     expect(sale!.sale_name).toBe('Unnamed Product');
   });
 
-  it('toJSON round-trips correctly', () => {
-    const sale = Sale.fromRaw(
-      { link: 'https://shop.com', newPrice: 5, oldPrice: 10, name: 'Fern' },
-      seller,
-    )!;
-    const json = sale.toJSON();
-    expect(json.sale_name).toBe('Fern');
-    expect(json.sale_old_price).toBe(10);
-    expect(json.sale_new_price).toBe(5);
+  it('stamps the given fetch time instead of the call time', () => {
+    const fetchedAt = 1_700_000_000_000;
+    const sale = Sale.fromRaw({ link: 'https://shop.com/p', newPrice: 5 }, seller, fetchedAt)!;
+    expect(sale.sale_scraped_at).toBe(fetchedAt);
+  });
+
+  it('rejects a new price that is not finite and positive, drops an invalid old price', () => {
+    const fromPrices = (newPrice: number, oldPrice?: number | null) =>
+      Sale.fromRaw({ link: 'https://shop.com/p', newPrice, oldPrice }, seller, SCRAPED_AT);
+    for (const bad of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN, -1, 0]) {
+      expect(fromPrices(bad), `new ${bad}`).toBeNull();
+    }
+    for (const bad of [Number.POSITIVE_INFINITY, Number.NaN, -5]) {
+      const sale = fromPrices(5, bad);
+      expect(sale, `old ${bad}`).not.toBeNull();
+      expect(sale!.sale_old_price, `old ${bad}`).toBeNull();
+      expect(sale!.sale_discount_pct, `old ${bad}`).toBeNull();
+    }
+    expect(fromPrices(5, 0)!.sale_old_price).toBe(0);
+    expect(fromPrices(5, null)!.sale_old_price).toBeNull();
+  });
+
+  it('computes an integer discount percent, null without an old price', () => {
+    const pct = (newPrice: number, oldPrice?: number | null) =>
+      Sale.fromRaw({ link: 'https://shop.com/p', newPrice, oldPrice }, seller, 1)!
+        .sale_discount_pct;
+    expect(pct(9.99, 19.99)).toBe(50);
+    expect(pct(7, 10)).toBe(30);
+    expect(pct(5)).toBeNull();
+    expect(pct(5, null)).toBeNull();
+    expect(pct(12, 10)).toBe(0);
+  });
+});
+
+describe('Sale.toDto', () => {
+  it('maps a stored row to the API shape in epoch milliseconds', () => {
+    expect(
+      Sale.toDto({
+        sale_id: 'abc',
+        source_key: 'shop',
+        seller: 'Shop',
+        name: 'Fern',
+        link: 'https://shop.com/fern',
+        image_url: null,
+        old_price: 10,
+        new_price: 7,
+        discount_pct: 30,
+        first_seen_at: 1_000,
+        last_seen_at: 3_000,
+        scraped_at: 2_500,
+        active: 1,
+      }),
+    ).toEqual({
+      sale_id: 'abc',
+      sale_name: 'Fern',
+      sale_seller: 'Shop',
+      sale_link: 'https://shop.com/fern',
+      sale_image_url: null,
+      sale_old_price: 10,
+      sale_new_price: 7,
+      sale_discount_pct: 30,
+      sale_first_seen_at: 1_000,
+      sale_scraped_at: 2_500,
+    });
   });
 });
 
@@ -185,84 +271,166 @@ describe('buildPageUrl', () => {
   });
 });
 
-// ── FetchSalesOverview ────────────────────────────────────────────────────────
+// ── Sales replay ──────────────────────────────────────────────────────────────
 
-describe('FetchSalesOverview', () => {
-  const makeMockSource = (key: string, items: object[] = []): SalesSource => ({
-    key,
-    seller: key,
-    priority: 1,
-    maxPages: 1,
-    useChromium: false,
-    fetchPage: vi.fn().mockResolvedValue(items),
+const saleRow = (n: number): SaleRow => ({
+  sale_id: `sale-${String(n).padStart(4, '0')}`,
+  source_key: 'shop',
+  seller: 'Shop',
+  name: `Plant ${n}`,
+  link: `https://shop.com/p${n}`,
+  image_url: null,
+  old_price: 10,
+  new_price: 5,
+  discount_pct: 50,
+  first_seen_at: 1_000_000 - n,
+  last_seen_at: 2_000_000,
+  scraped_at: 1_500_000,
+  active: 1,
+});
+
+/** A repository whose pageActive serves `rows` in pages, like the keyset query. */
+const pagedRepo = (rows: SaleRow[]) => {
+  const pageActive = vi.fn(async ({ limit, cursor }: { limit: number; cursor: unknown }) => {
+    const start = cursor
+      ? rows.findIndex((r) => r.sale_id === (cursor as { id: string }).id) + 1
+      : 0;
+    const items = rows.slice(start, start + limit);
+    const last = items.at(-1);
+    const more = start + limit < rows.length;
+    return {
+      items,
+      nextCursor:
+        more && last
+          ? encodeCursor({ s: SALES_SORT, v: last.first_seen_at, id: last.sale_id })
+          : null,
+    };
   });
+  return { repo: { pageActive } as unknown as SalesRepository, pageActive };
+};
 
-  it('streams deduplicated items via onItems', async () => {
-    const items = [
-      { name: 'P1', link: 'https://shop.com/p1', newPrice: 5, oldPrice: 10 },
-      { name: 'P2', link: 'https://shop.com/p2', newPrice: 8, oldPrice: 15 },
-    ];
-    const source = makeMockSource('shop', items);
-    const onItems = vi.fn().mockResolvedValue(undefined);
+describe('replayActiveSales', () => {
+  it('sends every page as DTOs in order, resuming from each page cursor', async () => {
+    const rows = Array.from({ length: REPLAY_PAGE_SIZE * 2 + 5 }, (_, i) => saleRow(i));
+    const { repo, pageActive } = pagedRepo(rows);
+    const sendUnique = vi.fn().mockResolvedValue(undefined);
 
-    await new FetchSalesOverview([source]).execute({ onItems, isAborted: () => false });
+    await replayActiveSales(repo, { sse: { sendUnique }, isAborted: () => false });
 
-    expect(onItems).toHaveBeenCalled();
-    const sentItems = onItems.mock.calls.flatMap((c) => c[0]);
-    expect(sentItems).toHaveLength(2);
-  });
-
-  it('deduplicates items with same link across calls', async () => {
-    const dup = { name: 'P1', link: 'https://shop.com/p1', newPrice: 5, oldPrice: 10 };
-    const source = makeMockSource('shop', [dup, dup]);
-    const onItems = vi.fn().mockResolvedValue(undefined);
-
-    await new FetchSalesOverview([source]).execute({ onItems, isAborted: () => false });
-
-    const sentItems = onItems.mock.calls.flatMap((c) => c[0]);
-    expect(sentItems).toHaveLength(1);
-  });
-
-  it('skips items without valid link or price', async () => {
-    const items = [
-      { name: 'Bad', link: null, newPrice: 5, oldPrice: 10 },
-      { name: 'Also bad', link: 'https://shop.com', newPrice: null, oldPrice: 10 },
-    ];
-    const source = makeMockSource('shop', items);
-    const onItems = vi.fn().mockResolvedValue(undefined);
-
-    await new FetchSalesOverview([source]).execute({ onItems, isAborted: () => false });
-
-    expect(onItems).not.toHaveBeenCalled();
-  });
-
-  it('aborts when isAborted returns true', async () => {
-    const source = makeMockSource('shop', [
-      { name: 'P', link: 'https://x.com', newPrice: 5, oldPrice: 10 },
-    ]);
-    const onItems = vi.fn().mockResolvedValue(undefined);
-
-    await new FetchSalesOverview([source]).execute({ onItems, isAborted: () => true });
-
-    expect(onItems).not.toHaveBeenCalled();
-  });
-
-  it('continues other sources when one fails', async () => {
-    const failingSource = makeMockSource('failing');
-    (failingSource.fetchPage as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('Network error'),
+    expect(pageActive).toHaveBeenCalledTimes(3);
+    expect(pageActive.mock.calls.map((c) => c[0].limit)).toEqual([100, 100, 100]);
+    expect(pageActive.mock.calls[0][0].cursor).toBeNull();
+    expect(pageActive.mock.calls[1][0].cursor).toEqual(
+      decodeCursor(
+        encodeCursor({ s: SALES_SORT, v: rows[99].first_seen_at, id: rows[99].sale_id }),
+        SALES_SORT,
+        SALES_CURSOR_TYPES,
+      ),
     );
-    const goodItems = [{ name: 'P', link: 'https://good.com/p', newPrice: 5, oldPrice: 10 }];
-    const goodSource = makeMockSource('good', goodItems);
-    const onItems = vi.fn().mockResolvedValue(undefined);
+    const sent = sendUnique.mock.calls.flatMap((c) => c[0]);
+    expect(sent.map((s: { sale_id: string }) => s.sale_id)).toEqual(rows.map((r) => r.sale_id));
+    expect(sent[0]).toEqual(Sale.toDto(rows[0]));
+    expect(sendUnique.mock.calls.every((c) => c[1] === 'sale_id')).toBe(true);
+  });
 
-    await new FetchSalesOverview([failingSource, goodSource]).execute({
-      onItems,
-      isAborted: () => false,
+  it('stops reading pages once the client disconnects', async () => {
+    const rows = Array.from({ length: REPLAY_PAGE_SIZE * 5 }, (_, i) => saleRow(i));
+    const { repo, pageActive } = pagedRepo(rows);
+    let aborted = false;
+    const sendUnique = vi.fn(async () => {
+      aborted = true;
     });
 
-    const sent = onItems.mock.calls.flatMap((c) => c[0]);
-    expect(sent.some((i) => i.sale_seller === 'good')).toBe(true);
+    await replayActiveSales(repo, { sse: { sendUnique }, isAborted: () => aborted });
+
+    expect(pageActive).toHaveBeenCalledTimes(1);
+    expect(sendUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send a page that arrives after the client disconnected', async () => {
+    const { repo } = pagedRepo([saleRow(1)]);
+    let aborted = false;
+    vi.mocked(repo.pageActive).mockImplementationOnce(() => {
+      aborted = true;
+      return Promise.resolve({ items: [saleRow(1)], nextCursor: null });
+    });
+    const sendUnique = vi.fn();
+
+    await replayActiveSales(repo, { sse: { sendUnique }, isAborted: () => aborted });
+
+    expect(sendUnique).not.toHaveBeenCalled();
+  });
+});
+
+// ── SSE framing ───────────────────────────────────────────────────────────────
+
+describe('SseManager.sendUnique', () => {
+  const fakeResponse = () => {
+    const frames: string[] = [];
+    const res = {
+      writableEnded: false,
+      writeHead: vi.fn(),
+      write: vi.fn((chunk: string) => {
+        frames.push(chunk);
+        return true;
+      }),
+      once: vi.fn(),
+      end: vi.fn(),
+    };
+    return { res: res as unknown as ServerResponse, frames };
+  };
+  const payloads = (frames: string[]) =>
+    frames.filter((f) => f.startsWith('data: ')).map((f) => f.slice('data: '.length, -2));
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('serializes each item exactly once and never the whole batch', async () => {
+    const { res } = fakeResponse();
+    const sse = new SseManager(res, {}, 16_384);
+    const items = Array.from({ length: 5 }, (_, i) => ({ sale_id: `s${i}`, name: `Plant ${i}` }));
+    const stringify = vi.spyOn(JSON, 'stringify');
+
+    await sse.sendUnique(items, 'sale_id');
+    const calls = stringify.mock.calls.map((c) => c[0]);
+    stringify.mockRestore();
+    sse.dispose();
+
+    for (const item of items) {
+      expect(calls.filter((arg) => arg === item)).toHaveLength(1);
+    }
+    expect(calls.some((arg) => Array.isArray(arg))).toBe(false);
+  });
+
+  it('keeps every frame within the chunk size and every item in order', async () => {
+    const { res, frames } = fakeResponse();
+    const maxChunk = 200;
+    const sse = new SseManager(res, {}, maxChunk);
+    const items = Array.from({ length: 20 }, (_, i) => ({ sale_id: `s${i}`, name: 'ü'.repeat(i) }));
+
+    await sse.sendUnique(items, 'sale_id');
+    await sse.sendUnique(items.slice(0, 3), 'sale_id');
+    sse.dispose();
+
+    const sent = payloads(frames);
+    expect(sent.length).toBeGreaterThan(1);
+    for (const payload of sent) {
+      expect(Buffer.byteLength(payload, 'utf8')).toBeLessThanOrEqual(maxChunk);
+    }
+    expect(sent.flatMap((p) => JSON.parse(p))).toEqual(items);
+  });
+
+  it('sends an item larger than the chunk size in a frame of its own', async () => {
+    const { res, frames } = fakeResponse();
+    const sse = new SseManager(res, {}, 50);
+    const big = { sale_id: 'big', name: 'x'.repeat(100) };
+    const small = { sale_id: 'small', name: 'y' };
+
+    await sse.sendUnique([small, big, small], 'sale_id');
+    sse.dispose();
+
+    expect(payloads(frames).map((p) => JSON.parse(p))).toEqual([[small], [big]]);
   });
 });
 

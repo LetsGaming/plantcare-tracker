@@ -13,11 +13,17 @@ vi.mock("@/services/general/LocalizationService", () => ({
 }));
 
 import SnapMatchSheet from "@/components/water/SnapMatchSheet.vue";
-import PlantPlaceholder from "@/components/ui/PlantPlaceholder.vue";
+import ProgressiveImage from "@/components/ProgressiveImage.vue";
+import PlantMapper from "@/mapping/PlantMapping";
+import { apiImageDto, apiPlantListItem } from "@/tests/helpers";
+
+const coverOf = (): ImageView =>
+  PlantMapper.mapListItem(apiPlantListItem({ cover: apiImageDto() })).cover!;
 
 const candidate = (plantId: number, tone: "ok" | "due" | "overdue" | "new" = "ok") => ({
   plantId,
   name: `Plant ${plantId}`,
+  image: null,
   tone,
 });
 
@@ -215,23 +221,34 @@ describe("SnapMatchSheet focus and announcements", () => {
     wrapper.unmount();
   });
 
-  it("shows the plant image as a decorative thumbnail when logged", () => {
-    const wrapper = mountSheet({
-      state: "logged",
-      loggedName: "Monty",
-      loggedImageUrl: "/img/monty.jpg",
-    });
-    const img = wrapper.find(".logged-thumb img");
-    expect(img.attributes("src")).toBe("/img/monty.jpg");
-    expect(img.attributes("alt")).toBe("");
+  it("shows the plant image as a decorative 64px thumbnail when logged", () => {
+    const image = coverOf();
+    const wrapper = mountSheet({ state: "logged", loggedName: "Monty", loggedImage: image });
+    const thumb = wrapper.findComponent(ProgressiveImage);
+    expect(thumb.props("image")).toEqual(image);
+    expect(thumb.props("sizes")).toBe("64px");
     expect(wrapper.find(".logged-thumb").attributes("aria-hidden")).toBe("true");
     wrapper.unmount();
   });
 
   it("falls back to a seeded placeholder without an image", () => {
     const wrapper = mountSheet({ state: "logged", loggedName: "Monty", loggedPlantId: 5 });
-    expect(wrapper.find(".logged-thumb img").exists()).toBe(false);
-    expect(wrapper.findComponent(PlantPlaceholder).props("seed")).toBe("5");
+    const thumb = wrapper.findComponent(ProgressiveImage);
+    expect(thumb.props("image")).toBeNull();
+    expect(thumb.props("seed")).toBe("5");
+    wrapper.unmount();
+  });
+
+  it("renders candidate thumbnails from the image view at the 64px size", () => {
+    const image = coverOf();
+    const wrapper = mountSheet({
+      candidates: [{ ...candidate(1), image }, candidate(2)],
+    });
+    const thumbs = wrapper.findAllComponents(ProgressiveImage);
+    expect(thumbs[0].props("image")).toEqual(image);
+    expect(thumbs[0].props("sizes")).toBe("64px");
+    expect(thumbs[1].props("image")).toBeNull();
+    expect(thumbs[1].props("seed")).toBe("2");
     wrapper.unmount();
   });
 

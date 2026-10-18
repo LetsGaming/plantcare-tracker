@@ -69,7 +69,7 @@ const wateringRecords = async (auth: Auth, plantId: number) =>
       url: `${API}/watering/plant/${plantId}`,
       headers: auth,
     })
-  ).body.data ?? [];
+  ).body.data?.items ?? [];
 
 const listImages = async (auth: Auth, plantId: number) =>
   (
@@ -102,7 +102,10 @@ describe('recognition with a model', () => {
       headers: owner.auth,
     });
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ available: true });
+    expect(res.body.data).toEqual({
+      available: true,
+      embedQueue: { queued: expect.any(Number), pending: expect.any(Number), deferred: 0 },
+    });
   });
 
   it('ranks the plant whose photo looks like the snapshot first', async () => {
@@ -250,8 +253,8 @@ describe('recognition with a model', () => {
     const vectorOf = () =>
       app.db.query<{ vector: Buffer }>('SELECT vector FROM image_embeddings WHERE image_id = ?', [
         imageId,
-      ])[0].vector;
-    const before = vectorOf();
+      ])[0]?.vector;
+    const before = vectorOf()!;
     const res = await app.client.request({
       method: 'patch',
       url: `${API}/images/${imageId}`,
@@ -262,7 +265,8 @@ describe('recognition with a model', () => {
     });
     expect(res.status).toBe(200);
     for (let i = 0; i < 100; i++) {
-      if (!vectorOf().equals(before)) return;
+      const after = vectorOf();
+      if (after && !after.equals(before)) return;
       await new Promise((r) => setTimeout(r, 20));
     }
     throw new Error('replacement embedding not written');
@@ -282,7 +286,7 @@ describe('recognition without a model', () => {
       url: `${API}/recognition/status`,
       headers: owner.auth,
     });
-    expect(status.body.data).toEqual({ available: false });
+    expect(status.body.data).toEqual({ available: false, embedQueue: null });
     const res = await match(owner.auth, await solid(...RED));
     expect(res.status).toBe(503);
     expect(res.body.error.message).toBe('Plant recognition is not available');

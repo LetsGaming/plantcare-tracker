@@ -36,11 +36,7 @@ export default defineComponent({
       default: false,
     },
     plant: {
-      type: Object as PropType<Plant>,
-      required: true,
-    },
-    substrates: {
-      type: Array as PropType<Substrate[]>,
+      type: Object as PropType<PlantView>,
       required: true,
     },
   },
@@ -87,17 +83,11 @@ export default defineComponent({
           enterkeyhint: "next",
         },
         {
-          type: "select",
+          type: "substrate-picker",
           modelKey: "substrateId",
           label: "plant.field.substrate",
           placeholder: "plant.field.substrate_placeholder",
-          options: [
-            { value: null, label: "plant.field.substrate_none" },
-            ...this.substrates.map((s) => ({
-              value: s.id,
-              label: s.name,
-            })),
-          ],
+          selectedName: this.plant.substrate?.name,
         },
         {
           type: "radio",
@@ -129,7 +119,7 @@ export default defineComponent({
     resetFromPlant() {
       this.editPlantData = {
         name: this.plant.name,
-        species: this.plant.species ?? "",
+        species: this.plant.speciesName ?? "",
         substrateId: this.plant.substrate?.id ?? null,
         isPublic: this.plant.isPublic,
       };

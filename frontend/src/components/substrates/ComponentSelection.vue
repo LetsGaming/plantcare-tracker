@@ -9,69 +9,64 @@
       </IonCheckbox>
     </IonItem>
 
+    <div class="selected-block">
+      <p class="selected-count" role="status">
+        {{ t("components.selected_count", { count: selectedComponentIds.length }) }}
+      </p>
+      <ul v-if="selectedComponents.length > 0" class="selected-chips">
+        <li v-for="component in selectedComponents" :key="component.id" class="selected-chip">
+          {{ component.name }}
+        </li>
+      </ul>
+    </div>
+
     <ul v-if="filteredComponents.length > 0" class="parts-list">
-      <li
+      <ComponentPartRow
         v-for="component in filteredComponents"
         :key="component.id"
-        class="part-row"
-        :class="{ selected: isSelected(component.id) }"
-      >
-        <div class="part-line">
-          <IonCheckbox
-            class="part-pick"
-            :checked="isSelected(component.id)"
-            label-placement="end"
-            justify="start"
-            @ionChange="toggleSelectedComponent(component.id)"
-          >
-            <span class="part-name">{{ component.name }}</span>
-          </IonCheckbox>
-
-          <div v-if="isSelected(component.id)" class="part-input">
-            <IonInput
-              :value="displayPart(componentParts[component.id])"
-              :aria-label="`${t('component.selection.placeholder')}: ${component.name}`"
-              :placeholder="t('component.selection.placeholder')"
-              :class="{ 'part-invalid': partError(component.id) }"
-              type="text"
-              inputmode="decimal"
-              enterkeyhint="done"
-              autocomplete="off"
-              :aria-invalid="partError(component.id) ? 'true' : undefined"
-              @ionInput="updatePart(component.id, $event)"
-              @ionBlur="touched[component.id] = true"
-            />
-          </div>
-        </div>
-        <p class="part-meta">
-          {{ t("component.fineness_prefix") }} {{ finenessLabel(component.fineness) }}
-        </p>
-        <p v-if="partError(component.id)" class="part-error" role="alert">
-          {{ t("component.selection.error_positive") }}
-        </p>
-      </li>
+        :component="component"
+        :selected="selectedSet.has(component.id)"
+        :part="selectedSet.has(component.id) ? componentParts[component.id] : undefined"
+        :error="partError(component.id)"
+        @toggle="toggleSelectedComponent"
+        @update-part="updatePart"
+        @touch="touchPart"
+      />
     </ul>
+    <p v-else-if="loading" class="no-matches">{{ t("state.loading") }}</p>
     <p v-else class="no-matches">{{ t("subdetail.no_matches") }}</p>
   </section>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { IonCheckbox, IonInput, IonItem } from "@ionic/vue";
+import { IonCheckbox, IonItem } from "@ionic/vue";
 import SearchBar from "@/components/SearchBar.vue";
-import Utils from "@/utils/utils";
-import { finenessLabel, formatNumber } from "@/utils/enumLabels";
+import ComponentPartRow from "@/components/substrates/ComponentPartRow.vue";
 import { parsePart } from "@/utils/substrateParts";
 import localizationService from "@/services/general/LocalizationService";
 
+interface PickableComponent {
+  id: number;
+  name: string;
+  fineness: string;
+  /** Lowercase search text; the name is searched when absent. */
+  searchText?: string;
+}
+
+/**
+ * Component picker of the substrate form. Rows keep the order of `components`
+ * (the store sorts once); selected ones are summarised in the "Selected (n)"
+ * block, so ticking never moves a row.
+ */
 export default defineComponent({
   name: "ComponentSelection",
   emits: ["toggle-component", "update-part"],
   components: {
     IonCheckbox,
-    IonInput,
     IonItem,
     SearchBar,
+    ComponentPartRow,
   },
   props: {
     title: {
@@ -79,7 +74,7 @@ export default defineComponent({
       required: true,
     },
     components: {
-      type: Array as PropType<SubstrateComponent[]>,
+      type: Array as PropType<readonly PickableComponent[]>,
       required: true,
     },
     selectedComponentIds: {
@@ -99,6 +94,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** The catalogue is still loading: an empty list is not "no matches" yet. */
+    loading: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
@@ -108,46 +108,53 @@ export default defineComponent({
     };
   },
   computed: {
-    filteredComponents(): SubstrateComponent[] {
-      let list = Utils.baseSearchFilter(this.searchQuery, this.components);
-
-      if (this.showSelectedOnly) {
-        list = list.filter((component) => this.selectedComponentIds.includes(component.id));
+    selectedSet(): ReadonlySet<number> {
+      return new Set(this.selectedComponentIds);
+    },
+    componentsById(): ReadonlyMap<number, PickableComponent> {
+      return new Map(this.components.map((component) => [component.id, component]));
+    },
+    selectedComponents(): PickableComponent[] {
+      const known = this.componentsById;
+      return this.selectedComponentIds
+        .map((id) => known.get(id))
+        .filter((component): component is PickableComponent => component !== undefined);
+    },
+    filteredComponents(): readonly PickableComponent[] {
+      const needle = this.searchQuery.trim().toLowerCase();
+      let list = this.components;
+      if (needle !== "") {
+        list = list.filter((component) =>
+          (component.searchText ?? component.name.toLowerCase()).includes(needle),
+        );
       }
-
-      return [...list].sort((a, b) => {
-        const aSelected = this.selectedComponentIds.includes(a.id);
-        const bSelected = this.selectedComponentIds.includes(b.id);
-        if (aSelected && !bSelected) return -1;
-        if (!aSelected && bSelected) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      if (this.showSelectedOnly) {
+        const selected = this.selectedSet;
+        list = list.filter((component) => selected.has(component.id));
+      }
+      return list;
     },
   },
   methods: {
-    displayPart(value: string | number | undefined): string | number | undefined {
-      return typeof value === "number" ? formatNumber(value) : value;
-    },
-    finenessLabel,
-    isSelected(id: number): boolean {
-      return this.selectedComponentIds.includes(id);
-    },
     partError(id: number): boolean {
-      if (!this.isSelected(id)) return false;
+      if (!this.selectedSet.has(id)) return false;
       if (!this.showErrors && !this.touched[id]) return false;
       return parsePart(this.componentParts[id]) === null;
     },
     toggleSelectedComponent(id: number) {
       this.$emit("toggle-component", id);
     },
-    updatePart(id: number, event: CustomEvent) {
-      this.$emit("update-part", id, event.detail.value);
+    updatePart(id: number, value: string) {
+      this.$emit("update-part", id, value);
+    },
+    touchPart(id: number) {
+      this.touched[id] = true;
     },
     filterComponents(query: string) {
       this.searchQuery = query;
     },
-    t(key: string) {
-      return localizationService.t(key, undefined, key);
+    t(key: string, vars?: Record<string, string | number>) {
+      return localizationService.t(key, vars, key);
     },
   },
 });
@@ -172,6 +179,34 @@ export default defineComponent({
   --padding-start: 0;
 }
 
+.selected-block {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.selected-count {
+  margin: 0;
+  font-weight: 650;
+}
+
+.selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.selected-chip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--leaf-wash);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
 .parts-list {
   margin: 0;
   padding: 0;
@@ -180,74 +215,6 @@ export default defineComponent({
   border: 1.5px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
-}
-
-.part-row {
-  padding: var(--space-1) var(--space-3);
-}
-
-.part-row + .part-row {
-  border-top: 1px solid var(--line);
-}
-
-.part-row.selected {
-  background: var(--leaf-wash);
-}
-
-.part-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: var(--tap-min);
-}
-
-.part-pick {
-  flex: 1;
-  min-width: 0;
-}
-
-.part-name {
-  font-weight: 650;
-  overflow-wrap: anywhere;
-}
-
-.part-pick::part(label) {
-  white-space: normal;
-}
-
-.part-meta {
-  margin: calc(var(--space-2) * -1) 0 var(--space-2);
-  padding-inline-start: calc(var(--space-6) + var(--space-1));
-  font-size: var(--text-xs);
-  color: var(--ink-soft);
-}
-
-.part-input {
-  flex: none;
-  width: 7rem;
-}
-
-.part-input ion-input {
-  min-height: calc(var(--tap-min) - 4px);
-  border: 1.5px solid var(--control-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  --padding-start: var(--space-3);
-  --padding-end: var(--space-3);
-  --placeholder-color: var(--ink-soft);
-  --placeholder-opacity: 1;
-}
-
-.part-input ion-input.part-invalid {
-  border-color: var(--ion-color-danger);
-}
-
-.part-error {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--ion-color-danger);
 }
 
 .no-matches {

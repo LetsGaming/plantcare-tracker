@@ -15,7 +15,25 @@ export interface RawSaleItem {
   newPrice?: number | null;
 }
 
-export interface SaleData {
+/** A persisted `sales_items` row; times are epoch milliseconds. */
+export interface SaleRow {
+  sale_id: string;
+  source_key: string;
+  seller: string;
+  name: string;
+  link: string;
+  image_url: string | null;
+  old_price: number | null;
+  new_price: number;
+  discount_pct: number | null;
+  first_seen_at: number;
+  last_seen_at: number;
+  scraped_at: number;
+  active: number;
+}
+
+/** API shape of a sale; times are epoch milliseconds. */
+export interface SaleDto {
   sale_id: string;
   sale_name: string;
   sale_seller: string;
@@ -23,8 +41,34 @@ export interface SaleData {
   sale_image_url: string | null;
   sale_old_price: number | null;
   sale_new_price: number;
-  sale_scraped_at: string;
+  sale_discount_pct: number | null;
+  sale_first_seen_at: number;
+  sale_scraped_at: number;
 }
+
+interface SaleProps {
+  sale_id: string;
+  sale_name: string;
+  sale_seller: string;
+  sale_link: string;
+  sale_image_url: string | null;
+  sale_old_price: number | null;
+  sale_new_price: number;
+  sale_discount_pct: number | null;
+  sale_scraped_at: number;
+}
+
+const HTTP_LINK = new RegExp('^https?://', 'i');
+
+const isPrice = (value: number | null | undefined): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+/** Whole-number discount of `newPrice` against `oldPrice`; null without an old price. */
+export const discountPercent = (newPrice: number, oldPrice: number | null): number | null => {
+  if (oldPrice === null) return null;
+  if (!(oldPrice > newPrice) || !(oldPrice > 0)) return 0;
+  return Math.round((1 - newPrice / oldPrice) * 100);
+};
 
 export class Sale {
   public readonly sale_id: string;
@@ -34,25 +78,32 @@ export class Sale {
   public readonly sale_image_url: string | null;
   public readonly sale_old_price: number | null;
   public readonly sale_new_price: number;
-  public readonly sale_scraped_at: string;
+  public readonly sale_discount_pct: number | null;
+  /** Time the page holding this item was fetched, epoch milliseconds. */
+  public readonly sale_scraped_at: number;
 
-  private constructor(data: SaleData) {
-    this.sale_id = data.sale_id;
-    this.sale_name = data.sale_name;
-    this.sale_seller = data.sale_seller;
-    this.sale_link = data.sale_link;
-    this.sale_image_url = data.sale_image_url;
-    this.sale_old_price = data.sale_old_price;
-    this.sale_new_price = data.sale_new_price;
-    this.sale_scraped_at = data.sale_scraped_at;
+  private constructor(props: SaleProps) {
+    this.sale_id = props.sale_id;
+    this.sale_name = props.sale_name;
+    this.sale_seller = props.sale_seller;
+    this.sale_link = props.sale_link;
+    this.sale_image_url = props.sale_image_url;
+    this.sale_old_price = props.sale_old_price;
+    this.sale_new_price = props.sale_new_price;
+    this.sale_discount_pct = props.sale_discount_pct;
+    this.sale_scraped_at = props.sale_scraped_at;
   }
 
   /**
-   * Factory: builds a Sale from raw scraper output.
-   * Returns null if the item lacks required fields (link, newPrice).
+   * Builds a Sale from raw scraper output stamped with the fetch time of its
+   * page. Returns null without an http(s) link or without a positive finite new price.
+   * An invalid old price is dropped and the item stays.
    */
-  static fromRaw(raw: RawSaleItem, seller: string): Sale | null {
-    if (!raw.link || !raw.newPrice) return null;
+  static fromRaw(raw: RawSaleItem, seller: string, scrapedAt: number): Sale | null {
+    if (!raw.link || !HTTP_LINK.test(raw.link) || !isPrice(raw.newPrice) || raw.newPrice === 0) {
+      return null;
+    }
+    const oldPrice = isPrice(raw.oldPrice) ? raw.oldPrice : null;
 
     return new Sale({
       sale_id: Sale.generateId(seller, raw.link),
@@ -60,22 +111,25 @@ export class Sale {
       sale_seller: seller,
       sale_link: raw.link,
       sale_image_url: raw.img ?? null,
-      sale_old_price: raw.oldPrice ?? null,
+      sale_old_price: oldPrice,
       sale_new_price: raw.newPrice,
-      sale_scraped_at: new Date().toISOString(),
+      sale_discount_pct: discountPercent(raw.newPrice, oldPrice),
+      sale_scraped_at: scrapedAt,
     });
   }
 
-  toJSON(): SaleData {
+  static toDto(row: SaleRow): SaleDto {
     return {
-      sale_id: this.sale_id,
-      sale_name: this.sale_name,
-      sale_seller: this.sale_seller,
-      sale_link: this.sale_link,
-      sale_image_url: this.sale_image_url,
-      sale_old_price: this.sale_old_price,
-      sale_new_price: this.sale_new_price,
-      sale_scraped_at: this.sale_scraped_at,
+      sale_id: row.sale_id,
+      sale_name: row.name,
+      sale_seller: row.seller,
+      sale_link: row.link,
+      sale_image_url: row.image_url,
+      sale_old_price: row.old_price,
+      sale_new_price: row.new_price,
+      sale_discount_pct: row.discount_pct,
+      sale_first_seen_at: row.first_seen_at,
+      sale_scraped_at: row.scraped_at,
     };
   }
 

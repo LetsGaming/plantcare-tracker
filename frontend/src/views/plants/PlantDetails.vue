@@ -42,7 +42,7 @@
         <plant-tag
           class="area-tag"
           :name="plant.name"
-          :species="plant.species"
+          :species="plant.speciesName"
           :is-public="plant.isPublic"
         />
 
@@ -63,13 +63,13 @@
           <div class="hero">
             <details-banner
               :banner-title="plant.name"
-              :image-url="plant.imageUrl"
+              :image="plant.cover"
               :seed="String(plant.id)"
               image-only
             />
           </div>
           <horizontal-gallery
-            :images="plant.images"
+            :images="galleryImages"
             :is-public="isPublic"
             :plant-name="plant.name"
             @edit-click="handleImageEditClick"
@@ -90,14 +90,13 @@
           <substrate-container :substrate="fullSubstrate ?? undefined" />
         </div>
 
-        <more-info class="area-guide" :plantName="plant.name" />
+        <more-info class="area-guide" :plantName="plant.name" :active="pageActive" />
       </article>
 
       <PlantEditingModal
         v-if="plant"
         :is-open="showEditModal"
         :plant="plant"
-        :substrates="substrates"
         :is-loading="isEditLoading"
         @close="showEditModal = false"
         @save="handlePlantSave"
@@ -111,9 +110,9 @@
         :is-loading="isImageLoading"
       />
       <ImageEditingModal
-        v-if="enlargedImage"
+        v-if="editableImage"
         :is-open="showImageEditModal"
-        :image="enlargedImage"
+        :image="editableImage"
         entity-type="plant"
         @close="showImageEditModal = false"
         @edited="handleImageEdited"
@@ -134,6 +133,7 @@ import { useWateringStore } from "@/stores/watering";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import { icons } from "@/theme/icons";
+import { pageActive } from "@/utils/pageActive";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
@@ -147,6 +147,8 @@ import MoreInfo from "@/components/plants/MoreInfo.vue";
 import PlantEditingModal from "@/components/plants/PlantEditingModal.vue";
 import ImageUploadModal from "@/components/images/ImageUploadModal.vue";
 import ImageEditingModal from "@/components/images/ImageEditingModal.vue";
+
+const NO_IMAGES: readonly ImageView[] = Object.freeze([]);
 
 export default defineComponent({
   name: "PlantDetails",
@@ -169,6 +171,7 @@ export default defineComponent({
     ImageUploadModal,
     ImageEditingModal,
   },
+  mixins: [pageActive],
 
   props: {
     id: { type: String, required: true },
@@ -179,12 +182,12 @@ export default defineComponent({
     return {
       icons,
       /** Full substrate object, fetched separately after plant loads (V2 only sends substrate ref) */
-      fullSubstrate: null as Substrate | null,
+      fullSubstrate: null as SubstrateView | null,
 
       showEditModal: false,
       showUploadModal: false,
 
-      enlargedImage: null as Image | null,
+      enlargedImage: null as ImageView | null,
       showImageEditModal: false,
 
       isLoading: true,
@@ -199,18 +202,17 @@ export default defineComponent({
     // A re-entry refreshes in the background; the cached plant stays on screen meanwhile.
     const refetch = this.hasEntered;
     this.hasEntered = true;
-    await Promise.all([this.loadPlantData(refetch), this.fetchSubstrates()]);
+    await this.loadPlantData(refetch);
   },
 
   computed: {
     ...mapState(usePlantsStore, ["byId"]),
-    ...mapState(useSubstratesStore, { substrates: "items" }),
     ...mapState(useSessionStore, ["isGuest", "userId"]),
     /** This page's plant, straight from the store so every update repaints it. */
     hasGallery(): boolean {
       return (this.plant?.images?.length ?? 0) > 0;
     },
-    plant(): Plant | null {
+    plant(): PlantView | null {
       return this.byId(this.plantId) ?? null;
     },
     substrateRefId(): number | undefined {
@@ -224,6 +226,20 @@ export default defineComponent({
     },
     canEdit(): boolean {
       return !this.isPublic && !this.isGuest;
+    },
+    galleryImages(): readonly ImageView[] {
+      return this.plant?.images ?? NO_IMAGES;
+    },
+    /** The image editor still reads the legacy image shape. */
+    editableImage(): Image | null {
+      const image = this.enlargedImage;
+      if (!image) return null;
+      return {
+        id: image.id,
+        url: image.url,
+        date: new Date(image.dateMs).toISOString(),
+        date_millis: image.dateMs,
+      };
     },
   },
 
@@ -239,10 +255,7 @@ export default defineComponent({
   },
 
   methods: {
-    ...mapActions(useSubstratesStore, {
-      loadSubstrate: "getSubstrate",
-      ensureSubstratesLoaded: "ensureLoaded",
-    }),
+    ...mapActions(useSubstratesStore, { loadSubstrate: "getSubstrate" }),
     ...mapActions(usePlantsStore, {
       loadPlant: "getPlant",
       savePlant: "editPlant",
@@ -294,14 +307,6 @@ export default defineComponent({
         ]);
       } finally {
         (event.target as HTMLIonRefresherElement).complete();
-      }
-    },
-
-    async fetchSubstrates() {
-      try {
-        await this.ensureSubstratesLoaded();
-      } catch (e) {
-        console.error("Failed to fetch substrates", e);
       }
     },
 
@@ -373,7 +378,7 @@ export default defineComponent({
       }
     },
 
-    handleImageEditClick(image: Image) {
+    handleImageEditClick(image: ImageView) {
       this.enlargedImage = image;
       this.showImageEditModal = true;
     },

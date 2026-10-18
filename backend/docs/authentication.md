@@ -2,7 +2,7 @@
 
 ## Overview
 
-Authentication is JWT-based with an in-memory session store. Every login creates a session with a random id (`sid`). Two token types carry it:
+Authentication is JWT-based with a session store in the SQLite database. Every login creates a session with a random id (`sid`). Two token types carry it:
 
 - **Access token**: short-lived (15 min), sent in the `Authorization` header only
 - **Refresh token**: long-lived (7 days), stored in an `httpOnly` cookie
@@ -99,13 +99,15 @@ The `isAdmin` middleware checks `req.user.role === 'admin'` (case-insensitive). 
 
 ## Session Store
 
-Sessions are stored in a `Map<userId, Session[]>` in memory, where a session is `{ sid, expiresAt }`.
+Sessions are rows of the `sessions` table (`sid`, `user_id`, `expires_at`, `created_at`, times in epoch milliseconds). The store is synchronous: it runs prepared better-sqlite3 statements on the shared connection. `has` and `end` filter on both `user_id` and `sid`, so one user cannot end or confirm another user's session.
 
-- **Max sessions per user:** 3. When exceeded, the oldest session is evicted (FIFO). The guest account uses a larger limit and a 1 h lifetime.
-- **No persistence:** sessions are lost on server restart.
+- **Max sessions per user:** 3. When exceeded, the oldest session (by `created_at`, then rowid) is evicted. The guest account uses a larger limit (1000) and a 1 h lifetime.
+- **Persistence:** sessions survive a server restart. The upgrade that introduced the table ended every earlier login once: tokens from before it carry no `sid` and answer `401`.
+- **Cleanup:** expired rows are pruned on create (up to 200 per call) and swept periodically by the maintenance scheduler.
 - **Invalidation:** `POST /logout` ends the session named by the refresh token, including its access token. `UpdateProfileUseCase` removes **all** sessions for the user after a password change.
+- **SSE tickets** (60 s, single use) stay in process memory; a restart only invalidates tickets that are seconds old.
 
-> ⚠️ **Production recommendation:** Replace the in-memory store with Redis. The `sessionStore` interface (create, has, count, end, deleteAll) makes this straightforward; update only `core/auth/sessions.ts`.
+> A multi-instance deployment would still need a shared store for tickets; the `sessionStore` / `ticketStore` interfaces in `core/auth/sessions.ts` are the only place to change.
 
 ## Middleware Reference
 
@@ -147,9 +149,9 @@ app.addHook("onRequest", makeGuestReadOnly(apiBase));
 
 The single SSE authenticator (the former standalone `authenticateSSE` variant is merged into it). Validates the one-time ticket and burns it, then populates `req.user`:
 
-- `makeAuthenticateSSE()` — no DB lookup; `req.user` carries only `{ id, username: '', role: 'user' }`. Used by sales.
+- `makeAuthenticateSSE()`, no DB lookup; `req.user` carries only `{ id, username: '', role: 'user' }`. Used by sales.
   User id `0` is a valid identity.
-- `makeAuthenticateSSE({ loadUserFromDb: true })` — additionally loads username and role from the database. Used by moreInfo.
+- `makeAuthenticateSSE({ loadUserFromDb: true })`, additionally loads username and role from the database. Used by moreInfo.
 
 ```typescript
 router.get('/', makeAuthenticateSSE({ loadUserFromDb: true }), sseHandler);

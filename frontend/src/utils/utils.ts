@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { modalController } from "@ionic/vue";
+import { openOverlayCount, resetOverlayRegistry } from "./overlayRegistry";
 
 /**
  * Settings come from `VITE_*` variables (see `.env.example`). Every one has a default, so a missing or
@@ -137,6 +138,7 @@ const Utils = {
    * Never throws: a modal whose host is already unmounted rejects its dismiss, and that must not abort a navigation.
    */
   async closeAllOpenModals(): Promise<void> {
+    if (openOverlayCount() === 0) return;
     try {
       let topModal = await modalController.getTop();
       while (topModal) {
@@ -145,6 +147,7 @@ const Utils = {
         if (dismissed === false || next === topModal) return;
         topModal = next;
       }
+      resetOverlayRegistry();
     } catch (error) {
       console.warn("Closing the open modals failed:", error);
     }

@@ -25,10 +25,11 @@ describe('recognitionRoutes startup backfill', () => {
     const { logger, warn } = stubLogger();
     const app = Fastify({ loggerInstance: logger as never });
     const backfill = vi.fn().mockRejectedValue(new Error('db closed'));
+    const stop = vi.fn();
     const ctx = {
       embedder: null,
       embeddings: {},
-      embedImages: { backfill },
+      embedImages: { backfill, stop, stats: () => ({ queued: 0, pending: 0, deferred: 0 }) },
       onImageStored: () => undefined,
     } as unknown as RecognitionContext;
     await app.register(recognitionRoutes(ctx), { prefix: '/r' });
@@ -40,5 +41,6 @@ describe('recognitionRoutes startup backfill', () => {
       'embedding backfill failed',
     );
     await app.close();
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 });

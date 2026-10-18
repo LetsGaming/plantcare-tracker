@@ -45,7 +45,9 @@ vi.mock("@/utils/apiUtils", () => ({
   },
 }));
 
+import ApiUtils from "@/utils/apiUtils";
 import { useMoreInfoStore } from "@/stores/moreInfo";
+import { epoch } from "@/stores/resource";
 
 const messages =
   (...payloads: unknown[]) =>
@@ -54,7 +56,13 @@ const messages =
     h.onDone?.({ status: "completed" });
   };
 
-type StoredGuides = { data: Record<string, unknown> };
+type StoredGuides = {
+  data: {
+    byKey: Record<string, unknown>;
+    fetchedAtByKey: Record<string, number>;
+    usedAtByKey: Record<string, number>;
+  };
+};
 
 const newStore = async () => {
   await createInstalledPinia();
@@ -84,6 +92,13 @@ describe("ensureInfo streaming", () => {
       htmlFormatting: "false",
       lang: "en",
     });
+  });
+
+  it("gives the care guide stream three minutes of silence before it fails", async () => {
+    stream.script = messages({ type: "link", value: "https://a.example" });
+    const store = await newStore();
+    await store.ensureInfo("Aloe vera");
+    expect(vi.mocked(ApiUtils.stream).mock.calls.at(-1)?.[4]).toEqual({ idleTimeoutMs: 180_000 });
   });
 
   it("accumulates links and AI chunks into a draft while streaming and commits on completion", async () => {
@@ -189,9 +204,8 @@ describe("ensureInfo streaming", () => {
     const store = await newStore();
     await expect(store.ensureInfo("Aloe")).rejects.toBeDefined();
     await vi.advanceTimersByTimeAsync(500);
-    const stored = memoryStore.get("more_info_data") as
-      { data: Record<string, unknown> } | undefined;
-    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+    const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
+    expect(Object.keys(stored?.data.byKey ?? {})).toEqual([]);
   });
 });
 
@@ -202,8 +216,8 @@ describe("persistence", () => {
     const store = await newStore();
     await store.ensureInfo("Aloe");
     await vi.advanceTimersByTimeAsync(500);
-    const stored = memoryStore.get("more_info_data") as { data: Record<string, unknown> };
-    expect(Object.keys(stored.data)).toEqual(["en:Aloe"]);
+    const stored = memoryStore.get("more_info_data") as StoredGuides;
+    expect(Object.keys(stored.data.byKey)).toEqual(["en:Aloe"]);
   });
 
   it("ignores an entry written under the old shape instead of failing", async () => {
@@ -275,7 +289,7 @@ describe("stopInfo", () => {
     await pending;
     await vi.advanceTimersByTimeAsync(500);
     const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
-    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+    expect(Object.keys(stored?.data.byKey ?? {})).toEqual([]);
   });
 
   it("stops a load that is still hydrating without ever opening a stream", async () => {
@@ -299,7 +313,7 @@ describe("stopInfo", () => {
     expect(store.byKey["en:Aloe"]).toBeUndefined();
     expect(store.fetchedAtByKey["en:Aloe"]).toBeUndefined();
     const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
-    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+    expect(Object.keys(stored?.data.byKey ?? {})).toEqual([]);
   });
 
   it("does not let an earlier stop cancel a later forced load", async () => {
@@ -372,5 +386,121 @@ describe("stopInfo", () => {
     expect(store.drafts["en:Aloe"]).toBeUndefined();
     expect(store.byKey["en:Aloe"][0].ai).toContain("whole guide");
     expect(store.byKey["en:Aloe"][0].ai).not.toContain("partial text");
+  });
+});
+
+describe("loadCached", () => {
+  it("returns a fresh stored guide after hydrating and never opens a stream", async () => {
+    memoryStore.set("more_info_data", {
+      data: { "en:Aloe": [{ links: [], ai: "<div>cached</div>" }] },
+      timestamp: Date.now(),
+    });
+    const store = await newStore();
+    await expect(store.loadCached("Aloe")).resolves.toBe(true);
+    expect(stream.endpoints).toHaveLength(0);
+    expect(store.infoFor("Aloe")[0].ai).toBe("<div>cached</div>");
+  });
+
+  it("returns false without a stream when nothing is stored for the plant", async () => {
+    const store = await newStore();
+    await expect(store.loadCached("Aloe")).resolves.toBe(false);
+    expect(stream.endpoints).toHaveLength(0);
+    expect(store.streaming["en:Aloe"]).toBeFalsy();
+  });
+});
+
+describe("session epoch", () => {
+  it("does not open a stream when the epoch ends while hydrating", async () => {
+    stream.script = messages({ type: "ai_chunk", value: "guide" });
+    const store = await newStore();
+    let release!: () => void;
+    vi.spyOn(store, "$hydrate").mockImplementation(
+      () => new Promise<boolean>((resolve) => (release = () => resolve(false))),
+    );
+    const pending = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+
+    epoch.abortAll();
+    release();
+    await pending;
+
+    expect(stream.endpoints).toHaveLength(0);
+    expect(store.streaming["en:Aloe"]).toBeFalsy();
+    expect(store.byKey["en:Aloe"]).toBeUndefined();
+  });
+
+  it("settles a running stream, closes it and resets streaming when the epoch ends", async () => {
+    stream.script = (h) => h.onMessage({ data: { type: "ai_chunk", value: "partial text" } });
+    const store = await newStore();
+    const pending = store.ensureInfo("Aloe");
+    await vi.waitFor(() => expect(store.infoFor("Aloe")[0]?.ai).toContain("partial text"));
+
+    epoch.abortAll();
+    await expect(pending).resolves.toBeUndefined();
+
+    expect(stream.cleanup).toHaveBeenCalledTimes(1);
+    expect(store.streaming["en:Aloe"]).toBe(false);
+    expect(store.byKey["en:Aloe"]).toBeUndefined();
+  });
+});
+
+describe("guide cache bound", () => {
+  const guide = (name: string) => `en:${name}`;
+
+  it("evicts the least recently used guide when the 31st is stored", async () => {
+    stream.script = messages({ type: "ai_chunk", value: "guide" });
+    const store = await newStore();
+    for (let i = 1; i <= 30; i++) await store.ensureInfo(`Plant ${i}`);
+    expect(Object.keys(store.byKey)).toHaveLength(30);
+
+    await store.ensureInfo("Plant 1");
+    await store.ensureInfo("Plant 31");
+
+    const keys = Object.keys(store.byKey);
+    expect(keys).toHaveLength(30);
+    expect(keys).toContain(guide("Plant 1"));
+    expect(keys).toContain(guide("Plant 31"));
+    expect(keys).not.toContain(guide("Plant 2"));
+    expect(Object.keys(store.fetchedAtByKey).sort()).toEqual([...keys].sort());
+    expect(Object.keys(store.usedAtByKey).sort()).toEqual([...keys].sort());
+  });
+
+  it("persists at most 30 guides", async () => {
+    vi.useFakeTimers();
+    stream.script = messages({ type: "ai_chunk", value: "guide" });
+    const store = await newStore();
+    for (let i = 1; i <= 32; i++) await store.ensureInfo(`Plant ${i}`);
+    await vi.advanceTimersByTimeAsync(500);
+    const stored = memoryStore.get("more_info_data") as StoredGuides;
+    expect(Object.keys(stored.data.byKey)).toHaveLength(30);
+  });
+
+  it("keeps each guide's own age and recency when restoring", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    memoryStore.set("more_info_data", {
+      data: {
+        byKey: { [guide("Old")]: [], [guide("New")]: [] },
+        fetchedAtByKey: { [guide("Old")]: Date.now() - 400 * day, [guide("New")]: Date.now() },
+        usedAtByKey: { [guide("Old")]: 9, [guide("New")]: 3 },
+      },
+      timestamp: Date.now(),
+    });
+    const store = await newStore();
+    await store.$hydrate();
+    expect(store.fetchedAtByKey[guide("Old")]).toBeLessThan(Date.now() - 300 * day);
+    expect(store.fetchedAtByKey[guide("New")]).toBeGreaterThan(Date.now() - day);
+    expect(Object.keys(store.byKey)).toEqual([guide("New"), guide("Old")]);
+  });
+
+  it("trims an oversized stored snapshot to the newest 30 on hydrate", async () => {
+    const data = Object.fromEntries(
+      Array.from({ length: 40 }, (_, i) => [guide(`Plant ${i + 1}`), []]),
+    );
+    memoryStore.set("more_info_data", { data, timestamp: Date.now() });
+    const store = await newStore();
+    await store.$hydrate();
+    const keys = Object.keys(store.byKey);
+    expect(keys).toHaveLength(30);
+    expect(keys[0]).toBe(guide("Plant 11"));
   });
 });

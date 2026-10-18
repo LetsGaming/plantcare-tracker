@@ -196,7 +196,8 @@ if (CONFIG.skipBuild) {
 // ─── 3. Copy server ───────────────────────────────────────────────────────────
 step(`Copying ${CONFIG.serveSrc} → ${CONFIG.distDir}/serve.cjs`);
 if (!existsSync(join(BASE_DIR, CONFIG.distDir)))
-  die(`${CONFIG.distDir}/ missing — run a build first (don't set SKIP_BUILD)`);
+  die(`${CONFIG.distDir}/ missing: run a build first (don't set SKIP_BUILD)`);
+run(`"${process.execPath}" scripts/precompress.mjs "${CONFIG.distDir}"`);
 cpSync(SERVE_SRC, SERVE_DST);
 ok("Server script in place");
 

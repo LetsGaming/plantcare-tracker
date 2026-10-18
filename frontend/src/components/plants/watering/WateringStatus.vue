@@ -37,16 +37,11 @@ import { mapActions, mapState } from "pinia";
 import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
 import { water } from "ionicons/icons";
 import { useWateringStore } from "@/stores/watering";
+import { usePlantsStore } from "@/stores/plants";
 import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
-import { calendarDaysBetween } from "@/utils/localDate";
 import { UNDO_TOAST_MS } from "@/utils/undo";
-import {
-  averageIntervalDays,
-  describeInterval,
-  latestWateringMillis,
-  relativeDaysText,
-} from "@/utils/wateringStats";
+import { describeInterval, relativeDaysText, wateringStatus } from "@/utils/wateringStats";
 
 const SETTLE_MS = 650;
 let statusCount = 0;
@@ -65,40 +60,34 @@ export default defineComponent({
   },
   data() {
     return {
-      loading: true,
       pending: false,
       justWatered: false,
       settleTimer: undefined as ReturnType<typeof setTimeout> | undefined,
       headingId: `watering-status-${++statusCount}`,
     };
   },
-  async mounted() {
-    try {
-      await this.ensureRecords(this.plantId);
-    } catch (error) {
-      console.error("Failed to load watering records:", error);
-    } finally {
-      this.loading = false;
-    }
-  },
   beforeUnmount() {
     clearTimeout(this.settleTimer);
   },
   computed: {
-    ...mapState(useWateringStore, ["recordsFor"]),
-    records(): WateringRecord[] {
-      return this.recordsFor(this.plantId);
+    ...mapState(usePlantsStore, ["byId"]),
+    plant(): PlantView | undefined {
+      return this.byId(this.plantId);
+    },
+    loading(): boolean {
+      return this.plant === undefined;
+    },
+    status(): ReturnType<typeof wateringStatus> {
+      return wateringStatus(this.plant?.watering, Date.now());
     },
     lastWateredText(): string {
-      const latest = latestWateringMillis(this.records);
-      if (latest === null) return this.loading ? "" : this.t("plantdetail.never_watered");
-      return relativeDaysText(
-        Math.max(0, calendarDaysBetween(latest, Date.now())),
-        localizationService.getLocale(),
-      );
+      if (this.status.daysSince === null) {
+        return this.loading ? "" : this.t("plantdetail.never_watered");
+      }
+      return relativeDaysText(this.status.daysSince, localizationService.getLocale());
     },
     intervalText(): string {
-      const average = averageIntervalDays(this.records);
+      const average = this.plant?.watering?.avgIntervalDays ?? null;
       if (average === null) return this.loading ? "" : this.t("plantdetail.interval_unknown");
       const { unit, count } = describeInterval(average);
       return this.t(`watering.records.frequency.${unit}`, { count });
@@ -106,7 +95,6 @@ export default defineComponent({
   },
   methods: {
     ...mapActions(useWateringStore, {
-      ensureRecords: "ensureRecords",
       createRecord: "addRecord",
       removeRecord: "deleteRecord",
     }),

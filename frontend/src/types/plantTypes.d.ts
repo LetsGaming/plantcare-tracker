@@ -13,24 +13,6 @@
 //       not a full SubstrateData object. The full substrate must be fetched separately.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Frontend model for a plant entity */
-interface Plant {
-  id: number;
-  userId: number;
-  name: string;
-  /** Null when the plant has no species; views print a localized label instead. */
-  species: string | null;
-  /** The species, or empty when there is none */
-  description: string;
-  isPublic: boolean;
-  /** ISO date converted to local display format by mapper */
-  created_at: string;
-  imageUrl?: string;
-  /** Lightweight substrate reference; may be null if plant has no substrate */
-  substrate: PlantSubstrateRef | null;
-  images: Image[];
-}
-
 /**
  * Lightweight substrate reference embedded in plant responses.
  * V2 returns only { substrate_id, substrate_name } — not the full Substrate.
@@ -59,26 +41,42 @@ interface EditPlant {
 
 // ── V2 API shapes ─────────────────────────────────────────────────────────────
 
-/**
- * Raw plant object as returned by the V2 API.
- * Matches PlantData from backend src-v2/modules/plants/domain/Plant.ts
- */
-interface APIPlant {
+/** One item of GET /plants (envelope); `created_at` in epoch ms. */
+interface APIPlantListItem {
   plant_id: number;
-  plant_user_id: number;
   plant_name: string;
-  plant_species: string | null;
-  /** V2 returns boolean (not 0/1) */
+  user_id: number;
   is_public: boolean;
-  plant_created_at: number;
-  image_url: string | null;
-  /** Lightweight reference — not a full SubstrateData; null if unassigned */
+  created_at: number;
+  species_name: string | null;
   substrate: APISubstrateRef | null;
-  images: APIImage[];
+  cover: APIImageDTO | null;
+  image_count: number;
+  /** Only for the owner (scope=mine and the owner's detail); null otherwise. */
+  watering: APIWateringSummary | null;
 }
 
-/** Lightweight substrate reference embedded in plant API responses */
-interface APISubstrateRef {
-  substrate_id: number;
-  substrate_name: string;
+/** GET /plants/:id and the POST/PATCH responses; images oldest first. */
+interface APIPlantDetail extends APIPlantListItem {
+  images: APIImageDTO[];
+}
+
+/** Frozen plant view model shared by lists and details. */
+interface PlantView {
+  readonly id: number;
+  readonly name: string;
+  readonly userId: number;
+  readonly isPublic: boolean;
+  /** Epoch ms. */
+  readonly createdAt: number;
+  readonly speciesName: string | null;
+  readonly substrate: Readonly<PlantSubstrateRef> | null;
+  readonly cover: ImageView | null;
+  readonly imageCount: number;
+  /** Null for plants of others and before the owner's summary is known. */
+  readonly watering: WateringSummary | null;
+  /** Present on details only, oldest first. */
+  readonly images?: readonly ImageView[];
+  /** Lowercase name and species, newline separated, for client search. */
+  readonly searchText: string;
 }

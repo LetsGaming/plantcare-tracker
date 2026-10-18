@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { formatToDBDate, ensureArray, filterDuplicatesById } from '../../../src/core/utils';
+import { formatToDBDate, ensureArray } from '../../../src/core/utils';
 
 describe('formatToDBDate', () => {
   it('formats a timestamp number to a SQL datetime string', () => {
@@ -53,35 +53,5 @@ describe('ensureArray', () => {
   it('converts object values to array', () => {
     const result = ensureArray({ a: 1, b: 2 });
     expect(result).toEqual([1, 2]);
-  });
-});
-
-describe('filterDuplicatesById', () => {
-  it('removes duplicate items by key', () => {
-    const items = [
-      { id: 1, name: 'a' },
-      { id: 2, name: 'b' },
-      { id: 1, name: 'a-duplicate' },
-    ];
-    const result = filterDuplicatesById(items, 'id');
-    expect(result).toHaveLength(2);
-    expect(result[0].name).toBe('a');
-  });
-
-  it('returns all items when no duplicates', () => {
-    const items = [{ id: 1 }, { id: 2 }, { id: 3 }];
-    expect(filterDuplicatesById(items, 'id')).toHaveLength(3);
-  });
-
-  it('returns empty array for empty input', () => {
-    expect(filterDuplicatesById([], 'id')).toEqual([]);
-  });
-
-  it('preserves first occurrence over subsequent duplicates', () => {
-    const items = [
-      { id: 1, value: 'first' },
-      { id: 1, value: 'second' },
-    ];
-    expect(filterDuplicatesById(items, 'id')[0].value).toBe('first');
   });
 });

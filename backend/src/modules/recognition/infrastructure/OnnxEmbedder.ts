@@ -1,5 +1,5 @@
 import type * as Ort from 'onnxruntime-node';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import type { Embedder } from '../domain/Recognition';
 import { l2normalize } from '../application/rankPlants';
 
@@ -19,11 +19,13 @@ export class EmbedderBusyError extends Error {
 }
 
 export const toTensorData = async (
-  image: Buffer,
+  image: Buffer | Sharp,
   limitInputPixels = MAX_INPUT_PIXELS,
 ): Promise<Float32Array> => {
-  const { data: resized, info } = await sharp(image, { limitInputPixels })
-    .rotate()
+  const source = Buffer.isBuffer(image)
+    ? sharp(image, { limitInputPixels }).rotate()
+    : image.clone();
+  const { data: resized, info } = await source
     .removeAlpha()
     .toColourspace('srgb')
     .resize({ width: RESIZE, height: RESIZE, fit: 'outside', kernel: 'cubic' })
@@ -59,13 +61,22 @@ export class OnnxEmbedder implements Embedder {
   constructor(
     private readonly session: Ort.InferenceSession,
     private readonly tensor: typeof Ort.Tensor,
+    private readonly limitInputPixels = MAX_INPUT_PIXELS,
   ) {}
 
   embed(image: Buffer): Promise<Float32Array> {
+    return this.enqueue(() => toTensorData(image, this.limitInputPixels));
+  }
+
+  embedDecoded(source: Sharp): Promise<Float32Array> {
+    return this.enqueue(() => toTensorData(source, this.limitInputPixels));
+  }
+
+  private enqueue(toData: () => Promise<Float32Array>): Promise<Float32Array> {
     if (this.pending >= MAX_PENDING_EMBEDS) return Promise.reject(new EmbedderBusyError());
     this.pending++;
     const run = this.tail.then(async () => {
-      const input = new this.tensor('float32', await toTensorData(image), [1, 3, CROP, CROP]);
+      const input = new this.tensor('float32', await toData(), [1, 3, CROP, CROP]);
       const output = await this.session.run({ pixel_values: input });
       const hidden = output.last_hidden_state.data as Float32Array;
       return l2normalize(Float32Array.from(hidden.subarray(0, DIM)));
@@ -85,11 +96,16 @@ export class OnnxEmbedder implements Embedder {
 export const loadOnnxEmbedder = async (
   modelPath: string | null,
   warn: (message: string) => void,
+  limitInputPixels = MAX_INPUT_PIXELS,
 ): Promise<Embedder | null> => {
   if (!modelPath) return null;
   try {
     const ort = await import('onnxruntime-node');
-    return new OnnxEmbedder(await ort.InferenceSession.create(modelPath), ort.Tensor);
+    return new OnnxEmbedder(
+      await ort.InferenceSession.create(modelPath),
+      ort.Tensor,
+      limitInputPixels,
+    );
   } catch (error) {
     warn(`Plant recognition disabled: could not load ${modelPath} (${(error as Error).message})`);
     return null;

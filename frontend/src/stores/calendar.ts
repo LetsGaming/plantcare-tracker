@@ -34,10 +34,17 @@ const initialState = () => ({
 
 type CalendarState = ReturnType<typeof initialState>;
 
-const setting = (key: string, field: CalendarField): PersistEntry<CalendarState> => ({
+const setting = (
+  key: string,
+  field: CalendarField,
+  dirtyOn: readonly string[],
+): PersistEntry<CalendarState> => ({
   key,
   keepOnClear: true,
   allowExpired: true,
+  dirtyOn,
+  // Serialized so an in-place edit followed by a save still counts as a change.
+  version: (state) => JSON.stringify(state[field]),
   pick: (state) => state[field],
   apply: (state, data) => {
     Object.assign(state, { [field]: data });
@@ -49,9 +56,12 @@ export const useCalendarStore = defineStore("calendar", {
 
   persist: {
     entries: [
-      setting("date_categories", "categories"),
+      setting("date_categories", "categories", ["saveCategories"]),
       {
-        ...setting("watering_categories", "wateringCategories"),
+        ...setting("watering_categories", "wateringCategories", [
+          "saveWateringCategories",
+          "resetWateringCategories",
+        ]),
         // An empty stored list means "never customized": keep the defaults.
         apply: (state, data: Category[]) => {
           if (data.length === 0) return;
@@ -62,9 +72,9 @@ export const useCalendarStore = defineStore("calendar", {
           );
         },
       },
-      setting("reminder_dates", "dates"),
-      setting("delete_after_thirty", "deleteAfterThirty"),
-      setting("first_day_of_week", "firstDayOfWeek"),
+      setting("reminder_dates", "dates", ["saveDates", "deleteOldDates"]),
+      setting("delete_after_thirty", "deleteAfterThirty", ["saveDeleteAfterThirty"]),
+      setting("first_day_of_week", "firstDayOfWeek", ["saveFirstDayOfWeek"]),
     ],
   },
 

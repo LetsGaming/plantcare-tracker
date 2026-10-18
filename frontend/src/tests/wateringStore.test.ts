@@ -1,11 +1,19 @@
 /**
- * Tests for the watering store: records keyed by plant id, the 404-to-empty
- * fallback, fertilizer types, optimistic record mutations that never touch
- * other plants' entries, and persistence.
+ * Tests for the watering store: a windowed history per opened plant (50 newest,
+ * "show older" pages), an LRU of 20 that is never persisted, writes that apply
+ * the returned records and summaries without refetching, and session epochs.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createInstalledPinia, memoryStore, resetStore, toast } from "./helpers";
+import {
+  apiWateringItem,
+  apiWateringSummary,
+  createInstalledPinia,
+  envelope,
+  memoryStore,
+  resetStore,
+  toast,
+} from "./helpers";
 
 vi.mock("@/services/general/StorageService", async () =>
   (await import("./helpers")).storageModule(),
@@ -25,19 +33,15 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
-import { useWateringStore } from "@/stores/watering";
+import { epoch } from "@/stores/resource";
+import { usePlantsStore } from "@/stores/plants";
+import { HISTORY_CACHE_SIZE, useWateringStore } from "@/stores/watering";
 
-const apiRecord = (overrides: Partial<APIWateringRecord> = {}): APIWateringRecord => ({
-  record_id: 1,
-  plant_id: 7,
-  plant_name: "Monstera",
-  owner_id: 1,
-  watering_date: 1719388800,
-  used_fertilizer: false,
-  fertilizer_type_id: null,
-  fertilizer_type: null,
-  ...overrides,
-});
+const DAY = 86_400_000;
+const T0 = 1_750_000_000_000;
+
+const item = (id: number, plantId = 7, overrides: Partial<APIWateringItem> = {}) =>
+  apiWateringItem({ id, plant_id: plantId, date: T0 - id * DAY, ...overrides });
 
 const notFound = () => Object.assign(new Error("not found"), { isApi: true, status: 404 });
 
@@ -49,6 +53,9 @@ const newStore = async () => {
 const ids = (store: ReturnType<typeof useWateringStore>, plantId: number) =>
   store.recordsFor(plantId).map((r) => r.id);
 
+const summary = (lastWateredAt: number) =>
+  apiWateringSummary({ last_watered_at: lastWateredAt, avg_interval_days: 3 });
+
 beforeEach(() => {
   resetStore();
   vi.clearAllMocks();
@@ -58,50 +65,61 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("reading", () => {
-  it("maps API records, converting epoch seconds to milliseconds", async () => {
-    api.get.mockResolvedValue([apiRecord()]);
+describe("reading the history", () => {
+  it("loads the newest 50 records of a plant", async () => {
+    api.get.mockResolvedValue(envelope([item(1), item(2)], "c1").data);
     const store = await newStore();
     await store.ensureRecords(7);
-    expect(api.get).toHaveBeenCalledWith("/watering/plant/7");
+    expect(api.get).toHaveBeenCalledWith("/watering/plant/7?limit=50");
     expect(store.recordsFor(7)).toEqual([
-      expect.objectContaining({
-        id: 1,
-        plantId: 7,
-        plantName: "Monstera",
-        date_millis: 1719388800 * 1000,
-        usedFertilizer: false,
-        fertilizerTypeId: undefined,
-        fertilizerType: undefined,
-      }),
+      expect.objectContaining({ id: 1, plantId: 7, date: T0 - DAY, fertilizerTypeId: null }),
+      expect.objectContaining({ id: 2 }),
     ]);
+    expect(store.hasOlder(7)).toBe(true);
   });
 
   it("loads each plant once and shares concurrent requests", async () => {
-    api.get.mockResolvedValue([apiRecord()]);
+    api.get.mockResolvedValue(envelope([item(1)]).data);
     const store = await newStore();
     await Promise.all([store.ensureRecords(7), store.ensureRecords(7)]);
     await store.ensureRecords(7);
     expect(api.get).toHaveBeenCalledTimes(1);
   });
 
-  it("refetches when forced", async () => {
-    api.get.mockResolvedValue([apiRecord()]);
+  it("refetches the first page when forced", async () => {
+    api.get.mockResolvedValue(envelope([item(1)]).data);
     const store = await newStore();
     await store.ensureRecords(7);
     await store.ensureRecords(7, { force: true });
     expect(api.get).toHaveBeenCalledTimes(2);
   });
 
-  it("fetches another plant separately and keeps both entries", async () => {
-    api.get.mockImplementation(async (url: string) =>
-      url.endsWith("/7") ? [apiRecord()] : [apiRecord({ record_id: 2, plant_id: 8 })],
-    );
+  it("show older appends the next pages in order until the history ends", async () => {
+    api.get
+      .mockResolvedValueOnce(envelope([item(1), item(2)], "c1").data)
+      .mockResolvedValueOnce(envelope([item(3), item(4)], "c2").data)
+      .mockResolvedValueOnce(envelope([item(5)], null).data);
     const store = await newStore();
     await store.ensureRecords(7);
-    await store.ensureRecords(8);
-    expect(ids(store, 7)).toEqual([1]);
-    expect(ids(store, 8)).toEqual([2]);
+    await store.loadOlder(7);
+    expect(api.get).toHaveBeenLastCalledWith("/watering/plant/7?limit=50&before=c1");
+    await store.loadOlder(7);
+    expect(api.get).toHaveBeenLastCalledWith("/watering/plant/7?limit=50&before=c2");
+    expect(ids(store, 7)).toEqual([1, 2, 3, 4, 5]);
+    expect(store.hasOlder(7)).toBe(false);
+    await store.loadOlder(7);
+    expect(api.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("shares a concurrent loadOlder", async () => {
+    api.get
+      .mockResolvedValueOnce(envelope([item(1)], "c1").data)
+      .mockResolvedValueOnce(envelope([item(2)]).data);
+    const store = await newStore();
+    await store.ensureRecords(7);
+    await Promise.all([store.loadOlder(7), store.loadOlder(7)]);
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(ids(store, 7)).toEqual([1, 2]);
   });
 
   it("treats a 404 as an empty history without a toast", async () => {
@@ -109,6 +127,7 @@ describe("reading", () => {
     const store = await newStore();
     await store.ensureRecords(99);
     expect(store.recordsFor(99)).toEqual([]);
+    expect(store.isLoaded(99)).toBe(true);
     expect(toast.showError).not.toHaveBeenCalled();
   });
 
@@ -117,329 +136,366 @@ describe("reading", () => {
     const store = await newStore();
     await expect(store.ensureRecords(7)).rejects.toThrow("offline");
     expect(toast.showError).toHaveBeenCalledTimes(1);
+    expect(store.isLoaded(7)).toBe(false);
   });
 
-  it("returns an empty list for a plant that is not loaded", async () => {
+  it("keeps at most 20 plants and evicts the least recently used", async () => {
+    api.get.mockImplementation(
+      async (url: string) =>
+        envelope([
+          item(
+            Number(url.split("/")[3].split("?")[0]) * 10,
+            Number(url.split("/")[3].split("?")[0]),
+          ),
+        ]).data,
+    );
     const store = await newStore();
-    expect(store.recordsFor(123)).toEqual([]);
+    for (let plantId = 1; plantId <= HISTORY_CACHE_SIZE; plantId += 1) {
+      await store.ensureRecords(plantId);
+    }
+    await store.ensureRecords(1);
+    await store.ensureRecords(21);
+    expect(Object.keys(store.byPlantId)).toHaveLength(20);
+    expect(store.isLoaded(1)).toBe(true);
+    expect(store.isLoaded(2)).toBe(false);
+    expect(store.isLoaded(21)).toBe(true);
   });
 
-  it("loads fertilizer types once", async () => {
+  it("does not persist histories", async () => {
+    vi.useFakeTimers();
+    api.get.mockResolvedValue(envelope([item(1)]).data);
+    const store = await newStore();
+    await store.ensureRecords(7);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(memoryStore.has("watering_records_data")).toBe(false);
+  });
+
+  it("drops the results of a session that ended in flight", async () => {
+    let release!: (value: unknown) => void;
+    api.get.mockReturnValue(new Promise((res) => (release = res)));
+    const store = await newStore();
+    const loading = store.ensureRecords(7);
+    epoch.abortAll();
+    release(envelope([item(1)]).data);
+    await loading;
+    expect(store.isLoaded(7)).toBe(false);
+  });
+
+  it("swallows a failure of a session that ended in flight", async () => {
+    let fail!: (error: Error) => void;
+    api.get.mockReturnValue(new Promise((_, rej) => (fail = rej)));
+    const store = await newStore();
+    const loading = store.ensureRecords(7);
+    epoch.abortAll();
+    fail(new Error("aborted"));
+    await expect(loading).resolves.toBeUndefined();
+  });
+});
+
+describe("fertilizer types", () => {
+  it("loads once", async () => {
     api.get.mockResolvedValue([{ fertilizer_id: 1, fertilizer_name: "organic" }]);
     const store = await newStore();
     await store.ensureFertilizerTypes();
     await store.ensureFertilizerTypes();
-    expect(store.fertilizerTypes).toEqual([{ id: 1, name: "organic" }]);
     expect(api.get).toHaveBeenCalledTimes(1);
-    expect(api.get).toHaveBeenCalledWith("/watering/fertilizer-types");
+    expect(store.fertilizerTypes).toEqual([{ id: 1, name: "organic" }]);
   });
 });
 
-describe("addRecord (optimistic)", () => {
-  it("paints a negative-id record immediately and reconciles with the server record", async () => {
-    api.get.mockResolvedValue([apiRecord()]);
+describe("writes", () => {
+  const loaded = async (items: APIWateringItem[], next: string | null = null) => {
+    api.get.mockResolvedValue(envelope(items, next).data);
     const store = await newStore();
     await store.ensureRecords(7);
-    let release!: (r: APIWateringRecord) => void;
-    api.post.mockReturnValue(new Promise((res) => (release = res)));
+    api.get.mockClear();
+    return store;
+  };
 
-    const pending = store.addRecord(7, { date: 1719475200000, usedFertilizer: false });
-    await vi.waitFor(() => expect(store.recordsFor(7)).toHaveLength(2));
-    const painted = store.recordsFor(7)[1];
-    expect(painted.id).toBeLessThan(0);
-    expect(painted.plantName).toBe("Monstera");
+  it("add sends one request with seconds and tz_offset, inserts in order and applies the summary", async () => {
+    const store = await loaded([item(1), item(2)]);
+    const applySummaries = vi.spyOn(usePlantsStore(), "applySummaries");
+    const date = T0 + 5 * DAY;
+    api.post.mockResolvedValue({
+      record: apiWateringItem({ id: 9, plant_id: 7, date }),
+      summary: summary(date),
+    });
 
-    release(apiRecord({ record_id: 55, watering_date: 1719475200 }));
-    const created = await pending;
-    expect(created.id).toBe(55);
-    expect(ids(store, 7)).toEqual([1, 55]);
+    const saved = await store.addRecord(7, { date, usedFertilizer: false });
+
+    expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post).toHaveBeenCalledWith("/watering/7", {
-      date: 1719475200000,
+      date: Math.floor(date / 1000),
       usedFertilizer: false,
+      fertilizerTypeId: undefined,
+      tz_offset: -new Date().getTimezoneOffset(),
+    });
+    expect(saved.id).toBe(9);
+    expect(ids(store, 7)).toEqual([9, 1, 2]);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(applySummaries).toHaveBeenCalledTimes(1);
+    const applied = applySummaries.mock.calls[0][0];
+    expect(applied.get(7)).toEqual({
+      lastWateredAt: date,
+      lastFertilizedAt: null,
+      avgIntervalDays: 3,
     });
   });
 
-  it("leaves other plants untouched when the request fails and removes only the painted record", async () => {
-    api.get.mockImplementation(async (url: string) =>
-      url.endsWith("/7") ? [apiRecord()] : [apiRecord({ record_id: 2, plant_id: 8 })],
-    );
-    const store = await newStore();
-    await store.ensureRecords(7);
-    await store.ensureRecords(8);
-    api.post.mockRejectedValue(new Error("400"));
-    await expect(store.addRecord(7, { usedFertilizer: false })).rejects.toThrow("400");
+  it("add paints a temporary record and removes only it on failure", async () => {
+    const store = await loaded([item(1)]);
+    let release!: (value: unknown) => void;
+    api.post.mockReturnValue(new Promise((res) => (release = res)));
+    const pending = store.addRecord(7, { date: T0 + DAY, usedFertilizer: false });
+    expect(store.recordsFor(7)).toHaveLength(2);
+    expect(store.recordsFor(7)[0].id).toBeLessThan(0);
+    release(Promise.reject(new Error("400")));
+    await expect(pending).rejects.toThrow("400");
     expect(ids(store, 7)).toEqual([1]);
-    expect(ids(store, 8)).toEqual([2]);
-    expect(toast.showError).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the loaded fertilizer type name for the optimistic record", async () => {
-    api.get.mockResolvedValue([{ fertilizer_id: 2, fertilizer_name: "synthetic" }]);
+  it("does not insert a record older than the window while older pages remain", async () => {
+    const store = await loaded([item(1), item(2)], "c1");
+    api.post.mockResolvedValue({
+      record: apiWateringItem({ id: 50, plant_id: 7, date: T0 - 400 * DAY }),
+      summary: summary(T0),
+    });
+    await store.addRecord(7, { date: T0 - 400 * DAY, usedFertilizer: false });
+    expect(ids(store, 7)).toEqual([1, 2]);
+  });
+
+  describe("the oldest loaded record while older pages remain", () => {
+    it("stays after a successful edit that keeps its date", async () => {
+      const store = await loaded([item(1), item(2)], "c1");
+      api.patch.mockResolvedValue({
+        record: apiWateringItem({
+          id: 2,
+          plant_id: 7,
+          date: T0 - 2 * DAY,
+          used_fertilizer: true,
+          fertilizer_type_id: 1,
+        }),
+        summary: summary(T0),
+      });
+      await store.editRecord(7, 2, {
+        date: T0 - 2 * DAY,
+        usedFertilizer: true,
+        fertilizerTypeId: 1,
+      });
+      expect(ids(store, 7)).toEqual([1, 2]);
+      expect(store.recordsFor(7)[1].usedFertilizer).toBe(true);
+    });
+
+    it("comes back when its edit fails", async () => {
+      const store = await loaded([item(1), item(2)], "c1");
+      api.patch.mockRejectedValue(new Error("500"));
+      await expect(store.editRecord(7, 2, { usedFertilizer: true })).rejects.toThrow("500");
+      expect(ids(store, 7)).toEqual([1, 2]);
+      expect(store.recordsFor(7)[1].usedFertilizer).toBe(false);
+    });
+
+    it("comes back when its delete fails", async () => {
+      const store = await loaded([item(1), item(2)], "c1");
+      api.delete.mockRejectedValue(new Error("500"));
+      await expect(store.deleteRecord(7, 2)).rejects.toThrow("500");
+      expect(ids(store, 7)).toEqual([1, 2]);
+    });
+
+    it("leaves the window when an edit moves it beyond the loaded range, and returns on failure", async () => {
+      const old = T0 - 400 * DAY;
+      const store = await loaded([item(1), item(2)], "c1");
+      api.patch.mockResolvedValueOnce({
+        record: apiWateringItem({ id: 2, plant_id: 7, date: old }),
+        summary: summary(T0),
+      });
+      await store.editRecord(7, 2, { date: old, usedFertilizer: false });
+      expect(ids(store, 7)).toEqual([1]);
+
+      const again = await loaded([item(1), item(2)], "c1");
+      api.patch.mockRejectedValueOnce(new Error("500"));
+      await expect(again.editRecord(7, 2, { date: old, usedFertilizer: false })).rejects.toThrow();
+      expect(ids(again, 7)).toEqual([1, 2]);
+      expect(again.recordsFor(7)[1].date).toBe(T0 - 2 * DAY);
+    });
+  });
+
+  it("add for a plant whose window is not loaded loads nothing", async () => {
     const store = await newStore();
-    await store.ensureFertilizerTypes();
-    let release!: (r: APIWateringRecord) => void;
-    api.post.mockReturnValue(new Promise((res) => (release = res)));
+    api.post.mockResolvedValue({ record: item(9, 8), summary: summary(T0) });
+    await store.addRecord(8, { usedFertilizer: false });
+    expect(store.isLoaded(8)).toBe(false);
+    expect(api.get).not.toHaveBeenCalled();
+  });
 
-    const pending = store.addRecord(7, { usedFertilizer: true, fertilizerTypeId: 2 });
-    await vi.waitFor(() => expect(store.recordsFor(7)).toHaveLength(1));
-    expect(store.recordsFor(7)[0].fertilizerType).toBe("synthetic");
-
-    release(
-      apiRecord({
-        record_id: 3,
+  it("edit patches once with seconds, moves the record and applies the summary", async () => {
+    const store = await loaded([item(1), item(2), item(3)]);
+    const applySummaries = vi.spyOn(usePlantsStore(), "applySummaries");
+    const date = T0 + DAY;
+    api.patch.mockResolvedValue({
+      record: apiWateringItem({
+        id: 3,
+        plant_id: 7,
+        date,
         used_fertilizer: true,
         fertilizer_type_id: 2,
-        fertilizer_type: "synthetic",
       }),
+      summary: summary(date),
+    });
+    await store.editRecord(7, 3, { date, usedFertilizer: true, fertilizerTypeId: 2 });
+    expect(api.patch).toHaveBeenCalledTimes(1);
+    expect(api.patch).toHaveBeenCalledWith(
+      "/watering/3",
+      expect.objectContaining({ date: Math.floor(date / 1000), usedFertilizer: true }),
     );
-    await pending;
-  });
-
-  it("does not let a create before the first load hide the server history", async () => {
-    api.post.mockResolvedValue(apiRecord({ record_id: 9 }));
-    const store = await newStore();
-    await store.addRecord(7, { usedFertilizer: false });
-
-    api.get.mockResolvedValue([apiRecord({ record_id: 1 }), apiRecord({ record_id: 9 })]);
-    await store.ensureRecords(7);
-    expect(ids(store, 7)).toEqual([1, 9]);
-  });
-});
-
-describe("editRecord and deleteRecord", () => {
-  it("patches by record id and swaps in the server record", async () => {
-    api.get.mockResolvedValue([apiRecord(), apiRecord({ record_id: 2 })]);
-    const store = await newStore();
-    await store.ensureRecords(7);
-    api.patch.mockResolvedValue(apiRecord({ record_id: 2, used_fertilizer: true }));
-    await store.editRecord(7, 2, { usedFertilizer: true });
-    expect(api.patch).toHaveBeenCalledWith("/watering/2", { usedFertilizer: true });
-    expect(store.recordsFor(7).map((r) => r.usedFertilizer)).toEqual([false, true]);
+    expect(ids(store, 7)).toEqual([3, 1, 2]);
+    expect(store.recordsFor(7)[0].fertilizerTypeId).toBe(2);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(applySummaries).toHaveBeenCalledTimes(1);
   });
 
   it("restores the previous record when an edit fails", async () => {
-    api.get.mockResolvedValue([apiRecord()]);
-    const store = await newStore();
-    await store.ensureRecords(7);
-    api.patch.mockRejectedValue(new Error("403"));
-    await expect(store.editRecord(7, 1, { usedFertilizer: true })).rejects.toThrow("403");
-    expect(store.recordsFor(7)[0].usedFertilizer).toBe(false);
+    const store = await loaded([item(1), item(2)]);
+    api.patch.mockRejectedValue(new Error("500"));
+    await expect(store.editRecord(7, 2, { date: T0 + DAY, usedFertilizer: true })).rejects.toThrow(
+      "500",
+    );
+    expect(store.recordsFor(7).map((r) => [r.id, r.date, r.usedFertilizer])).toEqual([
+      [1, T0 - DAY, false],
+      [2, T0 - 2 * DAY, false],
+    ]);
   });
 
-  it("removes a record immediately and re-inserts it at its index on failure", async () => {
-    api.get.mockResolvedValue([
-      apiRecord(),
-      apiRecord({ record_id: 2 }),
-      apiRecord({ record_id: 3 }),
-    ]);
-    const store = await newStore();
-    await store.ensureRecords(7);
+  it("delete sends tz_offset in the query, removes the record and applies the summary", async () => {
+    const store = await loaded([item(1), item(2)]);
+    const applySummaries = vi.spyOn(usePlantsStore(), "applySummaries");
+    api.delete.mockResolvedValue({ summary: summary(T0 - 2 * DAY) });
+    await store.deleteRecord(7, 1);
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    expect(api.delete).toHaveBeenCalledWith(
+      `/watering/1?tz_offset=${-new Date().getTimezoneOffset()}`,
+    );
+    expect(ids(store, 7)).toEqual([2]);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(applySummaries).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts a record back at its place when the delete fails", async () => {
+    const store = await loaded([item(1), item(2), item(3)]);
     api.delete.mockRejectedValue(new Error("500"));
     await expect(store.deleteRecord(7, 2)).rejects.toThrow("500");
     expect(ids(store, 7)).toEqual([1, 2, 3]);
   });
 
-  it("keeps a deleted record out on success", async () => {
-    api.get.mockResolvedValue([apiRecord(), apiRecord({ record_id: 2 })]);
-    const store = await newStore();
-    await store.ensureRecords(7);
-    api.delete.mockResolvedValue(null);
-    await store.deleteRecord(7, 1);
-    expect(api.delete).toHaveBeenCalledWith("/watering/1");
+  it("batch add is one request, applies records and every summary, and never refetches", async () => {
+    const store = await loaded([item(1)]);
+    const applySummaries = vi.spyOn(usePlantsStore(), "applySummaries");
+    api.post.mockResolvedValue({
+      records: [
+        apiWateringItem({ id: 20, plant_id: 7, date: T0 }),
+        apiWateringItem({ id: 21, plant_id: 8, date: T0 }),
+      ],
+      summaries: { "7": summary(T0), "8": summary(T0) },
+    });
+    const created = await store.addBatch([
+      { plantId: 7, usedFertilizer: false },
+      { plantId: 8, usedFertilizer: false },
+    ]);
+    expect(created).toEqual([20, 21]);
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith("/watering/batch", {
+      entries: [
+        { plantId: 7, usedFertilizer: false },
+        { plantId: 8, usedFertilizer: false },
+      ],
+      tz_offset: -new Date().getTimezoneOffset(),
+    });
+    expect(ids(store, 7)).toEqual([20, 1]);
+    expect(store.isLoaded(8)).toBe(false);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(applySummaries).toHaveBeenCalledTimes(1);
+    expect([...applySummaries.mock.calls[0][0].keys()]).toEqual([7, 8]);
+  });
+
+  it("batch add deletes the created records again when a later chunk fails", async () => {
+    const store = await loaded([item(1)]);
+    const entries = Array.from({ length: 201 }, () => ({ plantId: 7, usedFertilizer: false }));
+    api.post
+      .mockResolvedValueOnce({
+        records: [apiWateringItem({ id: 20, plant_id: 7, date: T0 })],
+        summaries: { "7": summary(T0) },
+      })
+      .mockRejectedValueOnce(new Error("500"))
+      .mockResolvedValueOnce({ summaries: { "7": summary(T0 - DAY) } });
+    await expect(store.addBatch(entries)).rejects.toThrow("500");
+    expect(api.post).toHaveBeenCalledTimes(3);
+    expect(api.post).toHaveBeenLastCalledWith("/watering/batch/delete", {
+      ids: [20],
+      tz_offset: -new Date().getTimezoneOffset(),
+    });
+    expect(ids(store, 7)).toEqual([1]);
+  });
+
+  it("batch add stops posting chunks after a logout", async () => {
+    const store = await loaded([item(1)]);
+    const entries = Array.from({ length: 201 }, () => ({ plantId: 7, usedFertilizer: false }));
+    let release!: (value: unknown) => void;
+    api.post.mockReturnValue(new Promise((res) => (release = res)));
+    const pending = store.addBatch(entries);
+    epoch.abortAll();
+    release({ records: [], summaries: {} });
+    await pending;
+    expect(api.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("batch delete is one request, drops the records and applies the summaries", async () => {
+    const store = await loaded([item(1), item(2)]);
+    const applySummaries = vi.spyOn(usePlantsStore(), "applySummaries");
+    api.post.mockResolvedValue({ summaries: { "7": summary(T0 - 2 * DAY) } });
+    await store.removeBatch([1], [7]);
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith("/watering/batch/delete", {
+      ids: [1],
+      tz_offset: -new Date().getTimezoneOffset(),
+    });
     expect(ids(store, 7)).toEqual([2]);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(applySummaries).toHaveBeenCalledTimes(1);
+  });
+
+  it("a logout while a write is in flight applies nothing", async () => {
+    const store = await loaded([item(1)]);
+    const applySummaries = vi.spyOn(usePlantsStore(), "applySummaries");
+    let release!: (value: unknown) => void;
+    api.post.mockReturnValue(new Promise((res) => (release = res)));
+    const pending = store.addRecord(7, { date: T0 + DAY, usedFertilizer: false });
+    epoch.abortAll();
+    release({ record: item(9, 7, { date: T0 + DAY }), summary: summary(T0 + DAY) });
+    await pending;
+    expect(applySummaries).not.toHaveBeenCalled();
+    expect(ids(store, 7)).not.toContain(9);
+  });
+
+  it("a failed write after a logout does not roll anything back", async () => {
+    const store = await loaded([item(1), item(2)]);
+    let fail!: (error: Error) => void;
+    api.delete.mockReturnValue(new Promise((_, rej) => (fail = rej)));
+    const pending = store.deleteRecord(7, 1);
+    epoch.abortAll();
+    store.commitHistory(7, { items: [], nextCursor: null, loadedAt: Date.now() });
+    fail(new Error("aborted"));
+    await expect(pending).rejects.toThrow("aborted");
+    expect(store.recordsFor(7)).toEqual([]);
   });
 });
 
-describe("dropPlant", () => {
-  it("forgets one plant's records and keeps the others", async () => {
-    api.get.mockImplementation(async (url: string) =>
-      url.endsWith("/7") ? [apiRecord()] : [apiRecord({ record_id: 2, plant_id: 8 })],
-    );
+describe("dropPlant and the round wrapper", () => {
+  it("forgets one plant's history and keeps the others", async () => {
+    api.get.mockResolvedValue(envelope([item(1)]).data);
     const store = await newStore();
     await store.ensureRecords(7);
     await store.ensureRecords(8);
     store.dropPlant(7);
-    expect(store.recordsFor(7)).toEqual([]);
-    expect(ids(store, 8)).toEqual([2]);
-  });
-});
-
-describe("persistence", () => {
-  it("stores records and fertilizer types in the existing cache keys", async () => {
-    vi.useFakeTimers();
-    api.get.mockImplementation(async (url: string) =>
-      url.endsWith("fertilizer-types")
-        ? [{ fertilizer_id: 1, fertilizer_name: "organic" }]
-        : [apiRecord()],
-    );
-    const store = await newStore();
-    await store.ensureRecords(7);
-    await store.ensureFertilizerTypes();
-    await vi.advanceTimersByTimeAsync(500);
-
-    const records = memoryStore.get("watering_records_data") as { data: Record<string, unknown[]> };
-    expect(Object.keys(records.data)).toEqual(["7"]);
-    const types = memoryStore.get("fertilizer_types_data") as { data: FertilizerType[] };
-    expect(types.data).toEqual([{ id: 1, name: "organic" }]);
-  });
-
-  it("hydrates fresh snapshots instead of calling the API", async () => {
-    memoryStore.set("watering_records_data", {
-      data: { 7: [{ id: 4, plantId: 7 }] },
-      timestamp: Date.now(),
-    });
-    memoryStore.set("fertilizer_types_data", {
-      data: [{ id: 1, name: "organic" }],
-      timestamp: Date.now(),
-    });
-    const store = await newStore();
-    await store.ensureRecords(7);
-    await store.ensureFertilizerTypes();
-    expect(api.get).not.toHaveBeenCalled();
-    expect(ids(store, 7)).toEqual([4]);
-    expect(store.fertilizerTypes).toHaveLength(1);
-  });
-
-  it("writes nothing back after a reset", async () => {
-    vi.useFakeTimers();
-    api.get.mockResolvedValue([apiRecord()]);
-    const store = await newStore();
-    await store.ensureRecords(7);
-    store.$reset();
-    await vi.advanceTimersByTimeAsync(500);
-    expect(memoryStore.has("watering_records_data")).toBe(false);
-    expect(store.recordsFor(7)).toEqual([]);
-  });
-});
-
-describe("batch watering", () => {
-  const entries: WateringBatchEntry[] = [
-    { plantId: 7, usedFertilizer: true, fertilizerTypeId: 2 },
-    { plantId: 8, usedFertilizer: false, fertilizerTypeId: null },
-    { plantId: 7, usedFertilizer: false, fertilizerTypeId: null },
-  ];
-
-  it("posts the entries and refetches each distinct plant once", async () => {
-    api.post.mockResolvedValue({ ids: [10, 11, 12] });
-    api.get.mockResolvedValue([apiRecord()]);
-    const store = await newStore();
-
-    await expect(store.addBatch(entries)).resolves.toEqual([10, 11, 12]);
-
-    expect(api.post).toHaveBeenCalledWith("/watering/batch", { entries });
-    expect(api.get.mock.calls.map((call) => call[0]).sort()).toEqual([
-      "/watering/plant/7",
-      "/watering/plant/8",
-    ]);
-  });
-
-  it("refetches at most three plants at a time", async () => {
-    api.post.mockResolvedValue({ ids: [1] });
-    let running = 0;
-    let peak = 0;
-    api.get.mockImplementation(async () => {
-      running += 1;
-      peak = Math.max(peak, running);
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      running -= 1;
-      return [];
-    });
-    const store = await newStore();
-    await store.addBatch(
-      Array.from({ length: 8 }, (_, i) => ({
-        plantId: i + 1,
-        usedFertilizer: false,
-        fertilizerTypeId: null,
-      })),
-    );
-    expect(api.get).toHaveBeenCalledTimes(8);
-    expect(peak).toBe(3);
-  });
-
-  it("does not refetch when the batch is rejected", async () => {
-    api.post.mockRejectedValue(new Error("400"));
-    const store = await newStore();
-    await expect(store.addBatch(entries)).rejects.toThrow("400");
-    expect(api.get).not.toHaveBeenCalled();
-  });
-
-  it("posts the record ids to delete and refetches the affected plants", async () => {
-    api.post.mockResolvedValue(undefined);
-    api.get.mockResolvedValue([]);
-    const store = await newStore();
-
-    await store.removeBatch([10, 11], [7, 8]);
-
-    expect(api.post).toHaveBeenCalledWith("/watering/batch/delete", { ids: [10, 11] });
-    expect(api.get).toHaveBeenCalledWith("/watering/plant/7");
-    expect(api.get).toHaveBeenCalledWith("/watering/plant/8");
-  });
-  const many = (count: number): WateringBatchEntry[] =>
-    Array.from({ length: count }, (_, i) => ({ plantId: (i % 5) + 1, usedFertilizer: false }));
-  const sizes = (path: string, key: "entries" | "ids") =>
-    api.post.mock.calls.filter((c) => c[0] === path).map((c) => c[1][key].length);
-
-  it("splits more than 200 entries into sequential requests and joins the ids", async () => {
-    let next = 1;
-    api.post.mockImplementation(async (_path: string, body: { entries: unknown[] }) => ({
-      ids: body.entries.map(() => next++),
-    }));
-    api.get.mockResolvedValue([]);
-    const store = await newStore();
-
-    const result = await store.addBatch(many(450));
-
-    expect(sizes("/watering/batch", "entries")).toEqual([200, 200, 50]);
-    expect(result).toEqual(Array.from({ length: 450 }, (_, i) => i + 1));
-  });
-
-  it("deletes the ids of earlier chunks and rethrows when a later chunk fails", async () => {
-    let calls = 0;
-    api.post.mockImplementation(async (path: string, body: { entries?: unknown[] }) => {
-      if (path === "/watering/batch/delete") return undefined;
-      calls += 1;
-      if (calls === 2) throw new Error("boom");
-      return { ids: body.entries!.map((_, i) => 1000 * calls + i) };
-    });
-    api.get.mockResolvedValue([]);
-    const store = await newStore();
-
-    await expect(store.addBatch(many(450))).rejects.toThrow("boom");
-
-    const deleted = api.post.mock.calls
-      .filter((c) => c[0] === "/watering/batch/delete")
-      .flatMap((c) => c[1].ids);
-    expect(deleted).toEqual(Array.from({ length: 200 }, (_, i) => 1000 + i));
-  });
-
-  it("splits a large delete into requests of 200", async () => {
-    api.post.mockResolvedValue(undefined);
-    api.get.mockResolvedValue([]);
-    const store = await newStore();
-
-    await store.removeBatch(
-      Array.from({ length: 450 }, (_, i) => i + 1),
-      [7],
-    );
-
-    expect(sizes("/watering/batch/delete", "ids")).toEqual([200, 200, 50]);
-  });
-
-  it("still resolves with the ids when the refetch fails, without an error toast", async () => {
-    api.post.mockResolvedValue({ ids: [10] });
-    api.get.mockRejectedValue(new Error("offline"));
-    const store = await newStore();
-
-    await expect(store.addBatch([many(1)[0]])).resolves.toEqual([10]);
-    expect(toast.showError).not.toHaveBeenCalled();
-  });
-
-  it("still resolves a delete when the refetch fails", async () => {
-    api.post.mockResolvedValue(undefined);
-    api.get.mockRejectedValue(new Error("offline"));
-    const store = await newStore();
-
-    await expect(store.removeBatch([10], [7])).resolves.toBeUndefined();
-    expect(toast.showError).not.toHaveBeenCalled();
+    expect(store.isLoaded(7)).toBe(false);
+    expect(store.isLoaded(8)).toBe(true);
   });
 });

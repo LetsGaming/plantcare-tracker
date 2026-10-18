@@ -5,21 +5,26 @@
  * Each use case takes a PlantRepository via constructor injection
  * and throws typed domain errors — never raw strings.
  *
- * Create and update return the full, freshly-read Plant so that the
- * controller has nothing to orchestrate: the create-then-refetch
- * sequence that used to live in the controller belongs to the use
- * case, which is the layer that knows a write must be answered with
- * the complete resource.
+ * Create and update return the full, freshly-read Plant (the detail
+ * resource) so that the controller has nothing to orchestrate.
  */
 
 import { z } from 'zod';
-import type { PlantRepository } from '../domain/Plant';
-import type { Plant } from '../domain/Plant';
+import type {
+  Plant,
+  PlantListPage,
+  PlantListQuery,
+  PlantRepository,
+  PlantScope,
+} from '../domain/Plant';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { NotFoundError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
+
+/** Read by the controller (see tzOf); declared so the schema does not silently drop it. */
+const TzOffsetField = z.union([z.string(), z.number()]).optional();
 
 export const CreatePlantSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -31,6 +36,7 @@ export const CreatePlantSchema = z.object({
     .nullable()
     .optional(),
   isPublic: z.boolean().default(false),
+  tz_offset: TzOffsetField,
 });
 
 /** An empty or null species and a null substrateId clear the field. */
@@ -40,6 +46,7 @@ export const UpdatePlantSchema = z
     species: z.string().max(100).nullable().optional(),
     substrateId: z.number().int().positive().nullable().optional(),
     isPublic: z.boolean().optional(),
+    tz_offset: TzOffsetField,
   })
   .refine(
     (data) =>
@@ -67,30 +74,29 @@ const assertSubstrateUsable = async (
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
-export class GetAllPlantsUseCase {
+export class ListPlantsUseCase {
   constructor(private readonly repo: PlantRepository) {}
 
-  async execute(userId: number | null): Promise<Plant[]> {
-    const [publicPlants, privatePlants] = await Promise.all([
-      this.repo.findAllPublic(),
-      userId !== null ? this.repo.findAllByUser(userId) : Promise.resolve([]),
-    ]);
-
-    // Merge and deduplicate (public plants owned by the user would appear twice)
-    const seen = new Set<number>();
-    return [...publicPlants, ...privatePlants].filter((p) => {
-      if (seen.has(p.id)) return false;
-      seen.add(p.id);
-      return true;
-    });
+  /** `viewerId` is null for anyone without plants of their own (anonymous and guest sessions). */
+  async execute(
+    scope: PlantScope,
+    query: PlantListQuery,
+    viewerId: number | null,
+    tz: number,
+  ): Promise<PlantListPage> {
+    if (scope === 'public') return this.repo.listPublic(query);
+    if (viewerId === null) {
+      return { items: [], nextCursor: null, ...(query.cursor === null ? { total: 0 } : {}) };
+    }
+    return this.repo.listMine(viewerId, query, tz);
   }
 }
 
 export class GetPlantUseCase {
   constructor(private readonly repo: PlantRepository) {}
 
-  async execute(id: number, userId: number | null): Promise<Plant> {
-    const plant = await this.repo.findById(id);
+  async execute(id: number, userId: number | null, tz: number): Promise<Plant> {
+    const plant = await this.repo.findById(id, userId, tz);
     // A private plant answers exactly like a missing one, so ids cannot be probed.
     if (!plant || !plant.isVisibleTo(userId)) throw new NotFoundError('Plant');
     return plant;
@@ -100,7 +106,7 @@ export class GetPlantUseCase {
 export class CreatePlantUseCase {
   constructor(private readonly repo: PlantRepository) {}
 
-  async execute(input: unknown, userId: number): Promise<Plant> {
+  async execute(input: unknown, userId: number, tz: number): Promise<Plant> {
     const data = parseOrThrow(CreatePlantSchema, input, 'Invalid plant data');
     await assertSubstrateUsable(this.repo, data.substrateId, userId);
 
@@ -108,7 +114,7 @@ export class CreatePlantUseCase {
 
     // Read back the full resource so the client receives the same shape
     // a GET would produce (joined substrate name, images, timestamps).
-    const plant = await this.repo.findById(plantId);
+    const plant = await this.repo.findById(plantId, userId, tz);
     if (!plant) {
       // The row we just inserted has vanished — a data-layer fault, not
       // a client error, hence 500 rather than 404.
@@ -121,20 +127,20 @@ export class CreatePlantUseCase {
 export class UpdatePlantUseCase {
   constructor(private readonly repo: PlantRepository) {}
 
-  async execute(id: number, userId: number, input: unknown): Promise<Plant> {
+  async execute(id: number, userId: number, input: unknown, tz: number): Promise<Plant> {
     const data = parseOrThrow(UpdatePlantSchema, input, 'Invalid update data');
 
-    const current = await this.repo.findById(id);
+    const current = await this.repo.findOwnership(id);
     if (!current || current.userId !== userId) throw new NotFoundError('Plant');
     // A plant may keep a substrate whose owner made it private since; only a move is checked.
-    if (data.substrateId !== current.substrate?.substrate_id) {
+    if (data.substrateId !== current.substrateId) {
       await assertSubstrateUsable(this.repo, data.substrateId, userId);
     }
 
     const updated = await this.repo.update(id, userId, data);
     if (!updated) throw new NotFoundError('Plant');
 
-    const plant = await this.repo.findById(id);
+    const plant = await this.repo.findById(id, userId, tz);
     if (!plant) throw new NotFoundError('Plant');
     return plant;
   }
@@ -144,11 +150,13 @@ export class DeletePlantUseCase {
   constructor(
     private readonly repo: PlantRepository,
     private readonly images: EntityImageCleanup,
+    private readonly onDeleted?: (ownerUserId: number) => void,
   ) {}
 
   async execute(id: number, userId: number): Promise<void> {
     const deleted = await this.repo.delete(id, userId);
     if (!deleted) throw new NotFoundError('Plant');
     await this.images.removeAll('plant', id);
+    this.onDeleted?.(userId);
   }
 }

@@ -26,7 +26,7 @@ export default defineComponent({
   components: { BaseFormModal },
   props: {
     isOpen: { type: Boolean, required: true },
-    component: { type: Object as PropType<Component>, required: true },
+    component: { type: Object as PropType<ComponentView>, required: true },
     isLoading: { type: Boolean, default: false },
   },
   emits: ["close", "save", "delete"],
@@ -40,7 +40,7 @@ export default defineComponent({
   },
   async created() {
     this.resetFromComponent();
-    await this.ensureFinenessLevels();
+    await this.ensureFinenessLevels().catch(console.error);
   },
   watch: {
     isOpen(open: boolean) {
@@ -87,7 +87,7 @@ export default defineComponent({
     resetFromComponent() {
       this.editComponentData = {
         name: this.component.name,
-        fineness: this.component.finenessId,
+        fineness: this.component.finenessId ?? 0,
       };
     },
   },

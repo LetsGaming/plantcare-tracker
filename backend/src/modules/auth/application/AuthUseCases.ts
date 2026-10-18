@@ -3,13 +3,12 @@
  *
  * Use cases for registration, login (user + guest), token refresh,
  * logout, SSE tickets, and profile management. Validation goes through
- * the shared parseOrThrow helper; magic numbers (bcrypt cost, session
- * limits) come from core/config.
+ * the shared parseOrThrow helper.
  */
 
-import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { UserRepository } from '../domain/User';
+import type { AccountDeleter, ImageFileRemover, UserRepository } from '../domain/User';
 import {
   ValidationError,
   UnauthorizedError,
@@ -17,8 +16,10 @@ import {
   ConflictError,
 } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
-import { AUTH } from '../../../core/config';
+import { createModuleLogger } from '../../../core/logging';
 import {
+  hashPassword,
+  verifyPassword,
   issueSession,
   signAccessToken,
   sessionStore,
@@ -26,13 +27,17 @@ import {
   verifyRefreshToken,
 } from '../../../core/auth';
 
+const log = createModuleLogger('Auth');
+
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const USERNAME_MIN = 3;
 const USERNAME_MAX = 64;
 const PASSWORD_MIN = 8;
-/** bcrypt ignores everything past 72 bytes, so longer passwords are rejected instead of truncated. */
+/** Matches the input limit of legacy bcrypt hashes, which ignore everything past 72 bytes. */
 const PASSWORD_MAX_BYTES = 72;
+/** A longer login input may only share a 72 byte prefix with a legacy password, so it is never rehashed. */
+const BCRYPT_INPUT_MAX_BYTES = 72;
 const LOGIN_PASSWORD_MAX = 1024;
 
 const usernameRule = z
@@ -80,10 +85,14 @@ export class RegisterUseCase {
     const existing = await this.repo.findByUsername(username);
     if (existing) throw new ConflictError('Username already exists');
 
-    const hashedPassword = await bcrypt.hash(password, AUTH.BCRYPT_SALT_ROUNDS);
-    return this.repo.create(username, hashedPassword);
+    return this.repo.create(username, await hashPassword(password));
   }
 }
+
+let dummyHashPromise: Promise<string> | undefined;
+/** Verified when the user is unknown so response time does not reveal which usernames exist. */
+const dummyHash = (): Promise<string> =>
+  (dummyHashPromise ??= hashPassword(crypto.randomBytes(16).toString('hex')));
 
 export class LoginUseCase {
   constructor(private readonly repo: UserRepository) {}
@@ -96,11 +105,25 @@ export class LoginUseCase {
     );
 
     const user = await this.repo.findByUsername(username);
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new UnauthorizedError('Invalid credentials');
+    const check = await verifyPassword(password, user?.password ?? (await dummyHash()));
+    if (!user || !check.ok) throw new UnauthorizedError('Invalid credentials');
+    if (check.needsRehash && Buffer.byteLength(password, 'utf8') <= BCRYPT_INPUT_MAX_BYTES) {
+      await this.upgradeHash(user.id, user.password, password);
     }
 
     return issueSession({ id: user.id, username: user.username, role: user.role });
+  }
+
+  /**
+   * Best effort: a failed upgrade keeps the old hash, which still verifies, and a
+   * concurrent password change makes the compare-and-swap a no-op.
+   */
+  private async upgradeHash(userId: number, oldHash: string, password: string): Promise<void> {
+    try {
+      await this.repo.updatePasswordHash(userId, oldHash, await hashPassword(password));
+    } catch (err: unknown) {
+      log.warn(`Could not upgrade the password hash of user ${userId}`, { err });
+    }
   }
 }
 
@@ -160,7 +183,7 @@ export class UpdateProfileUseCase {
       if (fields.password !== fields.passwordConfirmation) {
         throw new ValidationError('Passwords do not match');
       }
-      updateFields['password'] = await bcrypt.hash(fields.password, AUTH.BCRYPT_SALT_ROUNDS);
+      updateFields['password'] = await hashPassword(fields.password);
       delete updateFields['passwordConfirmation'];
     }
 
@@ -178,11 +201,15 @@ export class UpdateProfileUseCase {
 }
 
 export class DeleteProfileUseCase {
-  constructor(private readonly repo: UserRepository) {}
+  constructor(
+    private readonly repo: AccountDeleter,
+    private readonly files: ImageFileRemover,
+  ) {}
 
   async execute(userId: number): Promise<void> {
-    const deleted = await this.repo.delete(userId);
-    if (!deleted) throw new NotFoundError('User');
+    const removed = await this.repo.deleteAccount(userId);
+    if (!removed) throw new NotFoundError('User');
     sessionStore.deleteAll(userId);
+    await this.files.removeFiles(removed);
   }
 }

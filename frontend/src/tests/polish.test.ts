@@ -21,6 +21,7 @@ vi.mock("@/services/general/LocalizationService", () => ({
 
 import SourceRow from "@/components/admin/SourceRow.vue";
 import ItemsOverview, { type OverviewItem } from "@/components/overview/ItemsOverview.vue";
+import OverviewCard from "@/components/overview/OverviewCard.vue";
 import PlantDetails from "@/views/plants/PlantDetails.vue";
 import { usePlantsStore } from "@/stores/plants";
 
@@ -68,6 +69,8 @@ const mountOverview = (items: OverviewItem[]) =>
     global: { renderStubDefaultSlot: true },
   });
 
+const mountCard = (item: OverviewItem) => shallowMount(OverviewCard, { props: { item } });
+
 describe("ItemsOverview repeated text", () => {
   it("omits the new count when every visible item is new", () => {
     const wrapper = mountOverview([
@@ -86,23 +89,25 @@ describe("ItemsOverview repeated text", () => {
   });
 
   it("hides the status line of a never-watered plant but keeps the chip", () => {
-    const wrapper = mountOverview([
-      {
-        id: 1,
-        name: "A",
-        statusLine: "Never watered",
-        statusTone: "new",
-        statusLabel: "Never watered",
-      },
-    ]);
+    const wrapper = mountCard({
+      id: 1,
+      name: "A",
+      statusLine: "Never watered",
+      statusTone: "new",
+      statusLabel: "Never watered",
+    });
     expect(wrapper.find(".status-line").exists()).toBe(false);
     expect(wrapper.find(".status-chip").exists()).toBe(true);
   });
 
   it("shows the status line for a due plant", () => {
-    const wrapper = mountOverview([
-      { id: 1, name: "A", statusLine: "Due", statusTone: "due", statusLabel: "Due" },
-    ]);
+    const wrapper = mountCard({
+      id: 1,
+      name: "A",
+      statusLine: "Due",
+      statusTone: "due",
+      statusLabel: "Due",
+    });
     expect(wrapper.find(".status-line").exists()).toBe(true);
   });
 });
@@ -110,7 +115,16 @@ describe("ItemsOverview repeated text", () => {
 const mountDetails = (images: unknown[]) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const store = usePlantsStore(pinia);
-  store.items = [{ id: 5, userId: 1, name: "Monty", isPublic: true, images } as unknown as Plant];
+  store.mine.items = [
+    {
+      id: 5,
+      userId: 1,
+      name: "Monty",
+      isPublic: true,
+      cover: null,
+      images,
+    } as unknown as PlantView,
+  ];
   return shallowMount(PlantDetails, {
     props: { id: "5" },
     global: { plugins: [pinia], renderStubDefaultSlot: true },

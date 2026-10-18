@@ -84,3 +84,9 @@ describe("theme css", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("custom.css leftovers", () => {
+  it("has no ion-img part rule (the image component renders a plain img)", () => {
+    expect(custom).not.toContain("ion-img");
+  });
+});

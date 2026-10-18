@@ -1427,6 +1427,14 @@ export default {
   "recognition.match": "Die Pflanze konnte nicht erkannt werden.",
   "recognition.confirm":
     "Das Gießen konnte nicht eingetragen werden. Mach ein neues Foto und versuche es erneut.",
+  "list.loading_more": "Lade weitere",
+  "list.load_more_failed": "Weitere Einträge konnten nicht geladen werden. Erneut versuchen.",
+  "watering.show_older": "Ältere Einträge anzeigen",
+  "components.selected_count": "Ausgewählt ({count})",
+  "substrates.picker_title": "Substrat wählen",
+  "substrates.picker_search": "Substrate suchen",
+  "careGuide.show": "Pflegehinweise anzeigen",
+  "sales.updated_at": "Aktualisiert {time}",
   "page.plant_details": "Pflanze",
   "page.substrate_details": "Substrat",
 };

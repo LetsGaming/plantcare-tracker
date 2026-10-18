@@ -1,18 +1,17 @@
 /**
  * core/auth/sessions.ts
  *
- * In-memory session store and one-time SSE ticket store. A session is
- * identified by a random `sid` embedded in both tokens of a login, so
- * ending a session ends exactly that login's tokens.
+ * Session store backed by the sessions table, and the in-memory one-time
+ * SSE ticket store. A session is identified by a random `sid` embedded in
+ * both tokens of a login, so ending a session ends exactly that login's
+ * tokens. The store is synchronous: it runs prepared better-sqlite3
+ * statements on the shared connection. Times are epoch milliseconds.
  */
 
 import crypto from 'crypto';
+import type { Database as SqliteDatabase, Statement } from 'better-sqlite3';
 import { AUTH } from '../config';
-
-interface Session {
-  sid: string;
-  expiresAt: number;
-}
+import { getSqlite } from '../database/db';
 
 export interface SessionPolicy {
   /** Oldest sessions beyond this count are ended. */
@@ -31,48 +30,112 @@ export const GUEST_SESSION_POLICY: SessionPolicy = {
   ttlMs: AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS,
 };
 
-const activeSessions = new Map<number, Session[]>();
+/** Upper bound of expired rows removed by one `create`; the sweep removes the rest. */
+const PRUNE_BATCH = 200;
 
-const liveSessions = (userId: number): Session[] => {
-  const now = Date.now();
-  const live = (activeSessions.get(userId) ?? []).filter((s) => s.expiresAt > now);
-  if (live.length) activeSessions.set(userId, live);
-  else activeSessions.delete(userId);
-  return live;
+interface SessionStatements {
+  insert: Statement<[string, number, number, number]>;
+  pruneExpired: Statement<[number, number]>;
+  evictOldest: Statement<[number, number]>;
+  has: Statement<[string, number, number]>;
+  count: Statement<[number, number], number>;
+  end: Statement<[string, number]>;
+  deleteAll: Statement<[number]>;
+  sweep: Statement<[number]>;
+}
+
+const prepare = (db: SqliteDatabase): SessionStatements => ({
+  insert: db.prepare<[string, number, number, number]>(
+    'INSERT INTO sessions (sid, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)',
+  ),
+  pruneExpired: db.prepare<[number, number]>(
+    `DELETE FROM sessions WHERE rowid IN (
+       SELECT rowid FROM sessions WHERE expires_at <= ? LIMIT ?
+     )`,
+  ),
+  // Reads only the (user_id, created_at) index. Rows that expired but were not
+  // pruned yet still count toward the cap; they are the oldest, so they go first.
+  evictOldest: db.prepare<[number, number]>(
+    `DELETE FROM sessions WHERE rowid IN (
+       SELECT rowid FROM sessions WHERE user_id = ?
+       ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET ?
+     )`,
+  ),
+  has: db.prepare<[string, number, number]>(
+    'SELECT 1 FROM sessions WHERE sid = ? AND user_id = ? AND expires_at > ?',
+  ),
+  count: db
+    .prepare<[number, number], number>(
+      'SELECT COUNT(*) FROM sessions WHERE user_id = ? AND expires_at > ?',
+    )
+    .pluck(),
+  end: db.prepare<[string, number]>('DELETE FROM sessions WHERE sid = ? AND user_id = ?'),
+  deleteAll: db.prepare<[number]>('DELETE FROM sessions WHERE user_id = ?'),
+  sweep: db.prepare<[number]>('DELETE FROM sessions WHERE expires_at <= ?'),
+});
+
+const statementCache = new WeakMap<SqliteDatabase, SessionStatements>();
+
+const statements = (): SessionStatements => {
+  const db = getSqlite();
+  let cached = statementCache.get(db);
+  if (!cached) {
+    cached = prepare(db);
+    statementCache.set(db, cached);
+  }
+  return cached;
 };
 
 export const sessionStore = {
   /** Registers a new session and returns its id. */
   create(userId: number, policy: SessionPolicy = USER_SESSION_POLICY): string {
-    const sessions = liveSessions(userId);
-    while (sessions.length >= policy.maxSessions) sessions.shift();
+    const s = statements();
+    const now = Date.now();
+    s.pruneExpired.run(now, PRUNE_BATCH);
+    s.evictOldest.run(userId, Math.max(policy.maxSessions - 1, 0));
     const sid = crypto.randomUUID();
-    sessions.push({ sid, expiresAt: Date.now() + policy.ttlMs });
-    activeSessions.set(userId, sessions);
+    s.insert.run(sid, userId, now + policy.ttlMs, now);
     return sid;
   },
   has(userId: number, sid: string): boolean {
-    return liveSessions(userId).some((s) => s.sid === sid);
+    return statements().has.get(sid, userId, Date.now()) !== undefined;
   },
   count(userId: number): number {
-    return liveSessions(userId).length;
+    return statements().count.get(userId, Date.now()) ?? 0;
   },
   end(userId: number, sid: string): void {
-    const remaining = liveSessions(userId).filter((s) => s.sid !== sid);
-    if (remaining.length) activeSessions.set(userId, remaining);
-    else activeSessions.delete(userId);
+    statements().end.run(sid, userId);
   },
   deleteAll(userId: number): void {
-    activeSessions.delete(userId);
+    statements().deleteAll.run(userId);
   },
 };
 
+/** Removes every expired session and returns how many were removed. */
+export const sweepSessions = (): number => statements().sweep.run(Date.now()).changes;
+
 const tickets = new Map<string, { userId: number; expires: number }>();
+
+/**
+ * Every ticket lives for the same TTL, so the map's insertion order is also
+ * its expiry order and pruning can stop at the first live ticket.
+ */
+const pruneExpiredTickets = (now: number): number => {
+  let removed = 0;
+  for (const [ticket, data] of tickets) {
+    if (data.expires >= now) break;
+    tickets.delete(ticket);
+    removed++;
+  }
+  return removed;
+};
 
 export const ticketStore = {
   create(userId: number): string {
+    const now = Date.now();
+    pruneExpiredTickets(now);
     const ticket = crypto.randomBytes(32).toString('hex');
-    tickets.set(ticket, { userId, expires: Date.now() + AUTH.SSE_TICKET_TTL_MS });
+    tickets.set(ticket, { userId, expires: now + AUTH.SSE_TICKET_TTL_MS });
     return ticket;
   },
   /** Returns the ticket's user id and burns the ticket, or null when unknown or expired. */
@@ -83,4 +146,17 @@ export const ticketStore = {
     if (Date.now() > data.expires) return null;
     return data.userId;
   },
+};
+
+/** Removes every expired ticket and returns how many were removed. */
+export const sweepTickets = (): number => {
+  const now = Date.now();
+  let removed = 0;
+  for (const [ticket, data] of tickets) {
+    if (data.expires < now) {
+      tickets.delete(ticket);
+      removed++;
+    }
+  }
+  return removed;
 };

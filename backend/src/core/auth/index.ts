@@ -1,6 +1,8 @@
 export {
   sessionStore,
   ticketStore,
+  sweepSessions,
+  sweepTickets,
   USER_SESSION_POLICY,
   GUEST_SESSION_POLICY,
   type SessionPolicy,
@@ -17,3 +19,4 @@ export {
   type JwtPayload,
   type TokenIdentity,
 } from './tokens';
+export { hashPassword, verifyPassword, type PasswordCheck } from './passwords';

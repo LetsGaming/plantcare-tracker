@@ -150,6 +150,56 @@ jobs:
           test -n "$token"
           curl -fsS -H "authorization: Bearer $token" "$base/api/v2/plants" > /dev/null
 
+      - name: nginx config is valid and caching headers are served
+        run: |
+          set -eu
+          docker compose exec -T frontend nginx -t
+
+          base=http://localhost:8080
+          json='content-type: application/json'
+
+          # Response headers of a GET with the body discarded, lower-cased and CR-free.
+          headers() {
+            curl -sS -D - -o /dev/null "$@" | tr -d '\r' | tr '[:upper:]' '[:lower:]'
+          }
+          # expect <label> <headers> <regex>
+          expect() {
+            if ! printf '%s\n' "$2" | grep -Eq "$3"; then
+              echo "FAILED: $1 (expected a header line matching: $3)"
+              echo "--- headers received ---"
+              printf '%s\n' "$2"
+              exit 1
+            fi
+            echo "ok: $1"
+          }
+
+          # A file in the data volume, written by the backend user and read by nginx through the read-only mount.
+          docker compose exec -T backend sh -c 'mkdir -p /data/uploads/plant && printf "ci-smoke" > /data/uploads/plant/ci-smoke.webp'
+          h=$(headers "$base/uploads/plant/ci-smoke.webp")
+          expect "upload is served" "$h" '^http/1\.1 200'
+          expect "upload is immutable" "$h" '^cache-control: .*immutable'
+          count=$(printf '%s\n' "$h" | grep -c '^cache-control:' || true)
+          test "$count" = 1 || { echo "FAILED: upload has $count Cache-Control headers"; printf '%s\n' "$h"; exit 1; }
+          test "$(curl -fsS "$base/uploads/plant/ci-smoke.webp")" = ci-smoke
+
+          # A hashed build asset, compressed ahead of time.
+          asset=$(curl -fsS "$base/" | grep -o '/assets/[^"]*\.js' | head -n 1)
+          test -n "$asset" || { echo "FAILED: no hashed script found in index.html"; exit 1; }
+          h=$(headers -H 'Accept-Encoding: gzip' "$base$asset")
+          expect "asset is gzip encoded" "$h" '^content-encoding: gzip'
+          expect "asset varies on encoding" "$h" '^vary: .*accept-encoding'
+          expect "asset is immutable" "$h" '^cache-control: .*immutable'
+          h=$(headers "$base/index.html")
+          expect "index.html is revalidated" "$h" '^cache-control: no-cache'
+
+          # The API list carries a validator so clients can revalidate it.
+          token=$(curl -fsS -X POST -H "$json" \
+            -d '{"username":"smoke-user","password":"smoke-pass-1"}' \
+            "$base/api/v2/auth/login" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+          test -n "$token" || { echo "FAILED: login returned no access token"; exit 1; }
+          h=$(headers -H "authorization: Bearer $token" "$base/api/v2/plants")
+          expect "plants list has an etag" "$h" '^etag: '
+
       - name: Chromium starts inside the backend image
         run: |
           docker compose exec -T backend node -e "require('playwright').chromium.launch({ headless: true, args: ['--no-sandbox'] }).then((b) => b.close()).then(() => console.log('chromium ok'))"

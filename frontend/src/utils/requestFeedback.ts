@@ -3,7 +3,10 @@ import localizationService from "@/services/general/LocalizationService";
 import { asApiError, describeUserFixableError } from "@/utils/apiErrorMessage";
 
 /** Names of errors the caller reports itself; no generic toast is shown for them. */
-const SILENT_ERRORS = new Set(["RefreshError", "RegisterError"]);
+const SILENT_ERRORS = new Set(["RefreshError", "RegisterError", "AbortError"]);
+
+const isAbortError = (error: unknown): boolean =>
+  (error as { name?: string } | null)?.name === "AbortError";
 
 const GENERIC_ACTION_KEY = "error.action_failed";
 const MISSING = "\u0000missing";
@@ -82,6 +85,8 @@ export const showRequestFailure = (
   actionKey = "error.fetch_failed",
   options: RequestFeedbackOptions = {},
 ): void => {
+  // A cancelled request (navigation, logout) is not a failure the user should see.
+  if (isAbortError(error)) return;
   const retry = options.retry;
   ToastService.showError(
     describeRequestFailure(error, resourceNameKey, actionKey),

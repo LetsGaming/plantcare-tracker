@@ -59,6 +59,17 @@ import { useSessionStore } from "@/stores/session";
 import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 
+const IDLE_TIMEOUT_MS = 2000;
+
+/** Runs `task` when the browser is idle (or after 2 s), so it does not compete with the first page load. */
+const whenIdle = (task: () => Promise<unknown>): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const run = () => task().then(resolve, reject);
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(run, { timeout: IDLE_TIMEOUT_MS });
+    } else setTimeout(run, IDLE_TIMEOUT_MS);
+  });
+
 export default defineComponent({
   name: "TabsPage",
   components: {
@@ -84,7 +95,11 @@ export default defineComponent({
     ...mapState(useSalesStore, { salesCount: "newCount" }),
   },
   async mounted() {
-    await this.restoreSales();
+    const sales = useSalesStore();
+    void sales
+      .hydrateBoot()
+      .then(() => whenIdle(() => sales.loadSummary()))
+      .catch((error: unknown) => console.error("Loading the sales badge failed:", error));
     if (!this.isAdmin) return;
     try {
       await this.loadSourceHealth();
@@ -96,7 +111,6 @@ export default defineComponent({
     tabIcon(tab: NavDestination): string {
       return this.activeTab === tab ? navIcons[tab].selected : navIcons[tab].idle;
     },
-    ...mapActions(useSalesStore, { restoreSales: "restore" }),
     ...mapActions(useAdminHealthStore, { loadSourceHealth: "load" }),
     t(key: string, vars?: Record<string, string | number>, fallback?: string) {
       return localizationService.t(key, vars, fallback);

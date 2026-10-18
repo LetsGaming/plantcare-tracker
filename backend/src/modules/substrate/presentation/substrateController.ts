@@ -13,23 +13,21 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { numericParam, type Handler } from '../../../core/middleware';
 import {
-  GetAllSubstratesUseCase,
+  ListSubstratesUseCase,
   GetSubstrateUseCase,
   CreateSubstrateUseCase,
   UpdateSubstrateUseCase,
-  AddSubstrateComponentsUseCase,
-  UpsertSubstrateComponentsUseCase,
   DeleteSubstrateUseCase,
 } from '../application/SubstrateUseCases';
-import type { SubstrateRepository, SubstrateData } from '../domain/Substrate';
+import type { SubstrateRepository, SubstrateData, SubstrateListItem } from '../domain/Substrate';
+import { toEnvelope, privateRevalidate, type ListEnvelope } from '../../../core/pagination';
+import { isGuestRole } from '../../../core/auth';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
-export interface SubstrateListResponse {
-  data: SubstrateData[];
-}
+export type SubstrateListResponse = ListEnvelope<SubstrateListItem>;
 export interface SubstrateResponse {
   data: SubstrateData;
 }
@@ -43,12 +41,10 @@ export interface SubstrateResponse {
  * layout (TS2883).
  */
 export interface SubstrateController {
-  getAllSubstrates: Handler;
+  listSubstrates: Handler;
   getSubstrate: Handler;
   addSubstrate: Handler;
   editSubstrate: Handler;
-  addComponents: Handler;
-  upsertComponents: Handler;
   deleteSubstrate: Handler;
 }
 
@@ -56,23 +52,24 @@ export const createSubstrateController = (
   repo: SubstrateRepository,
   imageCleanup: EntityImageCleanup,
 ): SubstrateController => {
-  const getAll = new GetAllSubstratesUseCase(repo);
+  const list = new ListSubstratesUseCase(repo);
   const getOne = new GetSubstrateUseCase(repo);
   const create = new CreateSubstrateUseCase(repo);
   const update = new UpdateSubstrateUseCase(repo);
-  const addComponents = new AddSubstrateComponentsUseCase(repo);
-  const upsertComponents = new UpsertSubstrateComponentsUseCase(repo);
   const remove = new DeleteSubstrateUseCase(repo, imageCleanup);
 
   return {
-    getAllSubstrates: async (req: FastifyRequest) => {
-      const substrates = await getAll.execute(req.user?.id ?? null);
-      const body: SubstrateListResponse = { data: substrates };
+    listSubstrates: async (req: FastifyRequest, reply: FastifyReply) => {
+      const viewer = { id: req.user!.id, isGuest: isGuestRole(req.user!.role) };
+      const page = await list.execute(req.query, viewer);
+      privateRevalidate(reply);
+      const body: SubstrateListResponse = toEnvelope(page, page.total);
       return body;
     },
 
-    getSubstrate: async (req: FastifyRequest) => {
+    getSubstrate: async (req: FastifyRequest, reply: FastifyReply) => {
       const substrate = await getOne.execute(numericParam(req, 'id'), req.user?.id ?? null);
+      privateRevalidate(reply);
       const body: SubstrateResponse = { data: substrate };
       return body;
     },
@@ -88,29 +85,6 @@ export const createSubstrateController = (
 
     editSubstrate: async (req: FastifyRequest) => {
       const substrate = await update.execute(numericParam(req, 'id'), req.user!.id, req.body);
-      const body: SubstrateResponse = { data: substrate };
-      return body;
-    },
-
-    addComponents: async (req: FastifyRequest, reply: FastifyReply) => {
-      const substrate = await addComponents.execute(
-        numericParam(req, 'id'),
-        req.user!.id,
-        req.body,
-      );
-      const body: SubstrateResponse = { data: substrate };
-      return reply
-        .code(HTTP_STATUS.CREATED)
-        .header('Location', `/substrates/${substrate.substrate_id}`)
-        .send(body);
-    },
-
-    upsertComponents: async (req: FastifyRequest) => {
-      const substrate = await upsertComponents.execute(
-        numericParam(req, 'id'),
-        req.user!.id,
-        req.body,
-      );
       const body: SubstrateResponse = { data: substrate };
       return body;
     },

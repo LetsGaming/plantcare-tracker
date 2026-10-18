@@ -11,10 +11,10 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   UploadImageUseCase,
   ListEntityImagesUseCase,
-  ServeEntityImageUseCase,
   UpdateImageUseCase,
   DeleteImageUseCase,
   DeleteEntityImagesUseCase,
+  type ImageRemovedListener,
   type ImageStoredListener,
 } from '../application/ImageUseCases';
 import type { ImageAccessPolicy } from '../application/ImageAccessPolicy';
@@ -30,24 +30,25 @@ import { HTTP_STATUS } from '../../../core/config';
 import { ValidationError } from '../../../core/errors';
 import { formatToDBDate } from '../../../core/utils';
 import { readUpload } from './multipartUpload';
-
-// ── Serving constants ─────────────────────────────────────────────────────────
-
-const SERVED_IMAGE_CONTENT_TYPE = 'image/webp';
-/** Client/proxy cache lifetime for served entity images (1 day). */
-const SERVED_IMAGE_CACHE_CONTROL = 'public, max-age=86400';
+import { toImageDto, type ImageDTO } from './imageDto';
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
 export interface UploadImageResponse {
   data: { path: string; date: string };
 }
+export type ImageWire = ImageDTO & { entityType: EntityType };
 export interface ImageListResponse {
-  data: ImageRecord[];
+  data: ImageWire[];
 }
 export interface ImageResponse {
-  data: ImageRecord;
+  data: ImageWire;
 }
+
+const toWire = (record: ImageRecord): ImageWire => ({
+  ...toImageDto(record),
+  entityType: record.entityType,
+});
 
 // ── HTTP input helpers ────────────────────────────────────────────────────────
 
@@ -59,7 +60,6 @@ const actorOf = (req: FastifyRequest): ImageActor => ({ id: req.user!.id, role: 
 export interface ImageController {
   uploadImage: Handler;
   listEntityImages: Handler;
-  serveEntityImage: Handler;
   updateImage: Handler;
   deleteImage: Handler;
   deleteEntityImages: Handler;
@@ -70,19 +70,19 @@ export const createImageController = (
   storage: ImageStorage,
   access: ImageAccessPolicy,
   onStored?: ImageStoredListener,
+  onRemoved?: ImageRemovedListener,
 ): ImageController => {
   const upload = new UploadImageUseCase(repo, storage, access, onStored);
   const list = new ListEntityImagesUseCase(repo, access);
-  const serve = new ServeEntityImageUseCase(repo, storage, access);
   const update = new UpdateImageUseCase(repo, storage, access, onStored);
-  const remove = new DeleteImageUseCase(repo, storage, access);
-  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access);
+  const remove = new DeleteImageUseCase(repo, storage, access, onRemoved);
+  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access, onRemoved);
 
   return {
     uploadImage: async (req: FastifyRequest, reply: FastifyReply) => {
       const entityType = entityTypeParam(req);
       const entityId = numericParam(req, 'entityId');
-      const { file } = await readUpload(req);
+      const { file, fields } = await readUpload(req);
       if (!file) throw new ValidationError('No image file provided.');
 
       const { url, capturedAt } = await upload.execute({
@@ -90,6 +90,7 @@ export const createImageController = (
         entityType,
         entityId,
         file,
+        date: fields['date'],
       });
 
       const body: UploadImageResponse = {
@@ -97,7 +98,7 @@ export const createImageController = (
       };
       return reply
         .code(HTTP_STATUS.CREATED)
-        .header('Location', `/images/${entityType}/${entityId}`)
+        .header('Location', `/images/${entityType}?entityId=${entityId}`)
         .send(body);
     },
 
@@ -107,25 +108,8 @@ export const createImageController = (
         Number((req.query as { entityId?: string }).entityId),
         actorOf(req),
       );
-      const body: ImageListResponse = { data: images };
+      const body: ImageListResponse = { data: images.map(toWire) };
       return body;
-    },
-
-    serveEntityImage: async (req: FastifyRequest, reply: FastifyReply) => {
-      const sizeParam = (req.query as { size?: string }).size;
-      const width = sizeParam ? parseInt(sizeParam, 10) : undefined;
-
-      const buffer = await serve.execute(
-        entityTypeParam(req),
-        numericParam(req, 'entityId'),
-        actorOf(req),
-        width !== undefined && !isNaN(width) && width > 0 ? width : undefined,
-      );
-
-      return reply
-        .header('Content-Type', SERVED_IMAGE_CONTENT_TYPE)
-        .header('Cache-Control', SERVED_IMAGE_CACHE_CONTROL)
-        .send(buffer);
     },
 
     updateImage: async (req: FastifyRequest) => {
@@ -136,7 +120,7 @@ export const createImageController = (
         file,
         date: fields['date'],
       });
-      const body: ImageResponse = { data: record };
+      const body: ImageResponse = { data: toWire(record) };
       return body;
     },
 

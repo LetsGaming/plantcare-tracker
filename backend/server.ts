@@ -19,15 +19,30 @@ import { initDatabase, closeDb } from './src/core/database/db';
 import { logger } from './src/core/logging';
 import { buildApp } from './src/app';
 import { getConfig } from './src/core/config';
+import {
+  MaintenanceScheduler,
+  createDefaultMaintenanceJobs,
+} from './src/core/maintenance/MaintenanceScheduler';
+import { sweepOrphanUploads } from './src/modules/images/application/OrphanUploadSweep';
+import { allStoredImageUrls } from './src/modules/images/infrastructure/storedImageUrls';
+import { SQLiteSalesRepository } from './src/modules/sales/infrastructure/SQLiteSalesRepository';
 import { closeBrowser } from './src/modules/sales/infrastructure/HttpFetcher';
 
 const { port: PORT } = getConfig();
 let app: FastifyInstance | undefined;
+let maintenance: MaintenanceScheduler | undefined;
 
 const start = async (): Promise<void> => {
   await initDatabase();
   app = await buildApp();
   await app.listen({ port: PORT, host: '::' });
+  maintenance = new MaintenanceScheduler(
+    createDefaultMaintenanceJobs({
+      pruneSales: () => new SQLiteSalesRepository().pruneRetention(Date.now()),
+      sweepUploads: () => sweepOrphanUploads({ referencedUrls: allStoredImageUrls }),
+    }),
+  );
+  maintenance.start();
   logger.info(`V2 server running on port ${PORT}`);
 };
 
@@ -41,11 +56,20 @@ const releaseResources = async (): Promise<void> => {
   }
 };
 
+let shuttingDown = false;
+
 const handleShutdown = (signal: string): void => {
+  if (shuttingDown) {
+    logger.debug(`${signal}: shutdown already in progress`);
+    return;
+  }
+  shuttingDown = true;
   logger.debug(`${signal}: shutting down gracefully...`);
   const finish = (): void => void releaseResources().then(() => process.exit(0));
-  if (app) void app.close().then(finish, finish);
-  else finish();
+  const closeApp = async (): Promise<void> => {
+    await Promise.all([maintenance?.stop(), app?.close()]);
+  };
+  void closeApp().then(finish, finish);
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');
     process.exit(1);

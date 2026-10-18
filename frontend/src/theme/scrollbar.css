@@ -14,8 +14,12 @@
 }
 
 /* Both properties inherit, so scrollers inside Ionic shadow roots follow the document. */
-:root,
-* {
+:root {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+ion-content::part(scroll) {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-width: thin;
 }

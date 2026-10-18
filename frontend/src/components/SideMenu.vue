@@ -239,6 +239,10 @@ import { confirmLogout } from "@/utils/confirmLogout";
 import { statusIonColor } from "@/utils/sourceStatus";
 import type { RouteLocationRaw } from "vue-router";
 
+interface IonicNavManager {
+  handleNavigate(to: RouteLocationRaw, action: "push" | "replace", direction: "none"): void;
+}
+
 const LOCALE_LABELS: Record<string, string> = {
   en: "English",
   de: "Deutsch",
@@ -274,6 +278,10 @@ export default defineComponent({
     ModalHeader,
     MenuCalendar,
     CalendarSettingsModal,
+  },
+
+  inject: {
+    navManager: { from: "navManager", default: null },
   },
 
   setup() {
@@ -384,7 +392,11 @@ export default defineComponent({
     },
     async navigate(to: RouteLocationRaw) {
       await menuController.close();
-      await this.$router.push(to);
+      // Push with direction none like the tab bar: no slide, mounted pages stay mounted.
+      // The browser still records a history entry per menu click.
+      const nav = this.navManager as IonicNavManager | null;
+      if (nav) nav.handleNavigate(to, "push", "none");
+      else await this.$router.push(to);
     },
     async logout() {
       await menuController.close();

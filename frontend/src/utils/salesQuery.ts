@@ -1,4 +1,5 @@
 import { discountPercent } from "@/utils/formatPrice";
+import { compareText } from "@/utils/intlCache";
 
 export const SALES_SORTS = ["new", "discount", "priceAsc", "priceDesc", "name"] as const;
 export type SalesSort = (typeof SALES_SORTS)[number];
@@ -37,10 +38,18 @@ export const activeFilterCount = (query: SalesQuery): number =>
     query.maxPrice !== null,
   ].filter(Boolean).length;
 
-const keeps = (sale: Sale, query: SalesQuery): boolean => {
+export interface SalesQueryContext {
+  locale?: string;
+  isNew: (id: string) => boolean;
+}
+
+const keeps = (sale: Sale, query: SalesQuery, isNew: (id: string) => boolean): boolean => {
   if (query.shops.length > 0 && !query.shops.includes(sale.seller)) return false;
-  if (query.onlyNew && !sale.isNew) return false;
-  if (query.minDiscount > 0 && discountPercent(sale.price, sale.oldPrice) < query.minDiscount) {
+  if (query.onlyNew && !isNew(sale.id)) return false;
+  if (
+    query.minDiscount > 0 &&
+    discountPercent(sale.price, sale.oldPrice ?? 0) < query.minDiscount
+  ) {
     return false;
   }
   if (query.minPrice !== null && sale.price < query.minPrice) return false;
@@ -48,12 +57,12 @@ const keeps = (sale: Sale, query: SalesQuery): boolean => {
   return true;
 };
 
-const compare = (a: Sale, b: Sale, sort: SalesSort): number => {
+const compare = (a: Sale, b: Sale, sort: SalesSort, isNew: (id: string) => boolean): number => {
   switch (sort) {
     case "new":
-      return Number(Boolean(b.isNew)) - Number(Boolean(a.isNew));
+      return Number(isNew(b.id)) - Number(isNew(a.id));
     case "discount":
-      return discountPercent(b.price, b.oldPrice) - discountPercent(a.price, a.oldPrice);
+      return discountPercent(b.price, b.oldPrice ?? 0) - discountPercent(a.price, a.oldPrice ?? 0);
     case "priceAsc":
       return a.price - b.price;
     case "priceDesc":
@@ -64,10 +73,13 @@ const compare = (a: Sale, b: Sale, sort: SalesSort): number => {
 };
 
 /** Filters and orders sales; ties always fall back to the name so the order is stable. */
-export const applySalesQuery = (sales: Sale[], query: SalesQuery, locale = "en"): Sale[] =>
-  sales
-    .filter((sale) => keeps(sale, query))
-    .sort(
-      (a, b) =>
-        compare(a, b, query.sort) || a.name.localeCompare(b.name, locale, { numeric: true }),
-    );
+export const applySalesQuery = (
+  sales: readonly Sale[],
+  query: SalesQuery,
+  { locale = "en", isNew }: SalesQueryContext,
+): Sale[] => {
+  const byName = compareText(locale, { numeric: true });
+  return sales
+    .filter((sale) => keeps(sale, query, isNew))
+    .sort((a, b) => compare(a, b, query.sort, isNew) || byName(a.name, b.name));
+};

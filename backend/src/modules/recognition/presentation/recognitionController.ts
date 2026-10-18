@@ -5,6 +5,7 @@ import {
   TooManyRequestsError,
   ValidationError,
 } from '../../../core/errors';
+import type { EmbedQueueStats } from '../domain/Recognition';
 import type { Handler } from '../../../core/middleware';
 import { readUpload } from '../../images/presentation/multipartUpload';
 import type { ConfirmResult, ConfirmSnapshotUseCase } from '../application/ConfirmSnapshot';
@@ -20,12 +21,14 @@ export interface RecognitionController {
 const UNAVAILABLE = 'Plant recognition is not available';
 
 export const createRecognitionController = (
-  match: MatchSnapshotUseCase | null,
-  confirm: ConfirmSnapshotUseCase | null,
+  getMatch: () => MatchSnapshotUseCase | null,
+  getConfirm: () => ConfirmSnapshotUseCase | null,
+  embedQueue: () => EmbedQueueStats | null,
 ): RecognitionController => ({
-  status: async () => ({ data: { available: match !== null } }),
+  status: async () => ({ data: { available: getMatch() !== null, embedQueue: embedQueue() } }),
 
   match: async (req: FastifyRequest) => {
+    const match = getMatch();
     if (!match) throw new ServiceUnavailableError(UNAVAILABLE);
     const { file } = await readUpload(req);
     if (!file) throw new ValidationError('No image file provided.');
@@ -41,6 +44,7 @@ export const createRecognitionController = (
   },
 
   confirm: async (req: FastifyRequest, reply: FastifyReply) => {
+    const confirm = getConfirm();
     if (!confirm) throw new ServiceUnavailableError(UNAVAILABLE);
     const { id } = req.params as { id: string };
     const data: ConfirmResult = await confirm.execute(req.user!.id, id, req.body);

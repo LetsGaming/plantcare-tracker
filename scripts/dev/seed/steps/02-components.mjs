@@ -21,7 +21,7 @@ export default {
         token: ctx.token("admin"),
         json: { name, fineness: FINENESS[fineness] },
       });
-      ctx.state.components[name] = created.component_id;
+      ctx.state.components[name] = created.id;
     }
   },
 };

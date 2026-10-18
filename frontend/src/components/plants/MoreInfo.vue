@@ -7,7 +7,10 @@
         <ion-spinner v-if="status === 'loading'" name="dots" aria-hidden="true" />
         {{ statusText }}
       </p>
-      <ion-button v-if="status === 'loading'" size="small" fill="outline" @click="stop">
+      <ion-button v-if="status === 'idle'" size="small" fill="outline" @click="load()">
+        {{ t("careGuide.show") }}
+      </ion-button>
+      <ion-button v-else-if="status === 'loading'" size="small" fill="outline" @click="stop">
         {{ t("moreinfo2.stop") }}
       </ion-button>
       <ion-button v-else-if="status === 'stopped'" size="small" fill="outline" @click="load(true)">
@@ -27,7 +30,7 @@
       {{ t("moreinfo2.empty") }}
     </p>
 
-    <template v-if="hasContent">
+    <template v-if="hasContent && status !== 'idle'">
       <p class="note">
         <ion-icon :icon="informationCircleOutline" aria-hidden="true" />
         <span>{{ noteText }}</span>
@@ -66,7 +69,7 @@ import { mapActions, mapState } from "pinia";
 import { moreInfoKey, useMoreInfoStore } from "@/stores/moreInfo";
 import localizationService from "@/services/general/LocalizationService";
 
-type GuideStatus = "loading" | "error" | "ready" | "stopped";
+type GuideStatus = "idle" | "loading" | "error" | "ready" | "stopped";
 
 const DONE_NOTICE_MS = 4000;
 
@@ -84,10 +87,15 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    /** False while the page hosting the guide is hidden; a running stream is aborted. */
+    active: {
+      type: Boolean,
+      default: true,
+    },
   },
   data() {
     return {
-      status: "loading" as GuideStatus,
+      status: "idle" as GuideStatus,
       loadToken: 0,
       stopped: false,
       streamed: false,
@@ -100,22 +108,25 @@ export default defineComponent({
     return { informationCircleOutline, openOutline };
   },
   async mounted() {
-    await this.load();
+    await this.showCached();
   },
   beforeUnmount() {
-    this.loadToken++;
-    this.clearDoneNotice();
+    this.abort();
   },
   watch: {
     isStreaming(active: boolean) {
       if (active) this.streamed = true;
     },
-    plantName() {
-      void this.load();
+    plantName(_current: string, previous: string) {
+      this.abort(previous);
+      void this.showCached();
+    },
+    active(isActive: boolean) {
+      if (!isActive) this.abort();
     },
   },
   computed: {
-    ...mapState(useMoreInfoStore, ["infoFor", "streaming"]),
+    ...mapState(useMoreInfoStore, ["infoFor", "streaming", "byKey"]),
     isStreaming(): boolean {
       return !!this.streaming[moreInfoKey(this.plantName, localizationService.getLocale())];
     },
@@ -131,6 +142,9 @@ export default defineComponent({
     },
     links(): string[] {
       return [...new Set(this.infos.flatMap((info) => info.links))];
+    },
+    hasStoredGuide(): boolean {
+      return !!this.byKey[moreInfoKey(this.plantName, localizationService.getLocale())];
     },
     hasContent(): boolean {
       return this.ai.length > 0 || this.links.length > 0;
@@ -148,9 +162,24 @@ export default defineComponent({
     },
   },
   methods: {
-    ...mapActions(useMoreInfoStore, ["ensureInfo", "stopInfo"]),
+    ...mapActions(useMoreInfoStore, ["ensureInfo", "stopInfo", "loadCached"]),
     t(key: string, vars?: Record<string, string | number>) {
       return localizationService.t(key, vars, key);
+    },
+    async showCached() {
+      const token = ++this.loadToken;
+      this.status = "idle";
+      const cached = await this.loadCached(this.plantName);
+      if (token === this.loadToken && cached) this.status = "ready";
+    },
+    /** Ends a running stream and returns to the start state, or to the cached guide. */
+    abort(plantName?: string) {
+      this.loadToken++;
+      this.clearDoneNotice();
+      if (this.status === "loading") {
+        this.stopInfo(plantName ?? this.plantName);
+        this.status = "idle";
+      }
     },
     async load(force = false) {
       const token = ++this.loadToken;
@@ -165,8 +194,8 @@ export default defineComponent({
           this.status = "stopped";
           return;
         }
-        this.status = "ready";
-        if (this.streamed) this.showDoneNotice();
+        this.status = this.hasStoredGuide ? "ready" : "idle";
+        if (this.status === "ready" && this.streamed) this.showDoneNotice();
       } catch (error) {
         console.error("Failed to fetch more info:", error);
         if (token === this.loadToken) this.status = "error";

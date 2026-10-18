@@ -4,8 +4,8 @@
 
 - **Node.js** ≥ 22
 - **pnpm** (or npm / yarn)
-- **SQLite** — bundled via `better-sqlite3`, no separate server required
-- **Playwright Chromium** — only required for the sales scraper (5 of 9 scrapers use it)
+- **SQLite**, bundled via `better-sqlite3`, no separate server required
+- **Playwright Chromium**, only required for the sales scraper (5 of 9 scrapers use it)
 
 ## Installation
 
@@ -48,12 +48,32 @@ PUBLIC_BASE_URL=https://api.example.com
 OPENAI_API_KEY=sk-...
 
 # ── Server ─────────────────────────────────────────────────────────────────────
-PORT=5000
+PORT=5000                     # integer 1 to 65535, anything else stops the boot
 NODE_ENV=development          # or production
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
 # Comma-separated list. In development, localhost:* is always allowed.
 ALLOWED_ORIGINS=https://your-frontend.com
+
+# ── Reverse proxy ──────────────────────────────────────────────────────────────
+# Proxies in front of the server whose X-Forwarded-For is trusted (default 1, 0 = none).
+# Must equal the real proxy count, otherwise clients can spoof their IP past the rate limiters.
+TRUST_PROXY_HOPS=1
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+# true = stdout only, no rotating files in ./logs (default false). Files rotate at 10 MB, 5 kept.
+LOG_TO_STDOUT=false
+
+# ── Sales refresher (background scraping) ──────────────────────────────────────
+SALES_REFRESH_ENABLED=true        # false = no background scraping, only the admin recheck scrapes
+SALES_REFRESH_INTERVAL_MIN=120    # minutes between refreshes of one source (1 to 10080)
+SALES_REFRESH_WARM_DELAY_MS=5000  # delay after listen before stale sources refresh (0 to 600000)
+SALES_RETENTION_DAYS=30           # days an inactive sale is kept (1 to 3650)
+SALES_PRICE_POINTS_MAX=30         # price points kept per sale (1 to 1000)
+
+# ── Images ─────────────────────────────────────────────────────────────────────
+IMAGE_BACKFILL_ON_START=false     # create missing 160/480 px variants in the background after listen
+UPLOAD_MAX_PIXELS=40000000        # decoder pixel limit for uploads (width x height)
 ```
 
 ## Database Setup
@@ -61,7 +81,7 @@ ALLOWED_ORIGINS=https://your-frontend.com
 ### Fresh Installation
 
 ```bash
-# Nothing to do — the SQLite file and schema are created automatically on first start.
+# Nothing to do: the SQLite file and schema are created automatically on first start.
 # To import existing data: pnpm run db:import -- path/to/dump.sql
 ```
 
@@ -104,6 +124,8 @@ pnpm run typecheck
 |--------|---------|-------------|
 | `dev` | `tsx watch server.ts` | Development server with hot reload |
 | `src/tools/devServer.ts` | `tsx src/tools/devServer.ts` | The real app with mocked shop scrapers, AI guide, link searchers and a model-free image embedder (the real model when `RECOGNITION_MODEL_PATH` is set); started by `scripts/dev-up.mjs` with its own database, never reads `.env`, lifts the sign-in rate limits |
+| `images:backfill` | `tsx src/tools/backfillImageVariants.ts` | Create the 160 and 480 px variants for images stored before variants existed (`-- --dry-run`, `-- --batch <1-1000>`), see [Deployment](./deployment.md#image-variants) |
+| `db:vacuum` | `tsx src/tools/vacuumDb.ts` | Rebuild the database file to reclaim free pages; stop the server first |
 | `db:import` | `tsx src/tools/importMysqlDumpCli.ts` | Import a MySQL dump into a fresh SQLite file |
 | `build` | `tsc -p tsconfig.build.json` | Compile to `./dist/` |
 | `start` | `node scripts/start.js` | Build if needed, then run compiled server |

@@ -28,7 +28,7 @@ vi.mock("@/services/general/ToastService", () => ({
 }));
 
 vi.mock("@/services/general/LocalizationService", () => ({
-  default: { t: (key: string) => key },
+  default: { t: (key: string) => key, getLocale: () => "en" },
 }));
 
 import WateringRecords from "@/components/plants/watering/WateringRecords.vue";
@@ -42,23 +42,27 @@ const record = (id: number, millis: number) => ({
   id,
   plantId: 1,
   plantName: "Monstera",
-  date: new Date(millis).toISOString(),
-  date_millis: millis,
+  date: millis,
   usedFertilizer: false,
+  fertilizerTypeId: null,
 });
+
+const history = (items: unknown[]) => ({ items, nextCursor: null, loadedAt: Date.now() });
 
 // ── WateringRecords component ────────────────────────────────────────────────
 
 const mountRecords = (records: unknown[] = [], props: Record<string, unknown> = {}) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
   const store = useWateringStore(pinia);
-  store.byPlantId = { 1: records as WateringRecord[] };
+  store.byPlantId = { 1: history(records) as never };
   const wrapper = shallowMount(WateringRecords, {
     props: { plantId: 1, ...props },
     global: { plugins: [pinia] },
   });
   return { wrapper, store };
 };
+
+const records1 = (store: ReturnType<typeof useWateringStore>) => [...store.recordsFor(1)];
 
 describe("WateringRecords: store-driven records", () => {
   it("loads through the store on mount and repaints when the store changes", async () => {
@@ -70,7 +74,9 @@ describe("WateringRecords: store-driven records", () => {
     expect((wrapper.vm as any).records).toHaveLength(1);
 
     // an optimistic paint elsewhere shows up without any event
-    store.byPlantId[1].push(record(-5, Date.now()) as WateringRecord);
+    store.byPlantId = {
+      1: history([...records1(store), record(-5, Date.now())]) as never,
+    };
     await flushPromises();
     expect((wrapper.vm as any).records).toHaveLength(2);
     expect(store.addRecord).not.toHaveBeenCalled();
@@ -135,14 +141,18 @@ describe("WateringRecords: store-driven records", () => {
 
   it("maps records to local day keys and per-type fertilizer markers", async () => {
     const day = new Date(2026, 4, 3, 23, 30).getTime();
-    const { wrapper } = mountRecords([
+    const { wrapper, store } = mountRecords([
       { ...record(1, day), usedFertilizer: false },
       { ...record(2, day + 86_400_000), usedFertilizer: true, fertilizerTypeId: 1 },
       { ...record(3, day + 2 * 86_400_000), usedFertilizer: true, fertilizerTypeId: 2 },
-      { ...record(4, day + 3 * 86_400_000), usedFertilizer: true, fertilizerType: "synthetic" },
-      { ...record(5, day + 4 * 86_400_000), usedFertilizer: true, fertilizerType: "organic" },
+      { ...record(4, day + 3 * 86_400_000), usedFertilizer: true, fertilizerTypeId: 3 },
+      { ...record(5, day + 4 * 86_400_000), usedFertilizer: true, fertilizerTypeId: 4 },
       { ...record(6, day + 5 * 86_400_000), usedFertilizer: false, fertilizerTypeId: 2 },
     ]);
+    store.fertilizerTypes = [
+      { id: 3, name: "synthetic" },
+      { id: 4, name: "organic" },
+    ];
     await flushPromises();
     expect(
       (wrapper.vm as any).mappedRecords.map((d: CalendarDates) => [d.date, d.category.name]),
@@ -211,40 +221,76 @@ describe("WateringRecords: one tap on a calendar day", () => {
 
 // ── PlantOverview view ───────────────────────────────────────────────────────
 
-const mountOverview = () => {
+const mountOverview = (renderStubDefaultSlot = false) => {
   const pinia = createTestingPinia({ createSpy: vi.fn });
-  const wrapper = shallowMount(PlantOverview, { global: { plugins: [pinia] } });
+  const wrapper = shallowMount(PlantOverview, {
+    global: { plugins: [pinia], renderStubDefaultSlot },
+  });
   return { wrapper, store: usePlantsStore(pinia) };
 };
 
 const plant = (id: number, userId: number, isPublic: boolean) =>
-  ({ id, userId, name: `plant ${id}`, isPublic }) as Plant;
+  ({ id, userId, name: `plant ${id}`, isPublic, speciesName: null }) as unknown as PlantView;
+const shownIds = (wrapper: { vm: unknown }) =>
+  (wrapper.vm as any).overviewItems.map((item: { id: number }) => item.id);
 
 describe("PlantOverview: store-driven lists", () => {
   it("shows the active segment's plants and repaints when the store changes", async () => {
     const { wrapper, store } = mountOverview();
     await flushPromises();
-    expect((wrapper.vm as any).plants).toEqual([]);
+    expect(shownIds(wrapper)).toEqual([]);
 
-    store.items = [plant(1, 1, false), plant(2, 1, true), plant(3, 9, true)];
+    store.mine.items = [plant(1, 1, false), plant(2, 1, true)];
+    store.public.items = [plant(2, 1, true), plant(3, 9, true)];
     await flushPromises();
-    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2]);
+    expect(shownIds(wrapper)).toEqual([1, 2]);
 
     // an optimistic paint elsewhere shows up without any event or refetch
-    store.items.push(plant(-100, 1, false));
+    store.mine.items = [...store.mine.items, plant(-100, 1, false)];
     await flushPromises();
-    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([1, 2, -100]);
+    expect(shownIds(wrapper)).toEqual([1, 2, -100]);
 
     (wrapper.vm as any).handleSegmentChange("public");
     await flushPromises();
-    expect((wrapper.vm as any).plants.map((p: Plant) => p.id)).toEqual([2, 3]);
+    expect(shownIds(wrapper)).toEqual([2, 3]);
+    wrapper.unmount();
+  });
+
+  it("hands the header the same segments array across re-renders", async () => {
+    const { wrapper, store } = mountOverview(true);
+    await flushPromises();
+    const header = () => wrapper.findComponent({ name: "OverviewHeader" });
+    const first = header().props("segments");
+    expect(first).toHaveLength(2);
+
+    store.mine.items = [plant(1, 1, false)];
+    (wrapper.vm as any).handleSegmentChange("public");
+    await flushPromises();
+
+    expect(header().props("segments")).toBe(first);
+    wrapper.unmount();
+  });
+
+  it("hands the list the same props when unrelated page state changes", async () => {
+    const { wrapper, store } = mountOverview(true);
+    store.mine.items = [plant(1, 1, false)];
+    await flushPromises();
+    const list = () => wrapper.findComponent({ name: "ItemsOverview" });
+    const before = { ...list().props() };
+
+    (wrapper.vm as any).openAddModal();
+    await flushPromises();
+
+    for (const [key, value] of Object.entries(list().props())) {
+      expect(value, key).toBe(before[key]);
+    }
     wrapper.unmount();
   });
 
   it("uses the reconciled plant id for the dependent image upload", async () => {
     const { wrapper, store } = mountOverview();
     await flushPromises();
-    vi.mocked(store.addPlant).mockResolvedValue({ id: 7, name: "Monstera" } as Plant);
+    vi.mocked(store.addPlant).mockResolvedValue({ id: 7, name: "Monstera" } as PlantView);
 
     const image = new File(["x"], "img.jpg", { type: "image/jpeg" });
     await (wrapper.vm as any).addPlant({

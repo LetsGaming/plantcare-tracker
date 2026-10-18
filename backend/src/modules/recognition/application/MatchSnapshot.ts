@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import type { UploadedFile } from '../../images/domain/Image';
 import { ValidationError } from '../../../core/errors';
 import type {
@@ -24,20 +24,32 @@ export class MatchSnapshotUseCase {
     private readonly embedder: Embedder,
     private readonly embeddings: EmbeddingRepository,
     private readonly snapshots: SnapshotStore,
+    private readonly limitInputPixels: number,
   ) {}
 
   async execute(userId: number, file: UploadedFile): Promise<MatchResult> {
-    let webp: Buffer;
+    const unreadable = () => new ValidationError('Unreadable image', { image: 'Unreadable image' });
+    let source: Sharp;
+    let encoded: Promise<Buffer>;
     try {
-      webp = await sharp(file.buffer)
-        .rotate()
+      source = sharp(file.buffer, { limitInputPixels: this.limitInputPixels }).rotate();
+      encoded = source
+        .clone()
         .resize({ width: SNAPSHOT_WIDTH, withoutEnlargement: true })
         .webp({ quality: SNAPSHOT_QUALITY })
         .toBuffer();
     } catch {
-      throw new ValidationError('Unreadable image', { image: 'Unreadable image' });
+      throw unreadable();
     }
-    const vector = await this.embedder.embed(webp);
+    const embedded = this.embedder.embedDecoded?.(source);
+    embedded?.catch(() => undefined);
+    let webp: Buffer;
+    try {
+      webp = await encoded;
+    } catch {
+      throw unreadable();
+    }
+    const vector = await (embedded ?? this.embedder.embed(webp));
     const candidates = rankPlants(
       vector,
       await this.embeddings.vectorsForUser(userId, this.embedder.modelId),

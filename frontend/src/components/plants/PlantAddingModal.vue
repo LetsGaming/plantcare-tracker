@@ -26,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType } from "vue";
+import { defineComponent } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import localizationService from "@/services/general/LocalizationService";
@@ -47,10 +47,6 @@ export default defineComponent({
   props: {
     isOpen: { type: Boolean, required: true },
     isLoading: { type: Boolean, default: false },
-    substrates: {
-      type: Array as PropType<Substrate[]>,
-      required: true,
-    },
   },
   setup() {
     return { icons };
@@ -82,17 +78,10 @@ export default defineComponent({
           enterkeyhint: "next",
         },
         {
-          type: "select",
+          type: "substrate-picker",
           modelKey: "substrateId",
           label: "plant.field.substrate",
           placeholder: "plant.field.substrate_placeholder",
-          options: [
-            { value: null, label: "plant.field.substrate_none" },
-            ...this.substrates.map((s) => ({
-              value: s.id,
-              label: s.name,
-            })),
-          ],
         },
         {
           type: "radio",

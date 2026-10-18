@@ -19,23 +19,46 @@ import type {
   ImageRepository,
   ImageStorage,
   ImageRecord,
+  ImageVariantMeta,
+  ProcessedUpload,
   StoredImage,
   EntityType,
   UploadedFile,
 } from '../domain/Image';
 import type { ImageAccessPolicy } from './ImageAccessPolicy';
+import { parseCaptureDate } from './captureDate';
 import { NotFoundError, ValidationError } from '../../../core/errors';
 import { toPublicImageUrl, toStoredImagePath } from '../../../core/config';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Drops the internal entity reference before a record leaves the module. */
-const toRecord = ({ id, url, date, entityType }: StoredImage): ImageRecord => ({
+const toRecord = ({
   id,
   url,
   date,
   entityType,
+  width,
+  height,
+  placeholder,
+  variants,
+}: StoredImage): ImageRecord => ({
+  id,
+  url,
+  date,
+  entityType,
+  width,
+  height,
+  placeholder,
+  variants,
 });
+
+const pickVariantMeta = ({
+  width,
+  height,
+  placeholder,
+  variants,
+}: ImageVariantMeta): ImageVariantMeta => ({ width, height, placeholder, variants });
 
 const toEpochSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
 
@@ -46,6 +69,8 @@ export interface UploadImageInput {
   entityType: EntityType;
   entityId: number;
   file: UploadedFile;
+  /** Explicit capture time (epoch ms); wins over the file's EXIF date. */
+  date?: string | number;
 }
 
 /** Emitted after a new image file is committed, so other modules can react. */
@@ -56,6 +81,9 @@ export interface StoredImageEvent {
 }
 
 export type ImageStoredListener = (event: StoredImageEvent) => void;
+
+/** Emitted after image files and rows are removed; the owner is the acting user. */
+export type ImageRemovedListener = (event: { entityType: EntityType; ownerUserId: number }) => void;
 
 export interface UploadImageResult {
   url: string;
@@ -73,15 +101,25 @@ export class UploadImageUseCase {
   async execute(input: UploadImageInput): Promise<UploadImageResult> {
     await this.access.assertCanModify(input.entityType, input.entityId, input.actor);
 
-    const { filename, capturedAt } = await this.storage.processUpload(input.file, input.entityType);
+    const explicitMs = input.date === undefined ? undefined : parseCaptureDate(input.date);
 
-    const stored = toStoredImagePath(input.entityType, filename);
-    const imageId = await this.repo.create(
-      input.entityType,
-      input.entityId,
-      stored,
-      toEpochSeconds(capturedAt),
-    );
+    const processed = await this.storage.processUpload(input.file, input.entityType);
+    const capturedAt = explicitMs === undefined ? processed.capturedAt : new Date(explicitMs);
+
+    const stored = toStoredImagePath(input.entityType, processed.filename);
+    let imageId: number;
+    try {
+      imageId = await this.repo.create(
+        input.entityType,
+        input.entityId,
+        stored,
+        toEpochSeconds(capturedAt),
+        pickVariantMeta(processed),
+      );
+    } catch (err) {
+      await this.storage.remove(input.entityType, processed.filename, processed.variants);
+      throw err;
+    }
     this.onStored?.({ imageId, entityType: input.entityType, imageUrl: stored });
 
     return { url: toPublicImageUrl(stored), capturedAt };
@@ -109,38 +147,12 @@ export class ListEntityImagesUseCase {
   }
 }
 
-export class ServeEntityImageUseCase {
-  constructor(
-    private readonly repo: ImageRepository,
-    private readonly storage: ImageStorage,
-    private readonly access: ImageAccessPolicy,
-  ) {}
-
-  /**
-   * Returns the primary (oldest) image of an entity as webp bytes,
-   * optionally resized. 404 when the entity has no images or the file
-   * is gone from disk.
-   */
-  async execute(
-    entityType: EntityType,
-    entityId: number,
-    actor: ImageActor,
-    resizeWidth?: number,
-  ): Promise<Buffer> {
-    await this.access.assertCanView(entityType, entityId, actor);
-    const images = await this.repo.findByEntity(entityType, entityId);
-    if (!images.length) throw new NotFoundError('Image');
-
-    return this.storage.readAsWebp(entityType, images[0].url, resizeWidth);
-  }
-}
-
 export interface UpdateImageInput {
   actor: ImageActor;
   imageId: number;
   /** New file, when the client replaced the image. */
   file?: UploadedFile;
-  /** New capture date — any Date-parsable value from the form. */
+  /** New capture date (epoch ms) from the form. */
   date?: string | number;
 }
 
@@ -161,29 +173,33 @@ export class UpdateImageUseCase {
     if (!existing) throw new NotFoundError('Image');
     await this.access.assertCanModify(existing.entityType, existing.entityId, input.actor);
 
-    let newUrl: string | undefined;
-    if (input.file) {
-      const { filename } = await this.storage.processUpload(input.file, existing.entityType);
-      newUrl = toStoredImagePath(existing.entityType, filename);
-    }
-
     let uploadDate: number | undefined;
     if (input.date !== undefined) {
-      const parsed = new Date(input.date).getTime();
-      if (!Number.isFinite(parsed)) {
-        throw new ValidationError('Invalid date value', {
-          date: 'date must be a valid ISO string or Unix timestamp',
-        });
-      }
-      uploadDate = Math.floor(parsed / 1000);
+      uploadDate = Math.floor(parseCaptureDate(input.date) / 1000);
     }
 
-    await this.repo.update(input.imageId, { imageUrl: newUrl, uploadDate });
+    let newUrl: string | undefined;
+    let newMeta: ImageVariantMeta | undefined;
+    let processed: ProcessedUpload | undefined;
+    if (input.file) {
+      processed = await this.storage.processUpload(input.file, existing.entityType);
+      newUrl = toStoredImagePath(existing.entityType, processed.filename);
+      newMeta = pickVariantMeta(processed);
+    }
+
+    try {
+      await this.repo.update(input.imageId, { imageUrl: newUrl, uploadDate, ...newMeta });
+    } catch (err) {
+      if (processed) {
+        await this.storage.remove(existing.entityType, processed.filename, processed.variants);
+      }
+      throw err;
+    }
 
     // The new file is committed to the database — only now is it safe
     // to drop the old one.
     if (newUrl) {
-      await this.storage.remove(existing.entityType, existing.url);
+      await this.storage.remove(existing.entityType, existing.url, existing.variants);
       this.onStored?.({
         imageId: input.imageId,
         entityType: existing.entityType,
@@ -202,6 +218,7 @@ export class DeleteImageUseCase {
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
     private readonly access: ImageAccessPolicy,
+    private readonly onRemoved?: ImageRemovedListener,
   ) {}
 
   async execute(imageId: number, actor: ImageActor): Promise<void> {
@@ -209,8 +226,9 @@ export class DeleteImageUseCase {
     if (!image) throw new NotFoundError('Image');
     await this.access.assertCanModify(image.entityType, image.entityId, actor);
 
-    await this.storage.remove(image.entityType, image.url);
+    await this.storage.remove(image.entityType, image.url, image.variants);
     await this.repo.delete(imageId);
+    this.onRemoved?.({ entityType: image.entityType, ownerUserId: actor.id });
   }
 }
 
@@ -219,11 +237,13 @@ export class DeleteEntityImagesUseCase {
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
     private readonly access: ImageAccessPolicy,
+    private readonly onRemoved?: ImageRemovedListener,
   ) {}
 
   async execute(entityType: EntityType, entityId: number, actor: ImageActor): Promise<void> {
     await this.access.assertCanModify(entityType, entityId, actor);
     const images = await this.repo.deleteByEntity(entityType, entityId);
-    await Promise.all(images.map((img) => this.storage.remove(entityType, img.url)));
+    await Promise.all(images.map((img) => this.storage.remove(entityType, img.url, img.variants)));
+    this.onRemoved?.({ entityType, ownerUserId: actor.id });
   }
 }

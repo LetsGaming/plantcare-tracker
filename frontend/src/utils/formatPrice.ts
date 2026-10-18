@@ -1,9 +1,10 @@
 import localizationService from "@/services/general/LocalizationService";
+import { numberFormat } from "./intlCache";
 
 const CURRENCY = "EUR";
 
 export const formatPrice = (value: number, locale = localizationService.getLocale()): string =>
-  new Intl.NumberFormat(locale, { style: "currency", currency: CURRENCY }).format(value);
+  numberFormat(locale, { style: "currency", currency: CURRENCY }).format(value);
 
 /** Whole-number discount of `price` against `oldPrice`, 0 when there is none. */
 export const discountPercent = (price: number, oldPrice: number): number => {
@@ -19,7 +20,7 @@ export const formatDiscount = (
 ): string => {
   const percent = discountPercent(price, oldPrice);
   if (percent === 0) return "";
-  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(
+  return numberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(
     -percent / 100,
   );
 };

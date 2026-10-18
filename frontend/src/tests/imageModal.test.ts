@@ -211,3 +211,14 @@ describe("ImageModal image", () => {
     expect(offsets(wrapper)).toEqual([0, 0]);
   });
 });
+
+describe("ImageModal native image", () => {
+  it("renders the enlarged photo as a plain img, not an ion-img", () => {
+    const wrapper = mountModal();
+    const img = wrapper.find("img.enlarged-image");
+    expect(img.exists()).toBe(true);
+    expect(img.attributes("src")).toBe("/a.png");
+    expect(img.attributes("decoding")).toBe("async");
+    expect(wrapper.find("ion-img").exists()).toBe(false);
+  });
+});

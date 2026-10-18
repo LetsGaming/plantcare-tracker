@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { API, createContractApp, type ContractApp } from './harness';
@@ -5,10 +7,12 @@ import { createPlant, createSubstrate } from './support';
 
 let app: ContractApp;
 let png: Buffer;
+let uploadsDir: string;
 
 beforeAll(async () => {
   app = await createContractApp();
   png = await app.png();
+  uploadsDir = (await import('../../src/core/config')).getUploadsDirectory();
 });
 afterAll(() => app.close());
 
@@ -41,14 +45,41 @@ const upload = (
 
 const pathOf = (url: string) => new URL(url).pathname;
 
+const variantFiles = (entityType: string, url: string) => {
+  const main = path.join(uploadsDir, entityType, path.basename(pathOf(url)));
+  return [main, main.replace(/\.webp$/, '-160.webp'), main.replace(/\.webp$/, '-480.webp')];
+};
+
 describe('POST /images/:entityType/:entityId', () => {
   it('stores a resized webp, answers 201 with Location, absolute URL and capture date', async () => {
     const { owner, plant } = await setup();
     const res = await upload(owner.auth, 'plant', plant.plant_id);
     expect(res.status).toBe(201);
-    expect(res.headers.location).toBe(`/images/plant/${plant.plant_id}`);
+    expect(res.headers.location).toBe(`/images/plant?entityId=${plant.plant_id}`);
     expect(res.body.data.path).toMatch(/^http:\/\/[^/]+\/uploads\/plant\/\d+-[a-z0-9-]+\.webp$/);
     expect(res.body.data.date).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it('writes the 160, 480 and 1024 variants and persists dimensions, placeholder and variants = 1', async () => {
+    const { owner, plant } = await setup();
+    const res = await upload(owner.auth, 'plant', plant.plant_id);
+    variantFiles('plant', res.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(true),
+    );
+    const [row] = app.db.query<{
+      width: number;
+      height: number;
+      placeholder: string;
+      variants: number;
+    }>('SELECT width, height, placeholder, variants FROM images WHERE entity_id = ?', [
+      plant.plant_id,
+    ]);
+    expect(row).toEqual({
+      width: 8,
+      height: 8,
+      placeholder: expect.stringMatching(/^#[0-9a-f]{6}$/),
+      variants: 1,
+    });
   });
 
   it('serves the stored file statically as webp', async () => {
@@ -96,7 +127,9 @@ describe('POST /images/:entityType/:entityId', () => {
       contentType: 'image/gif',
     });
     expect(res.status).toBe(400);
-    expect(res.body.error.message).toBe('Invalid file type. Only png, jpeg, and jpg are allowed.');
+    expect(res.body.error.message).toBe(
+      'Invalid file type. Only png, jpeg, jpg, and webp are allowed.',
+    );
   });
 
   it('rejects a file over 10 MB with 400', async () => {
@@ -131,6 +164,10 @@ describe('GET /images/:entityType', () => {
     expect(res.body.data[0]).toEqual({
       id: expect.any(Number),
       url: expect.stringMatching(/\/uploads\/plant\//),
+      srcset: expect.stringMatching(/-160\.webp 160w, .+-480\.webp 480w, .+\.webp 1024w$/),
+      width: 8,
+      height: 8,
+      placeholder: expect.stringMatching(/^#[0-9a-f]{6}$/),
       date: expect.any(Number),
       entityType: 'plant',
     });
@@ -154,47 +191,63 @@ describe('GET /images/:entityType', () => {
   });
 });
 
-describe('GET /images/:entityType/:entityId', () => {
-  it('serves the primary image as webp with a one day cache header', async () => {
+describe('GET /images/:entityType/:entityId (removed)', () => {
+  it('answers 404 for the former serve route and its ?size resize', async () => {
     const { owner, plant } = await setup();
     await upload(owner.auth, 'plant', plant.plant_id);
-    const res = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: owner.auth,
-    });
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toBe('image/webp');
-    expect(res.headers['cache-control']).toBe('public, max-age=86400');
-    expect((await sharp(res.bytes).metadata()).width).toBe(8);
+    for (const query of ['', '?size=4']) {
+      const res = await app.client.request({
+        method: 'get',
+        url: `${API}/images/plant/${plant.plant_id}${query}`,
+        headers: owner.auth,
+      });
+      expect(res.status, query).toBe(404);
+    }
   });
+});
 
-  it('resizes on the fly with ?size and never enlarges', async () => {
+describe('upload rate limit', () => {
+  it('allows 30 uploads per user in the window and answers 429 afterwards', async () => {
+    const { owner, plant } = await setup();
+    for (let i = 0; i < 30; i += 1) {
+      expect((await upload(owner.auth, 'plant', plant.plant_id)).status, String(i)).toBe(201);
+    }
+    const limited = await upload(owner.auth, 'plant', plant.plant_id);
+    expect(limited.status).toBe(429);
+    expect(limited.body.error).toMatchObject({ type: 'TooManyRequestsError', statusCode: 429 });
+    const other = await app.signIn('user');
+    const otherPlant = await createPlant(
+      app,
+      other.auth,
+      (await createSubstrate(app, other.auth)).substrate_id,
+    );
+    expect((await upload(other.auth, 'plant', otherPlant.plant_id)).status).toBe(201);
+  });
+});
+
+describe('PATCH rate limit', () => {
+  it('counts date-only PATCHes against the same per-user window', async () => {
     const { owner, plant } = await setup();
     await upload(owner.auth, 'plant', plant.plant_id);
-    const small = await app.client.request({
+    const list = await app.client.request({
       method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}?size=4`,
+      url: `${API}/images/plant?entityId=${plant.plant_id}`,
       headers: owner.auth,
     });
-    expect((await sharp(small.bytes).metadata()).width).toBe(4);
-    const big = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}?size=400`,
-      headers: owner.auth,
-    });
-    expect((await sharp(big.bytes).metadata()).width).toBe(8);
-  });
-
-  it('answers 404 when the entity has no image', async () => {
-    const { owner, plant } = await setup();
-    const res = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: owner.auth,
-    });
-    expect(res.status).toBe(404);
-    expect(res.body.error.message).toBe('Image not found');
+    const id = list.body.data[0].id;
+    const patch = () =>
+      app.client.request({
+        method: 'patch',
+        url: `${API}/images/${id}`,
+        headers: owner.auth,
+        multipart: [{ field: 'date', data: '1717236000000' }],
+      });
+    for (let i = 0; i < 29; i += 1) {
+      expect((await patch()).status, String(i)).toBe(200);
+    }
+    const limited = await patch();
+    expect(limited.status).toBe(429);
+    expect(limited.body.error).toMatchObject({ type: 'TooManyRequestsError', statusCode: 429 });
   });
 });
 
@@ -212,7 +265,7 @@ describe('PATCH /images/:id', () => {
       method: 'patch',
       url: `${API}/images/${id}`,
       headers: owner.auth,
-      multipart: [{ field: 'date', data: '2024-06-01T10:00:00.000Z' }],
+      multipart: [{ field: 'date', data: '1717236000000' }],
     });
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ id, date: 1717236000, entityType: 'plant' });
@@ -235,6 +288,12 @@ describe('PATCH /images/:id', () => {
     });
     expect(res.status).toBe(200);
     expect(res.body.data.url).not.toBe(first.body.data.path);
+    variantFiles('plant', first.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(false),
+    );
+    variantFiles('plant', res.body.data.url).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(true),
+    );
     expect(
       (await app.client.request({ method: 'get', url: pathOf(first.body.data.path) })).status,
     ).toBe(404);
@@ -295,6 +354,31 @@ describe('DELETE /images', () => {
     expect(
       (await app.client.request({ method: 'get', url: pathOf(up.body.data.path) })).status,
     ).toBe(404);
+    variantFiles('plant', up.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(false),
+    );
+  });
+
+  it('removes only the single file of a legacy image (variants = 0)', async () => {
+    const { owner, plant } = await setup();
+    const up = await upload(owner.auth, 'plant', plant.plant_id);
+    const [main, small, medium] = variantFiles('plant', up.body.data.path);
+    app.db.execute('UPDATE images SET variants = 0 WHERE entity_id = ?', [plant.plant_id]);
+    const list = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant?entityId=${plant.plant_id}`,
+      headers: owner.auth,
+    });
+    expect(list.body.data[0]).toMatchObject({ srcset: null });
+    const res = await app.client.request({
+      method: 'delete',
+      url: `${API}/images/${list.body.data[0].id}`,
+      headers: owner.auth,
+    });
+    expect(res.status).toBe(204);
+    expect(fs.existsSync(main)).toBe(false);
+    expect(fs.existsSync(small)).toBe(true);
+    expect(fs.existsSync(medium)).toBe(true);
   });
 
   it('answers 404 for an unknown image id', async () => {
@@ -307,16 +391,19 @@ describe('DELETE /images', () => {
     expect(res.status).toBe(404);
   });
 
-  it('deletes all images of an entity with 204', async () => {
+  it('deletes all images of an entity with 204 and removes every variant file', async () => {
     const { owner, plant } = await setup();
-    await upload(owner.auth, 'plant', plant.plant_id);
-    await upload(owner.auth, 'plant', plant.plant_id);
+    const first = await upload(owner.auth, 'plant', plant.plant_id);
+    const second = await upload(owner.auth, 'plant', plant.plant_id);
     const res = await app.client.request({
       method: 'delete',
       url: `${API}/images/plant/${plant.plant_id}`,
       headers: owner.auth,
     });
     expect(res.status).toBe(204);
+    [first, second]
+      .flatMap((up) => variantFiles('plant', up.body.data.path))
+      .forEach((file) => expect(fs.existsSync(file), file).toBe(false));
     const list = await app.client.request({
       method: 'get',
       url: `${API}/images/plant?entityId=${plant.plant_id}`,
@@ -351,18 +438,12 @@ describe('authorization', () => {
       headers: auth,
     });
 
-  it("answers 404 when uploading to, listing or serving another user's private plant", async () => {
+  it("answers 404 when uploading to or listing another user's private plant", async () => {
     const { owner, plant } = await setup();
     await upload(owner.auth, 'plant', plant.plant_id);
     const intruder = await app.signIn('user');
     expect((await upload(intruder.auth, 'plant', plant.plant_id)).status).toBe(404);
     expect((await listOf(intruder.auth, plant.plant_id)).status).toBe(404);
-    const served = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: intruder.auth,
-    });
-    expect(served.status).toBe(404);
   });
 
   it("answers 404 when changing or deleting the images of another user's private plant", async () => {
@@ -399,12 +480,6 @@ describe('authorization', () => {
     await upload(owner.auth, 'plant', plant.plant_id);
     const other = await app.signIn('user');
     expect((await listOf(other.auth, plant.plant_id)).status).toBe(200);
-    const served = await app.client.request({
-      method: 'get',
-      url: `${API}/images/plant/${plant.plant_id}`,
-      headers: other.auth,
-    });
-    expect(served.status).toBe(200);
     const res = await upload(other.auth, 'plant', plant.plant_id);
     expect(res.status).toBe(403);
     expect(res.body.error.message).toBe('You may not change the images of this plant');
@@ -432,7 +507,7 @@ describe('authorization', () => {
       headers: admin.auth,
       json: { name: 'Perlite', fineness: 1 },
     });
-    const componentId = created.body.data.component_id;
+    const componentId = created.body.data.id;
     const user = await app.signIn('user');
     expect((await upload(user.auth, 'component', componentId)).status).toBe(403);
     expect((await upload(admin.auth, 'component', componentId)).status).toBe(201);
@@ -485,7 +560,7 @@ describe('stored paths', () => {
       url: `${API}/plants/${plant.plant_id}`,
       headers: owner.auth,
     });
-    expect(pathOf(fetched.body.data.image_url)).toBe(row.image_url);
+    expect(pathOf(fetched.body.data.cover.url)).toBe(row.image_url);
   });
 });
 
@@ -513,7 +588,7 @@ describe('cleanup on entity deletion', () => {
       headers: admin.auth,
       json: { name: 'Cleanup grit', fineness: 1 },
     });
-    const id = created.body.data.component_id;
+    const id = created.body.data.id;
     await upload(admin.auth, 'component', id);
     await app.client.request({
       method: 'delete',
@@ -542,5 +617,150 @@ describe('remaining gaps', () => {
     const up = await upload(owner.auth, 'plant', plant.plant_id);
     const anon = await app.client.request({ method: 'get', url: pathOf(up.body.data.path) });
     expect(anon.status).toBe(200);
+  });
+});
+
+describe('webp uploads and the date field', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const post = (
+    auth: Record<string, string>,
+    plantId: number,
+    parts: { contentType?: string; data?: Buffer | string; date?: string } = {},
+  ) =>
+    app.client.request({
+      method: 'post',
+      url: `${API}/images/plant/${plantId}`,
+      headers: auth,
+      multipart: [
+        {
+          field: 'image',
+          filename: 'photo.webp',
+          contentType: parts.contentType ?? 'image/webp',
+          data: parts.data ?? png,
+        },
+        ...(parts.date === undefined ? [] : [{ field: 'date', data: parts.date }]),
+      ],
+    });
+
+  const storedDate = async (auth: Record<string, string>, plantId: number) => {
+    const res = await app.client.request({
+      method: 'get',
+      url: `${API}/images/plant?entityId=${plantId}`,
+      headers: auth,
+    });
+    return res.body.data.at(-1).date as number;
+  };
+
+  it('accepts a webp upload and writes the variants', async () => {
+    const { owner, plant } = await setup();
+    const webp = await sharp(png).webp().toBuffer();
+    const res = await post(owner.auth, plant.plant_id, { data: webp });
+    expect(res.status).toBe(201);
+    variantFiles('plant', res.body.data.path).forEach((file) =>
+      expect(fs.existsSync(file), file).toBe(true),
+    );
+  });
+
+  it('rejects a text file declared as image/webp with 400', async () => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { data: 'not an image at all' });
+    expect(res.status).toBe(400);
+  });
+
+  it('still rejects gif', async () => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { contentType: 'image/gif' });
+    expect(res.status).toBe(400);
+  });
+
+  it('stores the date field (epoch ms) as seconds', async () => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { date: '1717236000999' });
+    expect(res.status).toBe(201);
+    expect(await storedDate(owner.auth, plant.plant_id)).toBe(1717236000);
+  });
+
+  it('prefers the date field over the EXIF date of the file', async () => {
+    const { owner, plant } = await setup();
+    const jpeg = await sharp(png)
+      .jpeg()
+      .withExif({ IFD2: { DateTimeOriginal: '2020:01:02 03:04:05' } })
+      .toBuffer();
+    const withExifOnly = await post(owner.auth, plant.plant_id, {
+      contentType: 'image/jpeg',
+      data: jpeg,
+    });
+    expect(withExifOnly.status).toBe(201);
+    const exifDate = await storedDate(owner.auth, plant.plant_id);
+    expect(new Date(exifDate * 1000).getFullYear()).toBe(2020);
+
+    const explicit = await post(owner.auth, plant.plant_id, {
+      contentType: 'image/jpeg',
+      data: jpeg,
+      date: '1717236000000',
+    });
+    expect(explicit.status).toBe(201);
+    expect(await storedDate(owner.auth, plant.plant_id)).toBe(1717236000);
+  });
+
+  it('keeps the current date fallback when no date is sent', async () => {
+    const { owner, plant } = await setup();
+    const before = Math.floor(Date.now() / 1000) - 5;
+    await post(owner.auth, plant.plant_id);
+    expect(await storedDate(owner.auth, plant.plant_id)).toBeGreaterThanOrEqual(before);
+  });
+
+  it.each([
+    ['non-integer', () => '1.5'],
+    ['negative', () => '-1000'],
+    ['before 2000', () => String(Date.UTC(1999, 11, 31))],
+    ['two days ahead', () => String(Date.now() + 2 * DAY)],
+  ])('rejects a %s date on POST and PATCH with fields.date', async (_name, make) => {
+    const { owner, plant } = await setup();
+    const res = await post(owner.auth, plant.plant_id, { date: make() });
+    expect(res.status).toBe(400);
+    expect(res.body.error.fields).toHaveProperty('date');
+
+    await post(owner.auth, plant.plant_id);
+    const id = (
+      await app.client.request({
+        method: 'get',
+        url: `${API}/images/plant?entityId=${plant.plant_id}`,
+        headers: owner.auth,
+      })
+    ).body.data[0].id;
+    const patch = await app.client.request({
+      method: 'patch',
+      url: `${API}/images/${id}`,
+      headers: owner.auth,
+      multipart: [{ field: 'date', data: make() }],
+    });
+    expect(patch.status).toBe(400);
+    expect(patch.body.error.fields).toHaveProperty('date');
+  });
+
+  it('PATCH accepts a webp replacement together with a date', async () => {
+    const { owner, plant } = await setup();
+    await post(owner.auth, plant.plant_id);
+    const id = (
+      await app.client.request({
+        method: 'get',
+        url: `${API}/images/plant?entityId=${plant.plant_id}`,
+        headers: owner.auth,
+      })
+    ).body.data[0].id;
+    const webp = await sharp(png).webp().toBuffer();
+    const res = await app.client.request({
+      method: 'patch',
+      url: `${API}/images/${id}`,
+      headers: owner.auth,
+      multipart: [
+        { field: 'image', filename: 'n.webp', contentType: 'image/webp', data: webp },
+        { field: 'date', data: '1717236000000' },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.date).toBe(1717236000);
   });
 });

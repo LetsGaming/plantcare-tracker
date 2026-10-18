@@ -15,6 +15,7 @@ import images from "./steps/06-images.mjs";
 import scraperHealth from "./steps/07-scraper-health.mjs";
 import searchHealth from "./steps/08-search-health.mjs";
 import recognition from "./steps/09-recognition.mjs";
+import sales from "./steps/10-sales.mjs";
 
 export const STEPS = [
   users,
@@ -26,6 +27,7 @@ export const STEPS = [
   scraperHealth,
   searchHealth,
   recognition,
+  sales,
 ];
 
 export const runSeed = async (ctx) => {
