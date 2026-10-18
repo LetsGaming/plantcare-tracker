@@ -5,7 +5,7 @@ import path from "path";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-const LATIN_FONT_FILE = /(bricolage-grotesque|figtree)-latin-wght-normal-[w-]+.woff2$/;
+const LATIN_FONT_FILE = /(bricolage-grotesque|figtree)-latin-wght-normal-[\w-]+\.woff2$/;
 
 function preloadLatinFonts(): Plugin {
   return {

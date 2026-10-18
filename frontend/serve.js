@@ -109,6 +109,7 @@ function safePath(urlPath) {
     return null; // ungültige Prozent-Kodierung
   }
   if (decoded.includes("\0")) return null;
+  if (decoded.split(/[\\/]/).includes("..")) return null;
   const filePath = path.join(CONFIG.distDir, path.normalize(decoded));
   const rel = path.relative(CONFIG.distDir, filePath);
   if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
