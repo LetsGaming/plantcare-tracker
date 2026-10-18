@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LIST } from '../../../src/core/config/constants';
+import { LIST, NAME_MAX_LENGTH } from '../../../src/core/config/constants';
 import { MAX_UPLOAD_BYTES } from '../../../src/modules/images/presentation/uploadErrors';
 
 const frontendSrc = join(__dirname, '..', '..', '..', '..', 'frontend', 'src');
@@ -37,5 +37,9 @@ describe('frontend constants mirror the backend limits', () => {
 
   it('search term length', () => {
     expect(readNumber('components/SearchBar.vue', 'SEARCH_MAX_LENGTH')).toBe(LIST.MAX_QUERY_LENGTH);
+  });
+
+  it('name length', () => {
+    expect(readNumber('utils/formLimits.ts', 'NAME_MAX_LENGTH')).toBe(NAME_MAX_LENGTH);
   });
 });

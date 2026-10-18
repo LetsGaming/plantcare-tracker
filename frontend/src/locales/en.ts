@@ -645,6 +645,8 @@ export default {
 
   "admin.scrapers.strategy.heuristic": "Layout detection",
 
+  "admin.scrapers.strategy.api": "API lookup",
+
   "admin.scrapers.items": "{count} items",
 
   "admin.scrapers.last_success": "Last success {time}",
