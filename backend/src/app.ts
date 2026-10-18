@@ -64,6 +64,7 @@ const CORS_PREFLIGHT_MAX_AGE_S = 600;
 /** A stored upload is never rewritten under the same file name, so a URL never changes meaning. */
 const UPLOADS_MAX_AGE = '365d';
 const LOOP_DELAY_RESOLUTION_MS = 20;
+const LOOP_DELAY_WINDOW_MS = 60_000;
 const NS_PER_MS = 1e6;
 const BYTES_PER_MB = 1024 * 1024;
 
@@ -178,7 +179,19 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
 
   const loopDelay = monitorEventLoopDelay({ resolution: LOOP_DELAY_RESOLUTION_MS });
   loopDelay.enable();
+  const readLoopDelay = () => ({
+    p50_ms: toMs(loopDelay.percentile(50)),
+    p99_ms: toMs(loopDelay.percentile(99)),
+    max_ms: toMs(loopDelay.max),
+  });
+  let lastWindow: ReturnType<typeof readLoopDelay> | null = null;
+  const windowTimer = setInterval(() => {
+    lastWindow = readLoopDelay();
+    loopDelay.reset();
+  }, LOOP_DELAY_WINDOW_MS);
+  windowTimer.unref();
   app.addHook('onClose', async () => {
+    clearInterval(windowTimer);
     loopDelay.disable();
   });
 
@@ -192,12 +205,7 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
       const m = Math.floor((uptimeSeconds % 3600) / 60);
       const s = Math.floor(uptimeSeconds % 60);
 
-      const loop = {
-        p50_ms: toMs(loopDelay.percentile(50)),
-        p99_ms: toMs(loopDelay.percentile(99)),
-        max_ms: toMs(loopDelay.max),
-      };
-      loopDelay.reset();
+      const loop = lastWindow ?? readLoopDelay();
 
       return {
         status: 'ok',

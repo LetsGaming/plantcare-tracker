@@ -71,7 +71,13 @@ export const clearStatementCache = (): void => statements?.clear();
 /** Applies every pending migration to the given database. Throws when one fails. */
 export const applyMigrations = async (db: Kysely<Database>): Promise<string[]> => {
   const migrator = new Migrator({ db, provider: migrationProvider });
-  const { error, results } = await migrator.migrateToLatest();
+  let outcome: Awaited<ReturnType<Migrator['migrateToLatest']>>;
+  try {
+    outcome = await migrator.migrateToLatest();
+  } finally {
+    clearStatementCache();
+  }
+  const { error, results } = outcome;
   if (error) throw error instanceof Error ? error : new Error(String(error));
   return (results ?? []).filter((r) => r.status === 'Success').map((r) => r.migrationName);
 };
@@ -79,7 +85,6 @@ export const applyMigrations = async (db: Kysely<Database>): Promise<string[]> =
 /** Brings the process database up to date; must finish before requests are served. */
 export const initDatabase = async (): Promise<void> => {
   for (const name of await applyMigrations(getKysely())) logger.info(`Applied migration ${name}`);
-  statements?.clear();
   const db = getSqlite();
   db.pragma('analysis_limit = 1000');
   db.pragma('optimize = 0x10002');

@@ -6,6 +6,7 @@
  * the shared parseOrThrow helper.
  */
 
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import type { AccountDeleter, ImageFileRemover, UserRepository } from '../domain/User';
 import {
@@ -88,6 +89,11 @@ export class RegisterUseCase {
   }
 }
 
+let dummyHashPromise: Promise<string> | undefined;
+/** Verified when the user is unknown so response time does not reveal which usernames exist. */
+const dummyHash = (): Promise<string> =>
+  (dummyHashPromise ??= hashPassword(crypto.randomBytes(16).toString('hex')));
+
 export class LoginUseCase {
   constructor(private readonly repo: UserRepository) {}
 
@@ -99,8 +105,8 @@ export class LoginUseCase {
     );
 
     const user = await this.repo.findByUsername(username);
-    const check = user ? await verifyPassword(password, user.password) : null;
-    if (!user || !check?.ok) throw new UnauthorizedError('Invalid credentials');
+    const check = await verifyPassword(password, user?.password ?? (await dummyHash()));
+    if (!user || !check.ok) throw new UnauthorizedError('Invalid credentials');
     if (check.needsRehash && Buffer.byteLength(password, 'utf8') <= BCRYPT_INPUT_MAX_BYTES) {
       await this.upgradeHash(user.id, user.password, password);
     }

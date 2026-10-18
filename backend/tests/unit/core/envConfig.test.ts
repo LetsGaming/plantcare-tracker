@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import { loadConfig } from '../../../src/core/config/env';
+import { isLogToStdoutEnv, loadConfig } from '../../../src/core/config/env';
 
 const base = { JWT_SECRET: 's', JWT_REFRESH_SECRET: 'r' };
 const load = (extra: Record<string, string> = {}) => loadConfig({ ...base, ...extra });
@@ -88,5 +88,23 @@ describe('boolean parsing', () => {
       /SALES_REFRESH_ENABLED must be true, false, 1 or 0/,
     );
     expect(() => load({ IMAGE_BACKFILL_ON_START: value })).toThrow(/IMAGE_BACKFILL_ON_START/);
+  });
+});
+
+describe('PORT and LOG_TO_STDOUT', () => {
+  it.each(['abc', '0', '70000', '-1'])('rejects PORT "%s"', (value) => {
+    expect(() => load({ PORT: value })).toThrow(/PORT must be a plain integer/);
+  });
+
+  it('reads PORT and defaults to 5000', () => {
+    expect(load().port).toBe(5000);
+    expect(load({ PORT: '8080' }).port).toBe(8080);
+  });
+
+  it('falls back to false with a warning for an invalid LOG_TO_STDOUT in the logger check', () => {
+    const warn = vi.spyOn(process, 'emitWarning').mockImplementation(() => undefined);
+    expect(isLogToStdoutEnv({ LOG_TO_STDOUT: 'maybe' })).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('LOG_TO_STDOUT'));
+    warn.mockRestore();
   });
 });

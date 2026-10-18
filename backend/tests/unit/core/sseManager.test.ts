@@ -107,3 +107,21 @@ describe('SseManager backpressure', () => {
     disposeSpy.mockRestore();
   });
 });
+
+describe('SseManager.end on a closed response', () => {
+  it('resolves when the socket is already destroyed', async () => {
+    const res = new FakeResponse();
+    const sse = new SseManager(asResponse(res));
+    res.destroyed = true;
+    await expect(sse.end()).resolves.toBeUndefined();
+    expect(res.end).not.toHaveBeenCalled();
+  });
+
+  it('resolves on close when finish never fires', async () => {
+    const res = new FakeResponse();
+    const sse = new SseManager(asResponse(res));
+    const pending = sse.end();
+    res.disconnect();
+    await expect(pending).resolves.toBeUndefined();
+  });
+});

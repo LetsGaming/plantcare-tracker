@@ -94,8 +94,14 @@ const readBool = (env: NodeJS.ProcessEnv, key: string, fallback: boolean): boole
 };
 
 /** Cheap check for the logger, which loads before the rest of the configuration is valid. */
-export const isLogToStdoutEnv = (env: NodeJS.ProcessEnv = process.env): boolean =>
-  readBool(env, 'LOG_TO_STDOUT', false);
+export const isLogToStdoutEnv = (env: NodeJS.ProcessEnv = process.env): boolean => {
+  try {
+    return readBool(env, 'LOG_TO_STDOUT', false);
+  } catch (err) {
+    process.emitWarning(`${(err as Error).message} Falling back to false.`);
+    return false;
+  }
+};
 
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const missing = ['JWT_SECRET', 'JWT_REFRESH_SECRET'].filter((key) => !env[key]);
@@ -109,7 +115,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const isProduction = isProductionEnv(env);
   return {
     isProduction,
-    port: Number(env.PORT ?? 5000),
+    port: readInt(env, 'PORT', 5000, 1, 65535),
     allowedOrigins: env.ALLOWED_ORIGINS
       ? env.ALLOWED_ORIGINS.split(',')
           .map((origin) => origin.trim())

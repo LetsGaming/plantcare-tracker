@@ -73,9 +73,11 @@ export class SseManager {
   async end(finalMessage?: Record<string, unknown>): Promise<void> {
     const stats = finalMessage ?? { total: this.totalSent };
     clearInterval(this.heartbeat);
+    if (this.res.destroyed || this.res.writableEnded) return;
     this.res.write(`event: ${SSE.EVENT.DONE}\ndata: ${JSON.stringify(stats)}\n\n`);
     return new Promise((resolve) => {
       this.res.once('finish', resolve);
+      this.res.once('close', resolve);
       this.res.end();
     });
   }

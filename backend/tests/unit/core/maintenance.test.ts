@@ -53,8 +53,8 @@ describe('MaintenanceScheduler', () => {
     scheduler.start();
   });
 
-  afterEach(() => {
-    scheduler.stop();
+  afterEach(async () => {
+    await scheduler.stop();
     vi.useRealTimers();
   });
 
@@ -112,12 +112,36 @@ describe('MaintenanceScheduler', () => {
     release();
     await vi.advanceTimersByTimeAsync(MINUTE);
     expect(slow).toHaveBeenCalledTimes(2);
-    own.stop();
+    void own.stop();
+  });
+
+  it('stop waits for a running job but gives up after the timeout', async () => {
+    let release!: () => void;
+    const slow = vi.fn(() => new Promise<void>((resolve) => (release = resolve)));
+    const own = new MaintenanceScheduler([{ name: 'slow', intervalMs: MINUTE, run: slow }]);
+    own.start();
+    await vi.advanceTimersByTimeAsync(MINUTE);
+    let stopped = false;
+    const stopping = own.stop(1000).then(() => (stopped = true));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(stopped).toBe(false);
+    release();
+    await stopping;
+    expect(stopped).toBe(true);
+
+    const stuck = new MaintenanceScheduler([
+      { name: 'stuck', intervalMs: MINUTE, run: () => new Promise<void>(() => undefined) },
+    ]);
+    stuck.start();
+    await vi.advanceTimersByTimeAsync(MINUTE);
+    const giveUp = stuck.stop(1000);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(giveUp).resolves.toBeUndefined();
   });
 
   it('uses unref timers and stop clears every one of them', async () => {
     expect(vi.getTimerCount()).toBe(6);
-    scheduler.stop();
+    await scheduler.stop();
     expect(vi.getTimerCount()).toBe(0);
     await vi.advanceTimersByTimeAsync(2 * DAY);
     expect(mocks.sweepTickets).not.toHaveBeenCalled();
@@ -177,7 +201,7 @@ describe('sweepOrphanUploads', () => {
       ],
     });
 
-    expect(result).toEqual({ scanned: 7, removed: 2 });
+    expect(result).toEqual({ scanned: 6, removed: 2 });
     expect(await exists('plant/a-1.webp')).toBe(true);
     expect(await exists('plant/a-1-160.webp')).toBe(true);
     expect(await exists('plant/a-1-480.webp')).toBe(true);
@@ -201,6 +225,85 @@ describe('sweepOrphanUploads', () => {
 
     expect(await fs.readFile(outside, 'utf8')).toBe('keep');
     await fs.rm(outside);
+  });
+
+  it('only touches webp files inside the entity folders', async () => {
+    await put('plant/keep-ref.webp', old);
+    await put('plant/notes.txt', old);
+    await put('other/stray.webp', old);
+    await put('stray-root.webp', old);
+    await put('plant/orphan.webp', old);
+
+    const result = await sweepOrphanUploads({
+      uploadsDir: dir,
+      now,
+      referencedUrls: () => ['/uploads/plant/keep-ref.webp'],
+    });
+
+    expect(result).toEqual({ scanned: 2, removed: 1 });
+    expect(await exists('plant/notes.txt')).toBe(true);
+    expect(await exists('other/stray.webp')).toBe(true);
+    expect(await exists('stray-root.webp')).toBe(true);
+    expect(await exists('plant/orphan.webp')).toBe(false);
+  });
+
+  it('treats urls with and without the uploads prefix the same', async () => {
+    await put('plant/a.webp', old);
+    await put('substrate/b.webp', old);
+    await put('component/c.webp', old);
+    await put('plant/orphan.webp', old);
+
+    const result = await sweepOrphanUploads({
+      uploadsDir: dir,
+      now,
+      referencedUrls: () => [
+        'plant/a.webp',
+        '/uploads/substrate/b.webp',
+        'http://h/uploads/component/c.webp',
+      ],
+    });
+
+    expect(result.removed).toBe(1);
+    expect(await exists('plant/a.webp')).toBe(true);
+    expect(await exists('substrate/b.webp')).toBe(true);
+    expect(await exists('component/c.webp')).toBe(true);
+  });
+
+  it('aborts without deleting when no image row references anything', async () => {
+    await put('plant/a.webp', old);
+
+    const result = await sweepOrphanUploads({ uploadsDir: dir, now, referencedUrls: () => [] });
+
+    expect(result).toEqual({ scanned: 1, removed: 0, aborted: 'no-references' });
+    expect(await exists('plant/a.webp')).toBe(true);
+    expect(mocks.moduleLog.warn).toHaveBeenCalled();
+  });
+
+  it('aborts when most files would be removed', async () => {
+    await put('plant/ref.webp', old);
+    for (let i = 0; i < 25; i++) await put(`plant/orphan-${i}.webp`, old);
+
+    const result = await sweepOrphanUploads({
+      uploadsDir: dir,
+      now,
+      referencedUrls: () => ['/uploads/plant/ref.webp'],
+    });
+
+    expect(result).toEqual({ scanned: 26, removed: 0, aborted: 'too-many-orphans' });
+    expect(await exists('plant/orphan-0.webp')).toBe(true);
+  });
+
+  it('removes a few orphans among many referenced files', async () => {
+    const urls: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      await put(`plant/ref-${i}.webp`, old);
+      urls.push(`/uploads/plant/ref-${i}.webp`);
+    }
+    await put('plant/orphan.webp', old);
+
+    const result = await sweepOrphanUploads({ uploadsDir: dir, now, referencedUrls: () => urls });
+
+    expect(result).toEqual({ scanned: 31, removed: 1 });
   });
 
   it('returns zero when the uploads directory does not exist yet', async () => {

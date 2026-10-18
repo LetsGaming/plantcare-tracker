@@ -56,12 +56,20 @@ const releaseResources = async (): Promise<void> => {
   }
 };
 
+let shuttingDown = false;
+
 const handleShutdown = (signal: string): void => {
+  if (shuttingDown) {
+    logger.debug(`${signal}: shutdown already in progress`);
+    return;
+  }
+  shuttingDown = true;
   logger.debug(`${signal}: shutting down gracefully...`);
-  maintenance?.stop();
   const finish = (): void => void releaseResources().then(() => process.exit(0));
-  if (app) void app.close().then(finish, finish);
-  else finish();
+  const closeApp = async (): Promise<void> => {
+    await Promise.all([maintenance?.stop(), app?.close()]);
+  };
+  void closeApp().then(finish, finish);
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');
     process.exit(1);
