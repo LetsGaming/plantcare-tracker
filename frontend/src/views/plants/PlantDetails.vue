@@ -14,14 +14,14 @@
       </ion-refresher>
 
       <state-block
-        v-if="!plant && isLoading"
+        v-if="!plant && phase === 'loading'"
         kind="loading"
         :title="t('plantdetail.loading')"
         :skeletons="1"
       />
 
       <state-block
-        v-else-if="!plant && loadFailed"
+        v-else-if="!plant && phase === 'error'"
         kind="error"
         :title="t('state.error_title')"
         :message="t('state.error_message')"
@@ -134,6 +134,7 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import { icons } from "@/theme/icons";
 import { pageActive } from "@/utils/pageActive";
+import { type LoadPhase, phaseFromError } from "@/utils/loadPhase";
 
 import DetailsHeader from "@/components/details/DetailsHeader.vue";
 import DetailsBanner from "@/components/details/DetailsBanner.vue";
@@ -190,8 +191,7 @@ export default defineComponent({
       enlargedImage: null as ImageView | null,
       showImageEditModal: false,
 
-      isLoading: true,
-      loadFailed: false,
+      phase: "loading" as LoadPhase,
       hasEntered: false,
       isEditLoading: false,
       isImageLoading: false,
@@ -244,13 +244,24 @@ export default defineComponent({
   },
 
   watch: {
-    // Only the full substrate is refetched, and only when the referenced one changed.
-    async substrateRefId(refId: number | undefined) {
-      if (!refId) {
-        this.fullSubstrate = null;
-      } else if (this.fullSubstrate?.id !== refId) {
-        this.fullSubstrate = await this.loadSubstrate(refId).catch(() => null);
-      }
+    // Only the full substrate is fetched, and only when the referenced one changed. It is
+    // best-effort: a substrate failure must not hide the plant.
+    substrateRefId: {
+      immediate: true,
+      async handler(refId: number | undefined) {
+        if (!refId) {
+          this.fullSubstrate = null;
+          return;
+        }
+        if (this.fullSubstrate?.id === refId) return;
+        try {
+          const substrate = await this.loadSubstrate(refId);
+          if (this.substrateRefId === refId) this.fullSubstrate = substrate;
+        } catch (error) {
+          if (this.substrateRefId === refId) this.fullSubstrate = null;
+          console.error("Error fetching substrate details:", error);
+        }
+      },
     },
   },
 
@@ -271,31 +282,14 @@ export default defineComponent({
     /* -------------------- DATA -------------------- */
 
     async loadPlantData(force = false) {
-      this.isLoading = true;
-      this.loadFailed = false;
+      // A plant that is already on screen stays; only an empty page shows loading or failure.
+      if (!this.plant) this.phase = "loading";
       try {
         await this.loadPlant(this.plantId, force);
-
-        // V2 only sends a lightweight substrate reference { id, name } on the plant.
-        // We need to fetch the full substrate separately to get its components.
-        // This is best-effort: a substrate failure must not hide plant details.
-        if (this.plant?.substrate?.id) {
-          try {
-            this.fullSubstrate = await this.loadSubstrate(this.plant.substrate.id);
-          } catch (substrateError) {
-            this.fullSubstrate = null;
-            console.error("Error fetching substrate details:", substrateError);
-          }
-        } else {
-          this.fullSubstrate = null;
-        }
+        this.phase = "ready";
       } catch (error) {
-        this.fullSubstrate = null;
-        // A plant that is already on screen stays; only an empty page shows the failure.
-        this.loadFailed = (error as { status?: number })?.status !== 404;
+        this.phase = phaseFromError(error);
         console.error("Error fetching plant details:", error);
-      } finally {
-        this.isLoading = false;
       }
     },
 
