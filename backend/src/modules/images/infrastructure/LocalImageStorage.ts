@@ -214,6 +214,10 @@ export class LocalImageStorage implements ImageStorage {
     return uploadSlots.run(() => this.encode(file, entityType));
   }
 
+  read(entityType: EntityType, imageUrl: string): Promise<Buffer> {
+    return fs.readFile(this.resolveLocalPath(entityType, imageUrl));
+  }
+
   async remove(entityType: string, imageUrl: string, variants?: number): Promise<void> {
     const main = this.resolveLocalPath(entityType, imageUrl);
     await this.unlink(main);

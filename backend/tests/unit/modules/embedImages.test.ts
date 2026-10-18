@@ -6,6 +6,7 @@ import {
   BACKFILL_BATCH,
   EmbedImagesService,
 } from '../../../src/modules/recognition/application/EmbedImages';
+import { LocalImageStorage } from '../../../src/modules/images/infrastructure/LocalImageStorage';
 import { EmbedderBusyError } from '../../../src/modules/recognition/infrastructure/OnnxEmbedder';
 import type {
   Embedder,
@@ -69,7 +70,8 @@ const setup = async ({ ids, noFile = [], embed, rescanDelayMs = 5 }: Options) =>
   };
   const log = { warn: vi.fn(), info: vi.fn() };
   const make = () => {
-    const service = new EmbedImagesService(embedder, repo, dir, log, rescanDelayMs);
+    const storage = new LocalImageStorage({ rootDir: dir });
+    const service = new EmbedImagesService(embedder, repo, storage, log, rescanDelayMs);
     services.push(service);
     return service;
   };

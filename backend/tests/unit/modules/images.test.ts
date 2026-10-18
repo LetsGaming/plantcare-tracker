@@ -77,6 +77,7 @@ const makeMockStorage = (): ImageStorage => ({
     placeholder: '#336699',
     variants: 1,
   }),
+  read: vi.fn().mockResolvedValue(Buffer.alloc(0)),
   remove: vi.fn().mockResolvedValue(undefined),
 });
 

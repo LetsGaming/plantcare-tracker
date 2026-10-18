@@ -133,6 +133,9 @@ export interface ImageStorage {
    */
   processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload>;
 
+  /** Reads the stored main file of an image; rejects when it is missing. */
+  read(entityType: EntityType, imageUrl: string): Promise<Buffer>;
+
   /**
    * Deletes the stored file and, for variants = 1, its 160 and 480 variants.
    * With variants undefined the variant files are removed when they exist.
