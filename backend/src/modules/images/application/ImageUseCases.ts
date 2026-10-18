@@ -28,6 +28,7 @@ import type {
 import type { ImageAccessPolicy } from './ImageAccessPolicy';
 import { parseCaptureDate } from './captureDate';
 import { NotFoundError, ValidationError } from '../../../core/errors';
+import { toEpochSeconds } from '../../../core/utils/time';
 import { toPublicImageUrl, toStoredImagePath } from '../../../core/config';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -59,8 +60,6 @@ const pickVariantMeta = ({
   placeholder,
   variants,
 }: ImageVariantMeta): ImageVariantMeta => ({ width, height, placeholder, variants });
-
-const toEpochSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
@@ -113,7 +112,7 @@ export class UploadImageUseCase {
         input.entityType,
         input.entityId,
         stored,
-        toEpochSeconds(capturedAt),
+        toEpochSeconds(capturedAt) ?? undefined,
         pickVariantMeta(processed),
       );
     } catch (err) {

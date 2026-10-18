@@ -21,6 +21,7 @@ import sharp from 'sharp';
 import ExifParser from 'exif-parser';
 import type { ImageStorage, ProcessedUpload, UploadedFile, EntityType } from '../domain/Image';
 import { ValidationError } from '../../../core/errors';
+import { toEpochMillis } from '../../../core/utils/time';
 import { getConfig, getUploadsDirectory } from '../../../core/config';
 import { createModuleLogger } from '../../../core/logging';
 import { createSemaphore } from './semaphore';
@@ -56,7 +57,9 @@ const parseExifDate = (value: unknown): Date | null => {
   if (value instanceof Date) {
     date = value;
   } else if (typeof value === 'number') {
-    date = new Date(String(value).length === 10 ? value * 1000 : value);
+    const ms = toEpochMillis(value);
+    if (ms === null) return null;
+    date = new Date(ms);
   } else if (typeof value === 'string') {
     // EXIF uses "YYYY:MM:DD hh:mm:ss" — colons in the date part must
     // become dashes before Date can parse it.

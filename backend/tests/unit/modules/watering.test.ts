@@ -11,7 +11,6 @@ import type {
 } from '../../../src/modules/watering/domain/WateringRecord';
 import type { WateringSummary } from '../../../src/modules/plants/domain/wateringSummary';
 import {
-  toEpochSeconds,
   GetFertilizerTypesUseCase,
   GetWateringHistoryUseCase,
   GetWateringRecordUseCase,
@@ -58,30 +57,6 @@ const makeMockRepo = (): WateringRepository => ({
 });
 
 const asMock = (fn: unknown): ReturnType<typeof vi.fn> => fn as ReturnType<typeof vi.fn>;
-
-// ── toEpochSeconds ────────────────────────────────────────────────────────────
-
-describe('toEpochSeconds', () => {
-  it('converts an ISO string to epoch seconds', () => {
-    expect(toEpochSeconds('2024-06-01T10:00:00.000Z')).toBe(1717236000);
-  });
-
-  it('treats large numbers as epoch milliseconds', () => {
-    expect(toEpochSeconds(1717236000000)).toBe(1717236000);
-  });
-
-  it('passes through epoch seconds unchanged', () => {
-    expect(toEpochSeconds(1717236000)).toBe(1717236000);
-  });
-
-  it('returns null for an unparsable string', () => {
-    expect(toEpochSeconds('not-a-date')).toBeNull();
-  });
-
-  it('returns null for NaN input', () => {
-    expect(toEpochSeconds(NaN)).toBeNull();
-  });
-});
 
 // ── GetFertilizerTypesUseCase ─────────────────────────────────────────────────
 

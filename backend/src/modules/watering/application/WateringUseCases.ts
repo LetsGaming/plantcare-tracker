@@ -18,6 +18,7 @@ import {
 import { parseTzOffset, type WateringSummary } from '../../plants/domain/wateringSummary';
 import { NotFoundError, ValidationError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
+import { toEpochSeconds } from '../../../core/utils/time';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
@@ -69,20 +70,6 @@ export const UpdateWateringSchema = z
   );
 
 // ── Date normalisation (business rule) ────────────────────────────────────────
-
-/**
- * Normalises a client-supplied date (ISO string, epoch millis, or epoch
- * seconds) to Unix epoch seconds for SQLite storage. Returns null when
- * the input does not represent a valid point in time.
- *
- * Exported for direct unit testing.
- */
-export const toEpochSeconds = (date: string | number): number | null => {
-  const ms =
-    typeof date === 'number' ? (date > 1e10 ? date : date * 1000) : new Date(date).getTime();
-  if (!Number.isFinite(ms)) return null;
-  return Math.floor(ms / 1000);
-};
 
 const MIN_WATERING_SEC = Date.UTC(2000, 0, 1) / 1000;
 const MAX_FUTURE_SEC = 24 * 60 * 60;
