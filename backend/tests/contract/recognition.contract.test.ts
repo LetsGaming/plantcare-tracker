@@ -253,8 +253,8 @@ describe('recognition with a model', () => {
     const vectorOf = () =>
       app.db.query<{ vector: Buffer }>('SELECT vector FROM image_embeddings WHERE image_id = ?', [
         imageId,
-      ])[0].vector;
-    const before = vectorOf();
+      ])[0]?.vector;
+    const before = vectorOf()!;
     const res = await app.client.request({
       method: 'patch',
       url: `${API}/images/${imageId}`,
@@ -265,7 +265,8 @@ describe('recognition with a model', () => {
     });
     expect(res.status).toBe(200);
     for (let i = 0; i < 100; i++) {
-      if (!vectorOf().equals(before)) return;
+      const after = vectorOf();
+      if (after && !after.equals(before)) return;
       await new Promise((r) => setTimeout(r, 20));
     }
     throw new Error('replacement embedding not written');

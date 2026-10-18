@@ -90,7 +90,15 @@ export class SQLiteImageRepository implements ImageRepository {
     if (fields.placeholder !== undefined) changes.placeholder = fields.placeholder;
     if (fields.variants !== undefined) changes.variants = fields.variants;
     if (!Object.keys(changes).length) return;
-    await getKysely().updateTable('images').set(changes).where('id', '=', imageId).execute();
+    await getKysely()
+      .transaction()
+      .execute(async (trx) => {
+        await trx.updateTable('images').set(changes).where('id', '=', imageId).execute();
+        // The vector describes the old file; without a row the embedding backfill finds the image again.
+        if (fields.imageUrl !== undefined) {
+          await trx.deleteFrom('image_embeddings').where('image_id', '=', imageId).execute();
+        }
+      });
   }
 
   async delete(imageId: number): Promise<void> {

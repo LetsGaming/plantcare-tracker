@@ -1,5 +1,10 @@
 import type { PlantVector } from '../../src/modules/recognition/domain/Recognition';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { SQLiteImageRepository } from '../../src/modules/images/infrastructure/SQLiteImageRepository';
+import { EmbedImagesService } from '../../src/modules/recognition/application/EmbedImages';
 import { createContractApp, type ContractApp } from '../contract/harness';
 import { createPlant, createSubstrate } from '../contract/support';
 import { getKysely } from '../../src/core/database/db';
@@ -69,6 +74,51 @@ describe('SQLiteEmbeddingRepository', () => {
     expect((await repo.plantImagesMissing('m1')).map((m) => m.imageId)).not.toContain(imageId);
     await repo.save(imageId, 'm2', Float32Array.from([1]));
     expect((await repo.plantImagesMissing('m1')).map((m) => m.imageId)).toContain(imageId);
+  });
+
+  it('drops the vector when the image file is replaced so the backfill finds it again', async () => {
+    const { imageId } = await plantWithImage();
+    const images = new SQLiteImageRepository();
+    await repo.save(imageId, 'm1', Float32Array.from([1]));
+
+    await images.update(imageId, { uploadDate: 5 });
+    expect((await repo.plantImagesMissing('m1')).map((m) => m.imageId)).not.toContain(imageId);
+
+    await images.update(imageId, { imageUrl: '/uploads/plant/replacement.webp' });
+    expect((await repo.plantImagesMissing('m1')).map((m) => m.imageId)).toContain(imageId);
+  });
+
+  it('retries a replaced photo whose re-embed failed through backfill', async () => {
+    const { imageId } = await plantWithImage();
+    const images = new SQLiteImageRepository();
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'embed-'));
+    try {
+      await fsp.mkdir(path.join(dir, 'plant'));
+      await fsp.writeFile(path.join(dir, 'plant', 'new.webp'), 'x');
+      await repo.save(imageId, 'm1', Float32Array.from([1]));
+      await images.update(imageId, { imageUrl: '/uploads/plant/new.webp' });
+
+      let healthy = false;
+      const embedder = {
+        modelId: 'm1',
+        confidentScore: 1,
+        embed: async () => {
+          if (!healthy) throw new Error('model busy');
+          return Float32Array.from([2]);
+        },
+      };
+      const log = { warn: () => undefined, info: () => undefined };
+      const service = new EmbedImagesService(embedder, repo, dir, log, 60_000);
+      await service.backfill();
+      expect((await repo.plantImagesMissing('m1')).map((m) => m.imageId)).toContain(imageId);
+
+      healthy = true;
+      await service.backfill();
+      service.stop();
+      expect((await repo.plantImagesMissing('m1')).map((m) => m.imageId)).not.toContain(imageId);
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('cascades vectors when their image is deleted', async () => {
