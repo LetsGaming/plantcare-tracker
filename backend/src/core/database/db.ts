@@ -19,15 +19,18 @@ import BetterSqlite3 from 'better-sqlite3';
 import type { Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
-import { Kysely, SqliteDialect } from 'kysely';
+import { Kysely } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { logger } from '../logging';
 import { getConfig } from '../config';
 import type { Database } from './schema';
 import { migrationProvider } from './migrations';
+import { createCachedSqliteDialect } from './cachedSqliteDialect';
+import type { CachedSqliteDatabase } from './cachedSqliteDialect';
 
 let sqlite: SqliteDatabase | null = null;
 let kysely: Kysely<Database> | null = null;
+let statements: CachedSqliteDatabase | null = null;
 
 const IN_MEMORY = ':memory:';
 
@@ -53,8 +56,14 @@ const openSqlite = (): SqliteDatabase => {
 export const getSqlite = (): SqliteDatabase => (sqlite ??= openSqlite());
 
 /** The typed query builder over the shared connection. */
-export const getKysely = (): Kysely<Database> =>
-  (kysely ??= new Kysely<Database>({ dialect: new SqliteDialect({ database: getSqlite() }) }));
+export const getKysely = (): Kysely<Database> => {
+  if (!kysely) {
+    const { dialect, statements: cache } = createCachedSqliteDialect(getSqlite());
+    statements = cache;
+    kysely = new Kysely<Database>({ dialect });
+  }
+  return kysely;
+};
 
 /** Applies every pending migration to the given database. Throws when one fails. */
 export const applyMigrations = async (db: Kysely<Database>): Promise<string[]> => {
@@ -67,6 +76,7 @@ export const applyMigrations = async (db: Kysely<Database>): Promise<string[]> =
 /** Brings the process database up to date; must finish before requests are served. */
 export const initDatabase = async (): Promise<void> => {
   for (const name of await applyMigrations(getKysely())) logger.info(`Applied migration ${name}`);
+  statements?.clear();
   const db = getSqlite();
   db.pragma('analysis_limit = 1000');
   db.pragma('optimize = 0x10002');
@@ -85,6 +95,8 @@ export const closeDb = async (): Promise<void> => {
   // Destroying Kysely closes the underlying connection.
   if (kysely) await kysely.destroy();
   else sqlite.close();
+  statements?.clear();
+  statements = null;
   kysely = null;
   sqlite = null;
   logger.debug('SQLite database closed.');
