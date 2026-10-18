@@ -22,7 +22,7 @@ import path from 'path';
 import fs from 'fs';
 import { createLogger, format, transports, Logger } from 'winston';
 import { AsyncLocalStorage } from 'async_hooks';
-import { isProductionEnv } from '../config/env';
+import { isLogToStdoutEnv, isProductionEnv } from '../config/env';
 
 // ── Request-ID store ──────────────────────────────────────────────────────────
 
@@ -39,9 +39,32 @@ export const requestContext = new AsyncLocalStorage<RequestContext>();
 // ── Log directory ─────────────────────────────────────────────────────────────
 
 const logDir = path.join(process.cwd(), 'logs');
-if (!fs.existsSync(logDir)) {
+const logToStdout = isLogToStdoutEnv();
+if (!logToStdout && !fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
+
+const LOG_FILE_MAX_BYTES = 10 * 1024 * 1024;
+const LOG_FILE_MAX_COUNT = 5;
+
+const fileTransports = (): transports.FileTransportInstance[] =>
+  logToStdout
+    ? []
+    : [
+        new transports.File({
+          filename: path.join(logDir, 'error.log'),
+          level: 'error',
+          maxsize: LOG_FILE_MAX_BYTES,
+          maxFiles: LOG_FILE_MAX_COUNT,
+        }),
+        new transports.File({
+          filename: path.join(logDir, 'combined.log'),
+          // persist info+ events so operational logs are always available on disk
+          level: 'info',
+          maxsize: LOG_FILE_MAX_BYTES,
+          maxFiles: LOG_FILE_MAX_COUNT,
+        }),
+      ];
 
 // ── Custom format: inject requestId from AsyncLocalStorage ───────────────────
 
@@ -137,21 +160,14 @@ export const logger: Logger = createLogger({
     format.json(),
   ),
   transports: [
-    new transports.File({
-      filename: path.join(logDir, 'error.log'),
-      level: 'error',
-    }),
-    new transports.File({
-      filename: path.join(logDir, 'combined.log'),
-      // persist info+ events so operational logs are always available on disk
-      level: 'info',
-    }),
+    ...fileTransports(),
     // Console transport is always active so PM2 / systemd / Docker can
     // capture logs via stdout regardless of environment.
     // In production, only surface warn+ to stdout to keep it lean while
-    // the combined.log file captures all info-level events.
+    // the combined.log file captures all info-level events. Without files
+    // (LOG_TO_STDOUT) stdout carries info too.
     new transports.Console({
-      level: isDev ? 'debug' : 'warn',
+      level: isDev ? 'debug' : logToStdout ? 'info' : 'warn',
       format: isDev
         ? format.combine(
             injectRequestId(),

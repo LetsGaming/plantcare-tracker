@@ -19,6 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "model:fetch": "node scripts/fetch-model.mjs",
+    "db:vacuum": "tsx src/tools/vacuumDb.ts",
     "db:import": "tsx src/tools/importMysqlDumpCli.ts",
     "images:backfill": "tsx src/tools/backfillImageVariants.ts"
   },

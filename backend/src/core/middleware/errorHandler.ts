@@ -4,8 +4,9 @@
  * Single, centralized error-handling middleware.
  *
  * Logging design:
- *  - Operational AppErrors (4xx) → logger.warn  — expected domain errors,
- *      route context only, no stack. These are the client's problem.
+ *  - Operational AppErrors (4xx) → logger.info (401 at debug): expected
+ *      domain errors, route context only, no stack. These are the client's
+ *      problem.
  *  - Non-operational AppErrors (5xx) → logger.error with the Error object
  *      so format.errors() can extract the full stack into error.log.
  *  - Unknown / programming errors → logger.error with full serialized
@@ -77,9 +78,10 @@ export const globalErrorHandler = (
     };
 
     if (err.isOperational) {
-      // Expected domain errors (4xx) — warn level, no stack needed.
-      // These are the client's fault; they don't warrant server-side noise.
-      logger.warn(`[${err.name}] ${err.message}`, logCtx);
+      // Expected domain errors (4xx) are the client's fault: no stack, and
+      // never above info. Expired tokens (401) are routine, so debug.
+      const level = err.statusCode === 401 ? 'debug' : 'info';
+      logger.log(level, `[${err.name}] ${err.message}`, logCtx);
     } else {
       // Non-operational AppErrors (5xx) — full error with stack
       logger.error(`[${err.name}] ${err.message}`, {

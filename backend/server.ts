@@ -19,15 +19,29 @@ import { initDatabase, closeDb } from './src/core/database/db';
 import { logger } from './src/core/logging';
 import { buildApp } from './src/app';
 import { getConfig } from './src/core/config';
+import {
+  MaintenanceScheduler,
+  createDefaultMaintenanceJobs,
+} from './src/core/maintenance/MaintenanceScheduler';
+import { sweepOrphanUploads } from './src/modules/images/application/OrphanUploadSweep';
+import { SQLiteSalesRepository } from './src/modules/sales/infrastructure/SQLiteSalesRepository';
 import { closeBrowser } from './src/modules/sales/infrastructure/HttpFetcher';
 
 const { port: PORT } = getConfig();
 let app: FastifyInstance | undefined;
+let maintenance: MaintenanceScheduler | undefined;
 
 const start = async (): Promise<void> => {
   await initDatabase();
   app = await buildApp();
   await app.listen({ port: PORT, host: '::' });
+  maintenance = new MaintenanceScheduler(
+    createDefaultMaintenanceJobs({
+      pruneSales: () => new SQLiteSalesRepository().pruneRetention(Date.now()),
+      sweepUploads: () => sweepOrphanUploads(),
+    }),
+  );
+  maintenance.start();
   logger.info(`V2 server running on port ${PORT}`);
 };
 
@@ -43,6 +57,7 @@ const releaseResources = async (): Promise<void> => {
 
 const handleShutdown = (signal: string): void => {
   logger.debug(`${signal}: shutting down gracefully...`);
+  maintenance?.stop();
   const finish = (): void => void releaseResources().then(() => process.exit(0));
   if (app) void app.close().then(finish, finish);
   else finish();

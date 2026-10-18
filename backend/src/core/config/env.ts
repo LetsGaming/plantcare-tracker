@@ -38,6 +38,8 @@ export interface AppConfig {
   imageBackfillOnStart: boolean;
   /** Decoder pixel limit for uploaded images (width x height). */
   uploadMaxPixels: number;
+  /** Log to stdout only, without rotating files in ./logs. */
+  logToStdout: boolean;
 }
 
 export interface SalesSettings {
@@ -91,6 +93,10 @@ const readBool = (env: NodeJS.ProcessEnv, key: string, fallback: boolean): boole
   throw new Error(`Environment variable ${key} must be true, false, 1 or 0, got "${env[key]}".`);
 };
 
+/** Cheap check for the logger, which loads before the rest of the configuration is valid. */
+export const isLogToStdoutEnv = (env: NodeJS.ProcessEnv = process.env): boolean =>
+  readBool(env, 'LOG_TO_STDOUT', false);
+
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const missing = ['JWT_SECRET', 'JWT_REFRESH_SECRET'].filter((key) => !env[key]);
   if (missing.length) {
@@ -132,6 +138,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
     },
     imageBackfillOnStart: readBool(env, 'IMAGE_BACKFILL_ON_START', false),
     uploadMaxPixels: readInt(env, 'UPLOAD_MAX_PIXELS', 40_000_000, 1, 400_000_000),
+    logToStdout: readBool(env, 'LOG_TO_STDOUT', false),
   };
 };
 
