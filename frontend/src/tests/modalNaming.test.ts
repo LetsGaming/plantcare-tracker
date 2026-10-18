@@ -74,7 +74,7 @@ describe("dialog accessible names", () => {
       "sales.filter.title",
     );
     expect(
-      dialogLabel(mountModal(CalendarSettingsModal, { categories: [], wateringCategories: [] })),
+      dialogLabel(mountModal(CalendarSettingsModal, {})),
     ).toBe("calendar.settings.title");
     expect(
       dialogLabel(
