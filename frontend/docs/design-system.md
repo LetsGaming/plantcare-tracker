@@ -91,9 +91,38 @@ The dark token block uses the selector `:root.ion-palette-dark` so it outranks I
 | `PullRefresher` | Pull to refresh that takes a promise-returning handler |
 | `OfflineBanner` | Polite offline and back-online notice mounted in `App.vue`, fixed at `--z-banner` and pushing the page down through `--offline-h` |
 
-Others: `ProgressiveImage` (low resolution first, then full; placeholder instead of a broken image),
+Others: `ProgressiveImage` (see Images below),
 `overview/ItemsOverview` (tag cards, search, states), `ConfirmDialog` (typed confirmation for account
 deletion), `FieldError` and `RequiredMark` (form fields).
+
+## Images
+
+`ProgressiveImage` renders every server image as one native lazy `<img>` over a placeholder layer.
+
+| Prop | Meaning |
+|------|---------|
+| `image` | An `ImageView` or the subset `{ url, srcset?, width?, height?, placeholder? }` (`url` is the 1024 px file, `srcset` lists the 160 and 480 px variants) |
+| `src` | Plain url for third-party images (sales) that have no variants; rendered with `referrerpolicy=no-referrer` |
+| `sizes` | Layout width hint, only rendered together with a `srcset` (default `100vw`). Grid cards use `(min-width: 640px) 360px, 50vw`, gallery tiles `(min-width: 900px) 148px, 168px`, banners `100vw` |
+| `priority` | Above-the-fold image: `loading=eager` and `fetchpriority=high`. The first 4 grid cards and detail banners set it; everything else is lazy |
+| `alt`, `kind`, `seed` | Accessible name, placeholder kind and variant seed |
+
+The container takes its `aspect-ratio` from `width` / `height` (4 / 3 without them), so the layout does not shift when the file arrives. A load error removes the `<img>` and leaves the labelled placeholder.
+
+**Placeholder classes.** `PlantPlaceholder` is one childless element. Without an image colour it takes the class `ph-<kind>-<variant>-<tint>`; the rule for each combination is injected once and draws the botanical glyph (light and dark art as data URIs in `--art-light` and `--art-dark`) on the `--tint-N` colour. The dark palette switches through `:global(.ion-palette-dark)`, so a runtime toggle needs no script. With the image's dominant `placeholder` colour it shows that flat colour without art, which doubles as the loading background of the photo. The art's hex values in `components/ui/placeholderArt.ts` mirror `theme/variables.css`; update both when a tint changes. The photo fades in unless `prefers-reduced-motion` is set.
+
+## Lists
+
+- **Windowed rendering.** `ItemsOverview` mounts 40 cards and adds 40 per `ionInfinite`; at the end of the loaded items with `hasMore` it emits `load-more`. The card grid is its own component (`ItemsGrid`, cards are `OverviewCard` with `content-visibility: auto`), so shell state changes never re-render cards. Pass frozen view models and keep the `items` array reference stable (a computed).
+- **Client versus server search.** Lists the user owns and the component catalogue are complete in memory and filtered locally on a precomputed lowercase `searchText`. Public scopes (public plants and substrates) are unbounded: set `serverSearch`, the list then does no local filtering or sorting, and `query-change` (`{ q }`, debounced 150 ms, trimmed, at most 100 characters) drives `setPublicQuery`, which resets paging. Pass `total` so the count line is right while only some pages are loaded, and `loading-more` while a `load-more` request runs.
+- **`listKey`.** A string identifying the list shown (the segment value, or a sort and filter signature). When it changes the window resets to 40 cards; without it, switching segments would keep an 80-card window over the new items.
+- **`active` and `pageActive`.** Ionic keeps tab pages mounted while hidden. Pages add `mixins: [pageActive]` (`utils/pageActive.ts`, flips on `ionViewWillEnter` and `ionViewDidLeave`), bind `:active="pageActive"` on `items-overview` and return the last result from expensive computeds with `if (!isActive(this)) return cached`. An inactive list does no sorting, filtering or grid updates and catches up on re-entry. The mixin registers composition hooks, which run after the page's own `ionViewWillEnter` option, so inside that option `pageActive` is still false on re-entry.
+
+## State rules for screens
+
+- **No direct store writes.** Views and components read getters and call actions. Assigning to a store property, `+=`, `++` or a mutating array method on store state outside `stores/` fails `tests/conventions.test.ts`. A change a screen needs becomes a store action.
+- Options API only, tokens only, icons from `theme/icons.ts`, `utils/intlCache.ts` instead of new `Intl` objects.
+- Overview items are cached per frozen view model (a `WeakMap` keyed by the model plus locale), so an unchanged entry keeps its identity and its card does not update.
 
 ## Screen states
 
