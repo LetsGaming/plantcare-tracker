@@ -7,7 +7,13 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 process.env.DB_PATH = ':memory:';
 
-import { initDatabase, closeDb, getKysely, getSqlite } from '../../src/core/database/db';
+import {
+  initDatabase,
+  closeDb,
+  getKysely,
+  getSqlite,
+  clearStatementCache,
+} from '../../src/core/database/db';
 import { SQLiteSubstrateRepository } from '../../src/modules/substrate/infrastructure/SQLiteSubstrateRepository';
 import { SQLiteComponentRepository } from '../../src/modules/components/infrastructure/SQLiteComponentRepository';
 import { SQLiteUserRepository } from '../../src/modules/auth/infrastructure/SQLiteUserRepository';
@@ -34,6 +40,7 @@ const recordStatements = async (run: () => Promise<unknown>): Promise<Recorded[]
   const sqlite = getSqlite();
   const original = sqlite.prepare.bind(sqlite);
   const recorded: Recorded[] = [];
+  clearStatementCache();
   const spy = vi.spyOn(sqlite, 'prepare').mockImplementation(((sql: string) => {
     const statement = original(sql);
     const entry: Recorded = { sql, args: [], rows: 0 };
@@ -57,6 +64,7 @@ const recordStatements = async (run: () => Promise<unknown>): Promise<Recorded[]
     await run();
   } finally {
     spy.mockRestore();
+    clearStatementCache();
   }
   return recorded;
 };

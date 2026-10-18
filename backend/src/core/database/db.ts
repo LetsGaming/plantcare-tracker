@@ -65,6 +65,9 @@ export const getKysely = (): Kysely<Database> => {
   return kysely;
 };
 
+/** Drops every cached prepared statement so the next queries prepare afresh. */
+export const clearStatementCache = (): void => statements?.clear();
+
 /** Applies every pending migration to the given database. Throws when one fails. */
 export const applyMigrations = async (db: Kysely<Database>): Promise<string[]> => {
   const migrator = new Migrator({ db, provider: migrationProvider });

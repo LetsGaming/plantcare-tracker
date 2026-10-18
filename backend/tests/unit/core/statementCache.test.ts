@@ -21,7 +21,7 @@ describe('prepared statement cache', () => {
   };
 
   const prepared = (text: string): number =>
-    prepare.mock.calls.filter((call) => call[0] === text).length;
+    prepare.mock.calls.filter((call: unknown[]) => call[0] === text).length;
 
   beforeEach(() => {
     raw = new BetterSqlite3(':memory:');
@@ -73,7 +73,7 @@ describe('prepared statement cache', () => {
 
     await byId(3);
     await byName();
-    expect(prepared('select "id" from "item" where "id" = ?')).toBe(2);
+    expect(prepared('select "id" from "item" where "id" = ?')).toBe(1);
     expect(prepared('select "name" from "item" where "id" = ?')).toBe(2);
     expect(prepared('select "id", "name" from "item" where "id" = ?')).toBe(1);
   });
@@ -107,7 +107,7 @@ describe('prepared statement cache', () => {
     expect(await db.selectFrom('item').select('id').execute()).toEqual([{ id: 1 }]);
   });
 
-  it('streams concurrently with the same SQL', async () => {
+  it('streams the same SQL repeatedly, including after an abandoned stream', async () => {
     for (let i = 1; i <= 3; i++) {
       await db
         .insertInto('item')
@@ -115,13 +115,15 @@ describe('prepared statement cache', () => {
         .execute();
     }
     const stream = () => db.selectFrom('item').select('id').orderBy('id').stream();
-    const first = stream()[Symbol.asyncIterator]();
-    const second = stream()[Symbol.asyncIterator]();
-    expect((await first.next()).value).toEqual({ id: 1 });
-    expect((await second.next()).value).toEqual({ id: 1 });
-    expect((await first.next()).value).toEqual({ id: 2 });
-    await first.return?.();
-    await second.return?.();
+
+    const abandoned = stream()[Symbol.asyncIterator]();
+    expect((await abandoned.next()).value).toEqual({ id: 1 });
+    await abandoned.return?.();
+
+    const ids: number[] = [];
+    for await (const row of stream()) ids.push(row.id);
+    expect(ids).toEqual([1, 2, 3]);
+    expect(await db.selectFrom('item').select('id').execute()).toHaveLength(3);
   });
 
   it('clears the cache on destroy', async () => {

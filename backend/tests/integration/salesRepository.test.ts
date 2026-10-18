@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 
 process.env.DB_PATH = ':memory:';
 
-import { initDatabase, closeDb, getSqlite } from '../../src/core/database/db';
+import { initDatabase, closeDb, getSqlite, clearStatementCache } from '../../src/core/database/db';
 import { getConfig } from '../../src/core/config';
 import { decodeCursor, encodeCursor, type Cursor } from '../../src/core/pagination';
 import { Sale, type SaleRow } from '../../src/modules/sales/domain/Sale';
@@ -227,6 +227,7 @@ describe('applySourceSnapshot', () => {
     const sqlite = getSqlite();
     const prepare = sqlite.prepare.bind(sqlite);
     let statements = 0;
+    clearStatementCache();
     const spy = vi.spyOn(sqlite, 'prepare').mockImplementation(((source: string) => {
       statements++;
       return prepare(source);
@@ -238,6 +239,7 @@ describe('applySourceSnapshot', () => {
       result = await repo.applySourceSnapshot('alpha', 'alpha', items, 2_000);
     } finally {
       spy.mockRestore();
+      clearStatementCache();
     }
     const elapsed = performance.now() - started;
 
@@ -450,6 +452,7 @@ describe('pageActive', () => {
     const sqlite = getSqlite();
     const prepare = sqlite.prepare.bind(sqlite);
     const captured: { sql: string; params: unknown[] }[] = [];
+    clearStatementCache();
     const spy = vi.spyOn(sqlite, 'prepare').mockImplementation(((source: string) => {
       const statement = prepare(source);
       if (!source.includes('"sales_items"')) return statement;
@@ -475,6 +478,7 @@ describe('pageActive', () => {
       });
     } finally {
       spy.mockRestore();
+      clearStatementCache();
     }
 
     expect(captured).toHaveLength(2);

@@ -1,6 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { getSqlite } from '../../../core/database/db';
 import { getUploadsDirectory, STATIC_UPLOADS_ROUTE } from '../../../core/config';
 import { variantUrl } from '../../../core/config/uploads';
 
@@ -11,17 +10,14 @@ export interface OrphanSweepOptions {
   uploadsDir?: string;
   minAgeMs?: number;
   now?: number;
-  /** Stored image urls; defaults to every row of the images table. */
-  referencedUrls?: () => Iterable<string>;
+  /** Every stored image url; files they reference are kept. */
+  referencedUrls: () => Iterable<string>;
 }
 
 export interface OrphanSweepResult {
   scanned: number;
   removed: number;
 }
-
-const allImageUrls = (): Iterable<string> =>
-  getSqlite().prepare<[], string>('SELECT image_url FROM images').pluck().iterate();
 
 const toRelativeKey = (url: string): string | null => {
   const prefix = `${STATIC_UPLOADS_ROUTE}/`;
@@ -62,11 +58,11 @@ async function* walk(dir: string): AsyncGenerator<string> {
  * Only regular files below the uploads directory are ever touched.
  */
 export const sweepOrphanUploads = async (
-  options: OrphanSweepOptions = {},
+  options: OrphanSweepOptions,
 ): Promise<OrphanSweepResult> => {
   const root = path.resolve(options.uploadsDir ?? getUploadsDirectory());
   const cutoff = (options.now ?? Date.now()) - (options.minAgeMs ?? DAY_MS);
-  const keep = referencedKeys((options.referencedUrls ?? allImageUrls)());
+  const keep = referencedKeys(options.referencedUrls());
 
   let scanned = 0;
   let removed = 0;

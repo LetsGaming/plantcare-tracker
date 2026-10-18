@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 process.env.DB_PATH = ':memory:';
 
-import { initDatabase, closeDb, getSqlite } from '../../src/core/database/db';
+import { initDatabase, closeDb, getSqlite, clearStatementCache } from '../../src/core/database/db';
 import { decodeCursor, type Cursor } from '../../src/core/pagination';
 import { SQLitePlantRepository } from '../../src/modules/plants/infrastructure/SQLitePlantRepository';
 import { SQLiteSpeciesCatalog } from '../../src/modules/plants/infrastructure/SQLiteSpeciesCatalog';
@@ -406,6 +406,7 @@ describe('query plans and speed', () => {
     const sqlite = getSqlite();
     const original = sqlite.prepare.bind(sqlite);
     const captured: Captured[] = [];
+    clearStatementCache();
     (sqlite as { prepare: unknown }).prepare = (source: string) => {
       const statement = original(source);
       const all = statement.all.bind(statement);
@@ -419,6 +420,7 @@ describe('query plans and speed', () => {
       await action();
     } finally {
       (sqlite as { prepare: unknown }).prepare = original;
+      clearStatementCache();
     }
     return captured;
   };
@@ -536,6 +538,7 @@ describe('trimmed detail and update reads', () => {
     const sqlite = getSqlite();
     const original = sqlite.prepare.bind(sqlite);
     const captured: Statement[] = [];
+    clearStatementCache();
     (sqlite as { prepare: unknown }).prepare = (source: string) => {
       const statement = original(source);
       for (const method of ['all', 'get', 'run'] as const) {
@@ -551,6 +554,7 @@ describe('trimmed detail and update reads', () => {
       await action();
     } finally {
       (sqlite as { prepare: unknown }).prepare = original;
+      clearStatementCache();
     }
     return captured;
   };

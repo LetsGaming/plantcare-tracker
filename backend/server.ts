@@ -24,6 +24,7 @@ import {
   createDefaultMaintenanceJobs,
 } from './src/core/maintenance/MaintenanceScheduler';
 import { sweepOrphanUploads } from './src/modules/images/application/OrphanUploadSweep';
+import { allStoredImageUrls } from './src/modules/images/infrastructure/storedImageUrls';
 import { SQLiteSalesRepository } from './src/modules/sales/infrastructure/SQLiteSalesRepository';
 import { closeBrowser } from './src/modules/sales/infrastructure/HttpFetcher';
 
@@ -38,7 +39,7 @@ const start = async (): Promise<void> => {
   maintenance = new MaintenanceScheduler(
     createDefaultMaintenanceJobs({
       pruneSales: () => new SQLiteSalesRepository().pruneRetention(Date.now()),
-      sweepUploads: () => sweepOrphanUploads(),
+      sweepUploads: () => sweepOrphanUploads({ referencedUrls: allStoredImageUrls }),
     }),
   );
   maintenance.start();
