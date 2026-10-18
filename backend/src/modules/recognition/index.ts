@@ -1,5 +1,6 @@
-import { getConfig, getUploadsDirectory } from '../../core/config';
+import { getConfig } from '../../core/config';
 import type { ImageRemovedListener, StoredImageEvent } from '../images/application/ImageUseCases';
+import { LocalImageStorage } from '../images/infrastructure/LocalImageStorage';
 import { EmbedImagesService } from './application/EmbedImages';
 import type { Embedder, EmbeddingRepository, RecognitionLogger } from './domain/Recognition';
 import { loadOnnxEmbedder } from './infrastructure/OnnxEmbedder';
@@ -48,7 +49,7 @@ export const createRecognition = (
   const install = (loaded: Embedder | null): void => {
     embedder = loaded;
     embedImages = loaded
-      ? new EmbedImagesService(loaded, embeddings, getUploadsDirectory(), log)
+      ? new EmbedImagesService(loaded, embeddings, new LocalImageStorage(), log)
       : null;
     ready = true;
   };

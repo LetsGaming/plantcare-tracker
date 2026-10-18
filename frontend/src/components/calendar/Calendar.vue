@@ -55,13 +55,13 @@
       :event="changedEvent"
       :is-open="isPopoverOpen"
       :show-edit-button="showEditButton"
-      :title="popoverItem ? popoverItem.title : 'Details'"
+      :title="popoverItem ? popoverItem.title : t('calendar.popover.details')"
       :fields="
         popoverItem?.fields
           ? popoverItem.fields
           : [
               {
-                label: 'Date',
+                label: t('calendar.popover.date'),
                 value: selectedDateText,
               },
             ]
@@ -88,15 +88,17 @@ import {
 } from "@/utils/categoryColors";
 import { readCssColor, watchTheme } from "@/utils/themeColors";
 import { formatDisplayDate, parseDayKey, toDayKey } from "@/utils/localDate";
+import {
+  markerKind,
+  type MarkerKind,
+  MINERAL_CATEGORY,
+  NO_FERTILIZER_CATEGORY,
+  ORGANIC_CATEGORY,
+} from "@/utils/wateringCategories";
 
-const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
-const ORGANIC_CATEGORY = "watering.category.organic";
-const MINERAL_CATEGORY = "watering.category.mineral";
+type CellKind = MarkerKind | "custom";
 
-type MarkerKind = "water" | "organic" | "mineral" | "custom";
-type WateringKind = Exclude<MarkerKind, "custom">;
-
-const DAY_LABEL: Record<WateringKind, string> = {
+const DAY_LABEL: Record<MarkerKind, string> = {
   water: "plantdetail.day_watered",
   organic: "plantdetail.day_organic",
   mineral: "plantdetail.day_mineral",
@@ -193,7 +195,7 @@ export default defineComponent({
       void this.themeVersion;
       return readCssColor("--surface-raised", "#ffffff");
     },
-    wateringColors(): Record<WateringKind, ResolvedCategoryColors> {
+    wateringColors(): Record<MarkerKind, ResolvedCategoryColors> {
       void this.themeVersion;
       const resolve = (name: string) => {
         const category = this.wateringCategories.find((c) => c.name === name) ?? {
@@ -305,17 +307,14 @@ export default defineComponent({
     t(key: string) {
       return localizationService.t(key, undefined, key);
     },
-    markerKind(entries: CalendarDates[]): MarkerKind | null {
+    cellKind(entries: CalendarDates[]): CellKind | null {
       if (entries.length === 0) return null;
       if (this.markerMode !== "watering") return "custom";
-      const names = new Set(entries.map((entry) => entry.category.name));
-      if (names.has(MINERAL_CATEGORY)) return "mineral";
-      if (names.has(ORGANIC_CATEGORY)) return "organic";
-      return "water";
+      return markerKind(entries.map((entry) => entry.category.name));
     },
     buildCell(key: string, day: number, dateText: string): DayCell {
       const entries = this.datesByDay.get(key) ?? [];
-      const kind = this.markerKind(entries);
+      const kind = this.cellKind(entries);
       const isToday = key === this.todayKey;
       const custom = kind === "custom" ? entries[0].category : null;
 

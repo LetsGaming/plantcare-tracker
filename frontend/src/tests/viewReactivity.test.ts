@@ -150,6 +150,7 @@ describe("WateringRecords: store-driven records", () => {
       { ...record(6, day + 5 * 86_400_000), usedFertilizer: false, fertilizerTypeId: 2 },
     ]);
     store.fertilizerTypes = [
+      { id: 2, name: "synthetic" },
       { id: 3, name: "synthetic" },
       { id: 4, name: "organic" },
     ];

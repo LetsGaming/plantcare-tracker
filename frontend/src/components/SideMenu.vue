@@ -179,21 +179,7 @@
     </ion-content>
   </ion-modal>
 
-  <calendar-settings-modal
-    :is-open="showDateSettings"
-    :first-day-of-week="firstDayOfWeek"
-    :do-delete-after-thirty="doDeleteAfterThirty"
-    :categories="categories"
-    :watering-categories="wateringCategories"
-    @update:firstDayOfWeek="updateFirstDayOfWeek"
-    @update:deleteAfterThirty="updateDeleteAfterThirty"
-    @update:categories="updateCategories"
-    @update:wateringCategories="updateWateringCategories"
-    @reset-watering-categories="resetWateringCategories"
-    @add-category="addCategory"
-    @delete-category="deleteCategory"
-    @close="showDateSettings = false"
-  />
+  <calendar-settings-modal :is-open="showDateSettings" @close="showDateSettings = false" />
 </template>
 
 <script lang="ts">
@@ -235,6 +221,7 @@ import { useLayoutStore } from "@/stores/layout";
 import { useSnapSettingsStore } from "@/stores/snapSettings";
 import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
+import { isDevelopment } from "@/utils/devMode";
 import { confirmLogout } from "@/utils/confirmLogout";
 import { statusIonColor } from "@/utils/sourceStatus";
 import type { RouteLocationRaw } from "vue-router";
@@ -328,7 +315,7 @@ export default defineComponent({
         { tab: "components", label: "tabs.components" },
         { tab: "sales", label: "tabs.sales" },
       ];
-      if (import.meta.env.MODE === "development") list.push({ tab: "debug", label: "tabs.debug" });
+      if (isDevelopment) list.push({ tab: "debug", label: "tabs.debug" });
       return list;
     },
     ...mapState(useAdminHealthStore, {
@@ -338,12 +325,6 @@ export default defineComponent({
     attentionColor(): string {
       return statusIonColor(this.anyFailing ? "failing" : "degraded");
     },
-    ...mapState(useCalendarStore, {
-      firstDayOfWeek: "firstDayOfWeek",
-      doDeleteAfterThirty: "deleteAfterThirty",
-      categories: "categories",
-      wateringCategories: "wateringCategories",
-    }),
     availableLocales() {
       return localizationService.availableLocales();
     },
@@ -359,11 +340,6 @@ export default defineComponent({
     ...mapActions(useCalendarStore, {
       ensureCalendarLoaded: "ensureLoaded",
       deleteOldDates: "deleteOldDates",
-      saveFirstDayOfWeek: "saveFirstDayOfWeek",
-      saveDeleteAfterThirty: "saveDeleteAfterThirty",
-      saveCategories: "saveCategories",
-      saveWateringCategories: "saveWateringCategories",
-      resetWateringCategories: "resetWateringCategories",
     }),
 
     /* ---------- Localization ---------- */
@@ -428,31 +404,6 @@ export default defineComponent({
     openDateSettings() {
       this.showReminders = false;
       this.showDateSettings = true;
-    },
-
-    /* ---------- Calendar logic ---------- */
-    updateFirstDayOfWeek(value: number) {
-      this.saveFirstDayOfWeek(value);
-    },
-
-    updateDeleteAfterThirty(value: boolean) {
-      this.saveDeleteAfterThirty(value);
-    },
-
-    updateCategories(categories: Category[]) {
-      this.saveCategories(categories);
-    },
-
-    updateWateringCategories(categories: Category[]) {
-      this.saveWateringCategories(categories);
-    },
-
-    addCategory(category: Category) {
-      this.saveCategories([...this.categories, category]);
-    },
-
-    deleteCategory(index: number) {
-      this.saveCategories(this.categories.filter((_, i) => i !== index));
     },
   },
 });

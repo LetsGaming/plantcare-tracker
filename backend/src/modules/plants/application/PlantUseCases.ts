@@ -19,7 +19,9 @@ import type {
 } from '../domain/Plant';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { NotFoundError, InternalError } from '../../../core/errors';
+import { emptyPage } from '../../../core/pagination';
 import { parseOrThrow } from '../../../core/validation';
+import { NAME_MAX_LENGTH } from '../../../core/config/constants';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
@@ -27,8 +29,8 @@ import { parseOrThrow } from '../../../core/validation';
 const TzOffsetField = z.union([z.string(), z.number()]).optional();
 
 export const CreatePlantSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  species: z.string().max(100).nullable().optional(),
+  name: z.string().min(1, 'Name is required').max(NAME_MAX_LENGTH),
+  species: z.string().max(NAME_MAX_LENGTH).nullable().optional(),
   substrateId: z
     .number()
     .int()
@@ -42,8 +44,8 @@ export const CreatePlantSchema = z.object({
 /** An empty or null species and a null substrateId clear the field. */
 export const UpdatePlantSchema = z
   .object({
-    name: z.string().min(1).max(100).optional(),
-    species: z.string().max(100).nullable().optional(),
+    name: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
+    species: z.string().max(NAME_MAX_LENGTH).nullable().optional(),
     substrateId: z.number().int().positive().nullable().optional(),
     isPublic: z.boolean().optional(),
     tz_offset: TzOffsetField,
@@ -86,7 +88,7 @@ export class ListPlantsUseCase {
   ): Promise<PlantListPage> {
     if (scope === 'public') return this.repo.listPublic(query);
     if (viewerId === null) {
-      return { items: [], nextCursor: null, ...(query.cursor === null ? { total: 0 } : {}) };
+      return emptyPage(query.cursor);
     }
     return this.repo.listMine(viewerId, query, tz);
   }

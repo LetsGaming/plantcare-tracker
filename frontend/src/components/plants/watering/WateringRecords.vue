@@ -69,18 +69,8 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import { formatDisplayDate, toDayKey } from "@/utils/localDate";
 import { fertilizerLabel } from "@/utils/enumLabels";
+import { recordCategory } from "@/utils/wateringCategories";
 
-const NO_FERTILIZER_CATEGORY = "watering.category.no_fertilizer";
-const ORGANIC_CATEGORY = "watering.category.organic";
-const MINERAL_CATEGORY = "watering.category.mineral";
-const SYNTHETIC_FERTILIZER_ID = 2;
-
-const recordCategory = (record: WateringEntry, typeName: string | undefined): string => {
-  if (!record.usedFertilizer) return NO_FERTILIZER_CATEGORY;
-  return typeName === "synthetic" || record.fertilizerTypeId === SYNTHETIC_FERTILIZER_ID
-    ? MINERAL_CATEGORY
-    : ORGANIC_CATEGORY;
-};
 const TOAST_MS = 6000;
 
 let recordsCount = 0;

@@ -58,6 +58,13 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
+/** The page for a caller that owns nothing; `total` appears on the first page only, like a real list. */
+export const emptyPage = <T>(cursor: unknown): Page<T> & { total?: number } => ({
+  items: [],
+  nextCursor: null,
+  ...(cursor === null ? { total: 0 } : {}),
+});
+
 export interface ToPageOptions<T> {
   limit: number;
   sort: string;

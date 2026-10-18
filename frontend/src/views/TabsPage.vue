@@ -42,6 +42,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { isDevelopment } from "@/utils/devMode";
 import { mapActions, mapState } from "pinia";
 import {
   IonTabBar,
@@ -84,7 +85,7 @@ export default defineComponent({
   },
   setup() {
     return {
-      isDev: import.meta.env.MODE === "development",
+      isDev: isDevelopment,
     };
   },
   computed: {

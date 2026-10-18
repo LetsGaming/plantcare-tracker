@@ -1,6 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-
+import type { ImageStorage } from '../../images/domain/Image';
 import type {
   EmbedQueueStats,
   Embedder,
@@ -32,7 +30,7 @@ export class EmbedImagesService {
   constructor(
     private readonly embedder: Embedder,
     private readonly embeddings: EmbeddingRepository,
-    private readonly uploadsDir: string,
+    private readonly storage: Pick<ImageStorage, 'read'>,
     private readonly log: Pick<RecognitionLogger, 'warn' | 'info'>,
     private readonly rescanDelayMs = RESCAN_DELAY_MS,
   ) {}
@@ -43,7 +41,7 @@ export class EmbedImagesService {
 
   async embedStored(imageId: number, imageUrl: string): Promise<boolean> {
     try {
-      const buffer = await readFile(path.join(this.uploadsDir, 'plant', path.basename(imageUrl)));
+      const buffer = await this.storage.read('plant', imageUrl);
       await this.embeddings.save(imageId, this.embedder.modelId, await this.embedder.embed(buffer));
       return true;
     } catch (err) {

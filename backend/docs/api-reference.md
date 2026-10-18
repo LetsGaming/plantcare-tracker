@@ -621,6 +621,8 @@ The date is validated before any file is processed. When a new file is uploaded,
 // Response 204: no body
 ```
 
+`DELETE /:entityType/:entityId` removes the image rows first and then the files. A failing row delete answers `500` and leaves everything in place; a file that cannot be removed is logged and does not fail the request.
+
 ---
 
 ## Recognition: `/api/v2/recognition`

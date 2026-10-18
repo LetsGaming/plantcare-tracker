@@ -26,10 +26,10 @@
       :total="listTotal"
       :list-key="showPublic"
       @item-click="navigateToSubstrate"
-      @refresh-items="refreshSubstrates"
-      @retry="refreshSubstrates"
+      @refresh-items="refreshItems"
+      @retry="refreshItems"
       @empty-action="openAddModal"
-      @load-more="loadMoreSubstrates"
+      @load-more="loadMoreItems"
       @query-change="changeQuery"
     />
 
@@ -46,17 +46,42 @@
 import { defineComponent } from "vue";
 import { IonPage } from "@ionic/vue";
 import { icons } from "@/theme/icons";
-import { mapActions, mapState } from "pinia";
+import { mapActions } from "pinia";
 import { useSubstratesStore } from "@/stores/substrates";
-import { useSessionStore } from "@/stores/session";
 import localizationService from "@/services/general/LocalizationService";
 import ToastService from "@/services/general/ToastService";
 import { isActive, pageActive } from "@/utils/pageActive";
+import { segmentedList } from "@/utils/segmentedList";
 
 import OverviewHeader from "@/components/overview/OverviewHeader.vue";
 import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import type { OverviewItem } from "@/components/overview/OverviewCard.vue";
 import SubstrateAddingModal from "@/components/substrates/SubstrateAddingModal.vue";
+
+const overviewList = segmentedList<SubstrateView>({
+  useStore: useSubstratesStore,
+  initialSegment: () => "private",
+  noun: "substrates",
+  keys: {
+    publicSegment: "substrate.public_label",
+    privateSegment: "substrate.private_label",
+    emptyPublicTitle: "shell.empty_substrates_public_title",
+    emptyPrivateTitle: "state.empty_substrates_title",
+    emptyPublicMessage: "shell.empty_substrates_public_message",
+    emptyPrivateMessage: "state.empty_substrates_message",
+    emptyAction: "state.empty_substrates_action",
+  },
+  onRefreshed: (isPublic) => {
+    ToastService.showSuccess({
+      key: "substrate.refreshed",
+      vars: {
+        type: localizationService.t(
+          isPublic ? "substrate.public_label" : "substrate.private_label",
+        ),
+      },
+    });
+  },
+});
 
 const NO_ITEMS: readonly OverviewItem[] = Object.freeze([]);
 
@@ -81,10 +106,9 @@ const cardFor = (substrate: SubstrateView): OverviewItem => {
 export default defineComponent({
   name: "SubstrateOverview",
   components: { IonPage, OverviewHeader, ItemsOverview, SubstrateAddingModal },
-  mixins: [pageActive],
+  mixins: [pageActive, overviewList],
   data() {
     return {
-      showPublic: "private",
       showAddingModal: false,
       isSubmitting: false,
     };
@@ -93,55 +117,6 @@ export default defineComponent({
     return { icons };
   },
   computed: {
-    ...mapState(useSubstratesStore, { mineList: "mine", publicList: "public" }),
-    ...mapState(useSessionStore, ["isGuest"]),
-    segments() {
-      return [
-        { value: "public", label: this.t("substrate.public_label"), icon: icons.segmentPublic },
-        {
-          value: "private",
-          label: this.t("substrate.private_label"),
-          icon: icons.segmentPrivate,
-          hideFromGuests: true,
-        },
-      ];
-    },
-    isPublic(): boolean {
-      return this.showPublic === "public";
-    },
-    activeList() {
-      return this.isPublic ? this.publicList : this.mineList;
-    },
-    isLoadingList(): boolean {
-      const { status, items } = this.activeList;
-      return status === "idle" || (status === "loading" && items.length === 0);
-    },
-    hasError(): boolean {
-      return this.activeList.status === "error";
-    },
-    hasMore(): boolean {
-      return this.isPublic && this.publicList.nextCursor !== null;
-    },
-    loadingMore(): boolean {
-      return this.isPublic && this.publicList.loadingMore;
-    },
-    listTotal(): number | null {
-      return this.isPublic ? this.publicList.total : null;
-    },
-    emptyTitle(): string {
-      return this.t(
-        this.isPublic ? "shell.empty_substrates_public_title" : "state.empty_substrates_title",
-      );
-    },
-    emptyMessage(): string {
-      if (this.isGuest) return this.t("state.guest_hint");
-      return this.t(
-        this.isPublic ? "shell.empty_substrates_public_message" : "state.empty_substrates_message",
-      );
-    },
-    emptyActionLabel(): string {
-      return !this.isGuest && !this.isPublic ? this.t("state.empty_substrates_action") : "";
-    },
     /** Cards of the segment; a hidden page keeps its last cards and recomputes once when shown again. */
     overviewItems(): readonly OverviewItem[] {
       if (!isActive(this)) return lastItems.get(this.$) ?? NO_ITEMS;
@@ -151,76 +126,14 @@ export default defineComponent({
     },
   },
   async ionViewWillEnter() {
-    await this.fetchSubstrates();
+    await this.fetchItems();
   },
   methods: {
     ...mapActions(useSubstratesStore, {
-      ensureMine: "ensureMine",
-      ensurePublic: "ensurePublic",
-      setPublicQuery: "setPublicQuery",
-      loadMorePublic: "loadMorePublic",
       createSubstrate: "addSubstrate",
       uploadSubstrateImage: "uploadSubstrateImage",
     }),
     t: (k: string, v?: any) => localizationService.t(k, v),
-
-    async loadSubstrates(isRefresh = false) {
-      try {
-        if (this.isPublic) await this.ensurePublic({ force: isRefresh });
-        else await this.ensureMine({ force: isRefresh });
-
-        if (isRefresh) {
-          ToastService.showSuccess({
-            key: "substrate.refreshed",
-            vars: {
-              type: this.isPublic
-                ? this.t("substrate.public_label")
-                : this.t("substrate.private_label"),
-            },
-          });
-        }
-      } catch (error) {
-        // handleRequest has already shown the error toast.
-        console.error("Error loading substrates:", error);
-      }
-    },
-
-    async fetchSubstrates() {
-      await this.loadSubstrates();
-    },
-
-    async refreshSubstrates() {
-      await this.loadSubstrates(true);
-    },
-
-    async loadMoreSubstrates() {
-      if (!this.isPublic) return;
-      try {
-        await this.loadMorePublic();
-      } catch (error) {
-        console.error("Loading more substrates failed:", error);
-      }
-    },
-
-    async changeQuery({ q }: { q: string }) {
-      if (!this.isPublic) return;
-      try {
-        await this.setPublicQuery(q);
-      } catch (error) {
-        console.error("Substrate search failed:", error);
-      }
-    },
-
-    handleSegmentChange(value: string) {
-      // The new segment is set first so the clear below is not taken for a search of the old one.
-      this.showPublic = value;
-      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch?.();
-      if (value === "public" && this.publicList.query.q !== "") {
-        this.changeQuery({ q: "" });
-        return;
-      }
-      this.fetchSubstrates();
-    },
 
     openAddModal() {
       this.showAddingModal = true;
@@ -252,7 +165,7 @@ export default defineComponent({
       try {
         const components = payload.componentIds.map((id) => ({
           componentId: id,
-          parts: parseFloat(String(payload.parts[id])) || 1,
+          parts: payload.parts[id],
         }));
 
         const created = await this.createSubstrate({

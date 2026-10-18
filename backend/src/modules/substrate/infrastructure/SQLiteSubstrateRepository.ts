@@ -1,9 +1,9 @@
 import { sql, type Kysely, type SqlBool } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import type { Database } from '../../../core/database/schema';
-import { toPublicImageUrl } from '../../../core/config';
 import { applyKeyset, containsLike, toPage } from '../../../core/pagination';
-import { toImageDto, type ImageDTO } from '../../images/presentation/imageDto';
+import type { ImageDTO } from '../../images/domain/imageDto';
+import { IMAGE_COLUMNS, imageRowToDto } from '../../images/infrastructure/imageRows';
 import type {
   ComponentInput,
   ComponentRef,
@@ -15,16 +15,6 @@ import type {
   SubstrateUpdateFields,
 } from '../domain/Substrate';
 
-interface ImageRow {
-  id: number;
-  image_url: string;
-  upload_date: number;
-  width: number | null;
-  height: number | null;
-  placeholder: string | null;
-  variants: number;
-}
-
 interface BaseRow {
   id: number;
   user_id: number;
@@ -32,27 +22,6 @@ interface BaseRow {
   is_public: number;
   created_at: number;
 }
-
-const IMAGE_COLUMNS = [
-  'id',
-  'image_url',
-  'upload_date',
-  'width',
-  'height',
-  'placeholder',
-  'variants',
-] as const;
-
-const toDto = (row: ImageRow): ImageDTO =>
-  toImageDto({
-    id: row.id,
-    url: toPublicImageUrl(row.image_url),
-    date: row.upload_date,
-    variants: row.variants,
-    width: row.width,
-    height: row.height,
-    placeholder: row.placeholder,
-  });
 
 const MS_PER_SECOND = 1000;
 
@@ -185,7 +154,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
     const images = new Map<number, ImageDTO[]>();
     for (const row of imageRows) {
       const list = images.get(row.entity_id) ?? [];
-      list.push(toDto(row));
+      list.push(imageRowToDto(row));
       images.set(row.entity_id, list);
     }
 
@@ -299,7 +268,7 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
         .select([...IMAGE_COLUMNS])
         .where('id', 'in', coverIds)
         .execute();
-      for (const image of images) covers.set(image.id, toDto(image));
+      for (const image of images) covers.set(image.id, imageRowToDto(image));
     }
 
     const items = page.items.map((row): SubstrateListItem => ({

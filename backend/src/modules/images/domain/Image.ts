@@ -74,7 +74,17 @@ export interface ImageEntityLookup {
  * every image of an entity they delete, rows and files alike.
  */
 export interface EntityImageCleanup {
+  /** Never throws: the entity is already gone, so failures are only logged. */
   removeAll(entityType: EntityType, entityId: number): Promise<void>;
+}
+
+/** Explicit "delete all images of this entity" request. */
+export interface EntityImagePurger {
+  /**
+   * Deletes the image rows, then their files. A failing row delete rejects;
+   * failing file removals are logged and only leave unreferenced files.
+   */
+  purge(entityType: EntityType, entityId: number): Promise<void>;
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
@@ -122,6 +132,9 @@ export interface ImageStorage {
    * dimensions and placeholder colour of the largest variant.
    */
   processUpload(file: UploadedFile, entityType: EntityType): Promise<ProcessedUpload>;
+
+  /** Reads the stored main file of an image; rejects when it is missing. */
+  read(entityType: EntityType, imageUrl: string): Promise<Buffer>;
 
   /**
    * Deletes the stored file and, for variants = 1, its 160 and 480 variants.

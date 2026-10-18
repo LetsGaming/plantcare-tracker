@@ -66,7 +66,10 @@ export const LIST = {
   MAX_CURSOR_LENGTH: 512,
 } as const;
 
-// ── Server-Sent Events ─────────────────────────────────────────────────────────
+/** Longest accepted name or species of a plant, substrate or component. */
+export const NAME_MAX_LENGTH = 100;
+
+// ── Server-Sent Events─────────────────────────────────────────────────────────
 
 export const SSE = {
   /** Comment-line heartbeat interval keeping proxies from closing idle streams. */

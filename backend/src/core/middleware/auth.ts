@@ -9,7 +9,15 @@
 
 import type { FastifyRequest } from 'fastify';
 import { UnauthorizedError, ForbiddenError } from '../errors';
-import { ticketStore, isGuestRole, isValidAccessToken, readAccessSession } from '../auth';
+import {
+  ticketStore,
+  isGuestRole,
+  isAdminRole,
+  ROLE,
+  type Viewer,
+  isValidAccessToken,
+  readAccessSession,
+} from '../auth';
 import type { Hook } from './types';
 
 const bearerToken = (request: FastifyRequest): string | null => {
@@ -68,7 +76,7 @@ export const makeAuthenticateSSE =
     if (userId === null) throw new UnauthorizedError('Invalid or expired ticket');
 
     if (!loadUserFromDb) {
-      request.user = { id: userId, username: '', role: 'user' };
+      request.user = { id: userId, username: '', role: ROLE.USER };
       return;
     }
 
@@ -86,10 +94,14 @@ export const makeAuthenticateSSE =
     request.user = { id: user.id, username: user.username, role: user.role ?? '' };
   };
 
+/** The signed-in viewer of a request, or null for an anonymous one. */
+export const viewerOf = (request: FastifyRequest): Viewer | null =>
+  request.user ? { id: request.user.id, isGuest: isGuestRole(request.user.role) } : null;
+
 // ── Role guards ───────────────────────────────────────────────────────────────
 
 export const isAdmin: Hook = async (request) => {
-  if (request.user?.role?.toLowerCase() !== 'admin') {
+  if (!isAdminRole(request.user?.role)) {
     throw new ForbiddenError('Admin access required');
   }
 };

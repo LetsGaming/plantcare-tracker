@@ -114,3 +114,55 @@ describe('shop link searchers', () => {
     expect(outcomes).toHaveLength(0);
   });
 });
+
+describe('API link searchers', () => {
+  const setupApi = () => {
+    const outcomes: ScrapeOutcome[] = [];
+    const cache = new NodeCacheAdapter();
+    const searchers = createPlantLinkSearchers(cache, { record: (o) => outcomes.push(o) });
+    return { wikipedia: searchers[4], gbif: searchers[5], outcomes };
+  };
+
+  it('reports a failing Wikipedia request instead of passing as "no link"', async () => {
+    mockRequest.mockRejectedValue(new Error('503'));
+    const { wikipedia, outcomes } = setupApi();
+
+    await expect(wikipedia('Monstera deliciosa')).resolves.toBeNull();
+
+    expect(outcomes).toEqual([
+      expect.objectContaining({
+        key: 'search:wikipedia',
+        kind: 'search',
+        strategy: null,
+        error: '503',
+      }),
+    ]);
+  });
+
+  it('reports ok for a successful lookup and serves the repeat from the cache', async () => {
+    mockRequest.mockResolvedValue({
+      data: { results: [{ species: 'Monstera deliciosa', nubKey: 42 }] },
+    });
+    const { gbif, outcomes } = setupApi();
+
+    await expect(gbif('Monstera deliciosa')).resolves.toBe('https://www.gbif.org/species/42');
+    await expect(gbif('Monstera deliciosa')).resolves.toBe('https://www.gbif.org/species/42');
+
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(outcomes).toEqual([
+      expect.objectContaining({ key: 'search:gbif', strategy: 'api', itemCount: 1, error: null }),
+    ]);
+  });
+
+  it('does not cache a failure, so the next lookup retries', async () => {
+    mockRequest.mockRejectedValueOnce(new Error('timeout'));
+    mockRequest.mockResolvedValueOnce({ data: { query: { search: [] } } });
+    const { wikipedia, outcomes } = setupApi();
+
+    await wikipedia('Calathea');
+    await wikipedia('Calathea');
+
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(outcomes.map((o) => o.strategy)).toEqual([null, 'api']);
+  });
+});

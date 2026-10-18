@@ -10,11 +10,16 @@
  *  - Update: the old file is deleted only AFTER the new file is
  *    processed and the database points at it. Deleting first would
  *    lose the image if processing failed midway.
- *  - Delete: file first, then metadata — a dangling row is worse than
- *    a dangling file, and remove() treats missing files as success.
+ *  - Delete one image: file first, then metadata. A dangling row is
+ *    worse than a dangling file, and remove() treats missing files as
+ *    success.
+ *  - Delete all images of an entity: rows first, then files, through the
+ *    ImageCleanupService. A failing row delete fails the request; failing
+ *    file removals are logged and leave only unreferenced files.
  */
 
 import type {
+  EntityImagePurger,
   ImageActor,
   ImageRepository,
   ImageStorage,
@@ -28,6 +33,7 @@ import type {
 import type { ImageAccessPolicy } from './ImageAccessPolicy';
 import { parseCaptureDate } from './captureDate';
 import { NotFoundError, ValidationError } from '../../../core/errors';
+import { toEpochSeconds } from '../../../core/utils/time';
 import { toPublicImageUrl, toStoredImagePath } from '../../../core/config';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -59,8 +65,6 @@ const pickVariantMeta = ({
   placeholder,
   variants,
 }: ImageVariantMeta): ImageVariantMeta => ({ width, height, placeholder, variants });
-
-const toEpochSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
@@ -113,7 +117,7 @@ export class UploadImageUseCase {
         input.entityType,
         input.entityId,
         stored,
-        toEpochSeconds(capturedAt),
+        toEpochSeconds(capturedAt) ?? undefined,
         pickVariantMeta(processed),
       );
     } catch (err) {
@@ -234,16 +238,14 @@ export class DeleteImageUseCase {
 
 export class DeleteEntityImagesUseCase {
   constructor(
-    private readonly repo: ImageRepository,
-    private readonly storage: ImageStorage,
+    private readonly purger: EntityImagePurger,
     private readonly access: ImageAccessPolicy,
     private readonly onRemoved?: ImageRemovedListener,
   ) {}
 
   async execute(entityType: EntityType, entityId: number, actor: ImageActor): Promise<void> {
     await this.access.assertCanModify(entityType, entityId, actor);
-    const images = await this.repo.deleteByEntity(entityType, entityId);
-    await Promise.all(images.map((img) => this.storage.remove(entityType, img.url, img.variants)));
+    await this.purger.purge(entityType, entityId);
     this.onRemoved?.({ entityType, ownerUserId: actor.id });
   }
 }

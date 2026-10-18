@@ -49,10 +49,6 @@ export default {
 
   "toast.dismiss": "Dismiss",
 
-  /* Accordion */
-
-  "accordion.no_details": "No details available.",
-
   /* =====================================================
 
 
@@ -648,6 +644,8 @@ export default {
   "admin.scrapers.strategy.selector": "Page selectors",
 
   "admin.scrapers.strategy.heuristic": "Layout detection",
+
+  "admin.scrapers.strategy.api": "API lookup",
 
   "admin.scrapers.items": "{count} items",
 

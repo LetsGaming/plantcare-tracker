@@ -14,8 +14,10 @@ import type {
   SubstrateSort,
 } from '../domain/Substrate';
 import { NotFoundError, InternalError, ValidationError } from '../../../core/errors';
+import type { Viewer } from '../../../core/auth';
 import { parseOrThrow } from '../../../core/validation';
-import { parseListQuery } from '../../../core/pagination';
+import { NAME_MAX_LENGTH } from '../../../core/config/constants';
+import { CREATED_OR_NAME_SORTS, emptyPage, parseListQuery } from '../../../core/pagination';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { ensureArray } from '../../../core/utils';
 
@@ -36,25 +38,20 @@ export const ReplaceComponentsSchema = z
   });
 
 export const CreateSubstrateSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
+  name: z.string().min(1, 'Name is required').max(NAME_MAX_LENGTH),
   isPublic: z.boolean().default(false),
   components: ReplaceComponentsSchema.optional(),
 });
 
 export const UpdateSubstrateSchema = z
   .object({
-    name: z.string().min(1).max(100).optional(),
+    name: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
     isPublic: z.boolean().optional(),
     components: ReplaceComponentsSchema.optional(),
   })
   .refine((d) => d.name !== undefined || d.isPublic !== undefined || d.components !== undefined, {
     message: 'At least one field must be provided for update',
   });
-
-const LIST_SORTS = {
-  created: { valueType: 'number', idType: 'number', direction: 'desc' },
-  name: { valueType: 'string', idType: 'number', direction: 'asc' },
-} as const;
 
 // ── Input normalisation ───────────────────────────────────────────────────────
 
@@ -79,17 +76,14 @@ function parseComponentFilter(raw: unknown): number | null {
 
 // ── Use Cases ─────────────────────────────────────────────────────────────────
 
-export interface SubstrateViewer {
-  id: number;
-  isGuest: boolean;
-}
+export type SubstrateViewer = Viewer;
 
 export class ListSubstratesUseCase {
   constructor(private readonly repo: SubstrateRepository) {}
 
   async execute(query: unknown, viewer: SubstrateViewer): Promise<SubstratePage> {
     const parsed = parseListQuery<SubstrateSort, 'mine' | 'public'>(query, {
-      sorts: LIST_SORTS,
+      sorts: CREATED_OR_NAME_SORTS,
       defaultSort: 'created',
       scopes: ['mine', 'public'],
       defaultScope: viewer.isGuest ? 'public' : 'mine',
@@ -105,9 +99,7 @@ export class ListSubstratesUseCase {
     };
 
     if (parsed.scope === 'public') return this.repo.listPublic(params);
-    if (viewer.isGuest) {
-      return { items: [], nextCursor: null, ...(params.cursor ? {} : { total: 0 }) };
-    }
+    if (viewer.isGuest) return emptyPage(params.cursor);
     return this.repo.listMine(viewer.id, params);
   }
 }

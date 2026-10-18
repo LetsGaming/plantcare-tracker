@@ -37,7 +37,7 @@ vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import ImageService from "@/services/ImageService";
 import storageService from "@/services/general/StorageService";
-import { epoch } from "@/stores/resource";
+import { epoch, isStale } from "@/stores/resource";
 import { useSessionStore } from "@/stores/session";
 import { useSubstratesStore } from "@/stores/substrates";
 import { usePlantsStore } from "@/stores/plants";
@@ -261,7 +261,7 @@ describe("writes", () => {
     api.post.mockResolvedValue(detail(5, { is_public: true }));
     const store = await newStore();
     await store.addSubstrate({ name: "Mix", isPublic: true });
-    expect(store.isPublicStale).toBe(true);
+    expect(isStale(store.public.fetchedAt)).toBe(true);
   });
 
   it("sends the full remaining mix in one request and the removal persists", async () => {
@@ -384,7 +384,7 @@ describe("invalidate", () => {
     expect(api.get).toHaveBeenCalledTimes(1);
 
     store.invalidate();
-    expect(store.isMineStale).toBe(true);
+    expect(isStale(store.mine.fetchedAt)).toBe(true);
     await store.ensureMine();
     expect(api.get).toHaveBeenCalledTimes(2);
   });
@@ -563,6 +563,71 @@ describe("local changes during a load in flight", () => {
 
     expect(api.get).toHaveBeenCalledTimes(2);
     expect(store.mine.items[0].name).toBe("New name");
-    expect(store.isMineStale).toBe(false);
+    expect(isStale(store.mine.fetchedAt)).toBe(false);
+  });
+});
+
+describe("list freshness over time", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it("refetches the own list once it is older than the cache lifetime", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    api.get.mockResolvedValue(page([item(1)]));
+    const store = await newStore();
+    await store.ensureMine();
+    await store.ensureMine();
+    expect(api.get).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + 2 * DAY_MS);
+    await store.ensureMine();
+    expect(api.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches the public list once it is older than the cache lifetime", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    api.get.mockResolvedValue(page([item(1, { is_public: true })]));
+    const store = await newStore();
+    await store.ensurePublic();
+    await store.ensurePublic();
+    expect(api.get).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + 2 * DAY_MS);
+    await store.ensurePublic();
+    expect(api.get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("public totals", () => {
+  const loadedPublic = async () => {
+    api.get.mockResolvedValueOnce(
+      page([item(1, { is_public: true }), item(2, { is_public: true })], null, 2),
+    );
+    const store = await newStore();
+    await store.ensurePublic();
+    return store;
+  };
+
+  it("lowers the public total when a substrate is made private", async () => {
+    const store = await loadedPublic();
+    api.patch.mockResolvedValue(detail(1, { is_public: false }));
+    await store.editSubstrate(1, { isPublic: false });
+    expect(ids(store.public.items)).toEqual([2]);
+    expect(store.public.total).toBe(1);
+    expect(store.public.firstPage?.total).toBe(1);
+  });
+
+  it("lowers the public total when a public substrate is deleted", async () => {
+    const store = await loadedPublic();
+    api.delete.mockResolvedValue(null);
+    await store.deleteSubstrate(2);
+    expect(store.public.total).toBe(1);
+    expect(store.public.firstPage?.total).toBe(1);
+  });
+
+  it("keeps the total when the substrate was not in the public list", async () => {
+    const store = await loadedPublic();
+    api.delete.mockResolvedValue(null);
+    await store.deleteSubstrate(99);
+    expect(store.public.total).toBe(2);
   });
 });

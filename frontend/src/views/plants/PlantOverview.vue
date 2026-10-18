@@ -25,10 +25,10 @@
       :total="listTotal"
       :list-key="showPublic"
       @item-click="navigateToPlant"
-      @refresh-items="refreshPlants"
-      @retry="refreshPlants"
+      @refresh-items="refreshItems"
+      @retry="refreshItems"
       @empty-action="openAddModal"
-      @load-more="loadMorePlants"
+      @load-more="loadMoreItems"
       @query-change="changeQuery"
     >
       <template #filters>
@@ -58,6 +58,7 @@ import ItemsOverview from "@/components/overview/ItemsOverview.vue";
 import PlantAddingModal from "@/components/plants/PlantAddingModal.vue";
 
 import { mapActions, mapState } from "pinia";
+import { segmentedList } from "@/utils/segmentedList";
 import { usePlantsStore } from "@/stores/plants";
 import { useSessionStore } from "@/stores/session";
 import { isActive, pageActive } from "@/utils/pageActive";
@@ -71,6 +72,31 @@ interface CachedItem {
   watering: WateringSummary | null;
   item: OverviewItem;
 }
+
+const overviewList = segmentedList<PlantView>({
+  useStore: usePlantsStore,
+  initialSegment: () => (useSessionStore().isGuest ? "public" : "private"),
+  noun: "plants",
+  keys: {
+    publicSegment: "segment.public",
+    privateSegment: "segment.private",
+    emptyPublicTitle: "state.empty_plants_public_title",
+    emptyPrivateTitle: "state.empty_plants_title",
+    emptyPublicMessage: "state.empty_plants_public_message",
+    emptyPrivateMessage: "state.empty_plants_message",
+    emptyAction: "state.empty_plants_action",
+  },
+  onRefreshed: (isPublic) => {
+    const typeLabel = localizationService.t(
+      isPublic ? "plants.type_public" : "plants.type_private",
+    );
+    ToastService.showSuccess({
+      key: "plants.updated",
+      vars: { type: typeLabel },
+      fallback: `${typeLabel} plants updated.`,
+    });
+  },
+});
 
 const NO_ITEMS: readonly OverviewItem[] = Object.freeze([]);
 
@@ -108,11 +134,10 @@ export default defineComponent({
     ItemsOverview,
     PlantAddingModal,
   },
-  mixins: [pageActive],
+  mixins: [pageActive, overviewList],
 
   data() {
     return {
-      showPublic: useSessionStore().isGuest ? "public" : "private",
       showAddingModal: false,
       isAddingLoading: false,
       dayTick: 0,
@@ -135,59 +160,13 @@ export default defineComponent({
   },
 
   async ionViewWillEnter() {
-    await this.fetchPlants();
+    await this.fetchItems();
   },
 
   computed: {
-    ...mapState(usePlantsStore, { mineList: "mine", publicList: "public" }),
-    ...mapState(useSessionStore, ["isGuest", "userId"]),
-    isPublic() {
-      return this.showPublic === "public";
-    },
-    segments() {
-      return [
-        { value: "public", label: this.t("segment.public"), icon: icons.segmentPublic },
-        {
-          value: "private",
-          label: this.t("segment.private"),
-          icon: icons.segmentPrivate,
-          hideFromGuests: true,
-        },
-      ];
-    },
-    activeList() {
-      return this.isPublic ? this.publicList : this.mineList;
-    },
-    isLoadingList(): boolean {
-      const { status, items } = this.activeList;
-      return status === "idle" || (status === "loading" && items.length === 0);
-    },
-    hasError(): boolean {
-      return this.activeList.status === "error";
-    },
-    hasMore(): boolean {
-      return this.isPublic && this.publicList.nextCursor !== null;
-    },
-    loadingMore(): boolean {
-      return this.isPublic && this.publicList.loadingMore;
-    },
-    listTotal(): number | null {
-      return this.isPublic ? this.publicList.total : null;
-    },
-    emptyTitle(): string {
-      return this.t(this.isPublic ? "state.empty_plants_public_title" : "state.empty_plants_title");
-    },
-    emptyMessage(): string {
-      if (this.isGuest) return this.t("state.guest_hint");
-      return this.t(
-        this.isPublic ? "state.empty_plants_public_message" : "state.empty_plants_message",
-      );
-    },
+    ...mapState(useSessionStore, ["userId"]),
     showRoundButton(): boolean {
       return !this.isPublic && !this.isGuest && this.mineList.items.length > 0;
-    },
-    emptyActionLabel(): string {
-      return !this.isGuest && !this.isPublic ? this.t("state.empty_plants_action") : "";
     },
     /**
      * Cards of the segment. The owner's plants carry their watering state, built in O(1) from the
@@ -230,10 +209,6 @@ export default defineComponent({
     },
 
     ...mapActions(usePlantsStore, {
-      ensureMine: "ensureMine",
-      ensurePublic: "ensurePublic",
-      setPublicQuery: "setPublicQuery",
-      loadMorePublic: "loadMorePublic",
       addPlantToStore: "addPlant",
       uploadPlantImage: "uploadPlantImage",
     }),
@@ -272,66 +247,6 @@ export default defineComponent({
       }
       itemCache.set(plant, { stamp, watering, item: Object.freeze(item) });
       return item;
-    },
-
-    /* -------------------- PLANTS -------------------- */
-    async loadPlants(isRefresh = false) {
-      const typeLabel = this.isPublic
-        ? this.t("plants.type_public")
-        : this.t("plants.type_private");
-
-      try {
-        if (this.isPublic) await this.ensurePublic({ force: isRefresh });
-        else await this.ensureMine({ force: isRefresh });
-
-        if (isRefresh) {
-          ToastService.showSuccess({
-            key: "plants.updated",
-            vars: { type: typeLabel },
-            fallback: `${typeLabel} plants updated.`,
-          });
-        }
-      } catch (error) {
-        // handleRequest has already shown the error toast.
-        console.error("Plant fetch error:", error);
-      }
-    },
-
-    async fetchPlants() {
-      await this.loadPlants();
-    },
-
-    async refreshPlants() {
-      await this.loadPlants(true);
-    },
-
-    async loadMorePlants() {
-      if (!this.isPublic) return;
-      try {
-        await this.loadMorePublic();
-      } catch (error) {
-        console.error("Loading more plants failed:", error);
-      }
-    },
-
-    async changeQuery({ q }: { q: string }) {
-      if (!this.isPublic) return;
-      try {
-        await this.setPublicQuery(q);
-      } catch (error) {
-        console.error("Plant search failed:", error);
-      }
-    },
-
-    handleSegmentChange(value: string) {
-      // The new segment is set first so the clear below is not taken for a search of the old one.
-      this.showPublic = value;
-      (this.$refs.overview as InstanceType<typeof ItemsOverview> | undefined)?.clearSearch?.();
-      if (value === "public" && this.publicList.query.q !== "") {
-        this.changeQuery({ q: "" });
-        return;
-      }
-      this.fetchPlants();
     },
 
     openRound() {

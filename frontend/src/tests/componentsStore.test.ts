@@ -35,7 +35,7 @@ vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import ImageService from "@/services/ImageService";
 import storageService from "@/services/general/StorageService";
-import { epoch } from "@/stores/resource";
+import { epoch, isStale } from "@/stores/resource";
 import { useComponentsStore } from "@/stores/components";
 import { useSubstratesStore } from "@/stores/substrates";
 
@@ -272,17 +272,17 @@ describe("invalidating the substrates", () => {
 
   it("marks the substrates stale after an edit", async () => {
     const { store, substrates } = await withFreshSubstrates();
-    expect(substrates.isMineStale).toBe(false);
+    expect(isStale(substrates.mine.fetchedAt)).toBe(false);
     api.put.mockResolvedValue(detail({ id: 1, name: "Renamed" }));
     await store.editComponent(1, { name: "Renamed" } as EditComponent);
-    expect(substrates.isMineStale).toBe(true);
+    expect(isStale(substrates.mine.fetchedAt)).toBe(true);
   });
 
   it("marks the substrates stale after a delete", async () => {
     const { store, substrates } = await withFreshSubstrates();
     api.delete.mockResolvedValue(null);
     await store.deleteComponent(1);
-    expect(substrates.isMineStale).toBe(true);
+    expect(isStale(substrates.mine.fetchedAt)).toBe(true);
   });
 
   it("leaves the substrates alone when the write fails or a component is added", async () => {
@@ -293,7 +293,7 @@ describe("invalidating the substrates", () => {
     await expect(store.deleteComponent(1)).rejects.toThrow();
     api.post.mockResolvedValue(detail({ id: 3 }));
     await store.addComponent({ name: "New", finenessId: 1 } as AddComponent);
-    expect(substrates.isMineStale).toBe(false);
+    expect(isStale(substrates.mine.fetchedAt)).toBe(false);
   });
 });
 
@@ -316,6 +316,7 @@ describe("a session that ends mid load", () => {
     api.get.mockReturnValue(new Promise((_, fail) => (reject = fail)));
     const store = await newStore();
     const loading = store.ensureLoaded();
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalled());
     epoch.abortAll();
     reject(new Error("aborted"));
     await expect(loading).resolves.toBeUndefined();
@@ -377,7 +378,7 @@ describe("persistence", () => {
     resolve(page([item(7, "Fresh")]));
     await loading;
     expect(ids(store)).toEqual([7]);
-    expect(store.isStale).toBe(false);
+    expect(isStale(store.fetchedAt)).toBe(false);
   });
 
   it("does not read the retired catalogue key", async () => {

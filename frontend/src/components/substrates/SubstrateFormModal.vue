@@ -89,6 +89,7 @@
 </template>
 
 <script lang="ts">
+import { NAME_MAX_LENGTH } from "@/utils/formLimits";
 import { defineComponent, PropType } from "vue";
 import { mapActions, mapState } from "pinia";
 import { IonModal, IonContent, IonFooter, IonButton, IonSpinner } from "@ionic/vue";
@@ -173,6 +174,7 @@ export default defineComponent({
           label: this.t("substrate.field.name"),
           required: true,
           autocapitalize: "words",
+          maxlength: NAME_MAX_LENGTH,
           enterkeyhint: "done",
         },
         {

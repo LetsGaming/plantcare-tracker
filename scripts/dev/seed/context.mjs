@@ -1,8 +1,6 @@
 import { createRequire } from "node:module";
 import path from "node:path";
-import { repoRoot } from "../lib/session.mjs";
-
-export const PASSWORD = "DevPass123!";
+import { devLogin, repoRoot } from "../lib/session.mjs";
 
 /** Everything a seed step may use: an HTTP client for the real API, a handle for the few things
  *  the API cannot do (promoting an admin), and a registry steps use to pass ids to later steps. */
@@ -52,9 +50,9 @@ export const createContext = ({ apiUrl, dbPath, log }) => {
   };
 
   const login = async (username) => {
-    const data = await call("POST", "/auth/login", { json: { username, password: PASSWORD } });
-    tokens.set(username, data.accessToken);
-    return data.accessToken;
+    const token = await devLogin(apiUrl, username);
+    tokens.set(username, token);
+    return token;
   };
 
   return {

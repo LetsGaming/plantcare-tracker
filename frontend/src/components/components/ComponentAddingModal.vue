@@ -13,6 +13,7 @@
 </template>
 
 <script lang="ts">
+import { NAME_MAX_LENGTH } from "@/utils/formLimits";
 import { defineComponent } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import { mapActions, mapState } from "pinia";
@@ -54,6 +55,7 @@ export default defineComponent({
           label: "component.field.name",
           required: true,
           autocapitalize: "words",
+          maxlength: NAME_MAX_LENGTH,
           enterkeyhint: "next",
         },
         {

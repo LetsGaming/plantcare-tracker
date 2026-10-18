@@ -8,12 +8,13 @@
 
 import { defineStore } from "pinia";
 import type { PersistEntry } from "./persistence";
+import { WATERING_CATEGORY_NAMES } from "@/utils/wateringCategories";
 
-const DEFAULT_WATERING_CATEGORIES: Category[] = [
-  "watering.category.no_fertilizer",
-  "watering.category.organic",
-  "watering.category.mineral",
-].map((name) => ({ name, textColor: "", backgroundColor: "" }));
+const DEFAULT_WATERING_CATEGORIES: Category[] = WATERING_CATEGORY_NAMES.map((name) => ({
+  name,
+  textColor: "",
+  backgroundColor: "",
+}));
 
 const LEGACY_DEFAULT_COLORS = new Set(["#1e90ff", "#8b4513", "#228b22"]);
 

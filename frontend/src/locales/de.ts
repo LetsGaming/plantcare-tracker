@@ -49,10 +49,6 @@ export default {
 
   "toast.dismiss": "Schließen",
 
-  /* Accordion */
-
-  "accordion.no_details": "Keine Details verfügbar.",
-
   /* =====================================================
 
 
@@ -648,6 +644,8 @@ export default {
   "admin.scrapers.strategy.selector": "Seiten-Selektoren",
 
   "admin.scrapers.strategy.heuristic": "Layout-Erkennung",
+
+  "admin.scrapers.strategy.api": "API-Abfrage",
 
   "admin.scrapers.items": "{count} Artikel",
 

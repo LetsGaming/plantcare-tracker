@@ -6,14 +6,14 @@
  * Usage: node scripts/dev-down.mjs [--id <name>]
  */
 import fs from "node:fs";
-import { killPid, parseArgs, sessionPaths } from "./dev/lib/session.mjs";
+import { killPid, parseArgs, readSession, sessionPaths } from "./dev/lib/session.mjs";
 
 const { id } = parseArgs(process.argv.slice(2));
 const log = (message) => console.log(`[dev-down:${id}] ${message}`);
 const { dataDir, logDir, sessionFile } = sessionPaths(id);
 
 if (fs.existsSync(sessionFile)) {
-  const session = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
+  const session = readSession(id);
   killPid(session.clientPid, "frontend", log);
   killPid(session.backendPid, "backend", log);
 } else {

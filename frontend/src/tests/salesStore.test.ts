@@ -182,6 +182,7 @@ describe("replay", () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      expect.any(Object),
     );
   });
 

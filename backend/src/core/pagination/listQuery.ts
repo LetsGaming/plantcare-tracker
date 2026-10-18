@@ -17,6 +17,12 @@ export interface SortSpec extends CursorTypes {
   direction?: SortDirection;
 }
 
+/** Sorts shared by the plant and substrate lists. */
+export const CREATED_OR_NAME_SORTS = {
+  created: { valueType: 'number', idType: 'number', direction: 'desc' },
+  name: { valueType: 'string', idType: 'number', direction: 'asc' },
+} as const satisfies Readonly<Record<string, SortSpec>>;
+
 export interface ListQueryOptions<S extends string, Sc extends string> {
   /** Allowed sort keys, optionally with the cursor value types they issue. */
   sorts: readonly S[] | Readonly<Record<S, SortSpec>>;

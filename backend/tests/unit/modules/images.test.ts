@@ -77,6 +77,7 @@ const makeMockStorage = (): ImageStorage => ({
     placeholder: '#336699',
     variants: 1,
   }),
+  read: vi.fn().mockResolvedValue(Buffer.alloc(0)),
   remove: vi.fn().mockResolvedValue(undefined),
 });
 
@@ -513,51 +514,47 @@ describe('DeleteImageUseCase', () => {
 // ── DeleteEntityImagesUseCase ─────────────────────────────────────────────────
 
 describe('DeleteEntityImagesUseCase', () => {
-  it('removes every file the repository reported as deleted', async () => {
-    const repo = makeMockRepo();
-    const storage = makeMockStorage();
+  it('checks access and purges the entity images', async () => {
+    const purger = { purge: vi.fn().mockResolvedValue(undefined) };
     const { policy, assertCanModify } = makeAllowAll();
-    const a = makeImage({ id: 1, url: 'https://api.test/uploads/plant/a.webp' });
-    const b = makeImage({ id: 2, url: 'https://api.test/uploads/plant/b.webp' });
-    asMock(repo.deleteByEntity).mockResolvedValue([a, b]);
 
-    await new DeleteEntityImagesUseCase(repo, storage, policy).execute('plant', 4, actor);
+    await new DeleteEntityImagesUseCase(purger, policy).execute('plant', 4, actor);
 
     expect(assertCanModify).toHaveBeenCalledWith('plant', 4, actor);
-    expect(repo.deleteByEntity).toHaveBeenCalledWith('plant', 4);
-    expect(storage.remove).toHaveBeenCalledTimes(2);
-    expect(storage.remove).toHaveBeenCalledWith('plant', a.url, 1);
-    expect(storage.remove).toHaveBeenCalledWith('plant', b.url, 1);
+    expect(purger.purge).toHaveBeenCalledWith('plant', 4);
   });
 
-  it('notifies the removal listener with the acting owner after the files are removed', async () => {
-    const repo = makeMockRepo();
-    const storage = makeMockStorage();
+  it('notifies the removal listener with the acting owner after the purge', async () => {
+    const purger = { purge: vi.fn().mockResolvedValue(undefined) };
     const { policy } = makeAllowAll();
-    asMock(repo.deleteByEntity).mockResolvedValue([makeImage()]);
     const onRemoved = vi.fn();
 
-    await new DeleteEntityImagesUseCase(repo, storage, policy, onRemoved).execute(
-      'plant',
-      4,
-      actor,
-    );
+    await new DeleteEntityImagesUseCase(purger, policy, onRemoved).execute('plant', 4, actor);
 
     expect(onRemoved).toHaveBeenCalledWith({ entityType: 'plant', ownerUserId: actor.id });
-    expect(asMock(storage.remove).mock.invocationCallOrder[0]).toBeLessThan(
+    expect(purger.purge.mock.invocationCallOrder[0]).toBeLessThan(
       onRemoved.mock.invocationCallOrder[0],
     );
   });
 
-  it('deletes nothing when the caller may not modify the entity', async () => {
-    const repo = makeMockRepo();
-    const storage = makeMockStorage();
+  it('does not notify and rethrows when the purge fails', async () => {
+    const purger = { purge: vi.fn().mockRejectedValue(new Error('db down')) };
+    const { policy } = makeAllowAll();
+    const onRemoved = vi.fn();
+    await expect(
+      new DeleteEntityImagesUseCase(purger, policy, onRemoved).execute('plant', 4, actor),
+    ).rejects.toThrow('db down');
+    expect(onRemoved).not.toHaveBeenCalled();
+  });
+
+  it('purges nothing when the caller may not modify the entity', async () => {
+    const purger = { purge: vi.fn() };
     const { policy, assertCanModify } = makeAllowAll();
     assertCanModify.mockRejectedValue(new ForbiddenError('no'));
     await expect(
-      new DeleteEntityImagesUseCase(repo, storage, policy).execute('plant', 4, actor),
+      new DeleteEntityImagesUseCase(purger, policy).execute('plant', 4, actor),
     ).rejects.toThrow(ForbiddenError);
-    expect(repo.deleteByEntity).not.toHaveBeenCalled();
+    expect(purger.purge).not.toHaveBeenCalled();
   });
 });
 

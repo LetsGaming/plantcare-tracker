@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { LocalImageStorage } from '../../src/modules/images/infrastructure/LocalImageStorage';
 import { SQLiteImageRepository } from '../../src/modules/images/infrastructure/SQLiteImageRepository';
 import { EmbedImagesService } from '../../src/modules/recognition/application/EmbedImages';
 import { createContractApp, type ContractApp } from '../contract/harness';
@@ -108,7 +109,13 @@ describe('SQLiteEmbeddingRepository', () => {
         },
       };
       const log = { warn: () => undefined, info: () => undefined };
-      const service = new EmbedImagesService(embedder, repo, dir, log, 60_000);
+      const service = new EmbedImagesService(
+        embedder,
+        repo,
+        new LocalImageStorage({ rootDir: dir }),
+        log,
+        60_000,
+      );
       await service.backfill();
       expect((await repo.plantImagesMissing('m1')).map((m) => m.imageId)).toContain(imageId);
 
