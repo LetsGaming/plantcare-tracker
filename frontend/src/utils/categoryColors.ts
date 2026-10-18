@@ -1,9 +1,10 @@
 import { ensureContrast, readableInk } from "./contrast";
+import { MINERAL_CATEGORY, NO_FERTILIZER_CATEGORY, ORGANIC_CATEGORY } from "./wateringCategories";
 
 export const DEFAULT_WATERING_TOKENS: Record<string, string> = {
-  "watering.category.no_fertilizer": "--water",
-  "watering.category.organic": "--feed-organic",
-  "watering.category.mineral": "--feed-mineral",
+  [NO_FERTILIZER_CATEGORY]: "--water",
+  [ORGANIC_CATEGORY]: "--feed-organic",
+  [MINERAL_CATEGORY]: "--feed-mineral",
 };
 
 export interface ResolvedCategoryColors {
