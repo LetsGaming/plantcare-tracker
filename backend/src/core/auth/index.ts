@@ -15,6 +15,8 @@ export {
   isValidAccessToken,
   readAccessSession,
   isGuestRole,
+  isAdminRole,
+  ROLE,
   type AuthUser,
   type JwtPayload,
   type TokenIdentity,

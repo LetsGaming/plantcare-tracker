@@ -9,6 +9,7 @@
  *    shared component catalogue.
  */
 
+import { isAdminRole } from '../../../core/auth';
 import { ForbiddenError, NotFoundError } from '../../../core/errors';
 import type { EntityType, ImageActor, ImageEntityInfo, ImageEntityLookup } from '../domain/Image';
 
@@ -22,7 +23,7 @@ const isVisibleTo = (info: ImageEntityInfo, actor: ImageActor): boolean =>
   info.isPublic || info.ownerId === actor.id;
 
 const mayModify = (entityType: EntityType, info: ImageEntityInfo, actor: ImageActor): boolean =>
-  entityType === 'component' ? actor.role.toLowerCase() === 'admin' : info.ownerId === actor.id;
+  entityType === 'component' ? isAdminRole(actor.role) : info.ownerId === actor.id;
 
 export class ImageAccessPolicy {
   constructor(private readonly entities: ImageEntityLookup) {}

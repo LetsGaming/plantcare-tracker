@@ -36,8 +36,6 @@ describe('frontend constants mirror the backend limits', () => {
   });
 
   it('search term length', () => {
-    expect(readNumber('components/SearchBar.vue', 'SEARCH_MAX_LENGTH')).toBe(
-      LIST.MAX_QUERY_LENGTH,
-    );
+    expect(readNumber('components/SearchBar.vue', 'SEARCH_MAX_LENGTH')).toBe(LIST.MAX_QUERY_LENGTH);
   });
 });

@@ -28,7 +28,18 @@ export interface AuthUser extends TokenIdentity {
   sid?: string;
 }
 
-export const isGuestRole = (role: string | undefined): boolean => role?.toLowerCase() === 'guest';
+export const ROLE = {
+  ADMIN: 'admin',
+  USER: 'user',
+  GUEST: 'guest',
+} as const;
+
+const hasRole = (role: string | undefined, expected: string): boolean =>
+  role?.toLowerCase() === expected;
+
+export const isGuestRole = (role: string | undefined): boolean => hasRole(role, ROLE.GUEST);
+
+export const isAdminRole = (role: string | undefined): boolean => hasRole(role, ROLE.ADMIN);
 
 const claimsOf = (user: TokenIdentity, sid: string): JwtPayload => ({
   id: user.id,
