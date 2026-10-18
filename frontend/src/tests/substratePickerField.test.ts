@@ -221,6 +221,18 @@ describe("search", () => {
     expect(useSubstratesStore().public.query.q).toBe("");
   });
 
+  it("restores the Substrates tab public query when the picker closes", async () => {
+    routeLists(mineItems(1), [item(50, { name: "Perlite Blend", user_id: 7 })]);
+    const wrapper = await mountPicker();
+    await useSubstratesStore().setPublicQuery("foo");
+    await open(wrapper);
+    expect(useSubstratesStore().public.query.q).toBe("");
+
+    wrapper.findComponent(IonModalStub).vm.$emit("didDismiss");
+    await settle();
+    expect(useSubstratesStore().public.query.q).toBe("foo");
+  });
+
   it("lists a public substrate once when it is also the user's own", async () => {
     const own = item(3, { user_id: 1, is_public: true });
     routeLists([own], [own, item(50, { user_id: 7 })]);

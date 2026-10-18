@@ -153,6 +153,7 @@ export default defineComponent({
       query: "",
       mineWindow: PICKER_WINDOW_STEP,
       publicWindow: PICKER_WINDOW_STEP,
+      restoredPublicQuery: "",
     };
   },
   computed: {
@@ -229,6 +230,7 @@ export default defineComponent({
       this.query = "";
       this.mineWindow = PICKER_WINDOW_STEP;
       this.publicWindow = PICKER_WINDOW_STEP;
+      this.restoredPublicQuery = this.public.query.q ?? "";
       this.open = true;
       await Promise.allSettled([this.ensureMine(), this.ensurePublic()]);
       if (this.public.query.q) await this.setPublicQuery("");
@@ -239,7 +241,9 @@ export default defineComponent({
     onDismiss() {
       this.open = false;
       this.release();
-      if (this.public.query.q) void this.setPublicQuery("");
+      if ((this.public.query.q ?? "") !== this.restoredPublicQuery) {
+        void this.setPublicQuery(this.restoredPublicQuery);
+      }
       this.$emit("blur");
     },
     onSearch(value: string) {
@@ -263,6 +267,8 @@ export default defineComponent({
         } else if (this.public.nextCursor !== null && !this.public.loadingMore) {
           await this.loadMorePublic();
         }
+      } catch (error) {
+        console.error("Failed to load more public substrates", error);
       } finally {
         target.complete();
       }
