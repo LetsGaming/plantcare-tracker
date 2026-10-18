@@ -405,8 +405,6 @@ After a `5xx` on a write, clients should refetch the plant instead of retrying a
 | GET | `/:id` | JWT | Single substrate (own or public) with images and mix |
 | POST | `/` | JWT | Create substrate (optionally with its mix) |
 | PATCH | `/:id` | JWT | Update name, visibility and/or the mix |
-| POST | `/:id/components` | JWT | Add components (insert only) |
-| PATCH | `/:id/components` | JWT | Replace the whole mix |
 | DELETE | `/:id` | JWT | Delete substrate (owner only) |
 
 `GET /` takes the [paged list parameters](#paged-lists) (`limit`, `cursor`, `q`, `sort=created|name`, `scope`) and `component_id` (a positive integer): only substrates containing that component, within the chosen scope. A "used in" view that wants own and public substrates calls both scopes and dedupes by id. Guests default to `public`; their `scope=mine` is an empty page.
@@ -471,17 +469,7 @@ At least one field is required. `components` **replaces** the whole mix (one tra
 { "data": { "substrate_id": 1, "...": "full updated Substrate Object" } }
 ```
 
-### POST `/:id/components` and PATCH `/:id/components`
-
-```json
-// Request
-{ "components": [ { "componentId": 1, "parts": 2.5 }, { "componentId": 2, "parts": 1.0 } ] }
-
-// POST: Response 201 (Location: /substrates/1), PATCH: Response 200
-{ "data": { "substrate_id": 1, "...": "full updated Substrate Object" } }
-```
-
-`POST` inserts and fails on a component already in the mix (`409`). `PATCH` has **replace** semantics: the mix becomes exactly the given list (an empty list clears it), atomically, so it is safe to repeat. Both accept at most 100 entries; an unknown `componentId` answers `400`.
+The former `POST` and `PATCH /:id/components` routes were removed: create and `PATCH /:id` carry the mix (`components` replaces it as a whole).
 
 ---
 
@@ -869,7 +857,7 @@ Registered under the versioned prefix.
 { "ready": true }
 ```
 
-`event_loop_delay` is the delay histogram of the event loop since the previous `/health` call (sampled every 20 ms, reset after each read), so a monitor polling regularly sees the worst case of its own interval. `rss_mb` is the resident set size. The recognition model loads after the port opens, so the server answers requests while `/health/ready` is still `503`; the Docker `HEALTHCHECK` targets `/health/ready`.
+`event_loop_delay` is the event loop delay of the last completed 60 second window (sampled every 20 ms; before the first window ends, since start), so any poll rate sees the same recent worst case. `rss_mb` is the resident set size. The recognition model loads after the port opens, so the server answers requests while `/health/ready` is still `503`; the Docker `HEALTHCHECK` targets `/health/ready`.
 
 ---
 

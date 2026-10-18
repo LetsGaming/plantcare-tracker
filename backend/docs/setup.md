@@ -48,7 +48,7 @@ PUBLIC_BASE_URL=https://api.example.com
 OPENAI_API_KEY=sk-...
 
 # ── Server ─────────────────────────────────────────────────────────────────────
-PORT=5000
+PORT=5000                     # integer 1 to 65535, anything else stops the boot
 NODE_ENV=development          # or production
 
 # ── CORS ───────────────────────────────────────────────────────────────────────

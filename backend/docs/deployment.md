@@ -78,7 +78,7 @@ The run can be interrupted and started again: a row is updated only after its fi
 
 ### Maintenance jobs and the database file
 
-The backend runs periodic jobs in the background: expired sessions and SSE tickets are swept, long inactive sales items and old price points are pruned (also when `SALES_REFRESH_ENABLED=false`), and uploaded files that no image row references and that are older than a day are removed together with their variants. To reclaim free pages in the SQLite file after large deletions, stop the server and run `pnpm run db:vacuum` (it needs temporary disk space as large as the database).
+The backend runs periodic jobs in the background: expired sessions and SSE tickets are swept, long inactive sales items and old price points are pruned (also when `SALES_REFRESH_ENABLED=false`), and `.webp` files directly inside the `plant`, `substrate` and `component` upload folders that no image row references and that are older than a day are removed together with their variants. The sweep refuses to delete anything when no image row exists at all, or when it would remove more than half of 20 or more files, and logs why. To reclaim free pages in the SQLite file after large deletions, stop the server and run `pnpm run db:vacuum` (it needs temporary disk space as large as the database).
 
 ### Memory and reverse-proxy settings
 
@@ -223,7 +223,7 @@ GET /api/v2/health/ready
 → 503 { "ready": false } if the DB is unreachable or the recognition model is still loading
 ```
 
-`/health` is a cheap liveness probe (one DB ping). `event_loop_delay` covers the time since the previous call, so alert on `p99_ms` or `max_ms` from a monitor that polls regularly. `/health/ready` answers `200` only after the model has loaded (the load starts after the port opens, so a restart serves requests before it is ready; with recognition disabled it is ready at once).
+`/health` is a cheap liveness probe (one DB ping). `event_loop_delay` covers the last completed 60 second window, so alert on `p99_ms` or `max_ms` at any poll rate. `/health/ready` answers `200` only after the model has loaded (the load starts after the port opens, so a restart serves requests before it is ready; with recognition disabled it is ready at once).
 
 **Kubernetes / Docker usage:**
 - Use `/api/v2/health/ready` for **readiness probes**: no traffic before the DB is reachable and the model is loaded. The backend Docker image uses it as its `HEALTHCHECK` (20 s start period)
