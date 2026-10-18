@@ -1,9 +1,9 @@
 import { sql, type Kysely, type RawBuilder, type SqlBool } from 'kysely';
 import { getKysely } from '../../../core/database/db';
 import type { Database } from '../../../core/database/schema';
-import { toPublicImageUrl } from '../../../core/config';
 import { applyKeyset, containsLike, toPage, type KeysetOptions } from '../../../core/pagination';
-import { toImageDto, type ImageDTO } from '../../images/presentation/imageDto';
+import type { ImageDTO } from '../../images/domain/imageDto';
+import { IMAGE_COLUMNS, imageRowToDto } from '../../images/infrastructure/imageRows';
 import {
   summaryColumns,
   summaryFromRow,
@@ -25,16 +25,6 @@ import type {
 import { Plant } from '../domain/Plant';
 
 const MS_PER_SECOND = 1000;
-
-interface ImageRow {
-  id: number;
-  image_url: string;
-  upload_date: number;
-  variants: number;
-  width: number | null;
-  height: number | null;
-  placeholder: string | null;
-}
 
 interface PlantBaseRow {
   plant_id: number;
@@ -64,27 +54,6 @@ const SORT_KEYSET: Record<
   created: { column: 'p.created_at', direction: 'desc' },
   name: { column: 'p.name', direction: 'asc', collateNoCase: true },
 };
-
-const IMAGE_COLUMNS = [
-  'id',
-  'image_url',
-  'upload_date',
-  'variants',
-  'width',
-  'height',
-  'placeholder',
-] as const;
-
-const toImage = (row: ImageRow): ImageDTO =>
-  toImageDto({
-    id: row.id,
-    url: toPublicImageUrl(row.image_url),
-    date: row.upload_date,
-    variants: row.variants,
-    width: row.width,
-    height: row.height,
-    placeholder: row.placeholder,
-  });
 
 const toSubstrate = (row: PlantBaseRow): SubstrateRef | null =>
   row.substrate_id
@@ -245,7 +214,7 @@ export class SQLitePlantRepository implements PlantRepository {
       .select([...IMAGE_COLUMNS])
       .where('id', 'in', ids)
       .execute();
-    for (const row of rows) covers.set(row.id, toImage(row));
+    for (const row of rows) covers.set(row.id, imageRowToDto(row));
     return covers;
   }
 
@@ -283,7 +252,7 @@ export class SQLitePlantRepository implements PlantRepository {
       .orderBy('upload_date')
       .orderBy('id')
       .execute();
-    const images = imageRows.map(toImage);
+    const images = imageRows.map(imageRowToDto);
 
     return new Plant({
       plant_id: row.plant_id,
