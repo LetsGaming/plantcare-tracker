@@ -11,7 +11,7 @@ vi.mock('../../../src/tools/backfillImageVariants', () => ({
   runVariantBackfill: vi.fn(),
 }));
 
-import { startVariantBackfill } from '../../../src/modules/images';
+import { startVariantBackfill } from '../../../src/tools/startVariantBackfill';
 import { runVariantBackfill } from '../../../src/tools/backfillImageVariants';
 
 const result = { processed: 0, missing: 0, nonWebp: 0, failed: 0 };

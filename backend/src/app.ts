@@ -43,7 +43,7 @@ import { wateringRoutes } from './modules/watering/presentation/wateringRoutes';
 import { substrateRoutes } from './modules/substrate/presentation/substrateRoutes';
 import { componentRoutes } from './modules/components/presentation/componentRoutes';
 import { imageRoutes } from './modules/images/presentation/imageRoutes';
-import { startVariantBackfill } from './modules/images';
+import { startVariantBackfill } from './tools/startVariantBackfill';
 import { createRecognition, recognitionRoutes } from './modules/recognition';
 import type { RecognitionDeps } from './modules/recognition';
 import { moreInfoRoutes } from './modules/moreInfo/presentation/moreInfoRoutes';

@@ -12,7 +12,7 @@
 import multipart from '@fastify/multipart';
 import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteImageRepository } from '../infrastructure/SQLiteImageRepository';
-import { LocalImageStorage, configureSharp } from '../infrastructure/LocalImageStorage';
+import { LocalImageStorage } from '../infrastructure/LocalImageStorage';
 import type { ImageRemovedListener, ImageStoredListener } from '../application/ImageUseCases';
 import { createImageController } from './imageController';
 import { SQLiteImageEntityLookup } from '../infrastructure/SQLiteImageEntityLookup';
@@ -49,7 +49,6 @@ export interface ImageRouterDeps {
 export const imageRoutes =
   (deps: ImageRouterDeps = {}): FastifyPluginAsync =>
   async (app) => {
-    configureSharp();
     const uploadLimiter = createLimiter(app, {
       windowMs: UPLOAD_RATE_LIMIT_WINDOW_MS,
       max: UPLOAD_RATE_LIMIT_MAX_PER_USER,

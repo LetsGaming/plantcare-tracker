@@ -119,16 +119,6 @@ const anonymizeImageName = (fileName: string, contextKeywords: string[] = []): s
 
 const uploadSlots = createSemaphore(MAX_CONCURRENT_UPLOADS);
 
-let sharpConfigured = false;
-
-/** Applies the process-wide sharp settings once; safe to call repeatedly. */
-export const configureSharp = (): void => {
-  if (sharpConfigured) return;
-  sharpConfigured = true;
-  sharp.concurrency(SHARP_CONCURRENCY);
-  sharp.cache(false);
-};
-
 const toHex = (channel: number): string => channel.toString(16).padStart(2, '0');
 
 export const variantFilename = (filename: string, width: number): string =>
@@ -160,7 +150,8 @@ const hasErrnoCode = (err: unknown): boolean =>
 const isPixelLimitError = (err: unknown): boolean =>
   err instanceof Error && /pixel limit/i.test(err.message);
 
-configureSharp();
+sharp.concurrency(SHARP_CONCURRENCY);
+sharp.cache(false);
 
 export interface VariantsFromFile {
   width: number;
