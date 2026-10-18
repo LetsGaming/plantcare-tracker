@@ -38,6 +38,8 @@ const encodeOffscreen = async (
   const context = canvas.getContext("2d");
   if (!context) return null;
   context.imageSmoothingQuality = "high";
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, width, height);
   context.drawImage(bitmap, 0, 0, width, height);
   for (const type of [WEBP, JPEG]) {
     const blob = await canvas.convertToBlob({ type, quality });

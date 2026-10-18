@@ -7,7 +7,7 @@ vi.mock("@/utils/requestFeedback", () => ({
 }));
 
 import { SNAP_MAX_WIDTH, UPLOAD_MAX_WIDTH, downscaleImage, resizeImage } from "@/utils/imageResize";
-import { capturedAtOf, readExifDate, readImageHeader, rememberCapturedAt } from "@/utils/exifDate";
+import { capturedAtOf, readImageHeader, rememberCapturedAt } from "@/utils/exifDate";
 import ImageService from "@/services/ImageService";
 
 interface JpegSpec {
@@ -78,19 +78,22 @@ const stubOffscreen = (typeFor: (requested: string) => string = (type) => type) 
     async ({ type }: { type: string }) => new Blob(["img"], { type: typeFor(type) }),
   );
   const drawImage = vi.fn();
+  const fillRect = vi.fn();
   class FakeOffscreen {
     constructor(
       public width: number,
       public height: number,
     ) {}
     getContext() {
-      return { drawImage, imageSmoothingQuality: "low" };
+      return { drawImage, fillRect, fillStyle: "", imageSmoothingQuality: "low" };
     }
     convertToBlob = convertToBlob;
   }
   vi.stubGlobal("OffscreenCanvas", FakeOffscreen);
-  return { convertToBlob, drawImage };
+  return { convertToBlob, drawImage, fillRect };
 };
+
+const readExifDate = async (file: Blob) => (await readImageHeader(file)).capturedAt;
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.unstubAllGlobals());
@@ -199,6 +202,18 @@ describe("resizeImage", () => {
     expect(create).toHaveBeenCalledWith(expect.anything(), { imageOrientation: "from-image" });
     expect(result.width).toBe(800);
     expect(result.blob.type).toBe("image/webp");
+  });
+
+  it("fills the offscreen canvas white before drawing so alpha does not turn black", async () => {
+    stubBitmap(1600, 1200);
+    const { fillRect, drawImage } = stubOffscreen((type) =>
+      type === "image/webp" ? "image/png" : type,
+    );
+    await resizeImage(jpegFile({ width: 4000, height: 3000 }), { maxWidth: 1600 });
+    expect(fillRect).toHaveBeenCalledWith(0, 0, 1600, 1200);
+    expect(fillRect.mock.invocationCallOrder[0]).toBeLessThan(
+      drawImage.mock.invocationCallOrder[0],
+    );
   });
 
   it("passes small files that are already narrow through untouched", async () => {
