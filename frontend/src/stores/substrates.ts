@@ -33,15 +33,27 @@ import { compareText } from "@/utils/intlCache";
 import { handleRequest } from "@/utils/requestFeedback";
 import { useSessionStore } from "./session";
 import { usePlantsStore } from "./plants";
-import { coalesced, epoch, isStale } from "./resource";
-import { commitList, idIndexOf, removeItem, upsertItem } from "./optimistic";
-import { commitTracked, journaled, replaying, type ListEdit as JournalListEdit } from "./journal";
+import { epoch, isStale } from "./resource";
+import { commitList, idIndexOf, upsertItem } from "./optimistic";
+import { commitTracked, journaled } from "./journal";
 import {
+  editMine,
+  editPublic,
+  ensureList,
+  leavePublic,
+  pagedFetcher,
+  removing,
+  replacing,
+  replayOwned,
+  replayPublic,
+  syncPublicMembership,
+} from "./scopedLists";
+import {
+  collectPages,
   loadAll,
   loadFirst,
   invalidateInFlight,
   loadMore,
-  mapPage,
   pageSearchParams,
   pagedPersistEntry,
   pagedState,
@@ -49,7 +61,6 @@ import {
   type ApiPage,
   type FetchPage,
   type PageParams,
-  type PageNotModified,
   type PagedState,
 } from "./paged";
 
@@ -58,7 +69,6 @@ const RESOURCE_KEY = "substrate.title";
 const MINE_KEY = "substrates_mine";
 const PUBLIC_KEY = "substrates_public";
 const USED_IN_PAGE_SIZE = 100;
-const USED_IN_MAX_PAGES = 10;
 
 type Scope = "mine" | "public";
 
@@ -76,96 +86,44 @@ export interface SubstrateWrite {
   components?: BaseSubstrateComponent[];
 }
 
-interface SubstrateLists {
-  mine: PagedState<SubstrateView>;
-  public: PagedState<SubstrateView>;
-}
-
-type ListEdit = JournalListEdit<SubstrateView>;
-
-const fetchScope =
-  (scope: Scope): FetchPage<SubstrateView> =>
-  async (params) => {
-    const path = `${BASE_ENDPOINT}?${pageSearchParams(params, { scope })}`;
-    const request = params.conditional
-      ? ApiUtils.get<ApiPage<APISubstrateListItem>>(path, undefined, { conditional: true })
-      : ApiUtils.get<ApiPage<APISubstrateListItem>>(path);
-    const page = await handleRequest(request, RESOURCE_KEY);
-    if ((page as Partial<PageNotModified>).notModified === true) return { notModified: true };
-    return mapPage(page as ApiPage<APISubstrateListItem>, SubstrateMapper.mapListItem);
-  };
+const fetchScope = (scope: Scope): FetchPage<SubstrateView> =>
+  pagedFetcher<APISubstrateListItem, SubstrateView>({
+    endpoint: BASE_ENDPOINT,
+    resourceKey: RESOURCE_KEY,
+    map: SubstrateMapper.mapListItem,
+    extra: () => ({ scope }),
+  });
 
 /** One scope of the substrates visible to the viewer that contain a component, all pages. */
 const fetchUsedInScope = async (componentId: number, scope: Scope): Promise<UsedInSubstrate[]> => {
-  const found: UsedInSubstrate[] = [];
-  let cursor: string | null = null;
-  for (let page = 0; page < USED_IN_MAX_PAGES; page += 1) {
-    const params: PageParams = {
-      limit: USED_IN_PAGE_SIZE,
-      cursor,
-      q: "",
-      sort: "name",
-      conditional: false,
-    };
-    const response: ApiPage<APISubstrateListItem> = await handleRequest(
-      ApiUtils.get<ApiPage<APISubstrateListItem>>(
-        `${BASE_ENDPOINT}?${pageSearchParams(params, { scope, component_id: componentId })}`,
-      ),
-      RESOURCE_KEY,
-    );
-    for (const item of response.items) {
-      found.push({ id: item.id, name: item.name, isPublic: item.is_public });
-    }
-    cursor = response.next_cursor;
-    if (cursor === null) break;
-  }
-  return found;
+  const collected = await collectPages<APISubstrateListItem, ApiPage<APISubstrateListItem>>(
+    (cursor) => {
+      const params: PageParams = {
+        limit: USED_IN_PAGE_SIZE,
+        cursor,
+        q: "",
+        sort: "name",
+        conditional: false,
+      };
+      return handleRequest(
+        ApiUtils.get<ApiPage<APISubstrateListItem>>(
+          `${BASE_ENDPOINT}?${pageSearchParams(params, { scope, component_id: componentId })}`,
+        ),
+        RESOURCE_KEY,
+      );
+    },
+  );
+  return (collected?.items ?? []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    isPublic: item.is_public,
+  }));
 };
 
 /** The list entry of a detail: the same view without its mix and images. */
 const lightOf = (detail: SubstrateView): SubstrateView => {
   const { images: _images, ...entry } = detail;
   return Object.freeze({ ...entry, components: null });
-};
-
-const replacing =
-  (substrate: SubstrateView): ListEdit =>
-  (list) =>
-    idIndexOf(list).has(substrate.id) ? upsertItem(list, substrate) : null;
-
-const removing =
-  (id: number): ListEdit =>
-  (list) =>
-    idIndexOf(list).has(id) ? removeItem(list, id) : null;
-
-const editPublic = (lists: SubstrateLists, edit: ListEdit): void => {
-  const target = lists.public;
-  const before = target.items;
-  const next = edit(before);
-  if (next) commitTracked(target, next);
-  const first = target.firstPage;
-  if (!first) return;
-  const sharesItems = first.items === before;
-  const firstNext = sharesItems ? next : edit(first.items);
-  if (!firstNext) return;
-  target.firstPage = Object.freeze({
-    ...first,
-    items: sharesItems ? target.items : commitList(firstNext),
-  });
-};
-
-const editMine = (lists: SubstrateLists, edit: ListEdit): void => {
-  const next = edit(lists.mine.items);
-  if (next) commitTracked(lists.mine, next);
-};
-
-/** A substrate made private leaves `public`; a newly public one asks for a refresh. */
-const syncPublicMembership = (lists: SubstrateLists, substrate: SubstrateView): void => {
-  if (!substrate.isPublic) {
-    editPublic(lists, removing(substrate.id));
-  } else if (!idIndexOf(lists.public.items).has(substrate.id)) {
-    lists.public.fetchedAt = 0;
-  }
 };
 
 const detailFetchedAt = new WeakMap<SubstrateView, number>();
@@ -217,8 +175,6 @@ export const useSubstratesStore = defineStore("substrates", {
   },
 
   getters: {
-    isMineStale: (state): boolean => isStale(state.mine.fetchedAt),
-    isPublicStale: (state): boolean => isStale(state.public.fetchedAt),
     byId:
       (state) =>
       (id: number): SubstrateView | undefined =>
@@ -240,56 +196,27 @@ export const useSubstratesStore = defineStore("substrates", {
      */
     ensureMine({ force = false }: { force?: boolean } = {}): Promise<void> {
       if (useSessionStore().isGuest) return Promise.resolve();
-      if (!force && this.mine.status === "ready" && !this.isMineStale) return Promise.resolve();
-      return coalesced(this, MINE_KEY, async (isCurrent) => {
-        if (
-          !force &&
-          this.mine.status === "idle" &&
-          this.mine.fetchedAt === null &&
-          (await this.$hydrate([MINE_KEY])) &&
-          !this.isMineStale
-        ) {
-          return;
-        }
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          if (!isCurrent()) return;
-          await journaled(
-            this.mine,
-            isCurrent,
-            () => loadAll(this.mine, fetchScope("mine"), { isCurrent }),
-            (journal) => {
-              const next = replaying(journal, true)(this.mine.items);
-              if (next) commitTracked(this.mine, next);
-            },
-          );
-          if (!isStale(this.mine.fetchedAt)) return;
-        }
+      return ensureList({
+        owner: this,
+        key: MINE_KEY,
+        target: this.mine,
+        force,
+        hydrate: () => this.$hydrate([MINE_KEY]),
+        load: (isCurrent) => loadAll(this.mine, fetchScope("mine"), { isCurrent }),
+        replay: replayOwned(this.mine),
       });
     },
 
     /** Same contract as `ensureMine`, for the first page of the public substrates (default query). */
     ensurePublic({ force = false }: { force?: boolean } = {}): Promise<void> {
-      if (!force && this.public.status === "ready" && !this.isPublicStale) return Promise.resolve();
-      return coalesced(this, PUBLIC_KEY, async (isCurrent) => {
-        if (
-          !force &&
-          this.public.status === "idle" &&
-          this.public.fetchedAt === null &&
-          (await this.$hydrate([PUBLIC_KEY])) &&
-          !this.isPublicStale
-        ) {
-          return;
-        }
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          if (!isCurrent()) return;
-          await journaled(
-            this.public,
-            isCurrent,
-            () => loadFirst(this.public, fetchScope("public"), { isCurrent }),
-            (journal) => editPublic(this, replaying(journal, false)),
-          );
-          if (!isStale(this.public.fetchedAt) || this.public.status === "loading") return;
-        }
+      return ensureList({
+        owner: this,
+        key: PUBLIC_KEY,
+        target: this.public,
+        force,
+        hydrate: () => this.$hydrate([PUBLIC_KEY]),
+        load: (isCurrent) => loadFirst(this.public, fetchScope("public"), { isCurrent }),
+        replay: replayPublic(this.public),
       });
     },
 
@@ -305,7 +232,7 @@ export const useSubstratesStore = defineStore("substrates", {
         this.public,
         isCurrent,
         () => setQuery(this.public, { q }, fetchScope("public"), { isCurrent }),
-        (journal) => editPublic(this, replaying(journal, false)),
+        replayPublic(this.public),
       );
     },
 
@@ -354,8 +281,8 @@ export const useSubstratesStore = defineStore("substrates", {
     /** Puts a server-confirmed detail where it belongs: details, and the light entry of every list holding it. */
     commitDetail(substrate: SubstrateView): void {
       const light = lightOf(substrate);
-      editMine(this, replacing(light));
-      editPublic(this, replacing(light));
+      editMine(this.mine, replacing(light));
+      editPublic(this.public, replacing(light));
       this.details = withDetail(this.details, substrate);
     },
 
@@ -410,11 +337,11 @@ export const useSubstratesStore = defineStore("substrates", {
       if (substrate.userId === useSessionStore().userId) {
         commitTracked(this.mine, upsertItem(this.mine.items, light));
       } else {
-        editMine(this, replacing(light));
+        editMine(this.mine, replacing(light));
       }
-      editPublic(this, replacing(light));
+      editPublic(this.public, replacing(light));
       this.details = withDetail(this.details, substrate);
-      syncPublicMembership(this, light);
+      syncPublicMembership(this.public, light);
       usePlantsStore().patchSubstrate(substrate.id, substrate.name);
     },
 
@@ -426,8 +353,8 @@ export const useSubstratesStore = defineStore("substrates", {
         "error.action_failed",
       );
       if (!isCurrent()) return;
-      editMine(this, removing(substrateId));
-      editPublic(this, removing(substrateId));
+      editMine(this.mine, removing(substrateId));
+      leavePublic(this.public, substrateId);
       this.details = withoutKey(this.details, substrateId);
       usePlantsStore().patchSubstrate(substrateId, null);
     },
