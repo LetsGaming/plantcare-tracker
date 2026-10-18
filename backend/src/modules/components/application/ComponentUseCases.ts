@@ -17,18 +17,19 @@ import type {
 import type { Page } from '../../../core/pagination';
 import { NotFoundError, InternalError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
+import { NAME_MAX_LENGTH } from '../../../core/config/constants';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
 export const CreateComponentSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
+  name: z.string().min(1, 'Name is required').max(NAME_MAX_LENGTH),
   fineness: z.coerce.number().int().positive('Fineness must be a valid integer'),
 });
 
 export const UpdateComponentSchema = z
   .object({
-    name: z.string().min(1).max(100).optional(),
+    name: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
     fineness: z.coerce.number().int().positive().optional(),
   })
   .refine((d) => d.name !== undefined || d.fineness !== undefined, {

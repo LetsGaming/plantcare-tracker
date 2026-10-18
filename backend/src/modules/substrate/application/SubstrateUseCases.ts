@@ -15,6 +15,7 @@ import type {
 } from '../domain/Substrate';
 import { NotFoundError, InternalError, ValidationError } from '../../../core/errors';
 import { parseOrThrow } from '../../../core/validation';
+import { NAME_MAX_LENGTH } from '../../../core/config/constants';
 import { parseListQuery } from '../../../core/pagination';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { ensureArray } from '../../../core/utils';
@@ -36,14 +37,14 @@ export const ReplaceComponentsSchema = z
   });
 
 export const CreateSubstrateSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
+  name: z.string().min(1, 'Name is required').max(NAME_MAX_LENGTH),
   isPublic: z.boolean().default(false),
   components: ReplaceComponentsSchema.optional(),
 });
 
 export const UpdateSubstrateSchema = z
   .object({
-    name: z.string().min(1).max(100).optional(),
+    name: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
     isPublic: z.boolean().optional(),
     components: ReplaceComponentsSchema.optional(),
   })
