@@ -1,4 +1,4 @@
-import { PASSWORD } from "../context.mjs";
+import { DEV_PASSWORD } from "../../lib/session.mjs";
 
 /** admin: manages components and sees the scraper health screens.
  *  grower: owns most of the data, in every watering state.
@@ -19,7 +19,7 @@ export default {
   async run(ctx) {
     for (const user of USERS) {
       await ctx.call("POST", "/auth/register", {
-        json: { username: user.username, password: PASSWORD },
+        json: { username: user.username, password: DEV_PASSWORD },
       });
       if (user.role === "admin") {
         ctx.sql("UPDATE users SET role_id = ? WHERE username = ?", ADMIN_ROLE_ID, user.username);

@@ -8,6 +8,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const repoRoot = path.resolve(here, "..", "..", "..");
 
+export const API_PATH = "/api/v2";
+
+/** Password of every seeded account. */
+export const DEV_PASSWORD = "DevPass123!";
+
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const parseArgs = (argv) => {
   const out = { id: "default", seed: true, loggedout: false, user: "grower" };
   for (let i = 0; i < argv.length; i++) {
@@ -25,6 +32,20 @@ export const sessionPaths = (id) => {
   const dataDir = path.join(repoRoot, "data", `agent-${id}`);
   const logDir = path.join(repoRoot, "logs", `agent-${id}`);
   return { dataDir, logDir, sessionFile: path.join(dataDir, "dev-session.json") };
+};
+
+export const readSession = (id) => JSON.parse(fs.readFileSync(sessionPaths(id).sessionFile, "utf8"));
+
+/** Logs a seeded account in through the API and returns its access token. */
+export const devLogin = async (apiBase, username) => {
+  const res = await fetch(`${apiBase}/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password: DEV_PASSWORD }),
+  });
+  if (!res.ok) throw new Error(`Login as ${username} answered ${res.status}`);
+  const body = await res.json();
+  return (body.data ?? body).accessToken;
 };
 
 export const getFreePort = () =>
@@ -46,7 +67,7 @@ export const waitForHttp = async (url, timeoutMs) => {
     } catch {
       // not listening yet
     }
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await sleep(300);
   }
   return false;
 };

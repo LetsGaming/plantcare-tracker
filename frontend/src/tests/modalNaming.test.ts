@@ -73,9 +73,7 @@ describe("dialog accessible names", () => {
     expect(dialogLabel(mountModal(SalesFilterModal, { query: defaultSalesQuery() }))).toBe(
       "sales.filter.title",
     );
-    expect(
-      dialogLabel(mountModal(CalendarSettingsModal, {})),
-    ).toBe("calendar.settings.title");
+    expect(dialogLabel(mountModal(CalendarSettingsModal, {}))).toBe("calendar.settings.title");
     expect(
       dialogLabel(
         mountModal(SubstrateFormModal, {

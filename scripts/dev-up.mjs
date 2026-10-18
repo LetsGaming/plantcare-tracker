@@ -18,6 +18,8 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  API_PATH,
+  DEV_PASSWORD,
   getFreePort,
   killPid,
   parseArgs,
@@ -26,11 +28,10 @@ import {
   spawnBackground,
   waitForHttp,
 } from "./dev/lib/session.mjs";
-import { PASSWORD, createContext } from "./dev/seed/context.mjs";
+import { createContext } from "./dev/seed/context.mjs";
 import { runSeed } from "./dev/seed/index.mjs";
 import { USERS } from "./dev/seed/steps/01-users.mjs";
 
-const API_PATH = "/api/v2";
 const STARTUP_TIMEOUT_MS = 40_000;
 
 const main = async () => {
@@ -132,7 +133,7 @@ const main = async () => {
   console.log(`  App:      ${clientUrl}`);
   console.log(`  API:      ${apiUrl}`);
   if (seed) {
-    console.log(`  Accounts: ${USERS.map((u) => `${u.username} (${u.role})`).join(", ")}; password ${PASSWORD}`);
+    console.log(`  Accounts: ${USERS.map((u) => `${u.username} (${u.role})`).join(", ")}; password ${DEV_PASSWORD}`);
     console.log("  Guest:    use 'continue as guest' on the login screen");
   }
   console.log(`  Logs:     ${logDir}`);

@@ -11,6 +11,7 @@ import {
   summarizeRuns,
   toMarkdown,
 } from "./lib/metrics.mjs";
+import { DEV_PASSWORD, sleep } from "../dev/lib/session.mjs";
 import { loadSession, parseFlags, repoRoot, requireId } from "./lib/session.mjs";
 
 const HELP = `Navigation benchmark against the served production build (4x CPU, Fast 4G, mobile profile).
@@ -26,7 +27,6 @@ Results: scripts/perf/results/<label>-navbench.json and .md. --n is the injected
 sales-replay measures the replay of the sales the server holds: seed them first with
 inject-sales.mjs --mode db --n 2000. public-scroll expects a large public plant set (amplify.mjs).`;
 
-const PASSWORD = "DevPass123!";
 const SETTLE_QUIET_MS = 500;
 const NETWORK_QUIET_MS = 1000;
 const STEP_TIMEOUT_MS = 120000;
@@ -56,7 +56,6 @@ const SWITCHES = 20;
 const SWITCH_ROUTE = ["substrates", "components", "sales", "plants"];
 const VISIBLE_PAGE = "ion-tabs ion-router-outlet .ion-page:not(.ion-page-hidden)";
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const installSettleObserver = (page) =>
   page.evaluate(() => {
@@ -123,7 +122,7 @@ class Bench {
   async login(username = "grower") {
     const { page } = this;
     await page.locator("ion-input input").nth(0).fill(username);
-    await page.locator("ion-input input").nth(1).fill(PASSWORD);
+    await page.locator("ion-input input").nth(1).fill(DEV_PASSWORD);
     await page.locator("ion-button.submit").click();
     await page.waitForSelector("ion-tab-button", { timeout: SETUP_TIMEOUT_MS });
   }
@@ -393,7 +392,7 @@ const scenarios = {
             const deadline = performance.now() + 10000;
             let button = find();
             while (!button && performance.now() < deadline) {
-              await new Promise((resolve) => setTimeout(resolve, 100));
+              await sleep(100);
               button = find();
             }
             if (!button) return false;

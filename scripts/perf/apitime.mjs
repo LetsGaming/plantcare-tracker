@@ -3,9 +3,9 @@ import http from "node:http";
 import path from "node:path";
 import zlib from "node:zlib";
 import { performance } from "node:perf_hooks";
+import { devLogin } from "../dev/lib/session.mjs";
 import { loadSession, parseFlags, repoRoot, requireId } from "./lib/session.mjs";
 
-const PASSWORD = "DevPass123!";
 const DEFAULT_ENDPOINTS = [
   "/plants?scope=mine&limit=100",
   "/plants?scope=public&limit=30",
@@ -158,15 +158,7 @@ const main = async () => {
       : DEFAULT_ENDPOINTS;
 
   const session = loadSession(id);
-  const login = await request(`${session.apiBase}/auth/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username: user, password: PASSWORD }),
-  });
-  const token = unwrap(login.body)?.accessToken;
-  if (login.status !== 200 || !token) {
-    throw new Error(`Login as ${user} failed with status ${login.status}`);
-  }
+  const token = await devLogin(session.apiBase, user);
   const auth = { authorization: `Bearer ${token}` };
 
   let plantId = null;

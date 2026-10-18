@@ -13,7 +13,6 @@
 
 import { toRaw } from "vue";
 import { defineStore } from "pinia";
-import ApiUtils from "@/utils/apiUtils";
 import MoreInfoMapper from "@/mapping/MoreInfoMapping";
 import localizationService from "@/services/general/LocalizationService";
 import { renderMarkdown } from "@/utils/markdown";

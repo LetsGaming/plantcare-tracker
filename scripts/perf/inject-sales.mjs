@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { devLogin } from "../dev/lib/session.mjs";
 import { openPage } from "./lib/browser.mjs";
 import {
   loadSession,
@@ -24,7 +25,6 @@ Usage: node scripts/perf/inject-sales.mjs --id <dev-up session id> --url <served
             transaction; about a quarter have first_seen_at within the last 24 h (NEW), the rest
             20 days back. --reset removes every perf-sale-% row. Needs only --id.`;
 
-const DEV_PASSWORD = "DevPass123!";
 const MAX_IMAGE_URLS = 200;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SELLERS = [
@@ -63,15 +63,7 @@ const collectUploadUrls = (value, found) => {
 
 /** Same-origin /uploads paths of the session's grower plants, used as sale images. */
 export const fetchImageUrls = async (apiBase, username = "grower") => {
-  const login = await fetch(`${apiBase}/auth/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username, password: DEV_PASSWORD }),
-  });
-  if (!login.ok)
-    throw new Error(`Login as ${username} answered ${login.status}`);
-  const body = await login.json();
-  const token = (body.data ?? body).accessToken;
+  const token = await devLogin(apiBase, username);
   const plants = await fetch(`${apiBase}/plants?scope=mine&limit=100`, {
     headers: { authorization: `Bearer ${token}` },
   });
