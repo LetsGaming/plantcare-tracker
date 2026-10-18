@@ -8,6 +8,7 @@ import { clearRuntimeCaches } from "@/pwa";
 import { pinia as appPinia, resetAllStores } from "./pinia";
 import { epoch, requestScope } from "./resource";
 
+const ROLE = { admin: "admin", guest: "guest" } as const satisfies Record<string, UserRole>;
 const BASE_ENDPOINT = "/auth";
 const RESOURCE_KEY = "auth.title";
 const REFRESH_RETRY_DELAY_MS = 1000;
@@ -74,10 +75,10 @@ export const useSessionStore = defineStore("session", {
       return this.identity?.id ?? -1;
     },
     isAdmin(): boolean {
-      return this.role === "admin";
+      return this.role === ROLE.admin;
     },
     isGuest(): boolean {
-      return this.role === "guest";
+      return this.role === ROLE.guest;
     },
   },
 
