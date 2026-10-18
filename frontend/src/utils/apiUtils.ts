@@ -368,6 +368,20 @@ function get<T>(
   return performRequest<T>({ method: "GET", endpoint, signal, conditional: options?.conditional });
 }
 
+export type StreamDone = { total?: number; status?: string };
+
+/** Why a stream ended: its `done` event, an error, the caller's cleanup, or the session ending. */
+export type StreamCloseReason = "done" | "error" | "closed" | "aborted";
+
+export interface StreamOptions {
+  /** Silence after which the stream fails (default 60 s). */
+  idleTimeoutMs?: number;
+  /** Treat a `done` event without a JSON `status` as a failed stream. */
+  requireDoneStatus?: boolean;
+  /** Called once when the stream closes for any reason, after `onDone` or `onError`. */
+  onClose?: (reason: StreamCloseReason) => void;
+}
+
 /**
  * Global API Utility Service.
  * Provides a type-safe interface for RESTful communication and SSE streaming.
@@ -427,18 +441,18 @@ const ApiUtils = {
    * @param onMessage    Called for every default `message` event
    * @param onError      Called on stream errors
    * @param onDone       Called when the server emits the "done" event
-   * @param options      `idleTimeoutMs`: silence after which the stream fails (default 60 s)
+   * @param options      See `StreamOptions`
    * @returns            A cleanup function that closes the EventSource
    *
    * A stream closed by its cleanup function or by the session epoch ending
-   * calls neither `onDone` nor `onError`.
+   * calls neither `onDone` nor `onError`, only `options.onClose`.
    */
   async stream<T = any>(
     endpoint: string,
     onMessage: (data: { data: T }) => void,
     onError?: (err: any) => void,
-    onDone?: (doneData?: { total?: number; status?: string }) => void,
-    options: { idleTimeoutMs?: number } = {},
+    onDone?: (doneData?: StreamDone) => void,
+    options: StreamOptions = {},
   ): Promise<() => void> {
     const idleTimeoutMs = options.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS;
     const startEpoch = epoch.current();
@@ -447,7 +461,10 @@ const ApiUtils = {
       const { ticket } = await this.post<null, { ticket: string }>("/auth/ticket");
 
       if (!ticket) throw new Error("SSE Ticket Missing");
-      if (epoch.isStale(startEpoch)) return () => {};
+      if (epoch.isStale(startEpoch)) {
+        options.onClose?.("aborted");
+        return () => {};
+      }
 
       const separator = endpoint.includes("?") ? "&" : "?";
       const url = `${API_BASE_URL}${endpoint}${separator}ticket=${encodeURIComponent(ticket)}`;
@@ -456,13 +473,15 @@ const ApiUtils = {
       let idleTimer: ReturnType<typeof setTimeout> | undefined;
       let closed = false;
 
-      const cleanup = () => {
+      const cleanup = (reason: StreamCloseReason) => {
+        if (closed) return;
         closed = true;
         clearTimeout(idleTimer);
         stopListening?.();
         if (eventSource.readyState !== eventSource.CLOSED) {
           eventSource.close();
         }
+        options.onClose?.(reason);
       };
 
       // Server heartbeats are comment lines the EventSource never surfaces, so
@@ -471,10 +490,10 @@ const ApiUtils = {
         clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
           onError?.(timeoutError());
-          cleanup();
+          cleanup("error");
         }, idleTimeoutMs);
       };
-      const stopListening = epoch.onAbortAll(cleanup);
+      const stopListening = epoch.onAbortAll(() => cleanup("aborted"));
       armIdleTimer();
 
       eventSource.onmessage = (e) => {
@@ -492,14 +511,19 @@ const ApiUtils = {
       // V2 "done" event carries { total: number } (sales) or { status: "completed" } (more-info)
       eventSource.addEventListener("done", (e: MessageEvent) => {
         if (closed) return;
-        let doneData: { total?: number; status?: string } | undefined;
+        let doneData: StreamDone | undefined;
         try {
           doneData = e.data ? JSON.parse(e.data) : undefined;
         } catch {
-          // Non-JSON done payload: ignore
+          doneData = undefined;
+        }
+        if (options.requireDoneStatus && typeof doneData?.status !== "string") {
+          onError?.(new Error("The stream ended with an invalid completion payload."));
+          cleanup("error");
+          return;
         }
         onDone?.(doneData);
-        cleanup();
+        cleanup("done");
       });
 
       // Single "error" listener that handles both server-sent "error" events
@@ -521,14 +545,15 @@ const ApiUtils = {
           // reported at once whether or not the browser already gave up.
           onError?.(e);
         }
-        cleanup();
+        cleanup("error");
       });
 
-      return cleanup;
+      return () => cleanup("closed");
     } catch (err) {
       if (epoch.isStale(startEpoch)) return () => {};
       console.error("SSE Initialization Error:", err);
       onError?.(err);
+      options.onClose?.("error");
       return () => {};
     }
   },

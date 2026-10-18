@@ -98,7 +98,10 @@ describe("ensureInfo streaming", () => {
     stream.script = messages({ type: "link", value: "https://a.example" });
     const store = await newStore();
     await store.ensureInfo("Aloe vera");
-    expect(vi.mocked(ApiUtils.stream).mock.calls.at(-1)?.[4]).toEqual({ idleTimeoutMs: 180_000 });
+    expect(vi.mocked(ApiUtils.stream).mock.calls.at(-1)?.[4]).toMatchObject({
+      idleTimeoutMs: 180_000,
+      requireDoneStatus: true,
+    });
   });
 
   it("accumulates links and AI chunks into a draft while streaming and commits on completion", async () => {
