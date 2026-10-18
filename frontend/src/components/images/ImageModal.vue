@@ -52,7 +52,6 @@
             :src="imageUrl"
             :alt="alt || label"
             class="enlarged-image"
-            ref="zoomableImage"
             decoding="async"
             draggable="false"
             :style="{

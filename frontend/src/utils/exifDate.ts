@@ -150,10 +150,6 @@ export const readImageHeader = async (file: Blob): Promise<ImageHeader> => {
   return { ...EMPTY_HEADER };
 };
 
-/** EXIF DateTimeOriginal as epoch ms in local time, or null for non-JPEG and missing tags. */
-export const readExifDate = async (file: Blob): Promise<number | null> =>
-  (await readImageHeader(file)).capturedAt;
-
 const capturedAtByFile = new WeakMap<Blob, number>();
 
 export const rememberCapturedAt = (file: Blob, capturedAt: number): void => {

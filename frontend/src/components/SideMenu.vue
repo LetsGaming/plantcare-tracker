@@ -393,7 +393,7 @@ export default defineComponent({
     async navigate(to: RouteLocationRaw) {
       await menuController.close();
       // Push with direction none like the tab bar: no slide, mounted pages stay mounted.
-      // Known trade-off (NAV-8): the browser still records a history entry per menu click.
+      // The browser still records a history entry per menu click.
       const nav = this.navManager as IonicNavManager | null;
       if (nav) nav.handleNavigate(to, "push", "none");
       else await this.$router.push(to);

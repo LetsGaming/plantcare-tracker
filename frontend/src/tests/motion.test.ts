@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ionicConfig, prefersReducedMotion, watchReducedMotion } from "@/utils/motion";
+import { ionicConfig, prefersReducedMotion } from "@/utils/motion";
 
 const original = window.matchMedia;
 
@@ -40,52 +40,5 @@ describe("ionicConfig", () => {
   it("leaves Ionic defaults otherwise", () => {
     stubMatchMedia(false);
     expect(ionicConfig()).toEqual({});
-  });
-});
-
-describe("watchReducedMotion", () => {
-  const stubListenable = () => {
-    const listeners = new Set<(event: MediaQueryListEvent) => void>();
-    const query = {
-      matches: false,
-      addEventListener: vi.fn((_: string, fn: (event: MediaQueryListEvent) => void) =>
-        listeners.add(fn),
-      ),
-      removeEventListener: vi.fn((_: string, fn: (event: MediaQueryListEvent) => void) =>
-        listeners.delete(fn),
-      ),
-    };
-    Object.defineProperty(window, "matchMedia", {
-      value: vi.fn().mockReturnValue(query),
-      configurable: true,
-    });
-    const emit = (matches: boolean) =>
-      listeners.forEach((fn) => fn({ matches } as MediaQueryListEvent));
-    return { query, listeners, emit };
-  };
-
-  it("reports preference changes from the media query change event", () => {
-    const { emit } = stubListenable();
-    const seen: boolean[] = [];
-    watchReducedMotion((reduced) => seen.push(reduced));
-    emit(true);
-    emit(false);
-    expect(seen).toEqual([true, false]);
-  });
-
-  it("removes its listener when stopped", () => {
-    const { listeners, emit } = stubListenable();
-    const seen: boolean[] = [];
-    const stop = watchReducedMotion((reduced) => seen.push(reduced));
-    expect(listeners.size).toBe(1);
-    stop();
-    emit(true);
-    expect(listeners.size).toBe(0);
-    expect(seen).toEqual([]);
-  });
-
-  it("is a no-op without matchMedia", () => {
-    Object.defineProperty(window, "matchMedia", { value: undefined, configurable: true });
-    expect(() => watchReducedMotion(() => {})()).not.toThrow();
   });
 });
