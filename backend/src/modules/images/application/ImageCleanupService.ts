@@ -1,5 +1,6 @@
 import type {
   EntityImageCleanup,
+  EntityImagePurger,
   EntityType,
   ImageRepository,
   ImageStorage,
@@ -9,22 +10,24 @@ import { createModuleLogger } from '../../../core/logging';
 const log = createModuleLogger('ImageCleanup');
 
 /**
- * Removes the image rows of a deleted entity and then their files. It never
- * throws: the entity is already gone, so a failure here only leaves
- * unreferenced files behind and is logged for the operator.
+ * The one implementation of "delete every image of an entity": rows first,
+ * then files. A failing row delete is a real failure (purge rejects); a
+ * failing file removal only leaves an unreferenced file behind and is logged.
  */
-export class ImageCleanupService implements EntityImageCleanup {
+export class ImageCleanupService implements EntityImageCleanup, EntityImagePurger {
   constructor(
     private readonly repo: ImageRepository,
     private readonly storage: ImageStorage,
   ) {}
 
+  async purge(entityType: EntityType, entityId: number): Promise<void> {
+    const images = await this.repo.deleteByEntity(entityType, entityId);
+    await this.removeFiles(images.map((image) => ({ ...image, entityType })));
+  }
+
   async removeAll(entityType: EntityType, entityId: number): Promise<void> {
     try {
-      const images = await this.repo.deleteByEntity(entityType, entityId);
-      await Promise.all(
-        images.map((image) => this.storage.remove(entityType, image.url, image.variants)),
-      );
+      await this.purge(entityType, entityId);
     } catch (err: unknown) {
       log.error(`Could not remove images of ${entityType} ${entityId}`, { err });
     }

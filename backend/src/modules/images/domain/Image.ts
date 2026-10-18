@@ -74,7 +74,17 @@ export interface ImageEntityLookup {
  * every image of an entity they delete, rows and files alike.
  */
 export interface EntityImageCleanup {
+  /** Never throws: the entity is already gone, so failures are only logged. */
   removeAll(entityType: EntityType, entityId: number): Promise<void>;
+}
+
+/** Explicit "delete all images of this entity" request. */
+export interface EntityImagePurger {
+  /**
+   * Deletes the image rows, then their files. A failing row delete rejects;
+   * failing file removals are logged and only leave unreferenced files.
+   */
+  purge(entityType: EntityType, entityId: number): Promise<void>;
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────

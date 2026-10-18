@@ -18,6 +18,7 @@ import {
   type ImageStoredListener,
 } from '../application/ImageUseCases';
 import type { ImageAccessPolicy } from '../application/ImageAccessPolicy';
+import { ImageCleanupService } from '../application/ImageCleanupService';
 import type {
   ImageActor,
   ImageRepository,
@@ -76,7 +77,11 @@ export const createImageController = (
   const list = new ListEntityImagesUseCase(repo, access);
   const update = new UpdateImageUseCase(repo, storage, access, onStored);
   const remove = new DeleteImageUseCase(repo, storage, access, onRemoved);
-  const removeForEntity = new DeleteEntityImagesUseCase(repo, storage, access, onRemoved);
+  const removeForEntity = new DeleteEntityImagesUseCase(
+    new ImageCleanupService(repo, storage),
+    access,
+    onRemoved,
+  );
 
   return {
     uploadImage: async (req: FastifyRequest, reply: FastifyReply) => {
