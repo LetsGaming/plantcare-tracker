@@ -1,8 +1,8 @@
 # Database
 
 The backend uses SQLite through `better-sqlite3` (WAL mode, foreign keys on) and Kysely for typed
-queries. The file lives at `DB_PATH` (default `./data/plantcare.db`). Timestamps are integer Unix epoch
-seconds. The schema is owned by versioned migrations in `src/core/database/migrations/`; the table
+queries. The file lives at `DB_PATH` (default `./data/plantcare.db`). Timestamps in the older tables (users, plants, substrates, images, watering records) are integer Unix epoch
+seconds; the sales and session tables store epoch **milliseconds**. The API converts seconds to milliseconds at the DTO edge, but cursors keep the stored value. The schema is owned by versioned migrations in `src/core/database/migrations/`; the table
 types Kysely checks queries against are in `src/core/database/schema.ts`.
 
 ```
@@ -13,6 +13,8 @@ roles ──── users ──┬── substrates ── substrate_components 
 
 images   (entity_type + entity_id points at a plant, substrate or component)
 scrape_source_health
+sales_items ── sales_price_points       sales_source_state
+sessions (users)
 ```
 
 ## Migrations
@@ -26,6 +28,12 @@ Migrations are TypeScript files registered in `migrations/index.ts` and applied 
 | `0002_purge_orphan_images` | Deletes image rows (and their files) whose plant, substrate or component no longer exists |
 | `0003_relative_image_paths` | Stores image urls as origin-free paths (`/uploads/plant/a.webp`) and normalises Windows separators |
 | `0004_source_health_issues` | Adds `scrape_source_health.issues`, a JSON array of the field-level problems of the latest scrape |
+| `0005_image_embeddings` | Creates `image_embeddings` for plant recognition |
+| `0006_list_indexes` | Replaces the list indexes with the keyset-paging set, including the partial indexes for public rows (see Indexes) |
+| `0007_image_variants` | Adds `images.width`, `height`, `placeholder` and `variants` |
+| `0008_sales` | Creates `sales_items`, `sales_price_points` and `sales_source_state` |
+| `0009_sessions` | Creates `sessions` |
+| `0010_watering_history_id_index` | Rebuilds `idx_watering_history` as `plant_id, date DESC, id DESC` |
 
 Add a schema change as a new numbered file; never edit an applied migration. Keep `schema.ts` in step.
 There are no `down` migrations: restore from a backup instead. Take a copy of the database and the uploads
@@ -101,7 +109,10 @@ One table for every entity type.
 | `image_url` | TEXT | Origin-free path such as `/uploads/plant/a-1f3c.webp`; responses add the origin |
 | `entity_type` | TEXT | `plant`, `substrate` or `component` |
 | `entity_id` | INTEGER | Id of the owning entity; no foreign key |
-| `upload_date` | INTEGER | EXIF capture time, else upload time |
+| `upload_date` | INTEGER | EXIF capture time, else upload time (seconds) |
+| `width`, `height` | INTEGER | Pixel size of the 1024 px file; null before variants existed |
+| `placeholder` | TEXT | Dominant colour `#rrggbb`; null before variants existed |
+| `variants` | INTEGER | `1`: the `-160` and `-480` files exist (only for `.webp` urls); `0`: not generated yet (the backfill selects these); `-1`: file missing or not a webp, skipped by the backfill |
 
 Because there is no foreign key, deleting a plant, substrate or component calls the images module's
 `EntityImageCleanup`, which removes the rows and files. Reads order images by `upload_date`, then `id`.
@@ -128,6 +139,29 @@ backfill at startup that also removes rows whose image is gone.
 | `date` | INTEGER | Epoch seconds |
 | `used_fertilizer` | INTEGER | 0 or 1 |
 | `fertilizer_type_id` | INTEGER FK → `fertilizer_types.id` | Nullable |
+
+### `sales_items`, `sales_price_points`, `sales_source_state`
+
+The stored result of the background sales refresher (epoch milliseconds).
+
+| Table | Columns |
+|-------|---------|
+| `sales_items` | `sale_id` (TEXT PK, hash of seller and normalized url), `source_key`, `seller`, `name`, `link`, `image_url`, `old_price`, `new_price`, `discount_pct`, `first_seen_at`, `last_seen_at`, `scraped_at`, `active` (0 or 1) |
+| `sales_price_points` | `sale_id` (FK, `ON DELETE CASCADE`), `observed_at`, `price`; PK `(sale_id, observed_at)`, `WITHOUT ROWID`; one row per price change, the newest `SALES_PRICE_POINTS_MAX` kept |
+| `sales_source_state` | `source_key` PK, `last_attempt_at`, `last_success_at`, `consecutive_failures`, `next_due_at` |
+
+Indexes: `idx_sales_active_first_seen` (`first_seen_at DESC, sale_id DESC` where `active = 1`, the replay order), `idx_sales_source` (`source_key, active`) and `idx_sales_inactive_seen` (`last_seen_at` where `active = 0`, retention). Inactive items are removed after `SALES_RETENTION_DAYS`.
+
+### `sessions`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `sid` | TEXT PK | Random id shared by the access and refresh token of one login |
+| `user_id` | INTEGER FK → `users.id` | `ON DELETE CASCADE` |
+| `expires_at` | INTEGER | Epoch milliseconds |
+| `created_at` | INTEGER | Epoch milliseconds; the oldest sessions beyond the per-user limit are evicted |
+
+Swept periodically by the maintenance scheduler. See [Authentication](./authentication.md).
 
 ### `scrape_source_health`
 One row per scrape source (`source_key` PK) with `kind` (`sales` or `search`), `status`, the active strategy,

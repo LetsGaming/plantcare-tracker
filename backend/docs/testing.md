@@ -45,7 +45,11 @@ tests/contract/
 ├── platform.contract.test.ts  # health, 404, X-Request-Id, CORS, body parser edge cases
 ├── auth.contract.test.ts      # register, login, guest, refresh, ticket, logout, profile
 ├── plants / substrates / components / watering / images .contract.test.ts
-├── sales.contract.test.ts     # SSE stream, source health endpoints
+├── plantsList / substratesList / componentsList / wateringHistory .contract.test.ts # paging, scopes, search, summaries
+├── sales.contract.test.ts     # SSE replay, source health endpoints
+├── salesModel.contract.test.ts # replay from the database, /sales/summary, /sales/:id
+├── sessions.contract.test.ts  # persisted sessions, eviction, restart
+├── health.contract.test.ts    # /health loop figures, /health/ready
 ├── moreInfo.contract.test.ts  # SSE stream, ticket handling, validation
 └── routes.contract.test.ts    # 401 and guest 403 matrix over every authenticated route
 ```
@@ -70,7 +74,11 @@ tests/
 │   │   ├── errors.test.ts      # AppError hierarchy, isAppError guard
 │   │   ├── auth.test.ts        # tokens, sessionStore, ticketStore, auth hooks
 │   │   ├── rateLimit.test.ts   # Limiter hooks on a Fastify instance
-│   │   └── publicImageUrl.test.ts # Stored image paths and public urls
+│   │   ├── publicImageUrl.test.ts # Stored image paths and public urls
+│   │   ├── pagination.test.ts  # Cursor codec, list query parsing, keyset helper, envelope
+│   │   ├── envConfig.test.ts   # Bounds and parsing of the numeric and boolean settings
+│   │   ├── maintenance.test.ts # Scheduler intervals, overlap guard, orphan upload sweep, 4xx log levels
+│   │   └── health.test.ts      # Readiness flip, Chromium idle close
 │   └── modules/
 │       ├── plants.test.ts      # Plant entity + all 5 PlantUseCases
 │       ├── watering.test.ts    # toEpochSeconds + all 6 WateringUseCases
@@ -79,7 +87,8 @@ tests/
 │       ├── images.test.ts      # Image use cases incl. file/DB ordering rules
 │       ├── moreInfo.test.ts    # parsePlantInfoQuery + StreamPlantInfo orchestration
 │       ├── auth.test.ts        # All 8 AuthUseCases (register, login, logout, …)
-│       ├── sales.test.ts       # Sale entity, scrapeHelpers, FetchSalesOverview
+│       ├── sales.test.ts       # Sale entity, scrapeHelpers, replayActiveSales, SseManager.sendUnique
+│       ├── salesRefresher.test.ts # Schedule, backoff, snapshots, stale handling, shutdown
 │       ├── BaseScraper.test.ts, scraperStrategies.test.ts, shopSearchers.test.ts
 │       ├── openAiClient.test.ts # Stream errors surface, cached output is escaped
 │       ├── imageCleanup.test.ts # Image removal when an entity is deleted
@@ -88,6 +97,12 @@ tests/
 └── integration/
     ├── repositories.test.ts    # Every SQLite repository against an in-memory database
     ├── migrations.test.ts      # Baseline, adopting a legacy database, image data migrations
+    ├── plantListRepository.test.ts, substrateListRepository.test.ts # Paging, scopes, search, summaries
+    ├── salesRepository.test.ts # Snapshots, price points, retention, summary
+    ├── sessions.test.ts        # Persisted sessions, eviction, sweep
+    ├── imageBackfill.test.ts   # Variant backfill pass and CLI arguments
+    ├── httpCaching.test.ts     # ETag, 304 and compression through the real app
+    ├── queryPlans.test.ts      # EXPLAIN: list queries use the intended indexes
     └── importMysqlDump.test.ts # Legacy dump import on a fixture dump
 ```
 
@@ -97,12 +112,12 @@ tests/
 Exports `makeUserRow`, the user row used by the auth use case tests.
 
 **`unit/core/auth.test.ts`**  
-- `generateTokens` — payload, relative expiry
+- `generateTokens`, payload, relative expiry
 - `sessionStore`: create/has, FIFO eviction at max 3, end, deleteAll
-- `ticketStore` — single-use, 60s expiry (using `vi.useFakeTimers`)
-- `authenticateToken` — header only, missing token or ended session → 401
-- `guestReadOnly` — blocks unsafe methods for live guest sessions, passes everyone else
-- `isAdmin` — blocks non-admins
+- `ticketStore`, single-use, 60s expiry (using `vi.useFakeTimers`)
+- `authenticateToken`, header only, missing token or ended session → 401
+- `guestReadOnly`, blocks unsafe methods for live guest sessions, passes everyone else
+- `isAdmin`, blocks non-admins
 
 **`integration/repositories.test.ts`**  
 Runs every repository against a real in-memory SQLite database built by the migrations (`DB_PATH=:memory:`), so queries, constraints and the baseline migration are exercised together:
@@ -141,7 +156,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { MyUseCase } from '../../../src/modules/myModule/application/MyUseCases';
 import { NotFoundError, ValidationError } from '../../../src/core/errors';
 
-// Create a minimal mock repo — only mock what the use case calls
+// Create a minimal mock repo: only mock what the use case calls
 const makeMockRepo = () => ({
   findById: vi.fn().mockResolvedValue(null),
   create: vi.fn().mockResolvedValue(1),
@@ -218,7 +233,7 @@ export default defineConfig({
 });
 ```
 
-`pool: 'forks'` is important — the in-memory `sessionStore` and `ticketStore` are module-level singletons. Running tests in separate processes prevents bleed-through between test files.
+`pool: 'forks'` is important, the in-memory `sessionStore` and `ticketStore` are module-level singletons. Running tests in separate processes prevents bleed-through between test files.
 
 ---
 
