@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { modalController } from "@ionic/vue";
+import { toEpochMillis } from "./epochUnits";
 import { openOverlayCount, resetOverlayRegistry } from "./overlayRegistry";
 
 /**
@@ -23,9 +24,6 @@ const CACHE_EXPIRY_HOURS =
   Number.isFinite(configuredHours) && configuredHours > 0 ? configuredHours : isProduction ? 24 : 6;
 const CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
 
-/**
- * Safer universal date parser
- */
 const toDateTime = (input: string | number | Date): DateTime => {
   if (input instanceof Date) {
     return DateTime.fromJSDate(input);
@@ -34,9 +32,7 @@ const toDateTime = (input: string | number | Date): DateTime => {
   if (typeof input === "number") {
     if (isNaN(input)) return DateTime.invalid("NaN");
 
-    // FIX: better threshold (avoids year 7357 bug)
-    const millis = input < 1e11 ? input * 1000 : input;
-    return DateTime.fromMillis(millis);
+    return DateTime.fromMillis(toEpochMillis(input));
   }
 
   if (typeof input === "string") {
@@ -80,9 +76,6 @@ const Utils = {
     });
   },
 
-  /**
-   * NEW: Flexible date converter
-   */
   convertDate(input: string | number | Date, options?: { format?: "readable" | "iso" }): string {
     const dt = toDateTime(input);
 

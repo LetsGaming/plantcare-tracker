@@ -16,6 +16,7 @@
 </template>
 
 <script lang="ts">
+import { NAME_MAX_LENGTH } from "@/utils/formLimits";
 import { defineComponent, PropType } from "vue";
 import BaseFormModal from "@/components/modal/BaseFormModal.vue";
 import localizationService from "@/services/general/LocalizationService";
@@ -73,6 +74,7 @@ export default defineComponent({
           label: "plant.field.name",
           required: true,
           autocapitalize: "words",
+          maxlength: NAME_MAX_LENGTH,
           enterkeyhint: "next",
         },
         {
@@ -80,6 +82,7 @@ export default defineComponent({
           modelKey: "species",
           label: "plant.field.species",
           autocapitalize: "words",
+          maxlength: NAME_MAX_LENGTH,
           enterkeyhint: "next",
         },
         {
