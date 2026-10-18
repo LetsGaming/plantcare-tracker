@@ -18,12 +18,3 @@ export const ensureArray = <T>(value: T | T[] | null | undefined): T[] => {
   if (value instanceof Set || value instanceof Map) return Array.from(value) as T[];
   return [value];
 };
-
-export const filterDuplicatesById = <T>(items: T[], idKey: keyof T): T[] => {
-  const seen = new Set();
-  return items.filter((item) => {
-    if (seen.has(item[idKey])) return false;
-    seen.add(item[idKey]);
-    return true;
-  });
-};
