@@ -2064,3 +2064,42 @@ Each hook names the scenario and what to record. Use your large synthetic datase
 4. DBE-4: plants-first embedding query, drop `purgeOrphans`, paced backfill: S/M.
 5. DBE-2: row-budget convention and the event-loop monitor; read worker only if M1 still shows stalls.
 6. DBE-8, DBE-9, DBE-10, DBE-11, DBE-12, DBE-14, DBE-17 as independent S/M tasks.
+
+
+---
+
+## Status after implementation
+
+Branch `perf/scaling` (list with `git log --oneline main..perf/scaling`). The findings of sections 1 to 5 are addressed in four waves plus gate fixes; this maps each finding group to the commits that closed it. Plan: `docs/superpowers/plans/2026-10-12-perf-scaling.md`.
+
+| Finding group | Commits (first one carries the change) |
+|---|---|
+| Measurement harness and baselines (P0): perf core, API timing, amplify, navigation benchmark, sales injection | `43c1df4`, `133c8c2`, `a2a2717`, `bac5de1`, `447d008`, `1c4107d`, `07d4b45` |
+| Persistence deep watcher (NAV-4, DSAL-1, STA-1, DPLA-1): persist at action boundaries with `dirtyOn` and `version` | `a01057a`, `0b39b9c`, `ec75f3a` |
+| Whole-list reactivity and copy-on-write collections (STA-x, REN-x) | `e191cc8`, `23e524f`, `e5ad282` |
+| Per-item Intl, collator and Luxon construction (REN-6, DSAL-3, NAV-3, DPLA-8, DSUB-11, STA-12) | `fe85680` |
+| Every list mounts all cards (REN-1, NAV-1, REN-2, DSAL-7, DSUB-3, DPLA-10): windowed `ItemsOverview`, isolated grid, `pageActive` | `4d0f61a`, `dbb8295`, `463bb11` |
+| Database indexes and list query plans (A-6, DBE-x) | `f8ae0d9`, `61310d4`, `38b8707`, `bf7d645`, `cb0642e` |
+| List contract: keyset pagination, scopes, `q`, ETag and compression (DBE-1 to DBE-3, DSUB-1, DSUB-2) | `a9c0cef`, `4fee62c`, `b6bc52e`, `90bde5c`, `dd5732f` |
+| Plant list N+1 and quadratic watering warm-up (DPLA-2, DBE-6, BE-1, FE-2, STA-3): watering summaries, windowed history, write summaries | `4fee62c`, `dd5732f`, `4fe9d34`, `e5f90c5`, `63ce0ac`, `f4087fd` |
+| Substrate and component paging, one-request writes (DSUB-x) | `b6bc52e`, `e3da8d8`, `4b74ae2`, `4bea49d` |
+| Sales data model (SALES-1, BE-4, DSAL-2 to DSAL-6): stored in the database, background refresher, replay, summary and detail, NEW watermark | `e2d416d`, `8508daa`, `21eb954`, `39ab994`, `65acda4`, `7d77869` |
+| Images (variants, placeholders, native lazy image, browser downscale, immutable static serving) | `6c13da5`, `9f29cae`, `016fcf8`, `00ebd78`, `3bf0d2c`, `02e4054`, `d3d81d9`, `d67c95a` |
+| Sessions, hashing and trusted proxy count (DBE-5) | `a757b2c`, `7305ee2`, `21b4cd2` |
+| Recognition vectors and backfill (DBE-4) | `321da24`, `6bc235c`, `3e190ff`, `c05ddb1` |
+| API client: timeouts, proactive refresh, logout epoch, abort of streams | `4e7344b`, `eb3977c`, `479b5e2` |
+| Storage split into settings and account cache | `491cd34` |
+| Boot and navigation cost | `a443798`, `ac64aea`, `f0ba9f6` |
+| Deployment: nginx serves `/uploads`, SSE locations, precompression, memory limits, log rotation, maintenance jobs, lazy Chromium and recognition start, event loop monitor, prepared statement cache | `c357859`, `281fd75`, `9295f05`, `ed27937`, `7cd9b6d`, `37b9043` |
+| Review and gate fixes | the remaining `fix:` commits, grouped by phase gate |
+
+### Deferred or open
+
+- Wrapping the shipped migrations `0001` to `0006` in transactions (partial DDL on a failed start); `0007` onwards are transactional.
+- A separate read worker for SQLite (DBE-2): not needed unless the event loop figures of `/health` still show stalls at the target data size.
+- `PricePoint` and the unused global `Substrate` and `AddSubstrateComponents` types in the frontend, and the legacy `items` getter on the substrates store, can be deleted.
+- `ImageEditingModal` still takes the legacy image shape (bridged by a computed in `PlantDetails`); `IMAGE_ACCEPT` in the client still lists only jpeg and png although the server accepts webp.
+- Scrollbar styling lost on light-DOM scrollers (`scrollbar.css`), `watchReducedMotion` not wired to Ionic at runtime, unused Capacitor plugins and `terser` in `frontend/package.json` (check native builds first).
+- Paged `invalidate()` cannot bump the request sequence of an in-flight load; `components` details cache has no TTL; stale `sales_data` injected by the old `scripts/perf/inject-sales.mjs` shape is ignored by the client.
+- `docker-compose.yml` does not forward the new backend settings (`SALES_*`, `IMAGE_BACKFILL_ON_START`, `UPLOAD_MAX_PIXELS`, `LOG_TO_STDOUT`, `TRUST_PROXY_HOPS`); stock `nginx:alpine` serves only the `.gz` precompressed files, not `.br`.
+- Open product decision from the sales rework: NEW sales now stay new until opened or marked seen (7 day window on a fresh install) instead of only for the current session.
