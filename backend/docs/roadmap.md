@@ -2,13 +2,13 @@
 
 ## Known Limitations
 
-### In-Memory Session Store
+### In-Memory Ticket Store
 
-The `sessionStore` and `ticketStore` live in process memory. All active sessions are lost on server restart, forcing users to log in again.
+Sessions are persisted in SQLite, but the one-time SSE `ticketStore` lives in process memory. Tickets live 60 seconds, so a restart costs at most a retried stream.
 
-**Impact:** Low for personal/hobby use. High for any multi-instance or frequently-restarted deployment.
+**Impact:** None for a single instance. A multi-instance deployment needs a shared ticket store (and a shared SQLite replacement for sessions).
 
-**Fix:** Replace the stores in `src/core/auth/sessions.ts` with a persistent implementation (Redis or a SQLite table) behind the same `sessionStore` / `ticketStore` interface (`create`, `has`, `count`, `end`, `deleteAll`; `create`, `validateAndBurn`). Nothing else depends on how sessions are stored.
+**Fix:** Replace `ticketStore` in `src/core/auth/sessions.ts` behind the same `create` / `validateAndBurn` interface.
 
 ---
 
@@ -30,19 +30,13 @@ The sales scraper selectors in `src/modules/sales/infrastructure/scrapers/index.
 
 ### Playwright Memory Usage
 
-Playwright launches a full Chromium browser for 5 of the 9 scrapers. The concurrency limiter caps simultaneous Chromium sessions at 2, but the idle browser process still consumes ~150–300 MB.
+Playwright launches a full Chromium browser for 5 of the 9 scrapers. The concurrency limiter caps simultaneous Chromium sessions at 2, and the browser is closed after 10 idle minutes, but a running scrape still holds ~150–300 MB.
 
 **Alternative:** Run Playwright in a separate microservice or sidecar container, expose it over HTTP, and call it from the main process. This decouples scraping memory from the API server.
 
 ---
 
 ## Potential Improvements
-
-### Redis-Backed Sessions
-
-Replace the in-memory session store with a persistent one for survival across restarts and horizontal scaling. Only `src/core/auth/sessions.ts` changes; the `AUTH` limits in `core/config` stay the source of truth for session counts and lifetimes.
-
----
 
 ### Refresh Token Rotation
 
@@ -58,7 +52,7 @@ Winston is already configured. Adding a transport for a log aggregation service 
 
 ### Image CDN Integration
 
-Images are currently served directly from Node.js via `@fastify/static`. For better performance, store originals in object storage (S3, MinIO, Cloudflare R2) and serve via CDN. The images module already isolates file handling behind the `ImageStorage` port (`LocalImageStorage` today) — an S3/R2 backend is a second adapter implementing the same interface; no use case or route changes required.
+Images are currently served directly from Node.js via `@fastify/static`. For better performance, store originals in object storage (S3, MinIO, Cloudflare R2) and serve via CDN. The images module already isolates file handling behind the `ImageStorage` port (`LocalImageStorage` today), an S3/R2 backend is a second adapter implementing the same interface; no use case or route changes required.
 
 ---
 
