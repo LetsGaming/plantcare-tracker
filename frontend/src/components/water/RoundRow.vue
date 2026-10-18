@@ -117,6 +117,8 @@ export default defineComponent({
   align-items: center;
   gap: var(--space-2);
   min-height: 64px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--ion-border-color);
 }

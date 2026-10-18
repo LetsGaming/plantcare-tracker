@@ -59,12 +59,15 @@ import { useSessionStore } from "@/stores/session";
 import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
 
-/** Runs `task` once the first frame is out, so boot does not wait for it. */
-const afterFirstPaint = (task: () => Promise<unknown>): Promise<unknown> =>
+const IDLE_TIMEOUT_MS = 2000;
+
+/** Runs `task` when the browser is idle (or after 2 s), so it does not compete with the first page load. */
+const whenIdle = (task: () => Promise<unknown>): Promise<unknown> =>
   new Promise((resolve, reject) => {
     const run = () => task().then(resolve, reject);
-    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
-    else setTimeout(run, 0);
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(run, { timeout: IDLE_TIMEOUT_MS });
+    } else setTimeout(run, IDLE_TIMEOUT_MS);
   });
 
 export default defineComponent({
@@ -95,7 +98,7 @@ export default defineComponent({
     const sales = useSalesStore();
     void sales
       .hydrateBoot()
-      .then(() => afterFirstPaint(() => sales.loadSummary()))
+      .then(() => whenIdle(() => sales.loadSummary()))
       .catch((error: unknown) => console.error("Loading the sales badge failed:", error));
     if (!this.isAdmin) return;
     try {

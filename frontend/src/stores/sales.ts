@@ -30,6 +30,8 @@ const RESOURCE_KEY = "sales.title";
 const PROGRESSIVE_COMMIT_MS = 250;
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const NEW_WINDOW_DAYS = 7;
+/** ensureFresh asks the server for the summary at most this often; pull to refresh always does. */
+export const SUMMARY_MIN_INTERVAL_MS = 30_000;
 
 /** Storage keys of the badge: all the tab bar needs at boot. */
 export const SALES_SUMMARY_KEY = "sales_summary";
@@ -153,6 +155,7 @@ const latestFirstSeen = (items: readonly Sale[]): number | null => {
 
 /** Drops ids at or below the watermark or no longer listed; returns `prev` itself when nothing goes. */
 const prunedSeen = (prev: SalesSeen, items: readonly Sale[]): SalesSeen => {
+  if (prev.ids.length === 0) return prev;
   const index = indexOf(items);
   const kept = prev.ids.filter((id) => {
     const sale = index.get(id);
@@ -180,6 +183,8 @@ export const useSalesStore = defineStore("sales", {
     restored: false,
     /** The badge entries were read once; reading them again would overwrite newer in-memory state. */
     bootRead: false,
+    /** When the server summary was last read in this session; 0 before the first read. */
+    summaryAt: 0,
     /**
      * Replaced by `$reset`: reads and streams begun before a logout check it
      * and leave the state alone once it changed.
@@ -338,6 +343,7 @@ export const useSalesStore = defineStore("sales", {
         `${ENDPOINT}/summary?since=${this.seen.watermark}`,
       );
       if (!isCurrent() || this.session !== session) return null;
+      this.summaryAt = Date.now();
       this.summary = Object.freeze({
         ...this.summary,
         total: dto.total,
@@ -356,6 +362,7 @@ export const useSalesStore = defineStore("sales", {
       const isCurrent = sessionGuard();
       await this.restore();
       if (!isCurrent()) return;
+      if (this.items.length > 0 && Date.now() - this.summaryAt < SUMMARY_MIN_INTERVAL_MS) return;
       let summary: APISalesSummary | null = null;
       try {
         summary = await this.loadSummary();
@@ -399,7 +406,9 @@ export const useSalesStore = defineStore("sales", {
 
     runStream(): Promise<void> {
       const before = this.items;
-      const received = new Map<string, Sale>();
+      const receivedIds = new Set<string>();
+      const built: Sale[] = [];
+      let latestFirst: number | null = null;
       const progressive = before.length === 0;
       const refreshedAt = this.summary.refreshedAt;
       const isCurrent = sessionGuard();
@@ -452,7 +461,7 @@ export const useSalesStore = defineStore("sales", {
           pending = undefined;
           if (superseded()) return;
           lastPublish = Date.now();
-          this.items = saleList(received.values());
+          this.items = markRaw(built.slice());
         };
         const publishSoon = () => {
           if (!progressive || pending !== undefined) return;
@@ -476,8 +485,11 @@ export const useSalesStore = defineStore("sales", {
             try {
               let added = false;
               for (const sale of SaleMapper.convertToSales(event.data as APISale[])) {
-                if (received.has(sale.id)) continue;
-                received.set(sale.id, sale);
+                if (receivedIds.has(sale.id)) continue;
+                receivedIds.add(sale.id);
+                built.push(sale);
+                if (latestFirst === null || sale.firstSeenAt > latestFirst)
+                  latestFirst = sale.firstSeenAt;
                 added = true;
               }
               if (added) publishSoon();
@@ -489,10 +501,10 @@ export const useSalesStore = defineStore("sales", {
           (done) => {
             if (settled || superseded()) return;
             cleanup();
-            if (typeof done?.total === "number" && done.total !== received.size) {
-              console.warn(`Sales replay received ${received.size} of ${done.total} sales`);
+            if (typeof done?.total === "number" && done.total !== built.length) {
+              console.warn(`Sales replay received ${built.length} of ${done.total} sales`);
             }
-            const items = saleList(received.values());
+            const items = markRaw(built);
             const now = Date.now();
             const seen = prunedSeen(this.seen, items);
             if (seen !== this.seen) this.seen = seen;
@@ -501,7 +513,7 @@ export const useSalesStore = defineStore("sales", {
               newCount: countNew(items, seen),
               refreshedAt: this.summary.refreshedAt,
               listRefreshedAt: refreshedAt,
-              latestFirstSeenAt: latestFirstSeen(items) ?? this.summary.latestFirstSeenAt,
+              latestFirstSeenAt: latestFirst ?? this.summary.latestFirstSeenAt,
             });
             this.items = items;
             this.fetchedAt = now;

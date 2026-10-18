@@ -232,6 +232,51 @@ describe("RoundList", () => {
     expect(row.props("overrideId")).toBeNull();
   });
 
+  it("mounts the first 40 rows, grows by 40 per infinite event and reports checked state for all", async () => {
+    const rows = Array.from({ length: 100 }, (_, i) => base(i + 1));
+    const checkedIds = reactive(new Set<number>([95]));
+    const wrapper = mount(RoundList, {
+      props: { rows, checkedIds, overrides: reactive(new Map()), fertilizerTypes: types },
+      global: { stubs: { RoundRow: CountingRow } },
+    });
+    expect(wrapper.findAllComponents(CountingRow)).toHaveLength(40);
+    const scroll = wrapper.findComponent({ name: "IonInfiniteScroll" });
+    expect(scroll.props("disabled")).toBe(false);
+
+    const complete = vi.fn();
+    scroll.vm.$emit("ionInfinite", { target: { complete } });
+    await nextTick();
+    expect(wrapper.findAllComponents(CountingRow)).toHaveLength(80);
+    expect(complete).toHaveBeenCalledTimes(1);
+
+    scroll.vm.$emit("ionInfinite", { target: { complete } });
+    await nextTick();
+    const all = wrapper.findAllComponents(CountingRow);
+    expect(all).toHaveLength(100);
+    expect(all[94].props("checked")).toBe(true);
+    expect(scroll.props("disabled")).toBe(true);
+  });
+
+  it("starts again at 40 rows when the number of rows changes", async () => {
+    const rows = Array.from({ length: 100 }, (_, i) => base(i + 1));
+    const wrapper = mount(RoundList, {
+      props: {
+        rows,
+        checkedIds: reactive(new Set<number>()),
+        overrides: reactive(new Map()),
+        fertilizerTypes: types,
+      },
+      global: { stubs: { RoundRow: CountingRow } },
+    });
+    wrapper
+      .findComponent({ name: "IonInfiniteScroll" })
+      .vm.$emit("ionInfinite", { target: { complete: vi.fn() } });
+    await nextTick();
+    expect(wrapper.findAllComponents(CountingRow)).toHaveLength(80);
+    await wrapper.setProps({ rows: rows.slice(0, 70) });
+    expect(wrapper.findAllComponents(CountingRow)).toHaveLength(40);
+  });
+
   it("relays the row events", () => {
     const { wrapper } = mountList();
     const first = wrapper.findAllComponents(CountingRow)[0];

@@ -169,6 +169,19 @@ describe("WaterRound", () => {
     expect(checkedNames(wrapper)).toEqual([]);
   });
 
+  it("mounts a window of the list but counts and submits every pre-ticked plant", async () => {
+    const many = Array.from({ length: 120 }, (_, i) => plant(i + 1, `Plant ${i + 1}`, 20));
+    const { wrapper, watering, vm } = mountRound({ plantList: many });
+    await flushPromises();
+    const list = wrapper.findComponent(RoundList);
+    expect((list.props("rows") as RoundRow[]).length).toBe(120);
+    expect(wrapper.find(".log-button").text()).toContain('"count":120');
+    await wrapper.find(".log-button").trigger("click");
+    await flushPromises();
+    expect(vi.mocked(watering.addBatch).mock.calls[0][0]).toHaveLength(120);
+    expect(vm.saveLabel).toContain("water.log_count");
+  });
+
   it("logs the ticked plants with the round fertilizer on save", async () => {
     const { wrapper, watering, vm } = mountRound();
     await flushPromises();

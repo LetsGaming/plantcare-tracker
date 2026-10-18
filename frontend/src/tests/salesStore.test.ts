@@ -51,7 +51,8 @@ vi.mock("@/utils/apiUtils", () => ({ default: api }));
 
 import storageService from "@/services/general/StorageService";
 import { epoch } from "@/stores/resource";
-import { NEW_WINDOW_DAYS, useSalesStore } from "@/stores/sales";
+import { NEW_WINDOW_DAYS, SUMMARY_MIN_INTERVAL_MS, useSalesStore } from "@/stores/sales";
+import SaleMapper from "@/mapping/SaleMapping";
 import TabsPage from "@/views/TabsPage.vue";
 import SalesDetails from "@/views/sales/SalesDetails.vue";
 
@@ -134,13 +135,40 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   api.get.mockResolvedValue(summaryDto());
+  vi.stubGlobal("requestIdleCallback", (run: () => void) => {
+    queueMicrotask(run);
+    return 1;
+  });
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe("replay", () => {
+  it("maps each chunk as it arrives and hands the finished array to the store without copying it", async () => {
+    const mapped = vi.spyOn(SaleMapper, "convertToSales");
+    let mappedBeforeDone = -1;
+    api.script = (h) => {
+      for (const batch of batchesOf(4, 500)) h.onMessage({ data: batch });
+      mappedBeforeDone = mapped.mock.calls.length;
+      h.onDone?.({ total: 2000 });
+    };
+    const store = await newStore();
+    const copies = vi.spyOn(Array, "from");
+    await store.replay();
+    const copied = copies.mock.results.some(
+      (result) => Array.isArray(result.value) && result.value.length === 2000,
+    );
+    copies.mockRestore();
+    mapped.mockRestore();
+
+    expect(mappedBeforeDone).toBe(4);
+    expect(store.items).toHaveLength(2000);
+    expect(copied).toBe(false);
+  });
+
   it("accumulates streamed batches and deduplicates by id", async () => {
     emit([apiSale("a"), apiSale("b")], [apiSale("b"), apiSale("c")]);
     const store = await newStore();
@@ -508,9 +536,33 @@ describe("summary and freshness", () => {
     await store.ensureFresh();
     api.stream.mockClear();
 
+    vi.setSystemTime(NOW + SUMMARY_MIN_INTERVAL_MS + 1);
     await store.ensureFresh();
     expect(api.stream).not.toHaveBeenCalled();
     expect(api.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks for the summary at most once per interval on re-entry, but always on pull to refresh", async () => {
+    emit([apiSale("a")]);
+    const store = await newStore();
+    await store.ensureFresh();
+    const itemsBefore = store.items;
+    const summaryBefore = store.summary;
+    expect(api.get).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(NOW + SUMMARY_MIN_INTERVAL_MS - 1);
+    await store.ensureFresh();
+    await store.ensureFresh();
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(store.items).toBe(itemsBefore);
+    expect(store.summary).toBe(summaryBefore);
+
+    await store.replay();
+    expect(api.get).toHaveBeenCalledTimes(2);
+
+    vi.setSystemTime(NOW + 2 * SUMMARY_MIN_INTERVAL_MS + 1);
+    await store.ensureFresh();
+    expect(api.get).toHaveBeenCalledTimes(3);
   });
 
   it("replays when the server refreshed after the stored list", async () => {
@@ -521,6 +573,7 @@ describe("summary and freshness", () => {
 
     api.get.mockResolvedValue(summaryDto({ refreshed_at: NOW + 1000 }));
     emit([apiSale("a"), apiSale("b")]);
+    vi.setSystemTime(NOW + SUMMARY_MIN_INTERVAL_MS + 1);
     await store.ensureFresh();
     expect(api.stream).toHaveBeenCalledTimes(1);
     expect(ids(store.items)).toEqual(["a", "b"]);
@@ -590,6 +643,21 @@ describe("persistence", () => {
     expect([...readKeys()].sort()).toEqual(["sales_seen", "sales_summary"]);
     expect(store.items).toEqual([]);
     expect(api.stream).not.toHaveBeenCalled();
+  });
+
+  it("defers the badge summary to an idle callback", async () => {
+    const idle: Array<() => void> = [];
+    vi.stubGlobal("requestIdleCallback", (run: () => void) => idle.push(run));
+    const store = await newStore();
+    await (TabsPage as any).mounted.call({ isAdmin: false });
+    await vi.waitFor(() => expect(idle).toHaveLength(1));
+    expect(api.get).not.toHaveBeenCalled();
+
+    idle[0]();
+    await vi.waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith(expect.stringContaining("/sales/summary")),
+    );
+    expect(store.summary.refreshedAt).toBe(NOW);
   });
 
   it("logs a failed boot read instead of leaving it unhandled", async () => {
