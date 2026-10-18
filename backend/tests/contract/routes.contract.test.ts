@@ -26,8 +26,6 @@ const AUTHENTICATED_ROUTES: RouteSpec[] = [
   { method: 'get', path: '/substrates/1' },
   { method: 'post', path: '/substrates' },
   { method: 'patch', path: '/substrates/1' },
-  { method: 'post', path: '/substrates/1/components' },
-  { method: 'patch', path: '/substrates/1/components' },
   { method: 'delete', path: '/substrates/1' },
   { method: 'get', path: '/components' },
   { method: 'get', path: '/components/fineness-levels' },
