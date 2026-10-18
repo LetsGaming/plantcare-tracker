@@ -2,7 +2,7 @@ import ToastService from "@/services/general/ToastService";
 import localizationService from "@/services/general/LocalizationService";
 import TokenUtils from "./tokenUtils";
 import Utils from "./utils";
-import { epoch, requestScope, type RequestScope } from "@/stores/resource";
+import { epoch, requestScope, type RequestScope } from "./epoch";
 
 /** Pre-computed API URL to eliminate repeated string concatenation logic */
 const API_BASE_URL = Utils.getApiBaseUrl();

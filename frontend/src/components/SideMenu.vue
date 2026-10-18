@@ -221,6 +221,7 @@ import { useLayoutStore } from "@/stores/layout";
 import { useSnapSettingsStore } from "@/stores/snapSettings";
 import { useSalesStore } from "@/stores/sales";
 import { useAdminHealthStore } from "@/stores/adminHealth";
+import { isDevelopment } from "@/utils/devMode";
 import { confirmLogout } from "@/utils/confirmLogout";
 import { statusIonColor } from "@/utils/sourceStatus";
 import type { RouteLocationRaw } from "vue-router";
@@ -314,7 +315,7 @@ export default defineComponent({
         { tab: "components", label: "tabs.components" },
         { tab: "sales", label: "tabs.sales" },
       ];
-      if (import.meta.env.MODE === "development") list.push({ tab: "debug", label: "tabs.debug" });
+      if (isDevelopment) list.push({ tab: "debug", label: "tabs.debug" });
       return list;
     },
     ...mapState(useAdminHealthStore, {
