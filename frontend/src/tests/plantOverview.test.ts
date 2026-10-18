@@ -196,7 +196,7 @@ describe("PlantOverview entry", () => {
           item(3),
         ]),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
 
     expect(paths().map((url) => url.pathname)).toEqual(["/plants"]);
@@ -211,7 +211,7 @@ describe("PlantOverview entry", () => {
       mine: () => page([item(1, { is_public: true })]),
       public: () => page([item(1, { is_public: true, watering: null }), foreign(9)]),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     vm.handleSegmentChange("public");
     await flushPromises();
 
@@ -227,7 +227,7 @@ describe("PlantOverview entry", () => {
       mine: () => page([item(1)]),
       public: () => page([foreign(5)], "next", 90),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
     expect(list(wrapper).props()).toMatchObject({
       serverSearch: false,
@@ -251,7 +251,7 @@ describe("PlantOverview entry", () => {
 
   it("keeps the card of an unchanged plant when another plant changes", async () => {
     const { wrapper, store, vm } = await mountPage({ mine: () => page([item(1), item(2)]) });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
     const before = shown(wrapper);
 
@@ -278,7 +278,7 @@ describe("PlantOverview public segment", () => {
           ? page([foreign(5)], null, 1)
           : page([foreign(1), foreign(2)], "c1", 50),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     vm.handleSegmentChange("public");
     await flushPromises();
     const before = paths().length;
@@ -324,7 +324,7 @@ describe("PlantOverview public segment", () => {
       mine: () => page(many(1)),
       public: () => page(many(1000).map((plant) => ({ ...plant, user_id: 7, watering: null }))),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
     expect(cards(wrapper)).toHaveLength(40);
 
@@ -345,7 +345,7 @@ describe("PlantOverview public segment", () => {
       public: (params) =>
         params.get("q") === "fern" ? page([foreign(5)], null, 1) : page([foreign(1)], null, 1),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     vm.handleSegmentChange("public");
     await flushPromises();
 
@@ -374,7 +374,7 @@ describe("PlantOverview public segment", () => {
       { public: () => page([foreign(3)]) },
       { id: 0, username: "guest", role: "guest" },
     );
-    await vm.fetchPlants();
+    await vm.fetchItems();
     vm.handleSegmentChange("public");
     await flushPromises();
 
@@ -391,7 +391,7 @@ describe("PlantOverview guest", () => {
       { public: () => page([foreign(3)]) },
       { id: 0, username: "guest", role: "guest" },
     );
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
 
     expect(vm.showPublic).toBe("public");
@@ -416,7 +416,7 @@ describe("PlantOverview day and locale", () => {
           }),
         ]),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
     const first = shown(wrapper);
     const computed = vi.mocked(wateringStatus).mock.calls.length;
@@ -445,7 +445,7 @@ describe("PlantOverview day and locale", () => {
     const { wrapper, vm } = await mountPage({
       mine: () => page([item(1, { species_name: null })]),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
     const before = shown(wrapper);
     expect(before[0].description).toBe("en:plant.species_unknown");
@@ -463,7 +463,7 @@ describe("PlantOverview day and locale", () => {
     const { wrapper, vm } = await mountPage({
       mine: () => page([item(1, { cover: apiImageDto() })]),
     });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
     const card = shown(wrapper)[0];
     expect(card.image).toBeTruthy();
@@ -475,7 +475,7 @@ describe("PlantOverview day and locale", () => {
 describe("PlantOverview lifecycle", () => {
   it("does not recompute while the page is hidden and recomputes once when it is shown again", async () => {
     const { wrapper, store, vm } = await mountPage({ mine: () => page([item(1), item(2)]) });
-    await vm.fetchPlants();
+    await vm.fetchItems();
     await flushPromises();
     const computed = vi.mocked(wateringStatus).mock.calls.length;
     const hiddenItems = shown(wrapper);
@@ -509,7 +509,7 @@ describe("PlantOverview lifecycle", () => {
     const { wrapper, store, vm } = await mountPage({});
     vi.mocked(ApiUtils.get).mockReturnValue(gate as never);
 
-    const loading = vm.fetchPlants();
+    const loading = vm.fetchItems();
     await vi.waitFor(() => expect(ApiUtils.get).toHaveBeenCalled());
     epoch.abortAll();
     release(page([item(1)]));

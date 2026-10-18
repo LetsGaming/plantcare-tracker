@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { collectPages, isNotModified } from "@/stores/paged";
 
 describe("isNotModified", () => {
@@ -18,9 +18,9 @@ describe("collectPages", () => {
   });
   type Page = ReturnType<typeof pageOf>;
 
-  let fetchPage: ReturnType<typeof vi.fn>;
+  let fetchPage: Mock<(cursor: string | null) => Promise<Page | null>>;
   beforeEach(() => {
-    fetchPage = vi.fn();
+    fetchPage = vi.fn<(cursor: string | null) => Promise<Page | null>>();
   });
 
   it("walks every page and keeps the first page for its total", async () => {
