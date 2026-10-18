@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # Frontend image: builds the PWA and serves it with nginx, which also proxies
-# /api and /uploads to the backend so the browser only talks to one origin.
+# /api to the backend and serves /uploads from the read-only data volume, so the
+# browser only talks to one origin.
 
 ARG NODE_VERSION=22
 
@@ -21,7 +22,8 @@ COPY . .
 # Relative, so the app calls the nginx that serves it. Override for a separate API host.
 ARG VITE_API_URL=/api/v2
 ENV VITE_API_URL=$VITE_API_URL
-RUN pnpm run build
+RUN pnpm run build \
+  && node scripts/precompress.mjs dist
 
 FROM nginx:1.27-alpine AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
