@@ -460,8 +460,13 @@ export const useWateringStore = defineStore("watering", {
           usePlantsStore().applySummaries(WateringMapper.mapSummaries(created.summaries));
         }
       } catch (error) {
-        if (isCurrent())
-          await withoutErrorToasts(() => this.deleteChunks(ids)).catch(() => undefined);
+        if (isCurrent()) {
+          try {
+            await withoutErrorToasts(() => this.deleteChunks(ids));
+          } catch (rollbackError) {
+            console.error("Rolling back the watering batch failed:", rollbackError);
+          }
+        }
         throw error;
       }
       return ids;

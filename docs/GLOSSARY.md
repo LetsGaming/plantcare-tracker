@@ -23,3 +23,4 @@ Terms specific to this project that are easy to misread or would otherwise need 
 - **Isolated dev stack:** `node scripts/dev-up.mjs --id <name>` and `dev-down.mjs`; never `pnpm dev`.
 - **`--offline-h`:** CSS variable the offline banner sets to its own height so the `ion-split-pane` starts below it.
 - **Chrome:** headers, tab bar and footers. `--chrome-bg` is their surface.
+- **Scoped list:** a store list split into `mine` (the signed-in user's items, loaded completely and searched on the client) and `public` (everyone's public items, paged and searched on the server). `stores/scopedLists.ts` holds the shared fetch, ensure and public-total logic.

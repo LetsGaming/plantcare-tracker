@@ -24,6 +24,7 @@ import type { StateTree } from "pinia";
 import { commitList } from "./optimistic";
 import type { PersistEntry } from "./persistence";
 import type { ResourceStatus } from "./resource";
+import type { NotModified } from "@/utils/apiUtils";
 
 export const PAGE_SIZE = 30;
 export const LOAD_ALL_PAGE_SIZE = 100;
@@ -81,9 +82,13 @@ export const pageSearchParams = (
 };
 
 /** A conditional request whose ETag still matched: the data in the state stays. */
-export interface PageNotModified {
-  notModified: true;
-}
+export type PageNotModified = NotModified;
+
+export const isNotModified = (value: unknown): value is PageNotModified =>
+  (value as Partial<PageNotModified> | null)?.notModified === true;
+
+const UNCONDITIONAL_NOT_MODIFIED = "Not Modified answered an unconditional request.";
+const CURSOR_LOOP = "The list endpoint returned a cursor loop.";
 
 export type FetchPage<T extends object> = (
   params: PageParams,
@@ -131,9 +136,31 @@ export const pagedState = <T extends object>(defaultSort: string | null = null):
   firstPage: null,
 });
 
-const notModified = <T extends object>(
-  page: FetchedPage<T> | PageNotModified,
-): page is PageNotModified => (page as PageNotModified).notModified === true;
+/**
+ * Walks every page of an endpoint. `fetchPage` returns the page, or null to stop
+ * (the caller then decides what that means). The first page is returned beside
+ * the items for its `total`. A repeated cursor or more than the page cap throws.
+ */
+export const collectPages = async <I, P extends { items: I[]; next_cursor: string | null }>(
+  fetchPage: (cursor: string | null) => Promise<P | null>,
+): Promise<{ items: I[]; first: P } | null> => {
+  const items: I[] = [];
+  const seen = new Set<string>();
+  let first: P | null = null;
+  let cursor: string | null = null;
+  do {
+    const page: P | null = await fetchPage(cursor);
+    if (page === null) return null;
+    first ??= page;
+    items.push(...page.items);
+    cursor = page.next_cursor;
+    if (cursor !== null) {
+      if (seen.has(cursor) || seen.size >= LOAD_ALL_MAX_PAGES) throw new Error(CURSOR_LOOP);
+      seen.add(cursor);
+    }
+  } while (cursor !== null);
+  return { items, first: first as P };
+};
 
 const isCurrent = (options?: PagedOptions): boolean => options?.isCurrent?.() ?? true;
 
@@ -208,12 +235,12 @@ const runFirst = async <T extends object>(
   try {
     let page = await request(target.fetchedAt !== null);
     if (!stillCurrent()) return settleDropped(target, seq);
-    if (notModified(page) && target.fetchedAt === null) {
+    if (isNotModified(page) && target.fetchedAt === null) {
       page = await request(false);
       if (!stillCurrent()) return settleDropped(target, seq);
-      if (notModified(page)) throw new Error("Not Modified answered an unconditional request.");
+      if (isNotModified(page)) throw new Error(UNCONDITIONAL_NOT_MODIFIED);
     }
-    if (notModified(page)) {
+    if (isNotModified(page)) {
       target.fetchedAt = Date.now();
       target.status = "ready";
       return;
@@ -267,7 +294,7 @@ export const loadMore = <T extends object>(
         sort: target.query.sort,
         conditional: false,
       });
-      if (!stillCurrent() || notModified(page)) return;
+      if (!stillCurrent() || isNotModified(page)) return;
       target.items = commitList([...target.items, ...page.items]);
       target.nextCursor = page.next_cursor;
     } catch (error) {
@@ -301,42 +328,34 @@ export const loadAll = <T extends object>(
   target.status = "loading";
   const promise = (async () => {
     try {
-      const collected: T[] = [];
-      const seen = new Set<string>();
-      let cursor: string | null = null;
-      let total: number | null = null;
-      do {
-        const page: FetchedPage<T> | PageNotModified = await fetchPage({
+      let unchanged = false;
+      const collected = await collectPages<T, FetchedPage<T>>(async (cursor) => {
+        const page = await fetchPage({
           limit: LOAD_ALL_PAGE_SIZE,
           cursor,
           q: "",
           sort: target.defaultSort,
           conditional: false,
         });
-        if (!stillCurrent()) return settleDropped(target, seq);
-        if (notModified(page)) {
-          if (cursor === null && target.fetchedAt !== null) {
-            target.status = "ready";
-            return;
-          }
-          throw new Error("Not Modified answered an unconditional request.");
+        if (!stillCurrent()) return null;
+        if (!isNotModified(page)) return page;
+        if (cursor === null && target.fetchedAt !== null) {
+          unchanged = true;
+          return null;
         }
-        if (cursor === null) total = page.total ?? null;
-        collected.push(...page.items);
-        cursor = page.next_cursor;
-        if (cursor !== null) {
-          if (seen.has(cursor) || seen.size >= LOAD_ALL_MAX_PAGES) {
-            throw new Error("The list endpoint returned a cursor loop.");
-          }
-          seen.add(cursor);
-        }
-      } while (cursor !== null);
+        throw new Error(UNCONDITIONAL_NOT_MODIFIED);
+      });
+      if (!collected) {
+        if (unchanged) target.status = "ready";
+        else settleDropped(target, seq);
+        return;
+      }
 
       target.query = { q: "", sort: target.defaultSort };
       commitFirstPage(target, {
-        items: collected,
+        items: collected.items,
         next_cursor: null,
-        total: total ?? collected.length,
+        total: collected.first.total ?? collected.items.length,
       });
     } catch (error) {
       if (!stillCurrent()) return settleDropped(target, seq);

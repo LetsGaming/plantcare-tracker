@@ -34,18 +34,10 @@ import { finenessLabel } from "@/utils/enumLabels";
 import { handleRequest } from "@/utils/requestFeedback";
 import { coalesced, epoch, isStale } from "./resource";
 import { idIndexOf, removeItem, upsertItem } from "./optimistic";
-import { commitTracked, journaled, replaying } from "./journal";
+import { commitTracked } from "./journal";
+import { ensureList, pagedFetcher, replayOwned } from "./scopedLists";
 import { useSubstratesStore } from "./substrates";
-import {
-  loadAll,
-  mapPage,
-  pagedPersistEntry,
-  pagedState,
-  pageSearchParams,
-  type ApiPage,
-  type FetchPage,
-  type PagedState,
-} from "./paged";
+import { loadAll, pagedPersistEntry, pagedState, type PagedState } from "./paged";
 
 const ENDPOINT = "/components";
 const RESOURCE_NAME = "components.title";
@@ -60,13 +52,11 @@ export interface SelectableComponent {
   readonly searchText: string;
 }
 
-const fetchCatalogue: FetchPage<ComponentView> = async (params) => {
-  const page = await handleRequest(
-    ApiUtils.get<ApiPage<APIComponentListItem>>(`${ENDPOINT}?${pageSearchParams(params)}`),
-    RESOURCE_NAME,
-  );
-  return mapPage(page, ComponentMapper.mapListItem);
-};
+const fetchCatalogue = pagedFetcher<APIComponentListItem, ComponentView>({
+  endpoint: ENDPOINT,
+  resourceKey: RESOURCE_NAME,
+  map: ComponentMapper.mapListItem,
+});
 
 /** The catalogue entry of a detail: the same view without its images. */
 const catalogueEntry = (detail: ComponentView): ComponentView => {
@@ -114,7 +104,6 @@ export const useComponentsStore = defineStore("components", {
   },
 
   getters: {
-    isStale: (state): boolean => isStale(state.fetchedAt),
     /** The detail when fetched (it has images), else the catalogue entry. */
     byId:
       (state) =>
@@ -140,18 +129,14 @@ export const useComponentsStore = defineStore("components", {
   actions: {
     /** Loads the catalogue unless it is in memory and fresh; concurrent callers share one load. */
     ensureLoaded({ force = false }: { force?: boolean } = {}): Promise<void> {
-      if (!force && this.status === "ready" && !this.isStale) return Promise.resolve();
-      return coalesced(this, "all", async (isCurrent) => {
-        if (!force && this.status === "idle" && (await this.$hydrate()) && !this.isStale) return;
-        await journaled(
-          this,
-          isCurrent,
-          () => loadAll(this, fetchCatalogue, { isCurrent }),
-          (journal) => {
-            const next = replaying(journal, true)(this.items);
-            if (next) commitTracked(this, next);
-          },
-        );
+      return ensureList({
+        owner: this,
+        key: "components_catalogue",
+        target: this as PagedState<ComponentView>,
+        force,
+        hydrate: () => this.$hydrate(["components_catalogue"]),
+        load: (isCurrent) => loadAll(this, fetchCatalogue, { isCurrent }),
+        replay: replayOwned(this as PagedState<ComponentView>),
       });
     },
 
