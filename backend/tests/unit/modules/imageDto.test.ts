@@ -1,6 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { toImageDto } from '../../../src/modules/images/presentation/imageDto';
+import { toImageDto } from '../../../src/modules/images/domain/imageDto';
+import { imageRowToDto, IMAGE_COLUMNS } from '../../../src/modules/images/infrastructure/imageRows';
 import { variantUrl } from '../../../src/core/config/uploads';
+
+describe('imageRowToDto', () => {
+  it('maps a stored row to a DTO with an absolute url', () => {
+    const dto = imageRowToDto({
+      id: 2,
+      image_url: 'https://h.test/uploads/plant/b.webp',
+      upload_date: 5,
+      variants: 0,
+      width: null,
+      height: null,
+      placeholder: null,
+    });
+    expect(dto).toMatchObject({ id: 2, url: 'https://h.test/uploads/plant/b.webp', date: 5 });
+  });
+
+  it('selects every column the mapper reads', () => {
+    expect([...IMAGE_COLUMNS].sort()).toEqual(
+      ['height', 'id', 'image_url', 'placeholder', 'upload_date', 'variants', 'width'].sort(),
+    );
+  });
+});
 
 const row = {
   id: 4,

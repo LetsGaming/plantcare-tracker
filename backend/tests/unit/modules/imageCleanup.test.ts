@@ -51,6 +51,25 @@ describe('ImageCleanupService', () => {
   });
 });
 
+describe('ImageCleanupService.purge', () => {
+  it('rejects when the rows cannot be deleted and touches no file', async () => {
+    const { repo, storage } = makeDeps();
+    vi.mocked(repo.deleteByEntity).mockRejectedValue(new Error('db down'));
+    await expect(new ImageCleanupService(repo, storage).purge('plant', 5)).rejects.toThrow(
+      'db down',
+    );
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('resolves when files cannot be removed after the rows are gone', async () => {
+    const { repo, storage } = makeDeps();
+    vi.mocked(repo.deleteByEntity).mockResolvedValue([image(1), image(2)]);
+    vi.mocked(storage.remove).mockRejectedValueOnce(new Error('disk'));
+    await expect(new ImageCleanupService(repo, storage).purge('plant', 5)).resolves.toBeUndefined();
+    expect(storage.remove).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('ImageCleanupService.removeFiles', () => {
   it('forwards the variants flag of every removed row', async () => {
     const { repo, storage } = makeDeps();

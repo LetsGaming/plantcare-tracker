@@ -15,11 +15,10 @@
  *  - DELETE /auth/me          → 204 No Content
  */
 
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import type { FastifyPluginAsync } from 'fastify';
 import { SQLiteUserRepository } from '../infrastructure/SQLiteUserRepository';
-import { ImageCleanupService } from '../../images/application/ImageCleanupService';
-import { SQLiteImageRepository } from '../../images/infrastructure/SQLiteImageRepository';
-import { LocalImageStorage } from '../../images/infrastructure/LocalImageStorage';
+import { createImageCleanup } from '../../images';
+import { clearRefreshCookies, readRefreshToken, setRefreshCookie } from './refreshCookie';
 import {
   RegisterUseCase,
   LoginUseCase,
@@ -37,20 +36,7 @@ import {
   numericParam,
   perUserKey,
 } from '../../../core/middleware';
-import {
-  AUTH,
-  AUTH_RATE_LIMIT,
-  USER_RATE_LIMIT,
-  HTTP_STATUS,
-  getApiVersionPath,
-} from '../../../core/config';
-
-const COOKIE_BASE = { httpOnly: true, sameSite: 'strict' as const };
-
-const isHttpsRequest = (request: FastifyRequest): boolean =>
-  request.protocol === 'https' || request.headers['x-forwarded-proto'] === 'https';
-
-const seconds = (ms: number): number => Math.floor(ms / 1000);
+import { AUTH, AUTH_RATE_LIMIT, USER_RATE_LIMIT, HTTP_STATUS } from '../../../core/config';
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
   const repo = new SQLiteUserRepository();
@@ -62,10 +48,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   const logout = new LogoutUseCase();
   const requestTicket = new RequestTicketUseCase();
   const updateProfile = new UpdateProfileUseCase(repo);
-  const deleteProfile = new DeleteProfileUseCase(
-    repo,
-    new ImageCleanupService(new SQLiteImageRepository(), new LocalImageStorage()),
-  );
+  const deleteProfile = new DeleteProfileUseCase(repo, createImageCleanup());
 
   const ipLimiter = createLimiter(app, {
     windowMs: AUTH_RATE_LIMIT.WINDOW_MS,
@@ -85,19 +68,6 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     key: perUserKey,
   });
 
-  // Scope the refresh cookie to the auth module: /refresh-token reads it
-  // to mint new access tokens and /logout reads it to invalidate the
-  // session server-side. It is still never sent along with regular API
-  // calls outside /auth.
-  const refreshCookiePath = `/api/${getApiVersionPath()}/auth`;
-
-  // Cookie paths used by earlier releases: logout keeps clearing them so
-  // sessions created before the upgrade can still sign out cleanly.
-  const legacyCookiePaths = [`/api/${getApiVersionPath()}/auth/refresh-token`, '/'];
-
-  const refreshTokenOf = (request: FastifyRequest): string | undefined =>
-    request.cookies?.[AUTH.REFRESH_TOKEN_COOKIE];
-
   app.post('/register', { preHandler: [ipLimiter, accountLimiter] }, async (request, reply) => {
     const user = await register.execute(request.body);
     return reply.code(HTTP_STATUS.CREATED).header('Location', '/auth/me').send({ data: user });
@@ -105,30 +75,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/login', { preHandler: [ipLimiter, accountLimiter] }, async (request, reply) => {
     const { accessToken, refreshToken } = await login.execute(request.body);
-    void reply.setCookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
-      ...COOKIE_BASE,
-      secure: isHttpsRequest(request),
-      maxAge: seconds(AUTH.REFRESH_COOKIE_MAX_AGE_MS),
-      path: refreshCookiePath,
-    });
+    setRefreshCookie(request, reply, refreshToken, AUTH.REFRESH_COOKIE_MAX_AGE_MS);
     return { data: { accessToken } };
   });
 
   app.post('/login/guest', { preHandler: [ipLimiter] }, async (request, reply) => {
     const { accessToken, refreshToken } = await guestLogin.execute();
-    void reply.setCookie(AUTH.REFRESH_TOKEN_COOKIE, refreshToken, {
-      ...COOKIE_BASE,
-      secure: isHttpsRequest(request),
-      maxAge: seconds(AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS),
-      // Same scope as the regular login: otherwise the cookie lands on
-      // path "/" and the logout clear never removes it.
-      path: refreshCookiePath,
-    });
+    setRefreshCookie(request, reply, refreshToken, AUTH.GUEST_REFRESH_COOKIE_MAX_AGE_MS);
     return { data: { accessToken } };
   });
 
   app.post('/refresh-token', async (request) => {
-    const accessToken = refresh.execute(refreshTokenOf(request));
+    const accessToken = refresh.execute(readRefreshToken(request));
     return { data: { accessToken } };
   });
 
@@ -144,14 +102,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/logout', async (request, reply) => {
     // The cookie is scoped to /auth, so it arrives here and the session
     // can actually be invalidated server-side.
-    logout.execute(refreshTokenOf(request));
-    for (const path of [refreshCookiePath, ...legacyCookiePaths]) {
-      void reply.clearCookie(AUTH.REFRESH_TOKEN_COOKIE, {
-        ...COOKIE_BASE,
-        secure: isHttpsRequest(request),
-        path,
-      });
-    }
+    logout.execute(readRefreshToken(request));
+    clearRefreshCookies(request, reply);
     return reply.code(HTTP_STATUS.NO_CONTENT).send();
   });
 

@@ -11,8 +11,11 @@ import type { CacheService } from '../../../core/cache/CacheService';
 import type { PlantLinkSearcher } from '../domain/PlantInfo';
 import type { SourceHealthReporter, StrategyName } from '../../../core/scrapeHealth';
 import { createModuleLogger } from '../../../core/logging';
+import { resolveLink } from '../../sales/infrastructure/scrapeHelpers';
 
 const log = createModuleLogger('PlantLinkSearchers');
+
+export const LINK_CACHE_TTL_S = 86_400;
 
 // ── Relevance scoring ─────────────────────────────────────────────────────────
 
@@ -44,6 +47,9 @@ const findBestMatch = (query: string, links: string[]): string | null =>
     { link: null, score: 0 },
   ).link;
 
+const linkCacheKey = (prefix: string, plantName: string): string =>
+  `${prefix}_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
+
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 const fetchJson = async (
@@ -66,13 +72,6 @@ const fetchHtml = async (url: string): Promise<string> => {
     timeout: 10_000,
   });
   return res.data;
-};
-
-const resolveLink = (href: string | null | undefined, baseUrl: string): string | null => {
-  if (!href) return null;
-  if (href.startsWith('http')) return href;
-  if (href.startsWith('//')) return `https:${href}`;
-  return `${baseUrl.replace(/\/$/, '')}${href.startsWith('/') ? href : `/${href}`}`;
 };
 
 // ── Searcher type ─────────────────────────────────────────────────────────────
@@ -133,7 +132,7 @@ const suggestSearchLinks = async (
 const shopSearcher =
   (config: ShopSearchConfig): Searcher =>
   async (plantName) => {
-    const cacheKey = `${config.key}_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
+    const cacheKey = linkCacheKey(config.key, plantName);
     const cached = config.cache.get<string>(cacheKey);
     if (cached !== undefined) return cached;
 
@@ -154,7 +153,7 @@ const shopSearcher =
         if (links.length === 0 && strategy !== 'shopifyJson') continue;
 
         const result = findBestMatch(plantName, links);
-        config.cache.set(cacheKey, result ?? '', 86_400);
+        config.cache.set(cacheKey, result ?? '', LINK_CACHE_TTL_S);
         config.health?.record({
           key: healthKey,
           seller: config.seller,
@@ -189,34 +188,94 @@ const shopSearcher =
 
 // ── API-based searchers ───────────────────────────────────────────────────────
 
-const wikipediaSearcher =
-  (cache: CacheService): Searcher =>
+/**
+ * Returns the cached link (an empty string caches "no link") or runs `load`
+ * and caches its result. A rejected `load` is not cached.
+ */
+const cached = async (
+  cache: CacheService,
+  key: string,
+  load: () => Promise<string | null>,
+): Promise<string | null> => {
+  const hit = cache.get<string>(key);
+  if (hit !== undefined) return hit;
+  const result = await load();
+  cache.set(key, result ?? '', LINK_CACHE_TTL_S);
+  return result;
+};
+
+interface ApiSearchConfig {
+  key: string;
+  seller: string;
+  cache: CacheService;
+  health?: SourceHealthReporter;
+  /** Best link and how many results the API returned. */
+  find: (plantName: string) => Promise<{ link: string | null; itemCount: number }>;
+}
+
+/**
+ * Wraps a JSON API lookup: results are cached and reported as source health,
+ * and a failing request is logged and reported instead of passing as "no link".
+ */
+const apiSearcher =
+  (config: ApiSearchConfig): Searcher =>
   async (plantName) => {
-    const cacheKey = `wikipedia_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
-    const cached = cache.get<string>(cacheKey);
-    if (cached !== undefined) return cached;
+    const healthKey = `search:${config.key}`;
     try {
+      return await cached(config.cache, linkCacheKey(config.key, plantName), async () => {
+        const { link, itemCount } = await config.find(plantName);
+        config.health?.record({
+          key: healthKey,
+          seller: config.seller,
+          kind: 'search',
+          strategy: 'api',
+          usedFallback: false,
+          itemCount,
+          error: null,
+          issues: [],
+        });
+        return link;
+      });
+    } catch (err: unknown) {
+      log.warn(`[${config.key}] search failed`, { err });
+      config.health?.record({
+        key: healthKey,
+        seller: config.seller,
+        kind: 'search',
+        strategy: null,
+        usedFallback: false,
+        itemCount: 0,
+        error: err instanceof Error ? err.message : String(err),
+        issues: [],
+      });
+      return null;
+    }
+  };
+
+const wikipediaSearcher = (cache: CacheService, health?: SourceHealthReporter): Searcher =>
+  apiSearcher({
+    key: 'wikipedia',
+    seller: 'Wikipedia',
+    cache,
+    health,
+    find: async (plantName) => {
       const data = (await fetchJson(
         `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(plantName)}&format=json`,
       )) as { query?: { search?: { title: string }[] } };
       const links = (data.query?.search ?? []).map(
         (r) => `https://en.wikipedia.org/wiki/${r.title.replace(/ /g, '_')}`,
       );
-      const result = findBestMatch(plantName, links);
-      cache.set(cacheKey, result ?? '', 86_400);
-      return result;
-    } catch {
-      return null;
-    }
-  };
+      return { link: findBestMatch(plantName, links), itemCount: links.length };
+    },
+  });
 
-const gbifSearcher =
-  (cache: CacheService): Searcher =>
-  async (plantName) => {
-    const cacheKey = `gbif_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
-    const cached = cache.get<string>(cacheKey);
-    if (cached !== undefined) return cached;
-    try {
+const gbifSearcher = (cache: CacheService, health?: SourceHealthReporter): Searcher =>
+  apiSearcher({
+    key: 'gbif',
+    seller: 'GBIF',
+    cache,
+    health,
+    find: async (plantName) => {
       const data = (await fetchJson(
         `https://api.gbif.org/v1/species/search?q=${encodeURIComponent(plantName)}&limit=5`,
       )) as { results?: { species: string; nubKey?: number }[] };
@@ -226,21 +285,18 @@ const gbifSearcher =
         results.map((r) => r.species),
       );
       const match = results.find((r) => r.species === bestName);
-      const result = match?.nubKey ? `https://www.gbif.org/species/${match.nubKey}` : null;
-      cache.set(cacheKey, result ?? '', 86_400);
-      return result;
-    } catch {
-      return null;
-    }
-  };
+      const link = match?.nubKey ? `https://www.gbif.org/species/${match.nubKey}` : null;
+      return { link, itemCount: results.length };
+    },
+  });
 
-const rhsSearcher =
-  (cache: CacheService): Searcher =>
-  async (plantName) => {
-    const cacheKey = `rhs_${plantName.toLowerCase().replace(/\s+/g, '_')}`;
-    const cached = cache.get<string>(cacheKey);
-    if (cached !== undefined) return cached;
-    try {
+const rhsSearcher = (cache: CacheService, health?: SourceHealthReporter): Searcher =>
+  apiSearcher({
+    key: 'rhs',
+    seller: 'RHS',
+    cache,
+    health,
+    find: async (plantName) => {
       const data = (await fetchJson(
         'https://lwapp-uks-prod-psearch-01.azurewebsites.net/api/v1/plants/search/advanced',
         {
@@ -257,15 +313,12 @@ const rhsSearcher =
         hits.map((h) => h.name),
       );
       const best = hits.find((h) => h.name === bestName);
-      const result = best
+      const link = best
         ? `https://www.rhs.org.uk/plants/${best.id}/${best.name.replace(/ /g, '-').toLowerCase()}/details`
         : null;
-      cache.set(cacheKey, result ?? '', 86_400);
-      return result;
-    } catch {
-      return null;
-    }
-  };
+      return { link, itemCount: hits.length };
+    },
+  });
 
 // ── Registry factory ──────────────────────────────────────────────────────────
 
@@ -326,7 +379,7 @@ const createRawSearchers = (cache: CacheService, health?: SourceHealthReporter):
     selector: '.card-title',
     filter: (h) => !h.includes('author'),
   }),
-  wikipediaSearcher(cache),
-  gbifSearcher(cache),
-  rhsSearcher(cache),
+  wikipediaSearcher(cache, health),
+  gbifSearcher(cache, health),
+  rhsSearcher(cache, health),
 ];

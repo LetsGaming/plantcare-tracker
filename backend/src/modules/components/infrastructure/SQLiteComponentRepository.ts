@@ -1,8 +1,8 @@
 import { sql } from 'kysely';
 import { getKysely } from '../../../core/database/db';
-import { toPublicImageUrl } from '../../../core/config';
 import { applyKeyset, containsLike, toPage, type Page } from '../../../core/pagination';
-import { toImageDto, type ImageDTO } from '../../images/presentation/imageDto';
+import type { ImageDTO } from '../../images/domain/imageDto';
+import { IMAGE_COLUMNS, imageRowToDto } from '../../images/infrastructure/imageRows';
 import type {
   ComponentDetail,
   ComponentListItem,
@@ -11,31 +11,10 @@ import type {
   FinenessLevel,
 } from '../domain/Component';
 
-interface ImageRow {
-  id: number;
-  image_url: string;
-  upload_date: number;
-  variants: number;
-  width: number | null;
-  height: number | null;
-  placeholder: string | null;
-}
-
-const toDto = (row: ImageRow): ImageDTO =>
-  toImageDto({
-    id: row.id,
-    url: toPublicImageUrl(row.image_url),
-    date: row.upload_date,
-    variants: row.variants,
-    width: row.width,
-    height: row.height,
-    placeholder: row.placeholder,
-  });
-
 const componentImages = () =>
   getKysely()
     .selectFrom('images')
-    .select(['id', 'image_url', 'upload_date', 'variants', 'width', 'height', 'placeholder'])
+    .select([...IMAGE_COLUMNS])
     .where('entity_type', '=', 'component');
 
 export class SQLiteComponentRepository implements ComponentRepository {
@@ -75,7 +54,7 @@ export class SQLiteComponentRepository implements ComponentRepository {
     const covers = new Map<number, ImageDTO>();
     if (coverIds.length) {
       const imageRows = await componentImages().where('id', 'in', coverIds).execute();
-      for (const row of imageRows) covers.set(row.id, toDto(row));
+      for (const row of imageRows) covers.set(row.id, imageRowToDto(row));
     }
 
     return {
@@ -113,7 +92,7 @@ export class SQLiteComponentRepository implements ComponentRepository {
       .orderBy('upload_date')
       .orderBy('id')
       .execute();
-    const images = imageRows.map(toDto);
+    const images = imageRows.map(imageRowToDto);
     return { ...row, cover: images[images.length - 1] ?? null, images };
   }
 
