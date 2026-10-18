@@ -1,14 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sleep } from "../../lib/session.mjs";
 import { PALETTE, gradientPng } from "../png.mjs";
 import { PLANT_PHOTOS, photoVariant } from "./06-images.mjs";
 
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.snapshots");
 const ATTEMPTS = 50;
 const RETRY_MS = 100;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default {
   name: "recognition",

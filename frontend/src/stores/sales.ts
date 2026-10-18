@@ -21,6 +21,7 @@ import ApiUtils from "@/utils/apiUtils";
 import SaleMapper from "@/mapping/SaleMapping";
 import { handleRequest } from "@/utils/requestFeedback";
 import { coalesced, epoch, resourceState } from "./resource";
+import { startStream } from "./streamRun";
 import { applySalesQuery, defaultSalesQuery, type SalesQuery } from "@/utils/salesQuery";
 import { compareText } from "@/utils/intlCache";
 import localizationService from "@/services/general/LocalizationService";
@@ -413,117 +414,73 @@ export const useSalesStore = defineStore("sales", {
       this.activeRun = run;
       this.streaming = true;
 
+      const isActive = () => this.activeRun === run && isCurrent();
       const stopPublishing = () => {
         if (pending !== undefined) clearTimeout(pending);
         pending = undefined;
       };
 
-      return new Promise<void>((resolve, reject) => {
-        let stop: (() => void) | null = null;
-        let settled = false;
-        let stopListening: (() => void) | null = null;
-        const cleanup = () => {
-          stop?.();
-          stopListening?.();
-          stopPublishing();
-        };
-        /** Stops a stream that was superseded, reset or ended with its session. */
-        const superseded = (): boolean => {
-          if (this.activeRun === run && isCurrent()) return false;
-          cleanup();
-          if (this.activeRun === run) {
-            this.activeRun = null;
-            this.streaming = false;
-            this.items = before;
+      const publish = () => {
+        pending = undefined;
+        if (!isActive()) {
+          streamRun.stop();
+          return;
+        }
+        lastPublish = Date.now();
+        this.items = markRaw(built.slice());
+      };
+      const publishSoon = () => {
+        if (!progressive || pending !== undefined) return;
+        const wait = lastPublish + PROGRESSIVE_COMMIT_MS - Date.now();
+        if (wait <= 0) publish();
+        else pending = setTimeout(publish, wait);
+      };
+
+      const streamRun = startStream<unknown>({
+        endpoint: ENDPOINT,
+        isActive,
+        onMessage: (data) => {
+          let added = false;
+          for (const sale of SaleMapper.convertToSales(data as APISale[])) {
+            if (receivedIds.has(sale.id)) continue;
+            receivedIds.add(sale.id);
+            built.push(sale);
+            if (latestFirst === null || sale.firstSeenAt > latestFirst)
+              latestFirst = sale.firstSeenAt;
+            added = true;
           }
-          if (!settled) {
-            settled = true;
-            resolve();
+          if (added) publishSoon();
+        },
+        onDone: (done) => {
+          if (typeof done?.total === "number" && done.total !== built.length) {
+            console.warn(`Sales replay received ${built.length} of ${done.total} sales`);
           }
-          return true;
-        };
-        const finish = () => {
-          settled = true;
+          const items = markRaw(built);
+          const now = Date.now();
+          const seen = prunedSeen(this.seen, items);
+          if (seen !== this.seen) this.seen = seen;
+          this.summary = Object.freeze({
+            total: items.length,
+            newCount: countNew(items, seen),
+            refreshedAt: this.summary.refreshedAt,
+            listRefreshedAt: refreshedAt,
+            latestFirstSeenAt: latestFirst ?? this.summary.latestFirstSeenAt,
+          });
+          this.items = items;
+          this.fetchedAt = now;
+          this.status = "ready";
           this.activeRun = null;
           this.streaming = false;
-        };
-
-        stopListening = epoch.onAbortAll(() => {
-          superseded();
-        });
-
-        const publish = () => {
-          pending = undefined;
-          if (superseded()) return;
-          lastPublish = Date.now();
-          this.items = markRaw(built.slice());
-        };
-        const publishSoon = () => {
-          if (!progressive || pending !== undefined) return;
-          const wait = lastPublish + PROGRESSIVE_COMMIT_MS - Date.now();
-          if (wait <= 0) publish();
-          else pending = setTimeout(publish, wait);
-        };
-
-        const fail = (error: unknown) => {
-          if (settled || superseded()) return;
-          cleanup();
+        },
+        onSettled: (outcome) => {
+          stopPublishing();
+          if (outcome === "done" || this.activeRun !== run) return;
+          this.activeRun = null;
+          this.streaming = false;
           this.items = before;
-          finish();
-          reject(error);
-        };
-
-        void ApiUtils.stream<unknown>(
-          ENDPOINT,
-          (event) => {
-            if (settled || superseded()) return;
-            try {
-              let added = false;
-              for (const sale of SaleMapper.convertToSales(event.data as APISale[])) {
-                if (receivedIds.has(sale.id)) continue;
-                receivedIds.add(sale.id);
-                built.push(sale);
-                if (latestFirst === null || sale.firstSeenAt > latestFirst)
-                  latestFirst = sale.firstSeenAt;
-                added = true;
-              }
-              if (added) publishSoon();
-            } catch (error) {
-              fail(error);
-            }
-          },
-          fail,
-          (done) => {
-            if (settled || superseded()) return;
-            cleanup();
-            if (typeof done?.total === "number" && done.total !== built.length) {
-              console.warn(`Sales replay received ${built.length} of ${done.total} sales`);
-            }
-            const items = markRaw(built);
-            const now = Date.now();
-            const seen = prunedSeen(this.seen, items);
-            if (seen !== this.seen) this.seen = seen;
-            this.summary = Object.freeze({
-              total: items.length,
-              newCount: countNew(items, seen),
-              refreshedAt: this.summary.refreshedAt,
-              listRefreshedAt: refreshedAt,
-              latestFirstSeenAt: latestFirst ?? this.summary.latestFirstSeenAt,
-            });
-            this.items = items;
-            this.fetchedAt = now;
-            this.status = "ready";
-            finish();
-            resolve();
-          },
-        )
-          .then((close) => {
-            stop = close;
-            if (settled) close();
-            else superseded();
-          })
-          .catch(fail);
+        },
       });
+      return streamRun.promise;
     },
 
     /** The sale and its price history from the server, for the details page; null after logout. */

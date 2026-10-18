@@ -80,25 +80,6 @@ describe("convertDate", () => {
     const result = Utils.convertDate(NaN as unknown as number);
     expect(result).toBe("NaN");
   });
-
-  // ── BACKWARD COMPAT ─────────────────────────────────────────
-
-  describe("convertDateMillis", () => {
-    it("returns readable date string", () => {
-      const result = Utils.convertDateMillis(1700000000000);
-      expect(typeof result).toBe("string");
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it("matches convertDate readable output", () => {
-      const epoch = 1700000000000;
-
-      const a = Utils.convertDateMillis(epoch);
-      const b = Utils.convertDate(epoch);
-
-      expect(a).toBe(b);
-    });
-  });
 });
 
 // ── convertToMillis ───────────────────────────────────────────────────────────
@@ -303,28 +284,5 @@ describe("closeAllOpenModals", () => {
     top.mockRejectedValue(new Error("overlay host gone"));
     await expect(Utils.closeAllOpenModals()).resolves.toBeUndefined();
     expect(dismiss).not.toHaveBeenCalled();
-  });
-});
-
-describe("closeOpenModal", () => {
-  const top = vi.mocked(modalController.getTop);
-  const dismiss = vi.mocked(modalController.dismiss);
-
-  afterEach(() => {
-    top.mockReset().mockResolvedValue(undefined);
-    dismiss.mockReset().mockResolvedValue(true);
-  });
-
-  it("dismisses the top modal", async () => {
-    top.mockResolvedValue({} as HTMLIonModalElement);
-    await Utils.closeOpenModal();
-    expect(dismiss).toHaveBeenCalledTimes(1);
-  });
-
-  it("resolves when the dismiss rejects", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    top.mockResolvedValue({} as HTMLIonModalElement);
-    dismiss.mockRejectedValue(new TypeError("insertBefore"));
-    await expect(Utils.closeOpenModal()).resolves.toBeUndefined();
   });
 });

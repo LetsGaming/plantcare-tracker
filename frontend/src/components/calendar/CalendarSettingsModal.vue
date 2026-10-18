@@ -19,7 +19,7 @@
               :cancel-text="t('common.cancel')"
               :ok-text="t('copy2.select.ok')"
               :placeholder="t('calendar.settings.first_weekday_placeholder')"
-              @ionChange="$emit('update:firstDayOfWeek', $event.detail.value)"
+              @ionChange="saveFirstDayOfWeek($event.detail.value)"
             >
               <ion-select-option
                 v-for="weekday in localizedWeekdays"
@@ -35,7 +35,7 @@
             <ion-toggle
               justify="space-between"
               :checked="doDeleteAfterThirty"
-              @ionChange="$emit('update:deleteAfterThirty', $event.detail.checked)"
+              @ionChange="saveDeleteAfterThirty($event.detail.checked)"
             >
               {{ t("calendar.settings.auto_delete_label") }}
             </ion-toggle>
@@ -161,7 +161,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType } from "vue";
+import { defineComponent } from "vue";
+import { mapActions, mapState } from "pinia";
 import {
   IonModal,
   IonContent,
@@ -181,6 +182,7 @@ import ConfirmDialog from "../modal/ConfirmDialog.vue";
 import IconButton from "../ui/IconButton.vue";
 import { useMountWhileOpen } from "../modal/useMountWhileOpen";
 import localizationService from "@/services/general/LocalizationService";
+import { useCalendarStore } from "@/stores/calendar";
 import { DEFAULT_WATERING_TOKENS, categoryNameProblem } from "@/utils/categoryColors";
 import { readCssColor } from "@/utils/themeColors";
 
@@ -215,27 +217,8 @@ export default defineComponent({
   },
   props: {
     isOpen: Boolean,
-    firstDayOfWeek: Number,
-    doDeleteAfterThirty: Boolean,
-    categories: {
-      type: Array as PropType<Category[]>,
-      required: true,
-    },
-    wateringCategories: {
-      type: Array as PropType<Category[]>,
-      required: true,
-    },
   },
-  emits: [
-    "close",
-    "update:firstDayOfWeek",
-    "update:deleteAfterThirty",
-    "update:categories",
-    "update:wateringCategories",
-    "reset-watering-categories",
-    "delete-category",
-    "add-category",
-  ],
+  emits: ["close"],
   setup(props) {
     return {
       ...useMountWhileOpen(() => props.isOpen),
@@ -245,8 +228,8 @@ export default defineComponent({
   },
   data() {
     return {
-      localCategories: copyCategories(this.categories),
-      localWatering: copyCategories(this.wateringCategories),
+      localCategories: [] as Category[],
+      localWatering: [] as Category[],
       nameErrors: {} as Record<number, string>,
       newCategory: blankCategory(),
       newCategoryError: "",
@@ -257,6 +240,8 @@ export default defineComponent({
     };
   },
   created() {
+    this.localCategories = copyCategories(this.categories);
+    this.localWatering = copyCategories(this.wateringCategories);
     this.debouncedUpdateCategories = Utils.debounce((index: number) => {
       const category = this.localCategories[index];
       if (!category) return;
@@ -267,10 +252,16 @@ export default defineComponent({
     this.debouncedUpdateWateringCategories = Utils.debounce((index: number) => {
       const category = this.localWatering[index];
       if (!category) return;
-      this.$emit("update:wateringCategories", copyCategories(this.localWatering));
+      this.saveWateringCategories(copyCategories(this.localWatering));
     }, 500);
   },
   computed: {
+    ...mapState(useCalendarStore, {
+      firstDayOfWeek: "firstDayOfWeek",
+      doDeleteAfterThirty: "deleteAfterThirty",
+      categories: "categories",
+      wateringCategories: "wateringCategories",
+    }),
     localizedWeekdays() {
       const base = new Date(2021, 7, 1);
       const fmt = new Intl.DateTimeFormat(localizationService.getLocale(), {
@@ -301,6 +292,13 @@ export default defineComponent({
     },
   },
   methods: {
+    ...mapActions(useCalendarStore, [
+      "saveFirstDayOfWeek",
+      "saveDeleteAfterThirty",
+      "saveCategories",
+      "saveWateringCategories",
+      "resetWateringCategories",
+    ]),
     t(key: string, vars?: Record<string, string>) {
       return localizationService.t(key, vars, key);
     },
@@ -337,7 +335,7 @@ export default defineComponent({
     },
     emitCategories() {
       if (Object.values(this.nameErrors).some(Boolean)) return;
-      this.$emit("update:categories", copyCategories(this.localCategories));
+      this.saveCategories(copyCategories(this.localCategories));
     },
     onNameInput(index: number) {
       const problem = categoryNameProblem(
@@ -358,7 +356,7 @@ export default defineComponent({
       }
       this.newCategory.name = this.newCategory.name.trim();
       this.newCategory.textColor = "";
-      this.$emit("add-category", { ...this.newCategory });
+      this.saveCategories([...this.categories, { ...this.newCategory }]);
       this.newCategory = blankCategory();
       this.newCategoryError = "";
     },
@@ -366,12 +364,13 @@ export default defineComponent({
       this.pendingDelete = index;
     },
     confirmDelete() {
-      if (this.pendingDelete !== null) this.$emit("delete-category", this.pendingDelete);
+      const index = this.pendingDelete;
+      if (index !== null) this.saveCategories(this.categories.filter((_, i) => i !== index));
       this.pendingDelete = null;
     },
     confirmReset() {
       this.showResetConfirm = false;
-      this.$emit("reset-watering-categories");
+      this.resetWateringCategories();
     },
   },
 });

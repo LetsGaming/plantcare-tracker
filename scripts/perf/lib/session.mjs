@@ -1,9 +1,7 @@
 import fs from "node:fs";
-import { repoRoot, sessionPaths } from "../../dev/lib/session.mjs";
+import { API_PATH, readSession, repoRoot, sessionPaths } from "../../dev/lib/session.mjs";
 
 export { repoRoot };
-
-export const API_PATH = "/api/v2";
 
 export const parseFlags = (argv) => {
   const flags = {};
@@ -37,7 +35,7 @@ export const loadSession = (id) => {
       `No dev session "${id}" (${sessionFile} not found). Start it with: node scripts/dev-up.mjs --id ${id}`,
     );
   }
-  const session = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
+  const session = readSession(id);
   return {
     ...session,
     apiBase: `http://127.0.0.1:${session.backendPort}${API_PATH}`,

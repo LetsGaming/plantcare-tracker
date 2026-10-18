@@ -274,6 +274,45 @@ describe("stream", () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
+  it("fails a stream whose done payload is not JSON when a status is required", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onError = vi.fn();
+    const onDone = vi.fn();
+    const onClose = vi.fn();
+    await ApiUtils.stream("/more-info", vi.fn(), onError, onDone, {
+      requireDoneStatus: true,
+      onClose,
+    });
+    const source = FakeEventSource.instances[0];
+    source.listeners.get("done")?.({ data: "garbled" } as MessageEvent);
+    expect(onDone).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledWith("error");
+    expect(source.readyState).toBe(2);
+  });
+
+  it("accepts a done payload with a status when one is required", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onError = vi.fn();
+    const onDone = vi.fn();
+    await ApiUtils.stream("/more-info", vi.fn(), onError, onDone, { requireDoneStatus: true });
+    FakeEventSource.instances[0].listeners.get("done")?.({
+      data: JSON.stringify({ status: "completed" }),
+    } as MessageEvent);
+    expect(onDone).toHaveBeenCalledWith({ status: "completed" });
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("reports why the stream closed", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, { data: { ticket: "t" } }));
+    const onClose = vi.fn();
+    const cleanup = await ApiUtils.stream("/sales", vi.fn(), undefined, undefined, { onClose });
+    cleanup();
+    cleanup();
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledWith("closed");
+  });
+
   it("reports ticket failures through onError and returns a no-op cleanup", async () => {
     fetchMock.mockImplementation(async () => jsonResponse(500, { error: { message: "boom" } }));
     const onError = vi.fn();

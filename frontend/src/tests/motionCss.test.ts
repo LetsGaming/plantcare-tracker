@@ -33,12 +33,6 @@ describe("reduced motion", () => {
     expect(css).not.toContain("0.01ms");
   });
 
-  it("animates the accordion with grid rows instead of a clipped max-height", () => {
-    const source = component("Accordion");
-    expect(source).toContain("grid-template-rows");
-    expect(source).not.toContain("max-height: 1000px");
-  });
-
   it("pulses the skeleton with opacity instead of animating the background", () => {
     const source = component("StateBlock");
     expect(source).not.toContain("background-position");

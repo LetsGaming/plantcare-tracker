@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 
 import Utils from "@/utils/utils";
+import { isDevelopment } from "@/utils/devMode";
 import { pinia } from "@/stores/pinia";
 import { useSessionStore } from "@/stores/session";
 import ToastService from "@/services/general/ToastService";
@@ -32,7 +33,6 @@ const AdminDashboard = () => import("@/views/admin/AdminDashboard.vue");
 const ScraperHealth = () => import("@/views/admin/ScraperHealth.vue");
 
 const Debug = () => import("@/views/Debug.vue");
-const isDevelopment = import.meta.env.MODE === "development";
 
 const authMeta = { requiresAuth: true };
 const adminMeta = { requiresAuth: true, requiresAdmin: true };

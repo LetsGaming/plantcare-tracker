@@ -1,3 +1,5 @@
+import { sleep } from "../../lib/session.mjs";
+
 const POLL_MS = 500;
 const TIMEOUT_MS = 30_000;
 const STABLE_POLLS = 3;
@@ -6,8 +8,6 @@ const HOUR_MS = 60 * 60 * 1000;
 const FIRST_SEEN_DAYS_AGO = 20;
 const NEW_EVERY = 4;
 const CHART_EVERY = 3;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitForRefresher = async (ctx, token) => {
   const deadline = Date.now() + TIMEOUT_MS;

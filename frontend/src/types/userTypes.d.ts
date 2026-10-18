@@ -33,7 +33,7 @@ interface EditProfile {
   passwordConfirmation?: string;
 }
 
-/** Roles supported by V2 — "guest" is read-only, "admin" has full access */
+/** Roles supported by V2: "guest" is read-only, "admin" has full access */
 type UserRole = "admin" | "user" | "guest";
 
 /** Decoded JWT payload — claims embedded in the access token */

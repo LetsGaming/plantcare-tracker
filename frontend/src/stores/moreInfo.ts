@@ -13,16 +13,17 @@
 
 import { toRaw } from "vue";
 import { defineStore } from "pinia";
-import ApiUtils from "@/utils/apiUtils";
 import MoreInfoMapper from "@/mapping/MoreInfoMapping";
 import localizationService from "@/services/general/LocalizationService";
 import { renderMarkdown } from "@/utils/markdown";
-import { coalesced, epoch, isStale } from "./resource";
+import { coalesced, isStale } from "./resource";
+import { startStream } from "./streamRun";
 
 const BASE_ENDPOINT = "/more-info";
 const MAX_GUIDES = 30;
 /** The AI can think silently for minutes before its first chunk arrives. */
 const CARE_GUIDE_IDLE_TIMEOUT_MS = 180_000;
+const DRAFT_RENDER_MS = 100;
 
 /** Monotonic recency counter shared by all guide reads and writes. */
 let useClock = 0;
@@ -186,87 +187,64 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       delete this.drafts[key];
       this.pruneRuns(key);
 
-      return new Promise<void>((resolve, reject) => {
-        const raw = { links: [] as string[], ai: "" };
-        let stop: (() => void) | null = null;
-        let ended = false;
+      const raw = { links: [] as string[], ai: "" };
+      const render = (): MoreInfo[] =>
+        MoreInfoMapper.convertToMoreInfo({ ...raw, ai: renderMarkdown(raw.ai) });
 
-        const render = (): MoreInfo[] =>
-          MoreInfoMapper.convertToMoreInfo({ ...raw, ai: renderMarkdown(raw.ai) });
+      // Rendering the whole text per chunk is quadratic, so chunks repaint the draft at most once per window.
+      let lastDraft = Number.NEGATIVE_INFINITY;
+      let draftTimer: ReturnType<typeof setTimeout> | undefined;
+      const publishDraft = () => {
+        draftTimer = undefined;
+        lastDraft = Date.now();
+        const mapped = render();
+        if (mapped.length > 0) this.drafts[key] = mapped;
+      };
+      const publishDraftSoon = () => {
+        if (draftTimer !== undefined) return;
+        const wait = lastDraft + DRAFT_RENDER_MS - Date.now();
+        if (wait <= 0) publishDraft();
+        else draftTimer = setTimeout(publishDraft, wait);
+      };
 
-        let unsubscribe: (() => void) | null = null;
-        const end = () => {
-          ended = true;
-          haltByKey.delete(key);
-          unsubscribe?.();
-        };
-        const finish = () => {
-          this.streaming[key] = false;
-          delete this.drafts[key];
-        };
-        // A failed run keeps its partial draft visible (never cached or persisted);
-        // the next run clears it.
-        const fail = (error: unknown) => {
-          if (ended) return;
-          end();
-          stop?.();
-          this.streaming[key] = false;
-          reject(error);
-        };
-
-        const params = new URLSearchParams({
-          plantName,
-          htmlFormatting: "false", // formatting is done client-side
-          lang: localizationService.getLocale(),
-        });
-
-        const halt = () => {
-          if (ended) return;
-          end();
-          stop?.();
-          this.streaming[key] = false;
-          resolve();
-        };
-        haltByKey.set(key, halt);
-        unsubscribe = epoch.onAbortAll(halt);
-
-        void ApiUtils.stream<{ type: string; value: string }>(
-          `${BASE_ENDPOINT}?${params.toString()}`,
-          (event) => {
-            if (ended) return;
-            try {
-              // Each SSE event is one { type, value } object.
-              const { type, value } = event.data;
-              if (type === "link") raw.links.push(value);
-              else if (type === "ai_chunk") raw.ai += value;
-
-              const mapped = render();
-              if (mapped.length > 0) this.drafts[key] = mapped;
-            } catch (error) {
-              fail(error);
-            }
-          },
-          fail,
-          (done) => {
-            if (ended) return;
-            if (done?.status && done.status !== "completed") {
-              fail(new Error(`Information stream ended with status: ${done.status}`));
-              return;
-            }
-            end();
-            stop?.();
-            this.storeGuide(key, render());
-            finish();
-            resolve();
-          },
-          { idleTimeoutMs: CARE_GUIDE_IDLE_TIMEOUT_MS },
-        )
-          .then((cleanup) => {
-            stop = cleanup;
-            if (ended) cleanup();
-          })
-          .catch(fail);
+      const params = new URLSearchParams({
+        plantName,
+        htmlFormatting: "false", // formatting is done client-side
+        lang: localizationService.getLocale(),
       });
+
+      // A failed or stopped run keeps its partial draft visible (never cached or persisted);
+      // the next run clears it.
+      const streamRun = startStream<{ type: string; value: string }>({
+        endpoint: `${BASE_ENDPOINT}?${params.toString()}`,
+        idleTimeoutMs: CARE_GUIDE_IDLE_TIMEOUT_MS,
+        requireDoneStatus: true,
+        onMessage: ({ type, value }) => {
+          // Each SSE event is one { type, value } object.
+          if (type === "link") raw.links.push(value);
+          else if (type === "ai_chunk") raw.ai += value;
+          publishDraftSoon();
+        },
+        onDone: (done) => {
+          if (done?.status !== "completed") {
+            throw new Error(`Information stream ended with status: ${done?.status}`);
+          }
+          this.storeGuide(key, render());
+          delete this.drafts[key];
+        },
+        onSettled: (outcome) => {
+          clearTimeout(draftTimer);
+          haltByKey.delete(key);
+          if (outcome === "done") {
+            this.streaming[key] = false;
+            return;
+          }
+          publishDraft();
+          this.streaming[key] = false;
+        },
+      });
+      haltByKey.set(key, streamRun.stop);
+      return streamRun.promise;
     },
   },
 });
