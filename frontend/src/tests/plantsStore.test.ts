@@ -995,3 +995,51 @@ describe("a write that fails after the session ended", () => {
     expect(store.mine.items).toEqual([]);
   });
 });
+
+describe("list freshness over time", () => {
+  const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+
+  it("refetches the own list once it is older than the cache lifetime", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    route({ mine: () => page([item(1)]) });
+    const store = await newStore();
+    await store.ensureMine();
+    await store.ensureMine();
+    expect(requested()).toHaveLength(1);
+
+    vi.setSystemTime(Date.now() + TWO_DAYS_MS);
+    await store.ensureMine();
+    expect(requested()).toHaveLength(2);
+  });
+
+  it("refetches the public list once it is older than the cache lifetime", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    route({ public: () => page([item(2, { is_public: true })]) });
+    const store = await newStore();
+    await store.ensurePublic();
+    await store.ensurePublic();
+    expect(requested()).toHaveLength(1);
+
+    vi.setSystemTime(Date.now() + TWO_DAYS_MS);
+    await store.ensurePublic();
+    expect(requested()).toHaveLength(2);
+  });
+});
+
+describe("optimistic substrate reference", () => {
+  it("paints no substrate while its name is unknown", async () => {
+    route({ mine: () => page([]) });
+    const store = await newStore();
+    await store.ensureMine();
+    vi.spyOn(store, "substrateName").mockResolvedValue(null);
+    const gate = deferred<APIPlantDetail>();
+    vi.mocked(ApiUtils.post).mockReturnValue(gate.promise as never);
+
+    const pending = store.addPlant({ name: "New", species: "", substrateId: 5 });
+    await vi.waitFor(() => expect(store.personalPlants).toHaveLength(1));
+    expect(store.personalPlants[0].substrate).toBeNull();
+
+    gate.resolve(apiPlantDetail({ plant_id: 9, plant_name: "New", user_id: 1 }));
+    await pending;
+  });
+});
