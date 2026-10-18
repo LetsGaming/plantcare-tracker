@@ -237,7 +237,7 @@ export class SalesRefresher {
       pages++;
 
       if (raw.length === 0) {
-        // BaseScraper answers [] when every strategy failed; page 1 reports that to health.
+        // A source whose strategies all failed on page 1 reports that to health.
         if (page === 1 && this.options.health?.get(source.key)?.status === 'failing') {
           return { sales, pages, failedPage: 1 };
         }

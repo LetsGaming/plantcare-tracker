@@ -21,10 +21,15 @@ import {
   fetchJson,
   probeImage,
 } from '../../../src/modules/sales/infrastructure/HttpFetcher';
-import { BaseScraper } from '../../../src/modules/sales/infrastructure/scrapers/BaseScraper';
+import {
+  BaseScraper,
+  ScrapeFailedError,
+} from '../../../src/modules/sales/infrastructure/scrapers/BaseScraper';
 import type { ScraperConfig } from '../../../src/modules/sales/infrastructure/scrapers/types';
 import type { ScrapeOutcome } from '../../../src/core/scrapeHealth';
 import { NodeCacheAdapter } from '../../../src/core/cache';
+import { SalesRefresher } from '../../../src/modules/sales/application/SalesRefresher';
+import type { SalesRepository } from '../../../src/modules/sales/domain/SalesRepository';
 
 const fixture = (name: string): string =>
   fs.readFileSync(path.resolve(__dirname, '../../fixtures/scrapers', name), 'utf-8');
@@ -135,11 +140,11 @@ describe('BaseScraper strategy order', () => {
 });
 
 describe('BaseScraper failure handling', () => {
-  it('reports failing and returns no items when every strategy fails', async () => {
+  it('reports failing and throws when every strategy fails', async () => {
     serveHtml(null);
     const { scraper, outcomes } = setup();
 
-    await expect(scraper.fetchPage(1)).resolves.toEqual([]);
+    await expect(scraper.fetchPage(1)).rejects.toBeInstanceOf(ScrapeFailedError);
 
     expect(outcomes[0]).toMatchObject({ strategy: null, usedFallback: false, itemCount: 0 });
     expect(outcomes[0].error).toContain('selector: No HTML returned');
@@ -158,9 +163,18 @@ describe('BaseScraper failure handling', () => {
     serveHtml('<html><body></body></html>');
     const { scraper, outcomes } = setup();
 
-    await scraper.fetchPage(1);
+    await expect(scraper.fetchPage(1)).rejects.toBeInstanceOf(ScrapeFailedError);
 
     expect(outcomes[0].strategy).toBeNull();
+  });
+
+  it('throws on a later page every strategy failed on instead of answering an empty list', async () => {
+    serveHtml(null);
+    const { scraper, outcomes } = setup();
+
+    await expect(scraper.fetchPage(2)).rejects.toBeInstanceOf(ScrapeFailedError);
+
+    expect(outcomes).toHaveLength(0);
   });
 
   it('accepts an empty later page and only reports page 1', async () => {
@@ -200,7 +214,7 @@ describe('BaseScraper Shopify detection', () => {
     serveHtml('<html><body></body></html>');
     const { scraper } = setup({ selectors: unusableSelectors, strategies: ['selector'] });
 
-    await scraper.fetchPage(1);
+    await expect(scraper.fetchPage(1)).rejects.toThrow();
 
     expect(fetchJson).not.toHaveBeenCalled();
   });
@@ -243,8 +257,8 @@ describe('BaseScraper caching', () => {
     serveHtml('<html><body></body></html>');
     const { scraper } = setup();
 
-    await scraper.fetchPage(1);
-    await scraper.fetchPage(1);
+    await expect(scraper.fetchPage(1)).rejects.toThrow();
+    await expect(scraper.fetchPage(1)).rejects.toThrow();
 
     expect(fetchDocument).toHaveBeenCalledTimes(2);
   });
@@ -269,9 +283,37 @@ describe('BaseScraper field checks', () => {
     serveHtml('<html><body></body></html>');
     const { scraper, outcomes } = setup();
 
-    await scraper.fetchPage(1);
+    await expect(scraper.fetchPage(1)).rejects.toThrow();
 
     expect(probeImage).not.toHaveBeenCalled();
     expect(outcomes[0]).toMatchObject({ strategy: null, issues: [] });
+  });
+});
+
+describe('BaseScraper with SalesRefresher', () => {
+  it('keeps the stored items when page 2 fails instead of reading it as the end of the list', async () => {
+    vi.mocked(fetchDocument)
+      .mockResolvedValueOnce({ html: themeHtml, finalUrl: COLLECTION_URL })
+      .mockResolvedValue(null);
+    const { scraper } = setup({ maxPages: 2 });
+    const applySourceSnapshot = vi.fn();
+    const repo = {
+      applySourceSnapshot,
+      deactivateSource: vi.fn(),
+      pruneRetention: vi.fn(async () => ({ items: 0, pricePoints: 0 })),
+      getSourceState: vi.fn(async () => null),
+      setSourceState: vi.fn(async () => undefined),
+    } as unknown as SalesRepository;
+    const refresher = new SalesRefresher([scraper], repo, {
+      intervalMs: 60_000,
+      warmDelayMs: 60_000,
+      random: () => 0.5,
+    });
+
+    const outcome = await refresher.refreshSource('shop');
+    await refresher.stop();
+
+    expect(outcome.status).toBe('partial');
+    expect(applySourceSnapshot).not.toHaveBeenCalled();
   });
 });
