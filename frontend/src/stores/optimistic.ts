@@ -84,38 +84,6 @@ export const replaceItem = <T extends WithId>(
   return next.filter((entry) => entry === item || entry.id !== item.id);
 };
 
-const upsertInPlace = async <T extends WithId, R>(
-  list: () => T[],
-  optimisticItem: T,
-  request: () => Promise<R>,
-  reconcile: (response: R) => T,
-): Promise<R> => {
-  const existing = list().find((item) => item.id === optimisticItem.id);
-  const snapshot = existing ? toRaw(existing) : null;
-
-  const paintIndex = list().findIndex((item) => item.id === optimisticItem.id);
-  if (paintIndex === -1) list().push(optimisticItem);
-  else list()[paintIndex] = optimisticItem;
-
-  try {
-    const response = await request();
-    const finalItem = reconcile(response);
-    const index = list().findIndex((item) => item.id === optimisticItem.id);
-    if (index === -1) list().push(finalItem);
-    else list()[index] = finalItem;
-    return response;
-  } catch (error) {
-    const index = list().findIndex((item) => item.id === optimisticItem.id);
-    if (snapshot) {
-      if (index === -1) list().push(snapshot);
-      else list()[index] = snapshot;
-    } else if (index !== -1) {
-      list().splice(index, 1);
-    }
-    throw error;
-  }
-};
-
 const upsertCopyOnWrite = async <T extends WithId, R>(
   list: ListAccess<T>,
   optimisticItem: T,
@@ -151,39 +119,17 @@ const upsertCopyOnWrite = async <T extends WithId, R>(
  * removed), so concurrent changes to other items survive. Returns the raw
  * response.
  *
- * Pass a `ListAccess` for a copy-on-write list: every step commits a new array
- * and a failure with no other change in between puts the previous array
- * reference back. A plain `() => T[]` edits the reactive array in place.
+ * Every step commits a new array and a failure with no other change in between
+ * puts the previous array reference back.
  */
 export function optimisticUpsert<T extends WithId, R>(
-  list: ListAccess<T> | (() => T[]),
+  list: ListAccess<T>,
   optimisticItem: T,
   request: () => Promise<R>,
   reconcile: (response: R) => T,
 ): Promise<R> {
-  return typeof list === "function"
-    ? upsertInPlace(list, optimisticItem, request, reconcile)
-    : upsertCopyOnWrite(list, optimisticItem, request, reconcile);
+  return upsertCopyOnWrite(list, optimisticItem, request, reconcile);
 }
-
-const removeInPlace = async <T extends WithId, R>(
-  list: () => T[],
-  itemId: number | string,
-  request: () => Promise<R>,
-): Promise<R> => {
-  const index = list().findIndex((item) => item.id === itemId);
-  const snapshot = index === -1 ? null : toRaw(list()[index]);
-  if (index !== -1) list().splice(index, 1);
-
-  try {
-    return await request();
-  } catch (error) {
-    if (snapshot && !list().some((item) => item.id === itemId)) {
-      list().splice(Math.min(index, list().length), 0, snapshot);
-    }
-    throw error;
-  }
-};
 
 const removeCopyOnWrite = async <T extends WithId, R>(
   list: ListAccess<T>,
@@ -215,14 +161,12 @@ const removeCopyOnWrite = async <T extends WithId, R>(
 /**
  * Optimistic removal from a list; the item returns to its original position if
  * the request fails (the previous array reference itself when nothing else
- * changed meanwhile, for a `ListAccess`).
+ * changed meanwhile).
  */
 export function optimisticRemove<T extends WithId, R>(
-  list: ListAccess<T> | (() => T[]),
+  list: ListAccess<T>,
   itemId: number | string,
   request: () => Promise<R>,
 ): Promise<R> {
-  return typeof list === "function"
-    ? removeInPlace(list, itemId, request)
-    : removeCopyOnWrite(list, itemId, request);
+  return removeCopyOnWrite(list, itemId, request);
 }

@@ -23,7 +23,7 @@ vi.mock("../utils/tokenUtils", () => ({
 }));
 vi.mock("../utils/utils", () => ({ default: { getApiBaseUrl: () => "http://test/api/v2" } }));
 
-import ApiUtils, { isNotModified } from "../utils/apiUtils";
+import ApiUtils from "../utils/apiUtils";
 import { epoch } from "@/stores/resource";
 import TokenUtils from "../utils/tokenUtils";
 import ToastService from "@/services/general/ToastService";
@@ -107,11 +107,6 @@ describe("requests", () => {
     expect(init.body).toBe(form);
     expect(init.headers).toEqual({});
     expect(init.method).toBe("POST");
-  });
-
-  it("appends query parameters", async () => {
-    await ApiUtils.getWithParams("/images/plant", { entityId: "3" });
-    expect(lastCall(fetchMock).url).toBe("http://test/api/v2/images/plant?entityId=3");
   });
 });
 
@@ -552,7 +547,7 @@ describe("conditional requests", () => {
     await expect(ApiUtils.get("/etag-a", undefined, { conditional: true })).resolves.toEqual([1]);
     expect(ifNoneMatch(fetchMock)).toBeUndefined();
     const second = await ApiUtils.get("/etag-a", undefined, { conditional: true });
-    expect(isNotModified(second)).toBe(true);
+    expect(second).toEqual({ notModified: true });
     expect(ifNoneMatch(fetchMock)).toBe('"v1"');
   });
 

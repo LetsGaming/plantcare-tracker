@@ -11,23 +11,6 @@
 //   - APIFertilizerType: fertilizer_id, fertilizer_name
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Frontend model for a single watering event */
-interface WateringRecord {
-  id: number;
-  /** ID of the plant this record belongs to */
-  plantId: number;
-  /** Display name of the plant (included in V2 responses for calendar rendering) */
-  plantName: string;
-  /** Human-readable local date string */
-  date: string;
-  /** Epoch milliseconds for sorting and calendar rendering */
-  date_millis: number;
-  usedFertilizer: boolean;
-  fertilizerTypeId?: number;
-  /** Resolved display name of the fertilizer type, or undefined if unused */
-  fertilizerType?: string;
-}
-
 /** Payload for creating a watering record */
 interface AddWateringRecord {
   /** Optional — server defaults to now() */
@@ -50,25 +33,6 @@ interface FertilizerType {
 }
 
 // ── V2 API shapes ─────────────────────────────────────────────────────────────
-
-/**
- * Raw watering record as returned by the V2 API (SQLite backend).
- * watering_date is a Unix epoch integer (seconds) — NOT an ISO date string.
- */
-interface APIWateringRecord {
-  record_id: number;
-  plant_id: number;
-  /** Included in V2 to enable calendar rendering without additional plant lookups */
-  plant_name: string;
-  /** Unix epoch seconds stored by SQLite */
-  watering_date: number;
-  used_fertilizer: boolean;
-  fertilizer_type_id: number | null;
-  /** Resolved name from fertilizer_types table, null if no fertilizer used */
-  fertilizer_type: string | null;
-  /** Owner user ID — for permission checks on mutations */
-  owner_id: number;
-}
 
 /** One record of GET /watering/plant/:plantId and of the write responses; date in epoch ms. */
 interface APIWateringItem {

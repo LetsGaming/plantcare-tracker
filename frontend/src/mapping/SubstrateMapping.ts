@@ -8,15 +8,9 @@
  * mix itself (`components`) is null on list items.
  * Details (GET /substrates/:id, POST/PATCH): APISubstrateDetail with the
  * legacy substrate_* field names, images and components.
- * The legacy APISubstrate mappers below serve the remaining pre-envelope callers.
  */
 import ComponentMapper from "./ComponentMapping";
-import ImageMapper, { toCoverView, toImageViews } from "./ImageMapping";
-import Utils from "@/utils/utils";
-
-const isDetail = (
-  substrate: APISubstrateListItem | APISubstrateDetail,
-): substrate is APISubstrateDetail => "substrate_id" in substrate;
+import { toCoverView, toImageViews } from "./ImageMapping";
 
 export default class SubstrateMapper {
   static searchTextOf(name: string): string {
@@ -37,10 +31,6 @@ export default class SubstrateMapper {
     });
   }
 
-  static mapListItems(substrates: readonly APISubstrateListItem[]): SubstrateView[] {
-    return substrates.map((substrate) => SubstrateMapper.mapListItem(substrate));
-  }
-
   static mapDetail(substrate: APISubstrateDetail): SubstrateView {
     const components = Object.freeze(
       (substrate.components ?? []).map((component) => ComponentMapper.mapSubstratePart(component)),
@@ -57,37 +47,5 @@ export default class SubstrateMapper {
       images: toImageViews(substrate.images),
       searchText: SubstrateMapper.searchTextOf(substrate.substrate_name),
     });
-  }
-
-  /** Either API shape (list item or detail) to the one SubstrateView. */
-  static toView(substrate: APISubstrateListItem | APISubstrateDetail): SubstrateView {
-    return isDetail(substrate)
-      ? SubstrateMapper.mapDetail(substrate)
-      : SubstrateMapper.mapListItem(substrate);
-  }
-
-  /**
-   * Maps a single V2 APISubstrate to the frontend Substrate model.
-   */
-  static mapSubstrate(substrate: APISubstrate): Substrate {
-    return {
-      id: substrate.substrate_id,
-      userId: substrate.substrate_user_id,
-      name: substrate.substrate_name,
-      isPublic: substrate.is_public,
-      created_at: Utils.convertDateMillis(substrate.substrate_created_at),
-      imageUrl: substrate.image_url ?? undefined,
-      images: ImageMapper.convertToImages(substrate.images ?? []),
-      components: ComponentMapper.convertToSubstrateComponents(substrate.components ?? []),
-    };
-  }
-
-  /**
-   * Converts a V2 API response (single item or array) to Substrate[].
-   */
-  static convertToSubstrates(response: APISubstrate | APISubstrate[]): Substrate[] {
-    return Array.isArray(response)
-      ? response.map((s) => this.mapSubstrate(s))
-      : [this.mapSubstrate(response)];
   }
 }

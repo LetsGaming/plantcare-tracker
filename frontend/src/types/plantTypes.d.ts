@@ -13,24 +13,6 @@
 //       not a full SubstrateData object. The full substrate must be fetched separately.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Frontend model for a plant entity */
-interface Plant {
-  id: number;
-  userId: number;
-  name: string;
-  /** Null when the plant has no species; views print a localized label instead. */
-  species: string | null;
-  /** The species, or empty when there is none */
-  description: string;
-  isPublic: boolean;
-  /** ISO date converted to local display format by mapper */
-  created_at: string;
-  imageUrl?: string;
-  /** Lightweight substrate reference; may be null if plant has no substrate */
-  substrate: PlantSubstrateRef | null;
-  images: Image[];
-}
-
 /**
  * Lightweight substrate reference embedded in plant responses.
  * V2 returns only { substrate_id, substrate_name } — not the full Substrate.
@@ -58,30 +40,6 @@ interface EditPlant {
 }
 
 // ── V2 API shapes ─────────────────────────────────────────────────────────────
-
-/**
- * Raw plant object as returned by the V2 API.
- * Matches PlantData from backend src-v2/modules/plants/domain/Plant.ts
- */
-interface APIPlant {
-  plant_id: number;
-  plant_user_id: number;
-  plant_name: string;
-  plant_species: string | null;
-  /** V2 returns boolean (not 0/1) */
-  is_public: boolean;
-  plant_created_at: number;
-  image_url: string | null;
-  /** Lightweight reference — not a full SubstrateData; null if unassigned */
-  substrate: APISubstrateRef | null;
-  images: APIImage[];
-}
-
-/** Lightweight substrate reference embedded in plant API responses */
-interface APISubstrateRef {
-  substrate_id: number;
-  substrate_name: string;
-}
 
 /** One item of GET /plants (envelope); `created_at` in epoch ms. */
 interface APIPlantListItem {

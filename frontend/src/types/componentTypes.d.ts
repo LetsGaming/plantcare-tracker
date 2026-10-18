@@ -45,17 +45,6 @@ interface EditComponent {
 
 // ── V2 API shapes ─────────────────────────────────────────────────────────────
 
-/** Raw component object as returned by GET /components and GET /components/component/:id */
-interface APIComponent {
-  component_id: number;
-  component_name: string;
-  fineness_id: number;
-  /** Resolved fineness label (e.g. "Fine") — previously component_fineness in V1 */
-  component_fineness: string;
-  image_url: string | null;
-  images: APIImage[];
-}
-
 /**
  * A component reference embedded inside a substrate response.
  * V2 SubstrateData.components — no separate `component_description` field.

@@ -35,11 +35,6 @@ interface APIImageDTO extends APIImage {
   placeholder: string | null;
 }
 
-/** Image list and image PATCH responses also name the owning entity. */
-interface APIEntityImageDTO extends APIImageDTO {
-  entityType: EntityType;
-}
-
 /** Frozen frontend image; dates are epoch milliseconds everywhere in the app. */
 interface ImageView {
   readonly id: number;

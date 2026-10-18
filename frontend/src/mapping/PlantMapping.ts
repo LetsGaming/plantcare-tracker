@@ -7,13 +7,11 @@
  * user_id, is_public, created_at (epoch ms), species_name, substrate
  * (SubstrateRef or null), cover, image_count and watering (owner only).
  * Details (GET /plants/:id, POST/PATCH): APIPlantDetail adds images.
- * The legacy APIPlant mappers below serve the remaining pre-envelope callers.
  *
  * The substrate is a lightweight reference; load the full substrate when needed.
  */
-import ImageMapper, { toCoverView, toImageViews } from "./ImageMapping";
+import { toCoverView, toImageViews } from "./ImageMapping";
 import WateringMapper from "./WateringMapping";
-import Utils from "@/utils/utils";
 
 const toPlantView = (plant: APIPlantListItem, images?: readonly APIImageDTO[]): PlantView => {
   const view: PlantView = {
@@ -45,10 +43,6 @@ export default class PlantMapper {
     return toPlantView(plant);
   }
 
-  static mapListItems(plants: readonly APIPlantListItem[]): PlantView[] {
-    return plants.map((plant) => toPlantView(plant));
-  }
-
   static mapDetail(plant: APIPlantDetail): PlantView {
     return toPlantView(plant, plant.images ?? []);
   }
@@ -56,37 +50,5 @@ export default class PlantMapper {
   /** The same plant with another watering summary (from a watering write response). */
   static withWatering(plant: PlantView, watering: WateringSummary | null): PlantView {
     return Object.freeze({ ...plant, watering });
-  }
-
-  /**
-   * Maps a single V2 APIPlant to the frontend Plant model.
-   *
-   * Species is used as the description fallback since V2 does not
-   * include a separate plant_description field.
-   */
-  static mapPlant(plant: APIPlant): Plant {
-    return {
-      id: plant.plant_id,
-      userId: plant.plant_user_id,
-      name: plant.plant_name,
-      species: plant.plant_species,
-      description: plant.plant_species ?? "",
-      isPublic: plant.is_public,
-      created_at: Utils.convertDateMillis(plant.plant_created_at),
-      imageUrl: plant.image_url ?? undefined,
-      substrate: plant.substrate
-        ? { id: plant.substrate.substrate_id, name: plant.substrate.substrate_name }
-        : null,
-      images: ImageMapper.convertToImages(plant.images ?? []),
-    };
-  }
-
-  /**
-   * Converts a V2 API response (single item or array) to Plant[].
-   */
-  static convertToPlants(response: APIPlant | APIPlant[]): Plant[] {
-    return Array.isArray(response)
-      ? response.map((p) => this.mapPlant(p))
-      : [this.mapPlant(response)];
   }
 }

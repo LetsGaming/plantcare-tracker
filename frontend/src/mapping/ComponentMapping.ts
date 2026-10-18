@@ -8,7 +8,6 @@
  * Components embedded in a substrate (APISubstrateComponent: component_id,
  * component_name, component_fineness, component_parts) carry no fineness id;
  * the fineness name doubles as the description.
- * The legacy APIComponent mappers below serve the remaining pre-envelope callers.
  */
 import { toCoverView, toImageViews } from "./ImageMapping";
 
@@ -36,10 +35,6 @@ export default class ComponentMapper {
     return toComponentView(component);
   }
 
-  static mapListItems(components: readonly APIComponentListItem[]): ComponentView[] {
-    return components.map((component) => toComponentView(component));
-  }
-
   static mapDetail(component: APIComponentDetail): ComponentView {
     return toComponentView(component, component.images ?? []);
   }
@@ -58,55 +53,5 @@ export default class ComponentMapper {
         component.component_fineness,
       ),
     });
-  }
-
-  /**
-   * Maps a single V2 APIComponent to the frontend Component model.
-   */
-  static mapComponent(component: APIComponent): Component {
-    return {
-      id: component.component_id,
-      name: component.component_name,
-      finenessId: component.fineness_id,
-      fineness: component.component_fineness,
-      imageUrl: component.image_url ?? undefined,
-    };
-  }
-
-  /**
-   * Maps a V2 APISubstrateComponent (lightweight ComponentRef) to the
-   * frontend SubstrateComponent model.
-   *
-   * component_fineness serves as the description; there is no separate
-   * component_description field.
-   */
-  static mapSubstrateComponent(component: APISubstrateComponent): SubstrateComponent {
-    return {
-      id: component.component_id,
-      name: component.component_name,
-      fineness: component.component_fineness,
-      description: component.component_fineness,
-      parts: component.component_parts,
-    };
-  }
-
-  /**
-   * Converts a V2 API response (single item or array) to Component[].
-   */
-  static convertToComponents(response: APIComponent | APIComponent[]): Component[] {
-    return Array.isArray(response)
-      ? response.map((c) => this.mapComponent(c))
-      : [this.mapComponent(response)];
-  }
-
-  /**
-   * Converts a V2 substrate components array to SubstrateComponent[].
-   */
-  static convertToSubstrateComponents(
-    response: APISubstrateComponent | APISubstrateComponent[],
-  ): SubstrateComponent[] {
-    return Array.isArray(response)
-      ? response.map((c) => this.mapSubstrateComponent(c))
-      : [this.mapSubstrateComponent(response)];
   }
 }

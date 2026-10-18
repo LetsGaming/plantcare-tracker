@@ -20,9 +20,6 @@ export interface NotModified {
   readonly notModified: true;
 }
 
-export const isNotModified = (value: unknown): value is NotModified =>
-  typeof value === "object" && value !== null && (value as NotModified).notModified === true;
-
 const NOT_MODIFIED: NotModified = Object.freeze({ notModified: true as const });
 
 export interface GetOptions {
@@ -30,8 +27,7 @@ export interface GetOptions {
    * Sends If-None-Match from the last response for this exact URL (path plus
    * query) and resolves `NotModified` on 304. Opt in only when the caller
    * keeps its own copy of the last 200 body for that URL: the transport stores
-   * the ETag, never the body. A caller that drops its copy must call
-   * `forgetEtag(url)` so the next request gets a full response.
+   * the ETag, never the body.
    */
   conditional?: boolean;
 }
@@ -43,11 +39,6 @@ const rememberEtag = (url: string, etag: string): void => {
   etags.delete(url);
   etags.set(url, etag);
   if (etags.size > ETAG_CAPACITY) etags.delete(etags.keys().next().value as string);
-};
-
-/** Drops the stored ETag for `url` (endpoint plus query, as passed to `get`). */
-export const forgetEtag = (url: string): void => {
-  etags.delete(url);
 };
 
 epoch.onAbortAll(() => etags.clear());
@@ -377,32 +368,6 @@ function get<T>(
   return performRequest<T>({ method: "GET", endpoint, signal, conditional: options?.conditional });
 }
 
-function getWithParams<T extends Record<string, any>, R>(
-  endpoint: string,
-  params: T,
-  signal?: AbortSignal,
-): Promise<R>;
-function getWithParams<T extends Record<string, any>, R>(
-  endpoint: string,
-  params: T,
-  signal: AbortSignal | undefined,
-  options: GetOptions & { conditional: true },
-): Promise<R | NotModified>;
-function getWithParams<T extends Record<string, any>, R>(
-  endpoint: string,
-  params: T,
-  signal?: AbortSignal,
-  options?: GetOptions,
-): Promise<R | NotModified> {
-  const query = new URLSearchParams(params).toString();
-  return performRequest<R>({
-    method: "GET",
-    endpoint: `${endpoint}${query ? `?${query}` : ""}`,
-    signal,
-    conditional: options?.conditional,
-  });
-}
-
 /**
  * Global API Utility Service.
  * Provides a type-safe interface for RESTful communication and SSE streaming.
@@ -418,7 +383,6 @@ const ApiUtils = {
 
   ensureFresh,
   get,
-  getWithParams,
 
   post<T, R>(endpoint: string, data?: T): Promise<R> {
     return performRequest<R>({ method: "POST", endpoint, data });
