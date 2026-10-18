@@ -306,10 +306,9 @@ describe('SQLiteWateringRepository', () => {
 describe('SQLiteSubstrateRepository', () => {
   it('collapses components and images and rounds parts to two decimals', async () => {
     const userId = await newUser();
-    const substrateId = await substrates.create('Mix', userId, true);
     const perlite = await components.create('Perlite', 1);
     const coir = await components.create('Coco', 3);
-    await substrates.addComponents(substrateId, [
+    const substrateId = await substrates.create('Mix', userId, true, [
       { componentId: perlite, parts: 2.345 },
       { componentId: coir, parts: 3 },
     ]);
@@ -324,40 +323,26 @@ describe('SQLiteSubstrateRepository', () => {
     expect(substrate?.images).toHaveLength(2);
   });
 
-  it('rejects a duplicate component and rolls the whole batch back', async () => {
+  it('replaces the whole mix on update and refuses a foreign owner', async () => {
     const userId = await newUser();
-    const substrateId = await substrates.create('Mix', userId, false);
     const a = await components.create('A', 1);
     const b = await components.create('B', 1);
-    await substrates.addComponents(substrateId, [{ componentId: a, parts: 1 }]);
-
-    await expect(
-      substrates.addComponents(substrateId, [
-        { componentId: b, parts: 1 },
-        { componentId: a, parts: 1 },
-      ]),
-    ).rejects.toMatchObject({ code: 'SQLITE_CONSTRAINT_PRIMARYKEY' });
-    expect((await substrates.findById(substrateId))?.components).toHaveLength(1);
-  });
-
-  it('replaces the mix and deletes components', async () => {
-    const userId = await newUser();
-    const substrateId = await substrates.create('Mix', userId, false);
-    const a = await components.create('A', 1);
-    const b = await components.create('B', 1);
-    await substrates.addComponents(substrateId, [{ componentId: a, parts: 1 }]);
+    const substrateId = await substrates.create('Mix', userId, false, [
+      { componentId: a, parts: 1 },
+    ]);
     expect(
-      await substrates.replaceComponents(substrateId, userId, [
-        { componentId: a, parts: 4 },
-        { componentId: b, parts: 2 },
-      ]),
+      await substrates.update(substrateId, userId, {
+        components: [
+          { componentId: a, parts: 4 },
+          { componentId: b, parts: 2 },
+        ],
+      }),
     ).toBe(true);
-    expect(await substrates.replaceComponents(substrateId, userId + 999, [])).toBe(false);
+    expect(await substrates.update(substrateId, userId + 999, { components: [] })).toBe(false);
     let substrate = await substrates.findById(substrateId);
     expect(substrate?.components.find((c) => c.component_id === a)?.component_parts).toBe(4);
 
-    await substrates.deleteComponents(substrateId, []);
-    await substrates.deleteComponents(substrateId, [a]);
+    await substrates.update(substrateId, userId, { components: [{ componentId: b, parts: 1 }] });
     substrate = await substrates.findById(substrateId);
     expect(substrate?.components.map((c) => c.component_id)).toEqual([b]);
   });

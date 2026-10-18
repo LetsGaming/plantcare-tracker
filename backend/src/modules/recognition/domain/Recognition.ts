@@ -32,8 +32,6 @@ export interface EmbeddingRepository {
   plantImagesMissing(model: string, limit?: number, afterId?: number): Promise<MissingImage[]>;
   anyMissing(model: string): Promise<boolean>;
   countMissing(model: string): Promise<number>;
-  /** Deletes at most `limit` vectors whose image row is gone and returns how many. */
-  purgeOrphans(limit?: number): Promise<number>;
 }
 
 export interface PendingSnapshot {

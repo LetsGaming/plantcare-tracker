@@ -17,8 +17,6 @@ import {
   GetSubstrateUseCase,
   CreateSubstrateUseCase,
   UpdateSubstrateUseCase,
-  AddSubstrateComponentsUseCase,
-  ReplaceSubstrateComponentsUseCase,
   DeleteSubstrateUseCase,
 } from '../../../src/modules/substrate/application/SubstrateUseCases';
 import { NotFoundError, ValidationError, InternalError } from '../../../src/core/errors';
@@ -41,9 +39,6 @@ const makeMockRepo = (): SubstrateRepository => ({
   findById: vi.fn().mockResolvedValue(null),
   create: vi.fn().mockResolvedValue(1),
   update: vi.fn().mockResolvedValue(true),
-  addComponents: vi.fn().mockResolvedValue(undefined),
-  replaceComponents: vi.fn().mockResolvedValue(true),
-  deleteComponents: vi.fn().mockResolvedValue(undefined),
   delete: vi.fn().mockResolvedValue(true),
 });
 
@@ -149,7 +144,6 @@ describe('CreateSubstrateUseCase', () => {
     );
 
     expect(repo.create).toHaveBeenCalledWith('Mix', 2, false, [{ componentId: 3, parts: 2 }]);
-    expect(repo.addComponents).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate components and non-positive parts on create', async () => {
@@ -206,13 +200,6 @@ describe('UpdateSubstrateUseCase', () => {
     expect(repo.update).not.toHaveBeenCalled();
   });
 
-  it('rejects components together with removedComponents', async () => {
-    const repo = makeMockRepo();
-    await expect(
-      new UpdateSubstrateUseCase(repo).execute(1, 2, { components: [], removedComponents: [3] }),
-    ).rejects.toThrow(ValidationError);
-  });
-
   it('updates fields and the replacement mix in one repository call', async () => {
     const repo = makeMockRepo();
     asMock(repo.findById).mockResolvedValue(makeSubstrate());
@@ -227,7 +214,6 @@ describe('UpdateSubstrateUseCase', () => {
       name: 'Renamed',
       components: [{ componentId: 3, parts: 1.5 }],
     });
-    expect(repo.replaceComponents).not.toHaveBeenCalled();
   });
 
   it('accepts an empty components list as a clear and rejects a null one', async () => {
@@ -246,59 +232,6 @@ describe('UpdateSubstrateUseCase', () => {
     ).rejects.toThrow(ValidationError);
     expect(repo.update).not.toHaveBeenCalled();
   });
-
-  it('removes components without a field update when only removedComponents is set', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate());
-
-    await new UpdateSubstrateUseCase(repo).execute(1, 2, { removedComponents: [3, 4] });
-
-    expect(repo.update).toHaveBeenCalledWith(1, 2, { removedComponents: [3, 4] });
-  });
-});
-
-// ── Add/Upsert components ─────────────────────────────────────────────────────
-
-describe('AddSubstrateComponentsUseCase', () => {
-  it('accepts an index-keyed components object (ensureArray normalisation)', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate());
-
-    // Some form serializers send arrays as index-keyed objects —
-    // ensureArray turns { 0: {...} } into [{...}] via Object.values.
-    await new AddSubstrateComponentsUseCase(repo).execute(1, 2, {
-      components: { 0: { componentId: 3, parts: '2' } },
-    });
-
-    expect(repo.addComponents).toHaveBeenCalledWith(1, [{ componentId: 3, parts: 2 }]);
-  });
-
-  it('throws ValidationError for an empty components payload', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate());
-    await expect(
-      new AddSubstrateComponentsUseCase(repo).execute(1, 2, { components: [] }),
-    ).rejects.toThrow(ValidationError);
-  });
-
-  it('answers a foreign substrate with NotFoundError before parsing', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate({ substrate_user_id: 99 }));
-    await expect(
-      new AddSubstrateComponentsUseCase(repo).execute(1, 2, { components: [] }),
-    ).rejects.toThrow(NotFoundError);
-    expect(repo.addComponents).not.toHaveBeenCalled();
-  });
-
-  it.each([0, -1])('rejects parts %s with ValidationError', async (parts) => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate());
-    await expect(
-      new AddSubstrateComponentsUseCase(repo).execute(1, 2, {
-        components: [{ componentId: 3, parts }],
-      }),
-    ).rejects.toThrow(ValidationError);
-  });
 });
 
 const mix = (count: number) =>
@@ -311,8 +244,6 @@ describe('component list cap', () => {
 
     await new CreateSubstrateUseCase(repo).execute({ name: 'x', components: mix(100) }, 2);
     await new UpdateSubstrateUseCase(repo).execute(1, 2, { components: mix(100) });
-    await new AddSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(100) });
-    await new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(100) });
 
     await expect(
       new CreateSubstrateUseCase(repo).execute({ name: 'x', components: mix(101) }, 2),
@@ -320,71 +251,10 @@ describe('component list cap', () => {
     await expect(
       new UpdateSubstrateUseCase(repo).execute(1, 2, { components: mix(101) }),
     ).rejects.toThrow(ValidationError);
-    await expect(
-      new AddSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(101) }),
-    ).rejects.toThrow(ValidationError);
-    await expect(
-      new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, { components: mix(101) }),
-    ).rejects.toThrow(ValidationError);
   });
 });
 
-describe('ReplaceSubstrateComponentsUseCase', () => {
-  it('replaces with the parsed list and returns the read-back substrate', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate());
-
-    const result = await new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, {
-      components: [{ componentId: 3, parts: 1 }],
-    });
-
-    expect(repo.replaceComponents).toHaveBeenCalledWith(1, 2, [{ componentId: 3, parts: 1 }]);
-    expect(result.substrate_id).toBe(1);
-  });
-
-  it('accepts an empty list to clear the mix', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.findById).mockResolvedValue(makeSubstrate());
-    await new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, { components: [] });
-    expect(repo.replaceComponents).toHaveBeenCalledWith(1, 2, []);
-  });
-
-  it.each([0, -1])('rejects parts %s without touching the repository', async (parts) => {
-    const repo = makeMockRepo();
-    await expect(
-      new ReplaceSubstrateComponentsUseCase(repo).execute(1, 2, {
-        components: [{ componentId: 3, parts }],
-      }),
-    ).rejects.toThrow(ValidationError);
-    expect(repo.replaceComponents).not.toHaveBeenCalled();
-  });
-
-  it('rejects a missing components field and duplicate ids without touching the repository', async () => {
-    const repo = makeMockRepo();
-    const useCase = new ReplaceSubstrateComponentsUseCase(repo);
-    await expect(useCase.execute(1, 2, {})).rejects.toThrow(ValidationError);
-    await expect(
-      useCase.execute(1, 2, {
-        components: [
-          { componentId: 3, parts: 1 },
-          { componentId: 3, parts: 2 },
-        ],
-      }),
-    ).rejects.toThrow(ValidationError);
-    expect(repo.replaceComponents).not.toHaveBeenCalled();
-  });
-
-  it('answers NotFoundError when the repository reports the substrate is not owned', async () => {
-    const repo = makeMockRepo();
-    asMock(repo.replaceComponents).mockResolvedValue(false);
-    await expect(
-      new ReplaceSubstrateComponentsUseCase(repo).execute(1, 9, { components: [] }),
-    ).rejects.toThrow(NotFoundError);
-    expect(repo.findById).not.toHaveBeenCalled();
-  });
-});
-
-describe('SQLiteSubstrateRepository.replaceComponents', () => {
+describe('SQLiteSubstrateRepository mix replacement', () => {
   type Repo =
     import('../../../src/modules/substrate/infrastructure/SQLiteSubstrateRepository').SQLiteSubstrateRepository;
   let repo: Repo;
@@ -423,40 +293,44 @@ describe('SQLiteSubstrateRepository.replaceComponents', () => {
 
   it('deletes rows missing from the list, updates parts and inserts new rows', async () => {
     const id = await repo.create('Mix', ownerId, false);
-    await repo.addComponents(id, [
-      { componentId: compIds[0], parts: 1 },
-      { componentId: compIds[1], parts: 1 },
-    ]);
+    await repo.update(id, ownerId, {
+      components: [
+        { componentId: compIds[0], parts: 1 },
+        { componentId: compIds[1], parts: 1 },
+      ],
+    });
 
     expect(
-      await repo.replaceComponents(id, ownerId, [
-        { componentId: compIds[1], parts: 3 },
-        { componentId: compIds[2], parts: 2 },
-      ]),
+      await repo.update(id, ownerId, {
+        components: [
+          { componentId: compIds[1], parts: 3 },
+          { componentId: compIds[2], parts: 2 },
+        ],
+      }),
     ).toBe(true);
     expect(await mix(id)).toEqual({ [compIds[1]]: 3, [compIds[2]]: 2 });
   });
 
   it('deletes every row for an empty list', async () => {
     const id = await repo.create('Mix', ownerId, false);
-    await repo.addComponents(id, [{ componentId: compIds[0], parts: 1 }]);
-    expect(await repo.replaceComponents(id, ownerId, [])).toBe(true);
+    await repo.update(id, ownerId, { components: [{ componentId: compIds[0], parts: 1 }] });
+    expect(await repo.update(id, ownerId, { components: [] })).toBe(true);
     expect(await mix(id)).toEqual({});
   });
 
   it('changes nothing and returns false for a substrate owned by someone else', async () => {
     const id = await repo.create('Mix', ownerId, false);
-    await repo.addComponents(id, [{ componentId: compIds[0], parts: 1 }]);
-    expect(await repo.replaceComponents(id, otherId, [])).toBe(false);
+    await repo.update(id, ownerId, { components: [{ componentId: compIds[0], parts: 1 }] });
+    expect(await repo.update(id, otherId, { components: [] })).toBe(false);
     expect(await mix(id)).toEqual({ [compIds[0]]: 1 });
   });
 
   it('leaves other substrates untouched', async () => {
     const a = await repo.create('A', ownerId, false);
     const b = await repo.create('B', ownerId, false);
-    await repo.addComponents(a, [{ componentId: compIds[0], parts: 1 }]);
-    await repo.addComponents(b, [{ componentId: compIds[0], parts: 5 }]);
-    await repo.replaceComponents(a, ownerId, []);
+    await repo.update(a, ownerId, { components: [{ componentId: compIds[0], parts: 1 }] });
+    await repo.update(b, ownerId, { components: [{ componentId: compIds[0], parts: 5 }] });
+    await repo.update(a, ownerId, { components: [] });
     expect(await mix(b)).toEqual({ [compIds[0]]: 5 });
   });
 });

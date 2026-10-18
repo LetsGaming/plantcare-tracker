@@ -13,7 +13,6 @@ import {
 export { invalidateVectors } from './vectorCache';
 
 const DEFAULT_BATCH = 50;
-const DEFAULT_PURGE_LIMIT = 200;
 
 const toBlob = (v: Float32Array): Buffer => Buffer.from(v.buffer, v.byteOffset, v.byteLength);
 const fromBlob = (b: Buffer): Float32Array =>
@@ -112,16 +111,5 @@ export class SQLiteEmbeddingRepository implements EmbeddingRepository {
       .select((eb) => eb.fn.countAll<number>().as('n'))
       .executeTakeFirst();
     return Number(row?.n ?? 0);
-  }
-
-  async purgeOrphans(limit = DEFAULT_PURGE_LIMIT): Promise<number> {
-    const result = await sql`
-      DELETE FROM image_embeddings WHERE image_id IN (
-        SELECT e.image_id FROM image_embeddings e
-        LEFT JOIN images i ON i.id = e.image_id
-        WHERE i.id IS NULL
-        LIMIT ${limit}
-      )`.execute(getKysely());
-    return Number(result.numAffectedRows ?? 0);
   }
 }

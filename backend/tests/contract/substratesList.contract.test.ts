@@ -290,7 +290,7 @@ describe('one-request writes', () => {
     ]);
   });
 
-  it('removes a component with removedComponents and clears the mix with an empty replace', async () => {
+  it('replaces the mix with a shorter list and clears it with an empty replace', async () => {
     const owner = await app.signIn('user');
     const id = await mkSubstrate(owner, 'edit-mix', {
       components: comps.map((c) => ({ componentId: c.id, parts: 1 })),
@@ -299,7 +299,9 @@ describe('one-request writes', () => {
       method: 'patch',
       url: `${API}/substrates/${id}`,
       headers: owner.auth,
-      json: { removedComponents: [comps[1].id] },
+      json: {
+        components: [comps[0], comps[2]].map((c) => ({ componentId: c.id, parts: 1 })),
+      },
     });
     expect(removed.status).toBe(200);
     expect(
@@ -386,14 +388,7 @@ describe('one-request writes', () => {
     const attempts = [
       ['patch', `${API}/substrates/${id}`, { name: 'hijack' }],
       ['patch', `${API}/substrates/${id}`, { components: [] }],
-      ['patch', `${API}/substrates/${id}`, { removedComponents: [comps[0].id] }],
       ['delete', `${API}/substrates/${id}`, undefined],
-      [
-        'post',
-        `${API}/substrates/${id}/components`,
-        { components: [{ componentId: comps[1].id, parts: 1 }] },
-      ],
-      ['patch', `${API}/substrates/${id}/components`, { components: [] }],
     ] as const;
     for (const [method, url, json] of attempts) {
       const res = await app.client.request({ method, url, headers: intruder.auth, json });
@@ -414,12 +409,6 @@ describe('one-request writes', () => {
       ['post', `${API}/substrates`, { name: 'guest-made' }],
       ['patch', `${API}/substrates/${id}`, { name: 'x' }],
       ['delete', `${API}/substrates/${id}`, undefined],
-      [
-        'post',
-        `${API}/substrates/${id}/components`,
-        { components: [{ componentId: comps[0].id, parts: 1 }] },
-      ],
-      ['patch', `${API}/substrates/${id}/components`, { components: [] }],
     ] as const;
     for (const [method, url, json] of attempts) {
       const res = await app.client.request({ method, url, headers: guest.auth, json });

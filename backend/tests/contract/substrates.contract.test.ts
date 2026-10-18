@@ -286,18 +286,25 @@ describe('GET /substrates', () => {
   });
 });
 
+const setMix = (auth: Record<string, string>, substrateId: number, components: unknown) =>
+  app.client.request({
+    method: 'patch',
+    url: `${API}/substrates/${substrateId}`,
+    headers: auth,
+    json: { components },
+  });
+
+const partsOf = (components: { component_id: number; component_parts: number }[]) =>
+  Object.fromEntries(components.map((c) => [c.component_id, c.component_parts]));
+
 describe('component composition', () => {
-  it('adds components with 201 and rounds parts to two decimals', async () => {
+  it('rounds parts to two decimals', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const res = await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: owner.auth,
-      json: { components: [{ componentId: componentA.id, parts: 2.456 }] },
-    });
-    expect(res.status).toBe(201);
-    expect(res.headers.location).toBe(`/substrates/${substrate.substrate_id}`);
+    const res = await setMix(owner.auth, substrate.substrate_id, [
+      { componentId: componentA.id, parts: 2.456 },
+    ]);
+    expect(res.status).toBe(200);
     expect(res.body.data.components).toEqual([
       {
         component_id: componentA.id,
@@ -311,101 +318,58 @@ describe('component composition', () => {
   it('accepts an index-keyed object as produced by form serializers', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const res = await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: owner.auth,
-      json: {
-        components: {
-          0: { componentId: componentA.id, parts: 1 },
-          1: { componentId: componentB.id, parts: 2 },
-        },
-      },
+    const res = await setMix(owner.auth, substrate.substrate_id, {
+      0: { componentId: componentA.id, parts: 1 },
+      1: { componentId: componentB.id, parts: 2 },
     });
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.data.components).toHaveLength(2);
   });
 
   it('rejects a bare component object with 400', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const res = await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: owner.auth,
-      json: { components: { componentId: componentA.id, parts: 1 } },
+    const res = await setMix(owner.auth, substrate.substrate_id, {
+      componentId: componentA.id,
+      parts: 1,
     });
     expect(res.status).toBe(400);
   });
 
-  it('upserts components idempotently with PATCH', async () => {
+  it('replaces the mix idempotently', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: { components: [{ componentId: componentA.id, parts: 1 }] },
-    });
-    const res = await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: {
-        components: [
-          { componentId: componentA.id, parts: 3 },
-          { componentId: componentB.id, parts: 1 },
-        ],
-      },
-    });
+    await setMix(owner.auth, substrate.substrate_id, [{ componentId: componentA.id, parts: 1 }]);
+    const next = [
+      { componentId: componentA.id, parts: 3 },
+      { componentId: componentB.id, parts: 1 },
+    ];
+    const res = await setMix(owner.auth, substrate.substrate_id, next);
+    const again = await setMix(owner.auth, substrate.substrate_id, next);
     expect(res.status).toBe(200);
-    const parts = Object.fromEntries(
-      res.body.data.components.map((c: { component_id: number; component_parts: number }) => [
-        c.component_id,
-        c.component_parts,
-      ]),
-    );
-    expect(parts).toEqual({ [componentA.id]: 3, [componentB.id]: 1 });
+    expect(partsOf(res.body.data.components)).toEqual({ [componentA.id]: 3, [componentB.id]: 1 });
+    expect(again.body.data.components).toEqual(res.body.data.components);
   });
 
   it('removes an unticked component when PATCH sends the shorter list', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    await app.client.request({
-      method: 'post',
-      url,
-      headers: owner.auth,
-      json: {
-        components: [componentA, componentB, componentC].map((c) => ({
-          componentId: c.id,
-          parts: 1,
-        })),
-      },
-    });
-    const res = await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: {
-        components: [
-          { componentId: componentA.id, parts: 2 },
-          { componentId: componentC.id, parts: 1 },
-        ],
-      },
-    });
+    await setMix(
+      owner.auth,
+      substrate.substrate_id,
+      [componentA, componentB, componentC].map((c) => ({ componentId: c.id, parts: 1 })),
+    );
+    const res = await setMix(owner.auth, substrate.substrate_id, [
+      { componentId: componentA.id, parts: 2 },
+      { componentId: componentC.id, parts: 1 },
+    ]);
     expect(res.status).toBe(200);
     const read = await app.client.request({
       method: 'get',
       url: `${API}/substrates/${substrate.substrate_id}`,
       headers: owner.auth,
     });
-    const mix = read.body.data.components.map(
-      (c: { component_id: number; component_parts: number }) => [c.component_id, c.component_parts],
-    );
-    expect(mix).toHaveLength(2);
-    expect(Object.fromEntries(mix)).toEqual({
+    expect(partsOf(read.body.data.components)).toEqual({
       [componentA.id]: 2,
       [componentC.id]: 1,
     });
@@ -414,51 +378,20 @@ describe('component composition', () => {
   it('clears the whole mix when PATCH sends an empty list', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    await app.client.request({
-      method: 'post',
-      url,
-      headers: owner.auth,
-      json: { components: [{ componentId: componentA.id, parts: 1 }] },
-    });
-    const res = await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: { components: [] },
-    });
+    await setMix(owner.auth, substrate.substrate_id, [{ componentId: componentA.id, parts: 1 }]);
+    const res = await setMix(owner.auth, substrate.substrate_id, []);
     expect(res.status).toBe(200);
     expect(res.body.data.components).toEqual([]);
   });
 
-  it('rejects PATCH without a components field or with duplicate components', async () => {
+  it('rejects duplicate components and keeps the mix', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    await app.client.request({
-      method: 'post',
-      url,
-      headers: owner.auth,
-      json: { components: [{ componentId: componentA.id, parts: 1 }] },
-    });
-    const missing = await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: {},
-    });
-    expect(missing.status).toBe(400);
-    const duplicate = await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: {
-        components: [
-          { componentId: componentA.id, parts: 1 },
-          { componentId: componentA.id, parts: 2 },
-        ],
-      },
-    });
+    await setMix(owner.auth, substrate.substrate_id, [{ componentId: componentA.id, parts: 1 }]);
+    const duplicate = await setMix(owner.auth, substrate.substrate_id, [
+      { componentId: componentA.id, parts: 1 },
+      { componentId: componentA.id, parts: 2 },
+    ]);
     expect(duplicate.status).toBe(400);
     const read = await app.client.request({
       method: 'get',
@@ -471,20 +404,9 @@ describe('component composition', () => {
   it("answers 404 and leaves the mix untouched when replacing someone else's components", async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    await app.client.request({
-      method: 'post',
-      url,
-      headers: owner.auth,
-      json: { components: [{ componentId: componentA.id, parts: 1 }] },
-    });
+    await setMix(owner.auth, substrate.substrate_id, [{ componentId: componentA.id, parts: 1 }]);
     const intruder = await app.signIn('user');
-    const res = await app.client.request({
-      method: 'patch',
-      url,
-      headers: intruder.auth,
-      json: { components: [] },
-    });
+    const res = await setMix(intruder.auth, substrate.substrate_id, []);
     expect(res.status).toBe(404);
     const read = await app.client.request({
       method: 'get',
@@ -498,40 +420,21 @@ describe('component composition', () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
     const guest = await app.signIn('guest');
-    const res = await app.client.request({
-      method: 'patch',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: guest.auth,
-      json: { components: [] },
-    });
+    const res = await setMix(guest.auth, substrate.substrate_id, []);
     expect(res.status).toBe(403);
   });
 
-  it('rejects an empty or invalid components payload with 400', async () => {
+  it('rejects an invalid components payload with 400', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    const empty = await app.client.request({
-      method: 'post',
-      url,
-      headers: owner.auth,
-      json: { components: [] },
-    });
-    expect(empty.status).toBe(400);
-    const bad = await app.client.request({
-      method: 'post',
-      url,
-      headers: owner.auth,
-      json: { components: [{ componentId: -1, parts: 0 }] },
-    });
+    const bad = await setMix(owner.auth, substrate.substrate_id, [{ componentId: -1, parts: 0 }]);
     expect(bad.status).toBe(400);
   });
 
-  it('rejects more than 100 components on create, add and replace with 400', async () => {
+  it('rejects more than 100 components on create and replace with 400', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
     const tooMany = Array.from({ length: 101 }, (_, i) => ({ componentId: i + 1, parts: 1 }));
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
     const created = await app.client.request({
       method: 'post',
       url: `${API}/substrates`,
@@ -539,34 +442,22 @@ describe('component composition', () => {
       json: { name: 'Too many', components: tooMany },
     });
     expect(created.status).toBe(400);
-    const added = await app.client.request({
-      method: 'post',
-      url,
-      headers: owner.auth,
-      json: { components: tooMany },
-    });
-    expect(added.status).toBe(400);
-    const replaced = await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: { components: tooMany },
-    });
+    const replaced = await setMix(owner.auth, substrate.substrate_id, tooMany);
     expect(replaced.status).toBe(400);
   });
 
-  it("answers 404 when adding components to someone else's substrate", async () => {
+  it('no longer serves the dedicated components routes', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    const intruder = await app.signIn('user');
-    const res = await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: intruder.auth,
-      json: { components: [{ componentId: componentA.id, parts: 1 }] },
-    });
-    expect(res.status).toBe(404);
-    expect(res.body.error.message).toBe('Substrate not found');
+    for (const method of ['post', 'patch'] as const) {
+      const res = await app.client.request({
+        method,
+        url: `${API}/substrates/${substrate.substrate_id}/components`,
+        headers: owner.auth,
+        json: { components: [] },
+      });
+      expect(res.status).toBe(404);
+    }
   });
 });
 
@@ -605,25 +496,22 @@ describe('GET /substrates/:id visibility', () => {
 });
 
 describe('PATCH /substrates/:id', () => {
-  it('updates name and visibility and removes components', async () => {
+  it('updates name and visibility and replaces the mix', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: owner.auth,
-      json: {
-        components: [
-          { componentId: componentA.id, parts: 1 },
-          { componentId: componentB.id, parts: 2 },
-        ],
-      },
-    });
+    await setMix(owner.auth, substrate.substrate_id, [
+      { componentId: componentA.id, parts: 1 },
+      { componentId: componentB.id, parts: 2 },
+    ]);
     const res = await app.client.request({
       method: 'patch',
       url: `${API}/substrates/${substrate.substrate_id}`,
       headers: owner.auth,
-      json: { name: 'Updated', isPublic: true, removedComponents: [componentA.id] },
+      json: {
+        name: 'Updated',
+        isPublic: true,
+        components: [{ componentId: componentB.id, parts: 2 }],
+      },
     });
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ substrate_name: 'Updated', is_public: true });
@@ -635,17 +523,11 @@ describe('PATCH /substrates/:id', () => {
   it('replaces the mix and edits the fields in one request', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
-    await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: owner.auth,
-      json: {
-        components: [componentA, componentB, componentC].map((c) => ({
-          componentId: c.id,
-          parts: 1,
-        })),
-      },
-    });
+    await setMix(
+      owner.auth,
+      substrate.substrate_id,
+      [componentA, componentB, componentC].map((c) => ({ componentId: c.id, parts: 1 })),
+    );
     const res = await app.client.request({
       method: 'patch',
       url: `${API}/substrates/${substrate.substrate_id}`,
@@ -673,22 +555,12 @@ describe('PATCH /substrates/:id', () => {
   it('answers an unknown component with 400 and keeps the name and the previous mix', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth, { name: 'Before' });
-    await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: owner.auth,
-      json: { components: [{ componentId: componentA.id, parts: 1 }] },
-    });
+    await setMix(owner.auth, substrate.substrate_id, [{ componentId: componentA.id, parts: 1 }]);
     for (const [method, url, json] of [
       [
         'patch',
         `${API}/substrates/${substrate.substrate_id}`,
         { name: 'After', components: [{ componentId: 424242, parts: 1 }] },
-      ],
-      [
-        'patch',
-        `${API}/substrates/${substrate.substrate_id}/components`,
-        { components: [{ componentId: 424242, parts: 1 }] },
       ],
     ] as const) {
       const res = await app.client.request({ method, url, headers: owner.auth, json });
@@ -705,7 +577,7 @@ describe('PATCH /substrates/:id', () => {
     ]);
   });
 
-  it('rejects duplicate components and components together with removedComponents', async () => {
+  it('rejects duplicate components', async () => {
     const owner = await app.signIn('user');
     const substrate = await createSubstrate(app, owner.auth);
     const url = `${API}/substrates/${substrate.substrate_id}`;
@@ -721,13 +593,6 @@ describe('PATCH /substrates/:id', () => {
       },
     });
     expect(duplicate.status).toBe(400);
-    const both = await app.client.request({
-      method: 'patch',
-      url,
-      headers: owner.auth,
-      json: { components: [], removedComponents: [componentA.id] },
-    });
-    expect(both.status).toBe(400);
   });
 
   it('rejects an empty update with 400 and a foreign substrate with 404', async () => {
@@ -795,28 +660,6 @@ describe('DELETE /substrates/:id', () => {
 });
 
 describe('constraint errors', () => {
-  it('answers a duplicate component with 409', async () => {
-    const owner = await app.signIn('user');
-    const substrate = await createSubstrate(app, owner.auth);
-    const url = `${API}/substrates/${substrate.substrate_id}/components`;
-    const body = { components: [{ componentId: componentA.id, parts: 1 }] };
-    await app.client.request({ method: 'post', url, headers: owner.auth, json: body });
-    const res = await app.client.request({ method: 'post', url, headers: owner.auth, json: body });
-    expect(res.status).toBe(409);
-  });
-
-  it('answers an unknown component id with 400', async () => {
-    const owner = await app.signIn('user');
-    const substrate = await createSubstrate(app, owner.auth);
-    const res = await app.client.request({
-      method: 'post',
-      url: `${API}/substrates/${substrate.substrate_id}/components`,
-      headers: owner.auth,
-      json: { components: [{ componentId: 424242, parts: 1 }] },
-    });
-    expect(res.status).toBe(400);
-  });
-
   it('rejects a substrate name over 100 characters', async () => {
     const owner = await app.signIn('user');
     const res = await app.client.request({

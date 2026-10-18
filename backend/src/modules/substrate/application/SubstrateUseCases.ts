@@ -28,11 +28,6 @@ const ComponentItemSchema = z.object({
 
 const MAX_COMPONENTS = 100;
 
-export const ComponentsSchema = z
-  .array(ComponentItemSchema)
-  .min(1, 'Components array is required')
-  .max(MAX_COMPONENTS);
-
 export const ReplaceComponentsSchema = z
   .array(ComponentItemSchema)
   .max(MAX_COMPONENTS)
@@ -51,21 +46,10 @@ export const UpdateSubstrateSchema = z
     name: z.string().min(1).max(100).optional(),
     isPublic: z.boolean().optional(),
     components: ReplaceComponentsSchema.optional(),
-    removedComponents: z.array(z.number().int()).optional(),
   })
-  .refine(
-    (d) =>
-      d.name !== undefined ||
-      d.isPublic !== undefined ||
-      d.components !== undefined ||
-      (d.removedComponents !== undefined && d.removedComponents.length > 0),
-    { message: 'At least one field must be provided for update' },
-  )
-  .refine((d) => d.components === undefined || d.removedComponents === undefined, {
-    message: 'Send either components or removedComponents, not both',
+  .refine((d) => d.name !== undefined || d.isPublic !== undefined || d.components !== undefined, {
+    message: 'At least one field must be provided for update',
   });
-
-export type SubstrateComponentInput = z.infer<typeof ComponentsSchema>[number];
 
 const LIST_SORTS = {
   created: { valueType: 'number', idType: 'number', direction: 'desc' },
@@ -80,24 +64,6 @@ function withComponentsArray(input: unknown): unknown {
   const body = input as Record<string, unknown>;
   if (body.components === undefined || body.components === null) return input;
   return { ...body, components: ensureArray(body.components) };
-}
-
-/** Extracts and validates the components payload from a request body. */
-function parseComponents(input: unknown): SubstrateComponentInput[] {
-  const body = (input ?? {}) as Record<string, unknown>;
-  const components = ensureArray(body.components);
-  return parseOrThrow(ComponentsSchema, components, 'Invalid components data');
-}
-
-/**
- * Like parseComponents, but an empty list is valid (it clears the mix) and a
- * missing `components` key is rejected so an absent field never wipes the mix.
- */
-function parseReplacementComponents(input: unknown): SubstrateComponentInput[] {
-  const body = (input ?? {}) as Record<string, unknown>;
-  const raw = body.components;
-  const components = raw === undefined || raw === null ? raw : ensureArray(raw);
-  return parseOrThrow(ReplaceComponentsSchema, components, 'Invalid components data');
 }
 
 function parseComponentFilter(raw: unknown): number | null {
@@ -205,38 +171,6 @@ export class UpdateSubstrateUseCase {
     const substrate = await this.repo.findById(id);
     if (!substrate) throw new NotFoundError('Substrate');
     return substrate;
-  }
-}
-
-export class AddSubstrateComponentsUseCase {
-  constructor(private readonly repo: SubstrateRepository) {}
-
-  async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
-    await loadOwnedSubstrate(this.repo, substrateId, userId);
-
-    const components = parseComponents(input);
-    await this.repo.addComponents(substrateId, components);
-
-    const updated = await this.repo.findById(substrateId);
-    if (!updated) throw new NotFoundError('Substrate');
-    return updated;
-  }
-}
-
-export class ReplaceSubstrateComponentsUseCase {
-  constructor(private readonly repo: SubstrateRepository) {}
-
-  async execute(substrateId: number, userId: number, input: unknown): Promise<SubstrateData> {
-    const components = parseReplacementComponents(input);
-
-    // Ownership is enforced inside the repository transaction; missing and
-    // foreign substrates are both answered as 404.
-    const replaced = await this.repo.replaceComponents(substrateId, userId, components);
-    if (!replaced) throw new NotFoundError('Substrate');
-
-    const updated = await this.repo.findById(substrateId);
-    if (!updated) throw new NotFoundError('Substrate');
-    return updated;
   }
 }
 

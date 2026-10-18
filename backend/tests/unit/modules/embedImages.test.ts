@@ -38,7 +38,7 @@ const setup = async ({ ids, noFile = [], embed, rescanDelayMs = 5 }: Options) =>
   }
   const embedded = new Set<number>();
   const saves: number[] = [];
-  const calls = { missing: [] as Array<[number, number]>, any: 0, count: 0, purge: 0 };
+  const calls = { missing: [] as Array<[number, number]>, any: 0, count: 0 };
   const repo: EmbeddingRepository = {
     save: async (imageId) => {
       embedded.add(imageId);
@@ -60,10 +60,6 @@ const setup = async ({ ids, noFile = [], embed, rescanDelayMs = 5 }: Options) =>
     countMissing: async () => {
       calls.count++;
       return ids.filter((id) => !embedded.has(id)).length;
-    },
-    purgeOrphans: async () => {
-      calls.purge++;
-      return 0;
     },
   };
   const embedder: Embedder = {
@@ -88,7 +84,6 @@ describe('EmbedImagesService', () => {
     embedded.add(2);
     expect(await service.backfill()).toBe(2);
     expect([...embedded].sort()).toEqual([1, 2, 3]);
-    expect(calls.purge).toBe(0);
     expect(log.info).toHaveBeenCalledWith({ embedded: 2 }, expect.any(String));
   });
 

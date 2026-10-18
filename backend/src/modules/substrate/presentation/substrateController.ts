@@ -17,8 +17,6 @@ import {
   GetSubstrateUseCase,
   CreateSubstrateUseCase,
   UpdateSubstrateUseCase,
-  AddSubstrateComponentsUseCase,
-  ReplaceSubstrateComponentsUseCase,
   DeleteSubstrateUseCase,
 } from '../application/SubstrateUseCases';
 import type { SubstrateRepository, SubstrateData, SubstrateListItem } from '../domain/Substrate';
@@ -47,8 +45,6 @@ export interface SubstrateController {
   getSubstrate: Handler;
   addSubstrate: Handler;
   editSubstrate: Handler;
-  addComponents: Handler;
-  replaceComponents: Handler;
   deleteSubstrate: Handler;
 }
 
@@ -60,8 +56,6 @@ export const createSubstrateController = (
   const getOne = new GetSubstrateUseCase(repo);
   const create = new CreateSubstrateUseCase(repo);
   const update = new UpdateSubstrateUseCase(repo);
-  const addComponents = new AddSubstrateComponentsUseCase(repo);
-  const replaceComponents = new ReplaceSubstrateComponentsUseCase(repo);
   const remove = new DeleteSubstrateUseCase(repo, imageCleanup);
 
   return {
@@ -91,29 +85,6 @@ export const createSubstrateController = (
 
     editSubstrate: async (req: FastifyRequest) => {
       const substrate = await update.execute(numericParam(req, 'id'), req.user!.id, req.body);
-      const body: SubstrateResponse = { data: substrate };
-      return body;
-    },
-
-    addComponents: async (req: FastifyRequest, reply: FastifyReply) => {
-      const substrate = await addComponents.execute(
-        numericParam(req, 'id'),
-        req.user!.id,
-        req.body,
-      );
-      const body: SubstrateResponse = { data: substrate };
-      return reply
-        .code(HTTP_STATUS.CREATED)
-        .header('Location', `/substrates/${substrate.substrate_id}`)
-        .send(body);
-    },
-
-    replaceComponents: async (req: FastifyRequest) => {
-      const substrate = await replaceComponents.execute(
-        numericParam(req, 'id'),
-        req.user!.id,
-        req.body,
-      );
       const body: SubstrateResponse = { data: substrate };
       return body;
     },

@@ -132,30 +132,6 @@ describe('SQLiteEmbeddingRepository', () => {
     expect(rows[0].n).toBe(0);
   });
 
-  it('purges at most the given number of vectors whose image row is gone', async () => {
-    const ids: number[] = [];
-    for (let i = 0; i < 3; i++) {
-      const { imageId } = await plantWithImage();
-      await repo.save(imageId, 'm1', Float32Array.from([1]));
-      ids.push(imageId);
-    }
-    app.db.execute('PRAGMA foreign_keys = OFF');
-    try {
-      for (const id of ids) app.db.execute('DELETE FROM images WHERE id = ?', [id]);
-    } finally {
-      app.db.execute('PRAGMA foreign_keys = ON');
-    }
-    const count = () =>
-      app.db.query<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM image_embeddings WHERE image_id IN (${ids.join(',')})`,
-      )[0].n;
-    expect(count()).toBe(3);
-    expect(await repo.purgeOrphans(2)).toBe(2);
-    expect(count()).toBe(1);
-    expect(await repo.purgeOrphans(2)).toBe(1);
-    expect(count()).toBe(0);
-  });
-
   it('pages the missing set by id and answers EXISTS without a scan result', async () => {
     const a = await plantWithImage();
     const b = await plantWithImage();

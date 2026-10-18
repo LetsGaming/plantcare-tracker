@@ -244,12 +244,6 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
 
         if (fields.components) {
           await replaceMix(trx, id, fields.components);
-        } else if (fields.removedComponents?.length) {
-          await trx
-            .deleteFrom('substrate_components')
-            .where('substrate_id', '=', id)
-            .where('component_id', 'in', fields.removedComponents)
-            .execute();
         }
         return true;
       });
@@ -262,52 +256,6 @@ export class SQLiteSubstrateRepository implements SubstrateRepository {
       .where('user_id', '=', userId)
       .executeTakeFirst();
     return Number(result.numDeletedRows) > 0;
-  }
-
-  async addComponents(substrateId: number, components: ComponentInput[]): Promise<void> {
-    await getKysely()
-      .transaction()
-      .execute(async (trx) => {
-        for (const { componentId, parts } of components) {
-          await trx
-            .insertInto('substrate_components')
-            .values({
-              substrate_id: substrateId,
-              component_id: componentId,
-              parts: roundParts(parts),
-            })
-            .execute();
-        }
-      });
-  }
-
-  async replaceComponents(
-    substrateId: number,
-    userId: number,
-    components: ComponentInput[],
-  ): Promise<boolean> {
-    return getKysely()
-      .transaction()
-      .execute(async (trx) => {
-        const owned = await trx
-          .selectFrom('substrates')
-          .select('id')
-          .where('id', '=', substrateId)
-          .where('user_id', '=', userId)
-          .executeTakeFirst();
-        if (!owned) return false;
-        await replaceMix(trx, substrateId, components);
-        return true;
-      });
-  }
-
-  async deleteComponents(substrateId: number, componentIds: number[]): Promise<void> {
-    if (!componentIds.length) return;
-    await getKysely()
-      .deleteFrom('substrate_components')
-      .where('substrate_id', '=', substrateId)
-      .where('component_id', 'in', componentIds)
-      .execute();
   }
 
   private async list(scope: Scope, params: SubstrateListParams): Promise<SubstratePage> {

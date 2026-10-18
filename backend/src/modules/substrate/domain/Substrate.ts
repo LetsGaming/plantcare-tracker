@@ -65,7 +65,6 @@ export interface SubstrateUpdateFields {
   isPublic?: boolean;
   /** Replaces the whole mix. */
   components?: ComponentInput[];
-  removedComponents?: number[];
 }
 
 /** Public substrates are visible to everyone, private ones only to their owner. */
@@ -85,13 +84,5 @@ export interface SubstrateRepository {
   ): Promise<number>;
   /** One transaction; false (nothing written) when the substrate is not owned by `userId`. */
   update(id: number, userId: number, fields: SubstrateUpdateFields): Promise<boolean>;
-  addComponents(substrateId: number, components: ComponentInput[]): Promise<void>;
-  /** Replaces the whole mix atomically; false when the substrate is not owned by `userId`. */
-  replaceComponents(
-    substrateId: number,
-    userId: number,
-    components: ComponentInput[],
-  ): Promise<boolean>;
-  deleteComponents(substrateId: number, componentIds: number[]): Promise<void>;
   delete(id: number, userId: number): Promise<boolean>;
 }
