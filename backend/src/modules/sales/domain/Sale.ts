@@ -58,6 +58,8 @@ interface SaleProps {
   sale_scraped_at: number;
 }
 
+const HTTP_LINK = new RegExp('^https?://', 'i');
+
 const isPrice = (value: number | null | undefined): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
@@ -94,11 +96,13 @@ export class Sale {
 
   /**
    * Builds a Sale from raw scraper output stamped with the fetch time of its
-   * page. Returns null without a link or without a positive finite new price.
+   * page. Returns null without an http(s) link or without a positive finite new price.
    * An invalid old price is dropped and the item stays.
    */
   static fromRaw(raw: RawSaleItem, seller: string, scrapedAt: number): Sale | null {
-    if (!raw.link || !isPrice(raw.newPrice) || raw.newPrice === 0) return null;
+    if (!raw.link || !HTTP_LINK.test(raw.link) || !isPrice(raw.newPrice) || raw.newPrice === 0) {
+      return null;
+    }
     const oldPrice = isPrice(raw.oldPrice) ? raw.oldPrice : null;
 
     return new Sale({

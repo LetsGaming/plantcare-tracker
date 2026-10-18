@@ -48,6 +48,13 @@ describe('Sale.fromRaw', () => {
     expect(Sale.fromRaw({ name: 'x', newPrice: 5 }, seller, SCRAPED_AT)).toBeNull();
   });
 
+  it.each(['javascript:alert(1)', 'data:text/html,x', 'ftp://shop.com/p', '/relative/path'])(
+    'returns null for the non-http(s) link %s',
+    (link) => {
+      expect(Sale.fromRaw({ name: 'x', link, newPrice: 5 }, seller, SCRAPED_AT)).toBeNull();
+    },
+  );
+
   it('returns null when newPrice is missing', () => {
     expect(Sale.fromRaw({ name: 'x', link: 'https://shop.com' }, seller, SCRAPED_AT)).toBeNull();
   });
