@@ -56,6 +56,14 @@ import {
   type PageNotModified,
   type PagedState,
 } from "./paged";
+import { tzOffsetMinutes } from "@/utils/localDate";
+import {
+  commitTracked,
+  journaled,
+  positionsOf,
+  replaying,
+  type ListEdit as JournalListEdit,
+} from "./journal";
 import { coalesced, epoch, isStale } from "./resource";
 
 const BASE_ENDPOINT = "/plants";
@@ -72,107 +80,7 @@ interface PlantLists {
   details: PlantView[];
 }
 
-type ListEdit = (list: readonly PlantView[]) => PlantView[] | null;
-
-/** Minutes east of UTC, the unit of the API's `tz_offset`. */
-const tzOffset = (): number => Math.round(-new Date().getTimezoneOffset());
-
-const sessionGuard = (): (() => boolean) => {
-  const started = epoch.current();
-  return () => !epoch.isStale(started);
-};
-
-type Journal = Map<number, PlantView | null>;
-
-const journals = new WeakMap<object, Set<Journal>>();
-
-/** Records what a local commit changed in every load of this list that is still in flight. */
-const recordChange = (
-  target: PagedState<PlantView>,
-  before: readonly PlantView[],
-  after: readonly PlantView[],
-): void => {
-  const open = journals.get(toRaw(target));
-  if (!open || open.size === 0 || before === after) return;
-  const was = idIndexOf(before);
-  const now = idIndexOf(after);
-  const changes: [number, PlantView | null][] = [];
-  for (const [id, item] of now) if (was.get(id) !== item) changes.push([id as number, item]);
-  for (const id of was.keys()) if (!now.has(id)) changes.push([id as number, null]);
-  for (const journal of open) for (const [id, item] of changes) journal.set(id, item);
-};
-
-/** Every local commit to a list goes through here so a load in flight can be reconciled afterwards. */
-const setItems = (target: PagedState<PlantView>, next: PlantView[]): void => {
-  const before = target.items;
-  target.items = commitList(next);
-  recordChange(target, before, target.items);
-};
-
-/**
- * Runs a load that replaces the list wholesale. Local edits committed while it was in flight
- * (add, edit, delete, summaries, fetched details) are replayed onto the loaded list afterwards.
- */
-const journaled = async (
-  target: PagedState<PlantView>,
-  isCurrent: () => boolean,
-  load: () => Promise<void>,
-  replay: (journal: Journal) => void,
-): Promise<void> => {
-  const key = toRaw(target);
-  let open = journals.get(key);
-  if (!open) journals.set(key, (open = new Set()));
-  const journal: Journal = new Map();
-  open.add(journal);
-  try {
-    const run = load();
-    const seq = target.requestSeq;
-    await run;
-    open.delete(journal);
-    if (journal.size > 0 && target.requestSeq === seq && target.status === "ready" && isCurrent()) {
-      replay(journal);
-    }
-  } finally {
-    open.delete(journal);
-  }
-};
-
-const positionsOf = (list: readonly PlantView[]): Map<number, number> => {
-  const positions = new Map<number, number>();
-  list.forEach((item, at) => {
-    if (!positions.has(item.id)) positions.set(item.id, at);
-  });
-  return positions;
-};
-
-/** Journal entries as an edit: changed plants replace, removed ones leave, new ones append when allowed. */
-const replaying =
-  (journal: Journal, append: boolean): ListEdit =>
-  (list) => {
-    const raw = toRaw(list) as readonly PlantView[];
-    const positions = positionsOf(raw);
-    const next = raw.slice();
-    const removed = new Set<number>();
-    const added: PlantView[] = [];
-    let changed = false;
-    for (const [id, item] of journal) {
-      const at = positions.get(id);
-      if (at === undefined) {
-        if (item && append) {
-          added.push(item);
-          changed = true;
-        }
-      } else if (item === null) {
-        removed.add(at);
-        changed = true;
-      } else if (raw[at] !== item) {
-        next[at] = item;
-        changed = true;
-      }
-    }
-    if (!changed) return null;
-    return [...next.filter((_, at) => !removed.has(at)), ...added];
-  };
+type ListEdit = JournalListEdit<PlantView>;
 
 const carryImages = (item: PlantView, known: PlantView | undefined): PlantView =>
   item.images ||
@@ -186,7 +94,7 @@ const fetchScope =
   (scope: Scope, target: PagedState<PlantView>): FetchPage<PlantView> =>
   async (params) => {
     const extra: Record<string, string | number> =
-      scope === "mine" ? { scope, tz_offset: tzOffset() } : { scope };
+      scope === "mine" ? { scope, tz_offset: tzOffsetMinutes() } : { scope };
     const path = `${BASE_ENDPOINT}?${pageSearchParams(params, extra)}`;
     const request = params.conditional
       ? ApiUtils.get<ApiPage<APIPlantListItem>>(path, undefined, { conditional: true })
@@ -198,10 +106,16 @@ const fetchScope =
     return { ...mapped, items: mapped.items.map((item) => carryImages(item, known.get(item.id))) };
   };
 
-const accessOf = (target: PagedState<PlantView>): ListAccess<PlantView> => ({
-  get: () => target.items,
-  set: (next) => setItems(target, next),
-});
+/** Created per action: once the session ends, a late rollback must not write the old account's plant back. */
+const accessOf = (target: PagedState<PlantView>): ListAccess<PlantView> => {
+  const isCurrent = epoch.guard();
+  return {
+    get: () => target.items,
+    set: (next) => {
+      if (isCurrent()) commitTracked(target, next);
+    },
+  };
+};
 
 const replacing =
   (plant: PlantView): ListEdit =>
@@ -249,7 +163,7 @@ const editPublic = (lists: PlantLists, edit: ListEdit): void => {
   const target = lists.public;
   const before = target.items;
   const next = edit(before);
-  if (next) setItems(target, next);
+  if (next) commitTracked(target, next);
   const first = target.firstPage;
   if (!first) return;
   const sharesItems = first.items === before;
@@ -268,7 +182,7 @@ const editDetails = (lists: PlantLists, edit: ListEdit): void => {
 
 const editEverywhere = (lists: PlantLists, edit: ListEdit): void => {
   const next = edit(lists.mine.items);
-  if (next) setItems(lists.mine, next);
+  if (next) commitTracked(lists.mine, next);
   editPublic(lists, edit);
   editDetails(lists, edit);
 };
@@ -345,7 +259,6 @@ export const usePlantsStore = defineStore("plants", {
 
   getters: {
     personalPlants: (state): PlantView[] => state.mine.items,
-    publicPlants: (state): PlantView[] => state.public.items,
     isMineStale: (state): boolean => isStale(state.mine.fetchedAt),
     isPublicStale: (state): boolean => isStale(state.public.fetchedAt),
     byId:
@@ -381,7 +294,7 @@ export const usePlantsStore = defineStore("plants", {
           () => loadAll(this.mine, fetchScope("mine", this.mine), { isCurrent }),
           (journal) => {
             const next = replaying(journal, true)(this.mine.items);
-            if (next) setItems(this.mine, next);
+            if (next) commitTracked(this.mine, next);
           },
         );
       });
@@ -416,7 +329,7 @@ export const usePlantsStore = defineStore("plants", {
 
     /** Server search over the public plants; resets paging. The same query is a no-op. */
     setPublicQuery(q: string): Promise<void> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       return journaled(
         this.public,
         isCurrent,
@@ -427,15 +340,15 @@ export const usePlantsStore = defineStore("plants", {
 
     loadMorePublic(): Promise<void> {
       return loadMore(this.public, fetchScope("public", this.public), {
-        isCurrent: sessionGuard(),
+        isCurrent: epoch.guard(),
       });
     },
 
     /** Fetches one plant with its images (GET /plants/:id) and merges it into the lists. */
     async fetchOne(id: number): Promise<PlantView> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const response = await handleRequest(
-        ApiUtils.get<APIPlantDetail>(`${BASE_ENDPOINT}/${id}?tz_offset=${tzOffset()}`),
+        ApiUtils.get<APIPlantDetail>(`${BASE_ENDPOINT}/${id}?tz_offset=${tzOffsetMinutes()}`),
         RESOURCE_KEY,
       );
       const plant = PlantMapper.mapDetail(response);
@@ -513,7 +426,7 @@ export const usePlantsStore = defineStore("plants", {
             await handleRequest(
               ApiUtils.post<typeof body & { tz_offset: number }, APIPlantDetail>(BASE_ENDPOINT, {
                 ...body,
-                tz_offset: tzOffset(),
+                tz_offset: tzOffsetMinutes(),
               }),
               RESOURCE_KEY,
               "error.action_failed",
@@ -561,7 +474,7 @@ export const usePlantsStore = defineStore("plants", {
             await handleRequest(
               ApiUtils.patch<EditPlant & { tz_offset: number }, APIPlantDetail>(
                 `${BASE_ENDPOINT}/${plantId}`,
-                { ...updatedPlantData, tz_offset: tzOffset() },
+                { ...updatedPlantData, tz_offset: tzOffsetMinutes() },
               ),
               RESOURCE_KEY,
               "error.action_failed",

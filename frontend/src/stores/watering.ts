@@ -32,6 +32,7 @@ import { defineStore } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
 import WateringMapper from "@/mapping/WateringMapping";
 import { handleRequest, withoutErrorToasts } from "@/utils/requestFeedback";
+import { tzOffsetMinutes } from "@/utils/localDate";
 import { coalesced, epoch, isStale } from "./resource";
 import { usePlantsStore } from "./plants";
 import type { ApiPage } from "./paged";
@@ -49,13 +50,7 @@ const chunked = <T>(items: T[]): T[][] =>
     items.slice(i * BATCH_LIMIT, (i + 1) * BATCH_LIMIT),
   );
 
-const tzOffset = (): number => Math.round(-new Date().getTimezoneOffset());
 const toSeconds = (millis: number): number => Math.floor(millis / 1000);
-
-const sessionGuard = (): (() => boolean) => {
-  const started = epoch.current();
-  return () => !epoch.isStale(started);
-};
 
 /** The loaded part of one plant's history, newest first. */
 export interface PlantHistory {
@@ -156,7 +151,7 @@ const fetchHistoryPage = async (plantId: number, before: string | null): Promise
 };
 
 const writeBody = (data: AddWateringRecord | EditWateringRecord): WriteBody => {
-  const body: WriteBody = { tz_offset: tzOffset() };
+  const body: WriteBody = { tz_offset: tzOffsetMinutes() };
   if (data.date !== undefined) body.date = toSeconds(data.date);
   body.usedFertilizer = data.usedFertilizer;
   body.fertilizerTypeId = data.fertilizerTypeId;
@@ -258,14 +253,6 @@ export const useWateringStore = defineStore("watering", {
       });
     },
 
-    /**
-     * Kept for the watering round: plants carry their summaries, so no history is loaded for a
-     * list of plants any more.
-     */
-    ensureRecordsFor(_plantIds?: number[], _limit?: number, _options?: { force?: boolean }) {
-      return Promise.resolve();
-    },
-
     /** Stores a window and makes the plant the most recently used; evicts beyond the cache size. */
     commitHistory(plantId: number, history: PlantHistory): void {
       const byPlantId = { ...toRaw(this.byPlantId), [plantId]: history };
@@ -288,7 +275,7 @@ export const useWateringStore = defineStore("watering", {
       if (!force && this.fertilizerTypes.length > 0 && !isStale(this.typesFetchedAt)) {
         return Promise.resolve();
       }
-      return coalesced(this, "types", async () => {
+      return coalesced(this, "types", async (isCurrent) => {
         if (!force && this.fertilizerTypes.length === 0) {
           await this.$hydrate();
           if (this.fertilizerTypes.length > 0 && !isStale(this.typesFetchedAt)) return;
@@ -297,6 +284,7 @@ export const useWateringStore = defineStore("watering", {
           ApiUtils.get<APIFertilizerType[]>(`${BASE_ENDPOINT}/fertilizer-types`),
           "watering.fertilizer_types",
         );
+        if (!isCurrent()) return;
         this.fertilizerTypes = WateringMapper.convertToFertilizerTypes(response);
         this.typesFetchedAt = Date.now();
       });
@@ -352,7 +340,7 @@ export const useWateringStore = defineStore("watering", {
 
     /** Adds a record (optimistic); resolves with the server record. */
     async addRecord(plantId: number, data: AddWateringRecord): Promise<WateringEntry> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const optimistic = entryOf(-++tempSeq, plantId, data.date ?? Date.now(), data);
       noteWrite(plantId);
       this.applyEntry(plantId, optimistic);
@@ -383,7 +371,7 @@ export const useWateringStore = defineStore("watering", {
       recordId: number,
       data: EditWateringRecord,
     ): Promise<WateringEntry> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const { existing, boundary } = this.windowPosition(plantId, recordId);
       noteWrite(plantId);
       if (existing) {
@@ -417,14 +405,14 @@ export const useWateringStore = defineStore("watering", {
 
     /** Deletes a record (optimistic); it returns to its position if the request fails. */
     async deleteRecord(plantId: number, recordId: number): Promise<void> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const { existing, boundary } = this.windowPosition(plantId, recordId);
       noteWrite(plantId);
       this.dropEntries([recordId]);
       try {
         const response = await handleRequest(
           ApiUtils.delete<APIWateringDeleteResponse>(
-            `${BASE_ENDPOINT}/${recordId}?tz_offset=${tzOffset()}`,
+            `${BASE_ENDPOINT}/${recordId}?tz_offset=${tzOffsetMinutes()}`,
           ),
           RESOURCE_KEY,
           "watering.delete",
@@ -451,7 +439,7 @@ export const useWateringStore = defineStore("watering", {
      * record ids. If a request fails, the records created so far are deleted again.
      */
     async addBatch(entries: WateringBatchEntry[]): Promise<number[]> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const ids: number[] = [];
       try {
         for (const chunk of chunked(entries)) {
@@ -459,7 +447,7 @@ export const useWateringStore = defineStore("watering", {
             ApiUtils.post<
               { entries: WateringBatchEntry[]; tz_offset: number },
               APIWateringBatchResponse
-            >(`${BASE_ENDPOINT}/batch`, { entries: chunk, tz_offset: tzOffset() }),
+            >(`${BASE_ENDPOINT}/batch`, { entries: chunk, tz_offset: tzOffsetMinutes() }),
             RESOURCE_KEY,
             "watering.add",
           );
@@ -486,12 +474,12 @@ export const useWateringStore = defineStore("watering", {
     },
 
     async deleteChunks(recordIds: number[]): Promise<void> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       for (const chunk of chunked(recordIds)) {
         const response = await handleRequest(
           ApiUtils.post<{ ids: number[]; tz_offset: number }, APIWateringBatchDeleteResponse>(
             `${BASE_ENDPOINT}/batch/delete`,
-            { ids: chunk, tz_offset: tzOffset() },
+            { ids: chunk, tz_offset: tzOffsetMinutes() },
           ),
           RESOURCE_KEY,
           "watering.delete",

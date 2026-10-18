@@ -101,8 +101,8 @@ describe("own substrates", () => {
       expect(Number(params.get("limit"))).toBeLessThanOrEqual(100);
     }
     expect(paramsOf(urlsOf()[1]).get("cursor")).toBe("c1");
-    expect(ids(store.personalSubstrates)).toEqual([1, 2, 3]);
-    expect(store.personalSubstrates.every((s) => s.components === null)).toBe(true);
+    expect(ids(store.mine.items)).toEqual([1, 2, 3]);
+    expect(store.mine.items.every((s) => s.components === null)).toBe(true);
   });
 
   it("shares one run between concurrent callers and refetches when forced", async () => {
@@ -156,7 +156,7 @@ describe("public substrates", () => {
 
     await store.loadMorePublic();
     expect(paramsOf(urlsOf()[1]).get("cursor")).toBe("c1");
-    expect(ids(store.publicSubstrates)).toEqual([10, 11]);
+    expect(ids(store.public.items)).toEqual([10, 11]);
   });
 
   it("searches on the server, resets paging and treats the same query as a no-op", async () => {
@@ -173,7 +173,7 @@ describe("public substrates", () => {
     const params = paramsOf(urlsOf()[1]);
     expect(params.get("q")).toBe("bark");
     expect(params.get("cursor")).toBeNull();
-    expect(ids(store.publicSubstrates)).toEqual([12]);
+    expect(ids(store.public.items)).toEqual([12]);
   });
 
   it("persists only the default first page", async () => {
@@ -252,7 +252,7 @@ describe("writes", () => {
     });
     expect(api.patch).not.toHaveBeenCalled();
     expect(created.id).toBe(5);
-    expect(ids(store.personalSubstrates)).toEqual([5]);
+    expect(ids(store.mine.items)).toEqual([5]);
     expect(store.detailOf(5)?.components).toHaveLength(1);
     expect(api.get).not.toHaveBeenCalled();
   });
@@ -298,7 +298,7 @@ describe("writes", () => {
     await store.ensurePublic();
     api.patch.mockResolvedValue(detail(1, { is_public: false }));
     await store.editSubstrate(1, { isPublic: false });
-    expect(store.publicSubstrates).toHaveLength(0);
+    expect(store.public.items).toHaveLength(0);
   });
 
   it("does not touch the lists when a write fails", async () => {
@@ -316,7 +316,7 @@ describe("writes", () => {
     await store.ensureMine();
     api.delete.mockResolvedValue(null);
     await store.deleteSubstrate(1);
-    expect(ids(store.personalSubstrates)).toEqual([2]);
+    expect(ids(store.mine.items)).toEqual([2]);
   });
 
   it("keeps a substrate whose delete failed", async () => {
@@ -325,7 +325,7 @@ describe("writes", () => {
     await store.ensureMine();
     api.delete.mockRejectedValue(new Error("403"));
     await expect(store.deleteSubstrate(1)).rejects.toThrow("403");
-    expect(ids(store.personalSubstrates)).toEqual([1]);
+    expect(ids(store.mine.items)).toEqual([1]);
   });
 
   it("uploads, then refreshes just this substrate", async () => {
@@ -384,7 +384,7 @@ describe("invalidate", () => {
     expect(api.get).toHaveBeenCalledTimes(1);
 
     store.invalidate();
-    expect(store.isStale).toBe(true);
+    expect(store.isMineStale).toBe(true);
     await store.ensureMine();
     expect(api.get).toHaveBeenCalledTimes(2);
   });
@@ -418,7 +418,7 @@ describe("invalidate", () => {
     const store = await newStore();
     store.invalidate();
     await store.ensureMine();
-    expect(ids(store.personalSubstrates)).toEqual([4]);
+    expect(ids(store.mine.items)).toEqual([4]);
   });
 });
 
@@ -436,7 +436,7 @@ describe("persistence and structure", () => {
     const store = await newStore();
     await store.ensureMine();
     expect(api.get).not.toHaveBeenCalled();
-    expect(ids(store.personalSubstrates)).toEqual([3]);
+    expect(ids(store.mine.items)).toEqual([3]);
   });
 
   it("holds frozen items in raw arrays and looks them up through an id index", async () => {
@@ -504,5 +504,65 @@ describe("plants follow substrate changes", () => {
     api.delete.mockRejectedValue(new Error("403"));
     await expect(store.deleteSubstrate(5)).rejects.toThrow("403");
     expect(patch).not.toHaveBeenCalled();
+  });
+});
+
+describe("local changes during a load in flight", () => {
+  const deferred = <T>() => {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((res) => {
+      resolve = res;
+    });
+    return { promise, resolve };
+  };
+
+  it("keeps a substrate created while the first load is running", async () => {
+    const gate = deferred<unknown>();
+    api.get.mockReturnValue(gate.promise);
+    api.post.mockResolvedValue(detail(9, { substrate_name: "Fresh" }));
+    const store = await newStore();
+    const pending = store.ensureMine();
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalled());
+
+    await store.addSubstrate({ name: "Fresh" });
+    gate.resolve(page([item(1), item(2)]));
+    await pending;
+
+    expect(ids(store.mine.items)).toEqual([1, 2, 9]);
+  });
+
+  it("does not bring back a substrate deleted while the load is running", async () => {
+    api.get.mockResolvedValue(page([item(1), item(2)]));
+    const store = await newStore();
+    await store.ensureMine();
+    const gate = deferred<unknown>();
+    api.get.mockReturnValue(gate.promise);
+    api.delete.mockResolvedValue(null);
+    const pending = store.ensureMine({ force: true });
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+
+    await store.deleteSubstrate(2);
+    gate.resolve(page([item(1), item(2)]));
+    await pending;
+
+    expect(ids(store.mine.items)).toEqual([1]);
+  });
+
+  it("drops a load that was running when invalidate was called and reloads", async () => {
+    const stale = deferred<unknown>();
+    api.get
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValue(page([item(1, { name: "New name" })]));
+    const store = await newStore();
+    const pending = store.ensureMine();
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalledTimes(1));
+
+    store.invalidate();
+    stale.resolve(page([item(1, { name: "Old name" })]));
+    await pending;
+
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(store.mine.items[0].name).toBe("New name");
+    expect(store.isMineStale).toBe(false);
   });
 });

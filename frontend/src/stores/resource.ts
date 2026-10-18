@@ -23,6 +23,11 @@ const abortListeners = new Set<() => void>();
 export const epoch = {
   current: (): number => epochValue,
   isStale: (captured: number): boolean => captured !== epochValue,
+  /** Captures the current epoch; the returned check turns false once an account ends. */
+  guard(): () => boolean {
+    const started = epochValue;
+    return () => started === epochValue;
+  },
   /** Aborted by the next `abortAll`; every request and stream links to it. */
   signal: (): AbortSignal => epochController.signal,
   /** Ends the epoch: aborts every in-flight request and stream, then notifies listeners. */

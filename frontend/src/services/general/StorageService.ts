@@ -8,7 +8,8 @@ export type StorageArea = "kv" | "cache";
 
 const KV_NAME = "_ionicstorage";
 const CACHE_NAME = "plantcare_cache";
-const MIGRATION_FLAG = "storage_split_v1";
+const MIGRATION_FLAG = "storage_split_v2";
+const PREVIOUS_MIGRATION_FLAGS = ["storage_split_v1"] as const;
 
 const OBSOLETE_KEYS = [
   "sales_price_history",
@@ -17,6 +18,9 @@ const OBSOLETE_KEYS = [
   "plants_all",
   "substrates_all",
   "components_all",
+  "more_info_data",
+  "fertilizer_types_data",
+  "components_fineness_levels",
 ] as const;
 
 /**
@@ -35,6 +39,7 @@ class StorageService {
 
   constructor() {
     this.ready = this.init();
+    this.ready.catch((error) => console.error("Storage failed to initialize:", error));
   }
 
   /**
@@ -57,7 +62,9 @@ class StorageService {
    */
   private async migrate(): Promise<void> {
     if (await this.kv.get(MIGRATION_FLAG)) return;
-    await Promise.all(OBSOLETE_KEYS.map((key) => this.kv.remove(key)));
+    await Promise.all(
+      [...OBSOLETE_KEYS, ...PREVIOUS_MIGRATION_FLAGS].map((key) => this.kv.remove(key)),
+    );
     await this.kv.set(MIGRATION_FLAG, true);
   }
 
@@ -107,28 +114,6 @@ class StorageService {
   async clearAll(): Promise<void> {
     await this.ready;
     await Promise.all([this.kv.clear(), this.cache.clear()]);
-  }
-
-  /**
-   * Batch storage update.
-   */
-  async setMultiple(items: { key: string; value: any }[], area: StorageArea = "kv"): Promise<void> {
-    await this.ready;
-    await Promise.all(items.map((i) => this.area(area).set(i.key, i.value)));
-  }
-
-  /**
-   * Retrieves keys as a Record object.
-   */
-  async getMultiple(keys: string[], area: StorageArea = "kv"): Promise<Record<string, any>> {
-    await this.ready;
-    const results: Record<string, any> = {};
-    await Promise.all(
-      keys.map(async (key) => {
-        results[key] = await this.area(area).get(key);
-      }),
-    );
-    return results;
   }
 
   /**

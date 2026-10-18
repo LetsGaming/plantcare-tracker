@@ -7,6 +7,15 @@ let expiresAtMs: number | null = null;
 let loaded = false;
 let loading: Promise<string | null> | null = null;
 
+/** The claims of a JWT, decoded as UTF-8; throws on a malformed token. */
+export const decodeJwtPayload = (token: string): Record<string, unknown> => {
+  const bytes = Uint8Array.from(
+    atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
+    (c) => c.charCodeAt(0),
+  );
+  return JSON.parse(new TextDecoder().decode(bytes));
+};
+
 /**
  * A freshly received token is anchored to the local clock (receipt time plus
  * its lifetime) so a skewed device clock cannot make it look expired or
@@ -16,12 +25,11 @@ let loading: Promise<string | null> | null = null;
 const decodeExpiry = (value: string | null, receivedNow: boolean): number | null => {
   if (!value) return null;
   try {
-    const payload = JSON.parse(atob(value.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    if (typeof payload.exp !== "number") return null;
-    if (receivedNow && typeof payload.iat === "number") {
-      return Date.now() + (payload.exp - payload.iat) * 1000;
-    }
-    return payload.exp * 1000;
+    const payload = decodeJwtPayload(value);
+    const { exp, iat } = payload;
+    if (typeof exp !== "number") return null;
+    if (receivedNow && typeof iat === "number") return Date.now() + (exp - iat) * 1000;
+    return exp * 1000;
   } catch {
     return null;
   }
@@ -65,10 +73,6 @@ const TokenUtils = {
         loading = null;
       });
     return loading;
-  },
-
-  async getToken(): Promise<string | null> {
-    return this.load();
   },
 
   async setToken(value: string): Promise<void> {

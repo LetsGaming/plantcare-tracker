@@ -378,6 +378,18 @@ export const setQuery = <T extends object>(
   return loadFirst(target, fetchPage, options);
 };
 
+/**
+ * Drops every request in flight for this list without touching its items, so a
+ * response that was started before a change cannot commit and mark old data fresh.
+ * A loading status falls back to what the list holds.
+ */
+export const invalidateInFlight = <T extends object>(target: PagedState<T>): void => {
+  nextSeq(target);
+  target.loadingMore = false;
+  if (target.status === "loading") target.status = target.items.length > 0 ? "ready" : "idle";
+  inflight.delete(toRaw(target));
+};
+
 /** Back to the initial state; responses still in flight are dropped. */
 export const reset = <T extends object>(target: PagedState<T>): void => {
   nextSeq(target);

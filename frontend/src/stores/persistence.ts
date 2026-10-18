@@ -292,6 +292,7 @@ export const l2Persistence = ({ store, options }: PiniaPluginContext): void => {
   const dispose = store.$dispose.bind(store);
   store.$dispose = () => {
     flushers.delete(flush);
+    cancelTimer();
     dispose();
   };
 

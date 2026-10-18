@@ -6,6 +6,9 @@
 
 import { dateTimeFormat } from "./intlCache";
 
+/** Minutes east of UTC, the unit of the API's `tz_offset`. */
+export const tzOffsetMinutes = (): number => Math.round(-new Date().getTimezoneOffset());
+
 const pad = (value: number): string => String(value).padStart(2, "0");
 
 export const toDayKey = (input: number | Date): string => {

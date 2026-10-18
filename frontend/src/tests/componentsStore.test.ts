@@ -272,17 +272,17 @@ describe("invalidating the substrates", () => {
 
   it("marks the substrates stale after an edit", async () => {
     const { store, substrates } = await withFreshSubstrates();
-    expect(substrates.isStale).toBe(false);
+    expect(substrates.isMineStale).toBe(false);
     api.put.mockResolvedValue(detail({ id: 1, name: "Renamed" }));
     await store.editComponent(1, { name: "Renamed" } as EditComponent);
-    expect(substrates.isStale).toBe(true);
+    expect(substrates.isMineStale).toBe(true);
   });
 
   it("marks the substrates stale after a delete", async () => {
     const { store, substrates } = await withFreshSubstrates();
     api.delete.mockResolvedValue(null);
     await store.deleteComponent(1);
-    expect(substrates.isStale).toBe(true);
+    expect(substrates.isMineStale).toBe(true);
   });
 
   it("leaves the substrates alone when the write fails or a component is added", async () => {
@@ -293,7 +293,7 @@ describe("invalidating the substrates", () => {
     await expect(store.deleteComponent(1)).rejects.toThrow();
     api.post.mockResolvedValue(detail({ id: 3 }));
     await store.addComponent({ name: "New", finenessId: 1 } as AddComponent);
-    expect(substrates.isStale).toBe(false);
+    expect(substrates.isMineStale).toBe(false);
   });
 });
 
@@ -470,5 +470,22 @@ describe("persisted writes", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(writesOf("components_catalogue")).toBe(1);
     expect(writesOf("components_fineness_levels")).toBe(1);
+  });
+});
+
+describe("local changes during a load in flight", () => {
+  it("keeps a component added while the catalogue loads", async () => {
+    let release!: (value: unknown) => void;
+    api.get.mockReturnValue(new Promise((resolve) => (release = resolve)));
+    api.post.mockResolvedValue(detail({ id: 9, name: "Grit" }));
+    const store = await newStore();
+    const pending = store.ensureLoaded();
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalled());
+
+    await store.addComponent({ name: "Grit", finenessId: 1 } as AddComponent);
+    release(page([item(1), item(2)]));
+    await pending;
+
+    expect(ids(store)).toEqual([1, 2, 9]);
   });
 });

@@ -43,8 +43,8 @@ export default defineComponent({
     },
   },
   created() {
-    void useLayoutStore().ensureLoaded();
-    void useSnapSettingsStore().ensureLoaded();
+    useLayoutStore().ensureLoaded().catch(console.error);
+    useSnapSettingsStore().ensureLoaded().catch(console.error);
     this.$watch(
       () => localizationService.locale.value,
       () => updateDocumentTitle(this.$route),

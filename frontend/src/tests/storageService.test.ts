@@ -105,6 +105,25 @@ describe("StorageService", () => {
     expect(await again.get("plants_all")).toEqual({ data: ["written later"] });
   });
 
+  it("cleans orphan account keys in a browser that already ran the first migration", async () => {
+    drivers.set(
+      "_ionicstorage",
+      new Map<string, unknown>([
+        ["storage_split_v1", true],
+        ["auth_token", "abc"],
+        ["more_info_data", { data: { "en:Monty": [] } }],
+        ["fertilizer_types_data", { data: [1] }],
+        ["components_fineness_levels", { data: [1] }],
+      ]),
+    );
+    const storage = await load();
+    expect(await storage.get("more_info_data")).toBeNull();
+    expect(await storage.get("fertilizer_types_data")).toBeNull();
+    expect(await storage.get("components_fineness_levels")).toBeNull();
+    expect(await storage.get("storage_split_v1")).toBeNull();
+    expect(await storage.get("auth_token")).toBe("abc");
+  });
+
   it("starts with an empty store without failing", async () => {
     const storage = await load();
     expect(await storage.get("anything")).toBeNull();

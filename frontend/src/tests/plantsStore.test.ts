@@ -194,7 +194,7 @@ describe("own plants (mine)", () => {
     await store.ensurePublic();
     expect(requested().map((url) => url.searchParams.get("scope"))).toEqual(["public"]);
     expect(store.personalPlants).toEqual([]);
-    expect(ids(store.publicPlants)).toEqual([9]);
+    expect(ids(store.public.items)).toEqual([9]);
   });
 });
 
@@ -214,7 +214,7 @@ describe("public plants", () => {
 
     await store.loadMorePublic();
     expect(requested()[1].searchParams.get("cursor")).toBe("c1");
-    expect(ids(store.publicPlants)).toEqual([1, 2]);
+    expect(ids(store.public.items)).toEqual([1, 2]);
     expect(store.public.nextCursor).toBeNull();
   });
 
@@ -233,7 +233,7 @@ describe("public plants", () => {
     const last = requested().at(-1)!;
     expect(last.searchParams.get("q")).toBe("fern");
     expect(last.searchParams.get("cursor")).toBeNull();
-    expect(ids(store.publicPlants)).toEqual([5]);
+    expect(ids(store.public.items)).toEqual([5]);
     expect(store.public.nextCursor).toBeNull();
     expect(store.public.total).toBe(1);
 
@@ -255,7 +255,7 @@ describe("public plants", () => {
     await second;
     slow.resolve(page([item(1, { plant_name: "Older", watering: null })]));
     await first;
-    expect(ids(store.publicPlants)).toEqual([2]);
+    expect(ids(store.public.items)).toEqual([2]);
   });
 
   it("keeps only the default first page persisted", async () => {
@@ -294,7 +294,7 @@ describe("public plants", () => {
     const store = await newStore();
     await store.ensurePublic();
     expect(ApiUtils.get).not.toHaveBeenCalled();
-    expect(ids(store.publicPlants)).toEqual([3]);
+    expect(ids(store.public.items)).toEqual([3]);
     expect(store.public.status).toBe("ready");
   });
 
@@ -306,7 +306,7 @@ describe("public plants", () => {
     await store.ensurePublic({ force: true });
     expect(ApiUtils.get).toHaveBeenCalledTimes(1);
     expect(vi.mocked(ApiUtils.get).mock.calls[0][2]).toEqual({ conditional: true });
-    expect(ids(store.publicPlants)).toEqual([8]);
+    expect(ids(store.public.items)).toEqual([8]);
   });
 
   it("answers a 304 by keeping the hydrated page", async () => {
@@ -315,7 +315,7 @@ describe("public plants", () => {
     const store = await newStore();
     await store.ensurePublic();
     await store.ensurePublic({ force: true });
-    expect(ids(store.publicPlants)).toEqual([3]);
+    expect(ids(store.public.items)).toEqual([3]);
     expect(store.public.status).toBe("ready");
   });
 });
@@ -424,7 +424,7 @@ describe("applySummaries", () => {
     store.applySummaries(new Map([[1, summary(4000)]]));
     await vi.advanceTimersByTimeAsync(500);
 
-    expect(store.publicPlants[0].watering).toEqual(summary(4000));
+    expect(store.public.items[0].watering).toEqual(summary(4000));
     expect(store.public.firstPage?.items[0].watering).toEqual(summary(4000));
     const stored = memoryStore.get("plants_public") as { data: { items: PlantView[] } };
     expect(stored.data.items[0].watering?.lastWateredAt).toBe(4000);
@@ -605,7 +605,7 @@ describe("editPlant (optimistic)", () => {
     expect(path).toBe("/plants/2");
     expect(body).toMatchObject({ name: "Renamed", tz_offset: expect.any(Number) });
     expect(store.personalPlants[1]).toBe(updated);
-    expect(store.publicPlants[0]).toBe(updated);
+    expect(store.public.items[0]).toBe(updated);
     expect(store.public.firstPage?.items[0]).toBe(updated);
   });
 
@@ -625,7 +625,7 @@ describe("editPlant (optimistic)", () => {
       apiPlantDetail({ plant_id: 2, is_public: false, user_id: 1 }),
     );
     await store.editPlant(2, { isPublic: false });
-    expect(ids(store.publicPlants)).toEqual([9]);
+    expect(ids(store.public.items)).toEqual([9]);
     expect(ids(store.public.firstPage!.items)).toEqual([9]);
   });
 
@@ -662,7 +662,7 @@ describe("deletePlant (optimistic)", () => {
     await pending;
     expect(ApiUtils.delete).toHaveBeenCalledWith("/plants/1");
     expect(dropPlant).toHaveBeenCalledWith(1);
-    expect(store.publicPlants).toEqual([]);
+    expect(store.public.items).toEqual([]);
     expect(store.public.firstPage?.items).toEqual([]);
   });
 
@@ -761,7 +761,7 @@ describe("copy-on-write lists", () => {
     const store = await newStore();
     await store.ensureMine();
     await store.ensurePublic();
-    for (const list of [store.personalPlants, store.publicPlants]) {
+    for (const list of [store.personalPlants, store.public.items]) {
       expect(isProxy(list)).toBe(false);
       expect(Object.isFrozen(list[0])).toBe(true);
     }
@@ -876,7 +876,7 @@ describe("local changes during a load in flight", () => {
     store.applySummaries(new Map([[1, summary(5)]]));
     gate.resolve(page([item(1, { user_id: 7, watering: null })]));
     await pending;
-    expect(store.publicPlants[0].watering).toEqual(summary(5));
+    expect(store.public.items[0].watering).toEqual(summary(5));
     expect(store.public.firstPage?.items[0].watering).toEqual(summary(5));
   });
 });
@@ -957,5 +957,41 @@ describe("list details", () => {
     await store.editPlant(2, { isPublic: false });
     expect(store.public.total).toBe(1);
     expect(store.public.firstPage?.total).toBe(1);
+  });
+});
+
+describe("a write that fails after the session ended", () => {
+  it("does not put the previous account's plant back when an edit is rolled back", async () => {
+    route({ mine: () => page([item(1), item(2)]) });
+    const store = await newStore();
+    await store.ensureMine();
+    const gate = deferred<unknown>();
+    vi.mocked(ApiUtils.patch).mockReturnValue(gate.promise as never);
+
+    const pending = store.editPlant(2, { name: "Renamed" });
+    await vi.waitFor(() => expect(ApiUtils.patch).toHaveBeenCalled());
+    epoch.abortAll();
+    store.$reset();
+    gate.reject(new DOMException("aborted", "AbortError"));
+    await expect(pending).rejects.toThrow();
+
+    expect(store.mine.items).toEqual([]);
+  });
+
+  it("does not re-insert a deleted plant into the reset list", async () => {
+    route({ mine: () => page([item(1), item(2)]) });
+    const store = await newStore();
+    await store.ensureMine();
+    const gate = deferred<unknown>();
+    vi.mocked(ApiUtils.delete).mockReturnValue(gate.promise as never);
+
+    const pending = store.deletePlant(2);
+    await vi.waitFor(() => expect(ApiUtils.delete).toHaveBeenCalled());
+    epoch.abortAll();
+    store.$reset();
+    gate.reject(new DOMException("aborted", "AbortError"));
+    await expect(pending).rejects.toThrow();
+
+    expect(store.mine.items).toEqual([]);
   });
 });

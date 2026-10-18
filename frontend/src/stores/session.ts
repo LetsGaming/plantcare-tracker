@@ -1,6 +1,6 @@
 import { defineStore, type Pinia } from "pinia";
 import ApiUtils from "@/utils/apiUtils";
-import TokenUtils from "@/utils/tokenUtils";
+import TokenUtils, { decodeJwtPayload } from "@/utils/tokenUtils";
 import Utils from "@/utils/utils";
 import storageService from "@/services/general/StorageService";
 import { handleRequest } from "@/utils/requestFeedback";
@@ -23,12 +23,8 @@ class RefreshError extends Error {
 const decodeToken = (token: string | null): AuthToken | null => {
   if (!token) return null;
   try {
-    const bytes = Uint8Array.from(
-      atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
-      (c) => c.charCodeAt(0),
-    );
-    const payload = JSON.parse(new TextDecoder().decode(bytes));
-    return { id: payload.id, username: payload.username, role: payload.role };
+    const payload = decodeJwtPayload(token);
+    return { id: payload.id, username: payload.username, role: payload.role } as AuthToken;
   } catch (error) {
     console.error("Error decoding token:", error);
     return null;
@@ -207,6 +203,7 @@ export const useSessionStore = defineStore("session", {
             (error instanceof RefreshError && error.message.includes("expired"));
           if (final || epoch.isStale(startEpoch)) throw error;
           await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS));
+          if (epoch.isStale(startEpoch)) throw error;
         } finally {
           scope.dispose();
         }

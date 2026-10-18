@@ -40,7 +40,7 @@ export default defineComponent({
   },
   async created() {
     this.resetFromComponent();
-    await this.ensureFinenessLevels();
+    await this.ensureFinenessLevels().catch(console.error);
   },
   watch: {
     isOpen(open: boolean) {

@@ -35,9 +35,11 @@ import { useSessionStore } from "./session";
 import { usePlantsStore } from "./plants";
 import { coalesced, epoch, isStale } from "./resource";
 import { commitList, idIndexOf, removeItem, upsertItem } from "./optimistic";
+import { commitTracked, journaled, replaying, type ListEdit as JournalListEdit } from "./journal";
 import {
   loadAll,
   loadFirst,
+  invalidateInFlight,
   loadMore,
   mapPage,
   pageSearchParams,
@@ -46,8 +48,8 @@ import {
   setQuery,
   type ApiPage,
   type FetchPage,
-  type PageNotModified,
   type PageParams,
+  type PageNotModified,
   type PagedState,
 } from "./paged";
 
@@ -79,12 +81,7 @@ interface SubstrateLists {
   public: PagedState<SubstrateView>;
 }
 
-type ListEdit = (list: readonly SubstrateView[]) => SubstrateView[] | null;
-
-const sessionGuard = (): (() => boolean) => {
-  const started = epoch.current();
-  return () => !epoch.isStale(started);
-};
+type ListEdit = JournalListEdit<SubstrateView>;
 
 const fetchScope =
   (scope: Scope): FetchPage<SubstrateView> =>
@@ -145,7 +142,7 @@ const editPublic = (lists: SubstrateLists, edit: ListEdit): void => {
   const target = lists.public;
   const before = target.items;
   const next = edit(before);
-  if (next) target.items = commitList(next);
+  if (next) commitTracked(target, next);
   const first = target.firstPage;
   if (!first) return;
   const sharesItems = first.items === before;
@@ -159,7 +156,7 @@ const editPublic = (lists: SubstrateLists, edit: ListEdit): void => {
 
 const editMine = (lists: SubstrateLists, edit: ListEdit): void => {
   const next = edit(lists.mine.items);
-  if (next) lists.mine.items = commitList(next);
+  if (next) commitTracked(lists.mine, next);
 };
 
 /** A substrate made private leaves `public`; a newly public one asks for a refresh. */
@@ -220,18 +217,8 @@ export const useSubstratesStore = defineStore("substrates", {
   },
 
   getters: {
-    personalSubstrates: (state): SubstrateView[] => state.mine.items,
-    publicSubstrates: (state): SubstrateView[] => state.public.items,
     isMineStale: (state): boolean => isStale(state.mine.fetchedAt),
     isPublicStale: (state): boolean => isStale(state.public.fetchedAt),
-    isStale(): boolean {
-      return this.isMineStale;
-    },
-    /** Own substrates first, then the loaded public ones not already listed (the plant forms' picker). */
-    items(state): SubstrateView[] {
-      const seen = idIndexOf(state.mine.items);
-      return [...state.mine.items, ...state.public.items.filter((s) => !seen.has(s.id))];
-    },
     byId:
       (state) =>
       (id: number): SubstrateView | undefined =>
@@ -264,8 +251,19 @@ export const useSubstratesStore = defineStore("substrates", {
         ) {
           return;
         }
-        if (!isCurrent()) return;
-        await loadAll(this.mine, fetchScope("mine"), { isCurrent });
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          if (!isCurrent()) return;
+          await journaled(
+            this.mine,
+            isCurrent,
+            () => loadAll(this.mine, fetchScope("mine"), { isCurrent }),
+            (journal) => {
+              const next = replaying(journal, true)(this.mine.items);
+              if (next) commitTracked(this.mine, next);
+            },
+          );
+          if (!isStale(this.mine.fetchedAt)) return;
+        }
       });
     },
 
@@ -282,8 +280,16 @@ export const useSubstratesStore = defineStore("substrates", {
         ) {
           return;
         }
-        if (!isCurrent()) return;
-        await loadFirst(this.public, fetchScope("public"), { isCurrent });
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          if (!isCurrent()) return;
+          await journaled(
+            this.public,
+            isCurrent,
+            () => loadFirst(this.public, fetchScope("public"), { isCurrent }),
+            (journal) => editPublic(this, replaying(journal, false)),
+          );
+          if (!isStale(this.public.fetchedAt) || this.public.status === "loading") return;
+        }
       });
     },
 
@@ -294,22 +300,29 @@ export const useSubstratesStore = defineStore("substrates", {
 
     /** Server search over the public substrates; resets paging. The same query is a no-op. */
     setPublicQuery(q: string): Promise<void> {
-      return setQuery(this.public, { q }, fetchScope("public"), { isCurrent: sessionGuard() });
+      const isCurrent = epoch.guard();
+      return journaled(
+        this.public,
+        isCurrent,
+        () => setQuery(this.public, { q }, fetchScope("public"), { isCurrent }),
+        (journal) => editPublic(this, replaying(journal, false)),
+      );
     },
 
     loadMorePublic(): Promise<void> {
-      return loadMore(this.public, fetchScope("public"), { isCurrent: sessionGuard() });
+      return loadMore(this.public, fetchScope("public"), { isCurrent: epoch.guard() });
     },
 
     /**
      * Marks everything held stale so the next ensure refetches. The persisted
      * snapshots are rewritten as expired (and a not yet hydrated one is not
      * read), so a cached list cannot come back as fresh. A load already in
-     * flight is not cancelled: paged.ts keeps its request sequence private, and
-     * bumping it from here would strand the list in "loading" behind the shared
-     * coalesced promise.
+     * flight is dropped (and reloaded by its caller), so it cannot commit
+     * pre-change data with a fresh timestamp.
      */
     invalidate(): void {
+      invalidateInFlight(this.mine);
+      invalidateInFlight(this.public);
       this.mine.fetchedAt = 0;
       this.public.fetchedAt = 0;
       if (this.mine.items.length > 0) this.mine.items = commitList(this.mine.items.slice());
@@ -321,7 +334,7 @@ export const useSubstratesStore = defineStore("substrates", {
 
     /** Fetches one substrate with its mix and images (GET /substrates/:id); the catalogue is never loaded. */
     async fetchOne(id: number): Promise<SubstrateView> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const response = await handleRequest(
         ApiUtils.get<APISubstrateDetail>(`${BASE_ENDPOINT}/${id}`),
         RESOURCE_KEY,
@@ -348,7 +361,7 @@ export const useSubstratesStore = defineStore("substrates", {
 
     /** Substrates of the viewer (own and public, deduplicated, name order) that contain a component. */
     async loadUsedByComponent(componentId: number): Promise<void> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const guest = useSessionStore().isGuest;
       const [mine, shared] = await Promise.all([
         guest ? Promise.resolve([]) : fetchUsedInScope(componentId, "mine"),
@@ -368,7 +381,7 @@ export const useSubstratesStore = defineStore("substrates", {
 
     /** Creates a substrate with its mix in one request; resolves with the new substrate. */
     async addSubstrate(data: SubstrateWrite): Promise<SubstrateView> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const response = await handleRequest(
         ApiUtils.post<SubstrateWrite, APISubstrateDetail>(BASE_ENDPOINT, data),
         RESOURCE_KEY,
@@ -381,7 +394,7 @@ export const useSubstratesStore = defineStore("substrates", {
 
     /** Updates a substrate in one request; `components`, when given, is the complete new mix. */
     async editSubstrate(substrateId: number, data: SubstrateWrite): Promise<SubstrateView> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const response = await handleRequest(
         ApiUtils.patch<SubstrateWrite, APISubstrateDetail>(`${BASE_ENDPOINT}/${substrateId}`, data),
         RESOURCE_KEY,
@@ -395,7 +408,7 @@ export const useSubstratesStore = defineStore("substrates", {
     commitWritten(substrate: SubstrateView): void {
       const light = lightOf(substrate);
       if (substrate.userId === useSessionStore().userId) {
-        this.mine.items = commitList(upsertItem(this.mine.items, light));
+        commitTracked(this.mine, upsertItem(this.mine.items, light));
       } else {
         editMine(this, replacing(light));
       }
@@ -406,7 +419,7 @@ export const useSubstratesStore = defineStore("substrates", {
     },
 
     async deleteSubstrate(substrateId: number): Promise<void> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       await handleRequest(
         ApiUtils.delete(`${BASE_ENDPOINT}/${substrateId}`),
         RESOURCE_KEY,

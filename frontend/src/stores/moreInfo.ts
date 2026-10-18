@@ -34,6 +34,12 @@ const haltByKey = new Map<string, () => void>();
 const pendingKeys = new Set<string>();
 const stopRequested = new Set<string>();
 
+interface PersistedGuides {
+  byKey: Record<string, MoreInfo[]>;
+  fetchedAtByKey: Record<string, number>;
+  usedAtByKey: Record<string, number>;
+}
+
 /** One guide per plant name and language. */
 export const moreInfoKey = (plantName: string, lang: string): string => `${lang}:${plantName}`;
 
@@ -51,14 +57,31 @@ export const useMoreInfoStore = defineStore("moreInfo", {
     entries: [
       {
         key: "more_info_data",
-        pick: (state) => state.byKey,
+        pick: (state): PersistedGuides => ({
+          byKey: state.byKey,
+          fetchedAtByKey: state.fetchedAtByKey,
+          usedAtByKey: state.usedAtByKey,
+        }),
         timestamp: (state) => Math.max(0, ...Object.values(state.fetchedAtByKey)) || null,
         dirtyOn: ["runStream"],
         version: (state) => state.byKey,
-        apply: (state, data: Record<string, MoreInfo[]>, timestamp) => {
-          const keys = Object.keys(data).slice(-MAX_GUIDES);
-          state.byKey = Object.fromEntries(keys.map((key) => [key, data[key]]));
-          state.fetchedAtByKey = Object.fromEntries(keys.map((key) => [key, timestamp]));
+        apply: (state, stored: PersistedGuides | Record<string, MoreInfo[]>, timestamp) => {
+          const data: PersistedGuides =
+            "byKey" in stored && typeof stored.byKey === "object"
+              ? (stored as PersistedGuides)
+              : {
+                  byKey: stored as Record<string, MoreInfo[]>,
+                  fetchedAtByKey: {},
+                  usedAtByKey: {},
+                };
+          const usedAt = (key: string): number => data.usedAtByKey?.[key] ?? 0;
+          const keys = Object.keys(data.byKey)
+            .sort((a, b) => usedAt(a) - usedAt(b))
+            .slice(-MAX_GUIDES);
+          state.byKey = Object.fromEntries(keys.map((key) => [key, data.byKey[key]]));
+          state.fetchedAtByKey = Object.fromEntries(
+            keys.map((key) => [key, data.fetchedAtByKey?.[key] ?? timestamp]),
+          );
           state.usedAtByKey = Object.fromEntries(
             keys.map((key, index) => [key, -keys.length + index]),
           );
@@ -130,7 +153,8 @@ export const useMoreInfoStore = defineStore("moreInfo", {
 
     /** Keeps the guide as the newest one and evicts the least recently used beyond `MAX_GUIDES`. */
     storeGuide(key: string, guide: MoreInfo[]): void {
-      const byKey = { ...toRaw(this.byKey), [key]: guide };
+      const { [key]: _replaced, ...others } = toRaw(this.byKey);
+      const byKey = { ...others, [key]: guide };
       const fetchedAtByKey = { ...toRaw(this.fetchedAtByKey), [key]: Date.now() };
       const usedAtByKey = { ...toRaw(this.usedAtByKey), [key]: ++useClock };
       const stored = Object.keys(byKey);
@@ -147,9 +171,20 @@ export const useMoreInfoStore = defineStore("moreInfo", {
       this.usedAtByKey = usedAtByKey;
     },
 
+    /** Failed drafts stay visible, but only the newest `MAX_GUIDES` runs are remembered. */
+    pruneRuns(keep: string): void {
+      for (const record of [this.drafts, this.streaming] as Record<string, unknown>[]) {
+        const keys = Object.keys(record);
+        for (const old of keys.slice(0, Math.max(0, keys.length - MAX_GUIDES))) {
+          if (old !== keep && !this.streaming[old]) delete record[old];
+        }
+      }
+    },
+
     runStream(plantName: string, key: string): Promise<void> {
       this.streaming[key] = true;
       delete this.drafts[key];
+      this.pruneRuns(key);
 
       return new Promise<void>((resolve, reject) => {
         const raw = { links: [] as string[], ai: "" };

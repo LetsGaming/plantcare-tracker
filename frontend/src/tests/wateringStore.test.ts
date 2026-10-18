@@ -498,10 +498,4 @@ describe("dropPlant and the round wrapper", () => {
     expect(store.isLoaded(7)).toBe(false);
     expect(store.isLoaded(8)).toBe(true);
   });
-
-  it("ensureRecordsFor loads no histories", async () => {
-    const store = await newStore();
-    await store.ensureRecordsFor([1, 2, 3]);
-    expect(api.get).not.toHaveBeenCalled();
-  });
 });

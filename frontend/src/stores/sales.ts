@@ -166,11 +166,6 @@ const prunedSeen = (prev: SalesSeen, items: readonly Sale[]): SalesSeen => {
     : Object.freeze({ watermark: prev.watermark, ids: Object.freeze(kept) });
 };
 
-const sessionGuard = (): (() => boolean) => {
-  const started = epoch.current();
-  return () => !epoch.isStale(started);
-};
-
 export const useSalesStore = defineStore("sales", {
   state: () => ({
     items: saleList([]),
@@ -336,7 +331,7 @@ export const useSalesStore = defineStore("sales", {
     /** Reads the server's counts for the badge; null when the account ended meanwhile. */
     async loadSummary(): Promise<APISalesSummary | null> {
       const session = this.session;
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       await this.hydrateBoot();
       if (!isCurrent() || this.session !== session) return null;
       const dto = await ApiUtils.get<APISalesSummary>(
@@ -359,7 +354,7 @@ export const useSalesStore = defineStore("sales", {
      * replayed. A failing summary keeps a stored list as it is.
      */
     async ensureFresh(): Promise<void> {
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       await this.restore();
       if (!isCurrent()) return;
       if (this.items.length > 0 && Date.now() - this.summaryAt < SUMMARY_MIN_INTERVAL_MS) return;
@@ -411,7 +406,7 @@ export const useSalesStore = defineStore("sales", {
       let latestFirst: number | null = null;
       const progressive = before.length === 0;
       const refreshedAt = this.summary.refreshedAt;
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       let lastPublish = Number.NEGATIVE_INFINITY;
       let pending: ReturnType<typeof setTimeout> | undefined;
       const run = markRaw({});
@@ -536,7 +531,7 @@ export const useSalesStore = defineStore("sales", {
       id: string,
     ): Promise<{ sale: Sale; history: readonly SalePricePoint[] } | null> {
       const session = this.session;
-      const isCurrent = sessionGuard();
+      const isCurrent = epoch.guard();
       const dto = await ApiUtils.get<APISaleDetail>(`${ENDPOINT}/${encodeURIComponent(id)}`);
       if (!isCurrent() || this.session !== session) return null;
       return SaleMapper.mapDetail(dto);

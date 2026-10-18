@@ -313,7 +313,7 @@ describe("PlantOverview public segment", () => {
     await flushPromises();
 
     expect(paths().at(-1)!.searchParams.get("cursor")).toBe("c1");
-    expect(store.publicPlants.map((plant) => plant.id)).toEqual([1, 2]);
+    expect(store.public.items.map((plant) => plant.id)).toEqual([1, 2]);
     expect(list(wrapper).props("hasMore")).toBe(false);
     wrapper.unmount();
   });

@@ -135,7 +135,6 @@ describe("WaterRound", () => {
     await flushPromises();
     expect(plants.ensureLoaded).toHaveBeenCalled();
     expect(watering.ensureFertilizerTypes).toHaveBeenCalled();
-    expect(watering.ensureRecordsFor).not.toHaveBeenCalled();
     expect(watering.ensureRecords).not.toHaveBeenCalled();
     expect(api.get).not.toHaveBeenCalled();
   });

@@ -33,7 +33,8 @@ import { compareText } from "@/utils/intlCache";
 import { finenessLabel } from "@/utils/enumLabels";
 import { handleRequest } from "@/utils/requestFeedback";
 import { coalesced, epoch, isStale } from "./resource";
-import { commitList, idIndexOf, removeItem, upsertItem } from "./optimistic";
+import { idIndexOf, removeItem, upsertItem } from "./optimistic";
+import { commitTracked, journaled, replaying } from "./journal";
 import { useSubstratesStore } from "./substrates";
 import {
   loadAll,
@@ -142,12 +143,20 @@ export const useComponentsStore = defineStore("components", {
       if (!force && this.status === "ready" && !this.isStale) return Promise.resolve();
       return coalesced(this, "all", async (isCurrent) => {
         if (!force && this.status === "idle" && (await this.$hydrate()) && !this.isStale) return;
-        await loadAll(this, fetchCatalogue, { isCurrent });
+        await journaled(
+          this,
+          isCurrent,
+          () => loadAll(this, fetchCatalogue, { isCurrent }),
+          (journal) => {
+            const next = replaying(journal, true)(this.items);
+            if (next) commitTracked(this, next);
+          },
+        );
       });
     },
 
     upsert(component: ComponentView): void {
-      this.items = commitList(upsertItem(this.items, component));
+      commitTracked(this, upsertItem(this.items, component));
     },
 
     /** Returns the component detail by id; GET /components/:id only, never the catalogue. */
@@ -222,7 +231,7 @@ export const useComponentsStore = defineStore("components", {
         RESOURCE_NAME,
         "error.action_failed",
       );
-      this.items = commitList(removeItem(this.items, id));
+      commitTracked(this, removeItem(this.items, id));
       const { [id]: _removed, ...rest } = this.details;
       this.details = Object.freeze(markRaw(rest));
       useSubstratesStore().invalidate();

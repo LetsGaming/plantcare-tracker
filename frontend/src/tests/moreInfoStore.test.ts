@@ -56,7 +56,13 @@ const messages =
     h.onDone?.({ status: "completed" });
   };
 
-type StoredGuides = { data: Record<string, unknown> };
+type StoredGuides = {
+  data: {
+    byKey: Record<string, unknown>;
+    fetchedAtByKey: Record<string, number>;
+    usedAtByKey: Record<string, number>;
+  };
+};
 
 const newStore = async () => {
   await createInstalledPinia();
@@ -198,9 +204,8 @@ describe("ensureInfo streaming", () => {
     const store = await newStore();
     await expect(store.ensureInfo("Aloe")).rejects.toBeDefined();
     await vi.advanceTimersByTimeAsync(500);
-    const stored = memoryStore.get("more_info_data") as
-      { data: Record<string, unknown> } | undefined;
-    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+    const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
+    expect(Object.keys(stored?.data.byKey ?? {})).toEqual([]);
   });
 });
 
@@ -211,8 +216,8 @@ describe("persistence", () => {
     const store = await newStore();
     await store.ensureInfo("Aloe");
     await vi.advanceTimersByTimeAsync(500);
-    const stored = memoryStore.get("more_info_data") as { data: Record<string, unknown> };
-    expect(Object.keys(stored.data)).toEqual(["en:Aloe"]);
+    const stored = memoryStore.get("more_info_data") as StoredGuides;
+    expect(Object.keys(stored.data.byKey)).toEqual(["en:Aloe"]);
   });
 
   it("ignores an entry written under the old shape instead of failing", async () => {
@@ -284,7 +289,7 @@ describe("stopInfo", () => {
     await pending;
     await vi.advanceTimersByTimeAsync(500);
     const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
-    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+    expect(Object.keys(stored?.data.byKey ?? {})).toEqual([]);
   });
 
   it("stops a load that is still hydrating without ever opening a stream", async () => {
@@ -308,7 +313,7 @@ describe("stopInfo", () => {
     expect(store.byKey["en:Aloe"]).toBeUndefined();
     expect(store.fetchedAtByKey["en:Aloe"]).toBeUndefined();
     const stored = memoryStore.get("more_info_data") as StoredGuides | undefined;
-    expect(Object.keys(stored?.data ?? {})).toEqual([]);
+    expect(Object.keys(stored?.data.byKey ?? {})).toEqual([]);
   });
 
   it("does not let an earlier stop cancel a later forced load", async () => {
@@ -467,7 +472,24 @@ describe("guide cache bound", () => {
     for (let i = 1; i <= 32; i++) await store.ensureInfo(`Plant ${i}`);
     await vi.advanceTimersByTimeAsync(500);
     const stored = memoryStore.get("more_info_data") as StoredGuides;
-    expect(Object.keys(stored.data)).toHaveLength(30);
+    expect(Object.keys(stored.data.byKey)).toHaveLength(30);
+  });
+
+  it("keeps each guide's own age and recency when restoring", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    memoryStore.set("more_info_data", {
+      data: {
+        byKey: { [guide("Old")]: [], [guide("New")]: [] },
+        fetchedAtByKey: { [guide("Old")]: Date.now() - 400 * day, [guide("New")]: Date.now() },
+        usedAtByKey: { [guide("Old")]: 9, [guide("New")]: 3 },
+      },
+      timestamp: Date.now(),
+    });
+    const store = await newStore();
+    await store.$hydrate();
+    expect(store.fetchedAtByKey[guide("Old")]).toBeLessThan(Date.now() - 300 * day);
+    expect(store.fetchedAtByKey[guide("New")]).toBeGreaterThan(Date.now() - day);
+    expect(Object.keys(store.byKey)).toEqual([guide("New"), guide("Old")]);
   });
 
   it("trims an oversized stored snapshot to the newest 30 on hydrate", async () => {
