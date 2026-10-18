@@ -9,6 +9,9 @@
 
 export type StrategyName = 'shopifyJson' | 'jsonLd' | 'selector' | 'heuristic';
 
+/** What a source reports as its working strategy; JSON API lookups are not extraction strategies. */
+export type ReportedStrategy = StrategyName | 'api';
+
 export type HealthStatus = 'ok' | 'degraded' | 'failing' | 'unknown';
 
 export type HealthKind = 'sales' | 'search';
@@ -28,7 +31,7 @@ export interface SourceHealth {
   kind: HealthKind;
   seller: string;
   status: HealthStatus;
-  active_strategy: StrategyName | null;
+  active_strategy: ReportedStrategy | null;
   last_item_count: number | null;
   consecutive_failures: number;
   last_success_at: string | null;
@@ -44,7 +47,7 @@ export interface ScrapeOutcome {
   seller: string;
   kind: HealthKind;
   /** Strategy that produced the accepted result, null when none did. */
-  strategy: StrategyName | null;
+  strategy: ReportedStrategy | null;
   /** True when the accepted strategy is not the source's primary one. */
   usedFallback: boolean;
   itemCount: number;
