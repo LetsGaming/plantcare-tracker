@@ -111,6 +111,10 @@ const newestImageId = sql<
 >`(SELECT i.id FROM images i WHERE i.entity_type = 'plant' AND i.entity_id = p.id ORDER BY i.upload_date DESC, i.id DESC LIMIT 1)`;
 const imageCount = sql<number>`(SELECT COUNT(*) FROM images i WHERE i.entity_type = 'plant' AND i.entity_id = p.id)`;
 
+/** A private substrate stays hidden from everyone but its owner and the owner of the plant that uses it. */
+const visibleSubstrate = (viewerId: number | null) =>
+  sql<SqlBool>`(s.is_public = 1 OR s.user_id = ${viewerId} OR p.user_id = ${viewerId})`;
+
 const scopePredicate = (scope: ListScope) =>
   scope.kind === 'mine' ? sql<SqlBool>`p.user_id = ${scope.userId}` : sql<SqlBool>`p.is_public = 1`;
 
@@ -166,7 +170,11 @@ export class SQLitePlantRepository implements PlantRepository {
   ): Promise<PlantListPage> {
     const cursor = query.cursor;
     const selected = filteredPlants(scope, query.q)
-      .leftJoin('substrates as s', 'p.substrate_id', 's.id')
+      .leftJoin('substrates as s', (join) =>
+        join
+          .onRef('p.substrate_id', '=', 's.id')
+          .on(visibleSubstrate(scope.kind === 'mine' ? scope.userId : null)),
+      )
       .select([
         'p.id as plant_id',
         'p.name as plant_name',
@@ -246,7 +254,9 @@ export class SQLitePlantRepository implements PlantRepository {
     const row = await getKysely()
       .selectFrom('plants as p')
       .leftJoin('species', 'p.species_id', 'species.id')
-      .leftJoin('substrates as s', 'p.substrate_id', 's.id')
+      .leftJoin('substrates as s', (join) =>
+        join.onRef('p.substrate_id', '=', 's.id').on(visibleSubstrate(viewerId)),
+      )
       .select([
         'p.id as plant_id',
         'p.name as plant_name',

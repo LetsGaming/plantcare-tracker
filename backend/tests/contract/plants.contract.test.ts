@@ -390,6 +390,49 @@ describe('GET /plants', () => {
     expect(await avgFor('&tz_offset=60')).toBeNull();
   });
 
+  it('applies a tz_offset sent in the body of POST and PATCH like the one in the list query', async () => {
+    const { owner, substrate } = await setup();
+    const plant = await createPlant(app, owner.auth, substrate.substrate_id, { name: 'TzBody' });
+    for (const date of [Date.UTC(2026, 2, 1, 23, 30) / 1000, Date.UTC(2026, 2, 2, 12) / 1000]) {
+      app.db.execute('INSERT INTO watering_records (plant_id, date) VALUES (?, ?)', [
+        plant.plant_id,
+        date,
+      ]);
+    }
+    const patched = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { name: 'TzBody', tz_offset: 60 },
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.watering.avg_interval_days).toBeNull();
+    const listed = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?q=TzBody&tz_offset=60`,
+      headers: owner.auth,
+    });
+    expect(listed.body.data.items[0].watering.avg_interval_days).toBeNull();
+    const plain = await app.client.request({
+      method: 'patch',
+      url: `${API}/plants/${plant.plant_id}`,
+      headers: owner.auth,
+      json: { name: 'TzBody' },
+    });
+    expect(plain.body.data.watering.avg_interval_days).toBe(1);
+  });
+
+  it('rejects an out-of-range tz_offset in the body with 400', async () => {
+    const { owner, substrate } = await setup();
+    const res = await app.client.request({
+      method: 'post',
+      url: `${API}/plants`,
+      headers: owner.auth,
+      json: { name: 'Bad', substrateId: substrate.substrate_id, tz_offset: 9999 },
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('treats an invalid token as anonymous', async () => {
     const res = await app.client.request({
       method: 'get',
@@ -794,6 +837,31 @@ describe('substrate access', () => {
     });
     expect(cleared.status).toBe(200);
     expect(cleared.body.data.substrate).toBeNull();
+  });
+});
+
+describe('private substrate on a public plant', () => {
+  it('hides the substrate from other users and anonymous callers in list and detail, not from the owner', async () => {
+    const owner = await app.signIn('user');
+    const other = await app.signIn('user');
+    const secret = await createSubstrate(app, owner.auth, { name: 'Secret Mix', isPublic: false });
+    const plant = await createPlant(app, owner.auth, secret.substrate_id, {
+      name: 'PublicOnPrivate',
+      isPublic: true,
+    });
+    const detail = (auth: Record<string, string>) =>
+      app.client.request({ method: 'get', url: `${API}/plants/${plant.plant_id}`, headers: auth });
+    expect((await detail(owner.auth)).body.data.substrate.substrate_name).toBe('Secret Mix');
+    expect((await detail(other.auth)).body.data.substrate).toBeNull();
+    expect((await detail({})).body.data.substrate).toBeNull();
+
+    const list = await app.client.request({
+      method: 'get',
+      url: `${API}/plants?scope=public&q=PublicOnPrivate`,
+      headers: other.auth,
+    });
+    expect(list.body.data.items).toHaveLength(1);
+    expect(list.body.data.items[0].substrate).toBeNull();
   });
 });
 

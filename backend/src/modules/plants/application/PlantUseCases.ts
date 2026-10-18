@@ -23,6 +23,9 @@ import { parseOrThrow } from '../../../core/validation';
 
 // ── Input schemas (Zod) ───────────────────────────────────────────────────────
 
+/** Read by the controller (see tzOf); declared so the schema does not silently drop it. */
+const TzOffsetField = z.union([z.string(), z.number()]).optional();
+
 export const CreatePlantSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   species: z.string().max(100).nullable().optional(),
@@ -33,6 +36,7 @@ export const CreatePlantSchema = z.object({
     .nullable()
     .optional(),
   isPublic: z.boolean().default(false),
+  tz_offset: TzOffsetField,
 });
 
 /** An empty or null species and a null substrateId clear the field. */
@@ -42,6 +46,7 @@ export const UpdatePlantSchema = z
     species: z.string().max(100).nullable().optional(),
     substrateId: z.number().int().positive().nullable().optional(),
     isPublic: z.boolean().optional(),
+    tz_offset: TzOffsetField,
   })
   .refine(
     (data) =>

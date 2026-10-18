@@ -45,8 +45,17 @@ const PLANT_SORTS = {
 } as const;
 const PLANT_SCOPES: readonly PlantScope[] = ['mine', 'public'];
 
-const tzOf = (req: FastifyRequest): number =>
-  parseTzOffset((req.query as Record<string, unknown> | undefined)?.tz_offset);
+/** Query first (GET), then the JSON body the frontend sends on POST/PATCH. */
+const tzOf = (req: FastifyRequest): number => {
+  const fromQuery = (req.query as Record<string, unknown> | undefined)?.tz_offset;
+  if (fromQuery !== undefined && fromQuery !== '') return parseTzOffset(fromQuery);
+  const body = req.body;
+  const fromBody =
+    body !== null && typeof body === 'object'
+      ? (body as Record<string, unknown>).tz_offset
+      : undefined;
+  return parseTzOffset(fromBody);
+};
 
 // ── Response payloads (wire contract, see docs/api-reference.md) ─────────────
 
