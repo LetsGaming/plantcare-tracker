@@ -70,7 +70,7 @@ export default defineComponent({
   computed: {
     ...mapState(usePlantsStore, ["personalPlants"]),
     sorted(): PickerPlant[] {
-      const compare = compareText();
+      const compare = compareText(localizationService.getLocale());
       return this.personalPlants
         .map((plant) => ({
           plantId: plant.id,

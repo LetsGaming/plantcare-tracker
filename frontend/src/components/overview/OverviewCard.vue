@@ -167,6 +167,17 @@ export default defineComponent({
   transform: scale(0.985);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .tag-card {
+    transition: none;
+  }
+
+  .tag-card:hover,
+  .tag-card:active {
+    transform: none;
+  }
+}
+
 .tag-media {
   position: relative;
   display: block;

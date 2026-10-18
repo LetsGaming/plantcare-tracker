@@ -1,3 +1,4 @@
+import localizationService from "@/services/general/LocalizationService";
 import { compareText } from "@/utils/intlCache";
 import { wateringStatus, type WateringTone } from "@/utils/wateringStats";
 
@@ -26,7 +27,7 @@ const TONE_BONUS: Record<WateringTone, number> = {
 
 /** Statuses come from the plant summaries; rows are sorted once, thirstiest first, then by name. */
 export const buildRoundRows = (plants: readonly PlantView[], now = Date.now()): RoundRow[] => {
-  const compare = compareText();
+  const compare = compareText(localizationService.getLocale());
   return plants
     .map((plant): RoundRow => {
       const status = wateringStatus(plant.watering, now);
