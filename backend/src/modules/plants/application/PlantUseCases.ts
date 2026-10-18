@@ -19,6 +19,7 @@ import type {
 } from '../domain/Plant';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { NotFoundError, InternalError } from '../../../core/errors';
+import { emptyPage } from '../../../core/pagination';
 import { parseOrThrow } from '../../../core/validation';
 import { NAME_MAX_LENGTH } from '../../../core/config/constants';
 
@@ -87,7 +88,7 @@ export class ListPlantsUseCase {
   ): Promise<PlantListPage> {
     if (scope === 'public') return this.repo.listPublic(query);
     if (viewerId === null) {
-      return { items: [], nextCursor: null, ...(query.cursor === null ? { total: 0 } : {}) };
+      return emptyPage(query.cursor);
     }
     return this.repo.listMine(viewerId, query, tz);
   }

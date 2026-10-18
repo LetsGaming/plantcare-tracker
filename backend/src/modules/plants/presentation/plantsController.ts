@@ -13,9 +13,9 @@
  */
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { numericParam, type Handler } from '../../../core/middleware';
-import { isGuestRole } from '../../../core/auth';
+import { numericParam, viewerOf, type Handler } from '../../../core/middleware';
 import {
+  CREATED_OR_NAME_SORTS,
   parseListQuery,
   privateRevalidate,
   toEnvelope,
@@ -39,10 +39,6 @@ import { parseTzOffset } from '../domain/wateringSummary';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
-const PLANT_SORTS = {
-  created: { valueType: 'number', idType: 'number', direction: 'desc' },
-  name: { valueType: 'string', idType: 'number', direction: 'asc' },
-} as const;
 const PLANT_SCOPES: readonly PlantScope[] = ['mine', 'public'];
 
 /** Query first (GET), then the JSON body the frontend sends on POST/PATCH. */
@@ -94,9 +90,10 @@ export const createPlantsController = (
   return {
     getAllPlants: async (req: FastifyRequest, reply: FastifyReply) => {
       // Guests own no plants, so their scope=mine is an empty page rather than an error.
-      const viewerId = req.user && !isGuestRole(req.user.role) ? req.user.id : null;
+      const viewer = viewerOf(req);
+      const viewerId = viewer && !viewer.isGuest ? viewer.id : null;
       const { scope, ...query } = parseListQuery<PlantSort, PlantScope>(req.query, {
-        sorts: PLANT_SORTS,
+        sorts: CREATED_OR_NAME_SORTS,
         defaultSort: 'created',
         scopes: PLANT_SCOPES,
         defaultScope: viewerId === null ? 'public' : 'mine',

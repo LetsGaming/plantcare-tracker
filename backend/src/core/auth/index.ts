@@ -18,6 +18,7 @@ export {
   isAdminRole,
   ROLE,
   type AuthUser,
+  type Viewer,
   type JwtPayload,
   type TokenIdentity,
 } from './tokens';

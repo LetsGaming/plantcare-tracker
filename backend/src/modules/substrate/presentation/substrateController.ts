@@ -11,7 +11,7 @@
  */
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { numericParam, type Handler } from '../../../core/middleware';
+import { numericParam, viewerOf, type Handler } from '../../../core/middleware';
 import {
   ListSubstratesUseCase,
   GetSubstrateUseCase,
@@ -21,7 +21,6 @@ import {
 } from '../application/SubstrateUseCases';
 import type { SubstrateRepository, SubstrateData, SubstrateListItem } from '../domain/Substrate';
 import { toEnvelope, privateRevalidate, type ListEnvelope } from '../../../core/pagination';
-import { isGuestRole } from '../../../core/auth';
 import type { EntityImageCleanup } from '../../images/domain/Image';
 import { HTTP_STATUS } from '../../../core/config';
 
@@ -60,7 +59,7 @@ export const createSubstrateController = (
 
   return {
     listSubstrates: async (req: FastifyRequest, reply: FastifyReply) => {
-      const viewer = { id: req.user!.id, isGuest: isGuestRole(req.user!.role) };
+      const viewer = viewerOf(req)!;
       const page = await list.execute(req.query, viewer);
       privateRevalidate(reply);
       const body: SubstrateListResponse = toEnvelope(page, page.total);

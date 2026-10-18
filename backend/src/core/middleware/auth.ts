@@ -14,6 +14,7 @@ import {
   isGuestRole,
   isAdminRole,
   ROLE,
+  type Viewer,
   isValidAccessToken,
   readAccessSession,
 } from '../auth';
@@ -92,6 +93,10 @@ export const makeAuthenticateSSE =
 
     request.user = { id: user.id, username: user.username, role: user.role ?? '' };
   };
+
+/** The signed-in viewer of a request, or null for an anonymous one. */
+export const viewerOf = (request: FastifyRequest): Viewer | null =>
+  request.user ? { id: request.user.id, isGuest: isGuestRole(request.user.role) } : null;
 
 // ── Role guards ───────────────────────────────────────────────────────────────
 

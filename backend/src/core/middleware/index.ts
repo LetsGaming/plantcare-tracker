@@ -6,6 +6,7 @@ export {
   optionalAuthenticateToken,
   makeAuthenticateSSE,
   isAdmin,
+  viewerOf,
   makeGuestReadOnly,
 } from './auth';
 export type { SseAuthOptions } from './auth';

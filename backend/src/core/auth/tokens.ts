@@ -28,6 +28,12 @@ export interface AuthUser extends TokenIdentity {
   sid?: string;
 }
 
+/** Who is asking for a list: guests are signed in but own no data. */
+export interface Viewer {
+  id: number;
+  isGuest: boolean;
+}
+
 export const ROLE = {
   ADMIN: 'admin',
   USER: 'user',
