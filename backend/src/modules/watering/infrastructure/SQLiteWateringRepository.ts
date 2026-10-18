@@ -86,7 +86,7 @@ export class SQLiteWateringRepository implements WateringRepository {
   async create(dto: CreateWateringDTO, userId: number): Promise<WateringRecordRow | null> {
     const result = await sql<StoredRow>`
       INSERT INTO watering_records (plant_id, date, used_fertilizer, fertilizer_type_id)
-      SELECT ${dto.plantId}, ${dto.date}, ${dto.usedFertilizer ? 1 : 0}, ${dto.fertilizerTypeId ?? null}
+      SELECT ${dto.plantId}, ${dto.date}, ${dto.usedFertilizer ? 1 : 0}, ${dto.usedFertilizer ? (dto.fertilizerTypeId ?? null) : null}
       WHERE EXISTS (SELECT 1 FROM plants WHERE id = ${dto.plantId} AND user_id = ${userId})
       RETURNING id, plant_id, date, used_fertilizer, fertilizer_type_id
     `.execute(getKysely());
@@ -107,6 +107,7 @@ export class SQLiteWateringRepository implements WateringRepository {
     if (dto.date !== undefined && dto.date !== null) changes.date = dto.date;
     if (dto.usedFertilizer !== undefined) changes.used_fertilizer = dto.usedFertilizer ? 1 : 0;
     if (dto.fertilizerTypeId !== undefined) changes.fertilizer_type_id = dto.fertilizerTypeId;
+    if (dto.usedFertilizer === false) changes.fertilizer_type_id = null;
     if (!Object.keys(changes).length) return null;
 
     const row = await getKysely()

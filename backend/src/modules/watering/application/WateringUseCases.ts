@@ -84,12 +84,20 @@ export const toEpochSeconds = (date: string | number): number | null => {
   return Math.floor(ms / 1000);
 };
 
+const MIN_WATERING_SEC = Date.UTC(2000, 0, 1) / 1000;
+const MAX_FUTURE_SEC = 24 * 60 * 60;
+
 /** Shared guard: normalise or throw the field-scoped ValidationError. */
-const requireEpochSeconds = (date: string | number): number => {
+const requireEpochSeconds = (date: string | number, nowSec = Date.now() / 1000): number => {
   const seconds = toEpochSeconds(date);
   if (seconds === null) {
     throw new ValidationError('Invalid date value', {
       date: 'date must be a valid ISO string or Unix timestamp',
+    });
+  }
+  if (seconds < MIN_WATERING_SEC || seconds > nowSec + MAX_FUTURE_SEC) {
+    throw new ValidationError('Invalid date value', {
+      date: 'date must be between 2000-01-01 and tomorrow',
     });
   }
   return seconds;

@@ -186,7 +186,7 @@ describe('GET /watering/plant/:plantId caching and compression', () => {
     expect(tag).toBeTruthy();
     expect((await history(owner.auth, plantId, '', { 'if-none-match': tag })).status).toBe(304);
 
-    await request('post', `/watering/${plantId}`, owner.auth, { date: 1_800_000_000 });
+    await request('post', `/watering/${plantId}`, owner.auth, { date: Date.now() - 1000 });
     const after = await history(owner.auth, plantId, '', { 'if-none-match': tag });
     expect(after.status).toBe(200);
     expect(after.body.data.items).toHaveLength(4);

@@ -128,6 +128,36 @@ describe('POST /watering/:plantId', () => {
     expect(res.body.error.fields).toEqual({ date: expect.any(String) });
   });
 
+  it('rejects dates before 2000 and more than a day ahead, on create and update', async () => {
+    const { owner, plant } = await setup();
+    const tooFar = Date.now() + 3 * 24 * 60 * 60 * 1000;
+    for (const date of [Date.UTC(1999, 11, 31), tooFar, 8.64e15]) {
+      const res = await addRecord(owner, plant.plant_id, { date });
+      expect(res.status, String(date)).toBe(400);
+      expect(res.body.error.fields).toEqual({ date: expect.any(String) });
+    }
+    const created = await addRecord(owner, plant.plant_id, {});
+    const patched = await app.client.request({
+      method: 'patch',
+      url: `${API}/watering/${created.body.data.record.id}`,
+      headers: owner.auth,
+      json: { date: tooFar },
+    });
+    expect(patched.status).toBe(400);
+  });
+
+  it('ignores the fertilizer type when no fertilizer was used, like the batch path', async () => {
+    const { owner, plant } = await setup();
+    const res = await addRecord(owner, plant.plant_id, {
+      usedFertilizer: false,
+      fertilizerTypeId: 2,
+    });
+    expect(res.body.data.record).toMatchObject({
+      used_fertilizer: false,
+      fertilizer_type_id: null,
+    });
+  });
+
   it('rejects an invalid tz_offset and writes nothing', async () => {
     const { owner, plant } = await setup();
     const res = await addRecord(owner, plant.plant_id, { tz_offset: 9999 });
@@ -336,6 +366,19 @@ describe('PATCH /watering/:id', () => {
       avg_interval_days: null,
     });
     expect(res.body.data.summary).toEqual(await listedSummary(owner.auth, plant.plant_id));
+  });
+
+  it('clears the fertilizer type when fertilizer is switched off', async () => {
+    const { owner, plant } = await setup();
+    const created = await addRecord(owner, plant.plant_id, {
+      usedFertilizer: true,
+      fertilizerTypeId: 1,
+    });
+    const res = await patch(owner.auth, created.body.data.record.id, { usedFertilizer: false });
+    expect(res.body.data.record).toMatchObject({
+      used_fertilizer: false,
+      fertilizer_type_id: null,
+    });
   });
 
   it('applies tz_offset from the body to the summary', async () => {
