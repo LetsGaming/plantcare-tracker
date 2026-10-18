@@ -9,6 +9,7 @@ import { CreateWateringRecordUseCase } from '../../watering/application/Watering
 import { SQLiteWateringRepository } from '../../watering/infrastructure/SQLiteWateringRepository';
 import { ConfirmSnapshotUseCase } from '../application/ConfirmSnapshot';
 import { MatchSnapshotUseCase } from '../application/MatchSnapshot';
+import type { Embedder } from '../domain/Recognition';
 import type { RecognitionContext } from '../index';
 import { TempSnapshotStore } from '../infrastructure/TempSnapshotStore';
 import { createRecognitionController } from './recognitionController';
@@ -28,13 +29,24 @@ export const recognitionRoutes =
         .catch((err) => app.log.warn({ err }, 'embedding backfill failed'));
     });
 
-    const { embedder } = ctx;
-    const ctrl = createRecognitionController(
-      embedder
-        ? new MatchSnapshotUseCase(embedder, ctx.embeddings, snapshots, getConfig().uploadMaxPixels)
-        : null,
-      embedder
-        ? new ConfirmSnapshotUseCase(
+    let built: {
+      embedder: Embedder;
+      match: MatchSnapshotUseCase;
+      confirm: ConfirmSnapshotUseCase;
+    } | null = null;
+    const useCases = (): NonNullable<typeof built> | null => {
+      const { embedder } = ctx;
+      if (!embedder) return null;
+      if (built?.embedder !== embedder) {
+        built = {
+          embedder,
+          match: new MatchSnapshotUseCase(
+            embedder,
+            ctx.embeddings,
+            snapshots,
+            getConfig().uploadMaxPixels,
+          ),
+          confirm: new ConfirmSnapshotUseCase(
             new CreateWateringRecordUseCase(new SQLiteWateringRepository()),
             new SQLiteImageRepository(),
             ctx.embeddings,
@@ -43,8 +55,14 @@ export const recognitionRoutes =
             getUploadsDirectory(),
             app.log,
             () => ctx.embedImages?.scheduleRescan(),
-          )
-        : null,
+          ),
+        };
+      }
+      return built;
+    };
+    const ctrl = createRecognitionController(
+      () => useCases()?.match ?? null,
+      () => useCases()?.confirm ?? null,
       () => ctx.embedImages?.stats() ?? null,
     );
 

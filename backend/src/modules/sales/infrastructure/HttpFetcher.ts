@@ -7,7 +7,7 @@
  */
 
 import axios from 'axios';
-import { chromium, type Browser } from 'playwright';
+import type { Browser } from 'playwright';
 import dns from 'node:dns';
 import { createModuleLogger } from '../../../core/logging';
 import { getConfig } from '../../../core/config';
@@ -19,30 +19,69 @@ const log = createModuleLogger('HttpFetcher');
 
 // ── Browser singleton ─────────────────────────────────────────────────────────
 
+export const BROWSER_IDLE_MS = 10 * 60 * 1000;
+
 let browserPromise: Promise<Browser> | null = null;
+let idleTimer: NodeJS.Timeout | null = null;
+let activeUses = 0;
+
+const clearIdleTimer = (): void => {
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = null;
+};
+
 const getBrowser = async (): Promise<Browser> => {
   if (!browserPromise) {
-    browserPromise = chromium
-      .launch({
-        // launch headless in prod but headed in dev for easier debugging
-        headless: getConfig().headlessBrowser,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      })
+    const launching = import('playwright')
+      .then(({ chromium }) =>
+        chromium.launch({
+          // launch headless in prod but headed in dev for easier debugging
+          headless: getConfig().headlessBrowser,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        }),
+      )
       .then((b) => {
         b.once('disconnected', () => {
-          browserPromise = null;
+          if (browserPromise === launching) browserPromise = null;
         });
         return b;
       });
+    launching.catch(() => {
+      if (browserPromise === launching) browserPromise = null;
+    });
+    browserPromise = launching;
   }
   return browserPromise;
 };
 
 export const closeBrowser = async (): Promise<void> => {
-  if (browserPromise) {
-    const browser = await browserPromise;
-    await browser.close();
-    browserPromise = null;
+  clearIdleTimer();
+  const pending = browserPromise;
+  browserPromise = null;
+  if (pending) {
+    const browser = await pending.catch(() => null);
+    await browser?.close();
+  }
+};
+
+const scheduleIdleClose = (): void => {
+  clearIdleTimer();
+  if (activeUses > 0) return;
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    void closeBrowser().catch((err: unknown) => log.warn('Idle browser close failed', { err }));
+  }, BROWSER_IDLE_MS);
+  idleTimer.unref();
+};
+
+const withBrowser = async <T>(use: (browser: Browser) => Promise<T>): Promise<T> => {
+  activeUses++;
+  clearIdleTimer();
+  try {
+    return await use(await getBrowser());
+  } finally {
+    activeUses--;
+    scheduleIdleClose();
   }
 };
 
@@ -104,8 +143,10 @@ const fetchWithAxios = async (url: string): Promise<FetchedDocument | null> => {
 
 // ── Chromium fetch ────────────────────────────────────────────────────────────
 
-const fetchWithChromium = async (url: string): Promise<FetchedDocument | null> => {
-  const browser = await getBrowser();
+const fetchWithChromium = (url: string): Promise<FetchedDocument | null> =>
+  withBrowser((browser) => fetchPage(browser, url));
+
+const fetchPage = async (browser: Browser, url: string): Promise<FetchedDocument | null> => {
   const context = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',

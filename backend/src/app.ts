@@ -8,6 +8,7 @@
  */
 
 import fs from 'fs';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import compress from '@fastify/compress';
@@ -62,6 +63,11 @@ const COMPRESS_THRESHOLD_BYTES = 1024;
 const CORS_PREFLIGHT_MAX_AGE_S = 600;
 /** A stored upload is never rewritten under the same file name, so a URL never changes meaning. */
 const UPLOADS_MAX_AGE = '365d';
+const LOOP_DELAY_RESOLUTION_MS = 20;
+const NS_PER_MS = 1e6;
+const BYTES_PER_MB = 1024 * 1024;
+
+const toMs = (ns: number): number => Math.round((ns / NS_PER_MS) * 100) / 100;
 
 export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => {
   const { isProduction, allowedOrigins, trustProxyHops } = getConfig();
@@ -143,7 +149,7 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
   // Guests are read-only everywhere: one rule on the prefix, not one per route.
   app.addHook('onRequest', makeGuestReadOnly(V));
 
-  const recognition = await createRecognition(deps.recognition ?? {}, app.log);
+  const recognition = createRecognition(deps.recognition ?? {}, app.log);
 
   await app.register(authRoutes, { prefix: `${V}/auth` });
   await app.register(salesRoutes(deps.sales), { prefix: `${V}/sales` });
@@ -165,6 +171,17 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
 
   startVariantBackfill(app);
 
+  // Heavy services start once the port is open, so the app serves while they warm up.
+  app.addHook('onListen', async () => {
+    void recognition.load();
+  });
+
+  const loopDelay = monitorEventLoopDelay({ resolution: LOOP_DELAY_RESOLUTION_MS });
+  loopDelay.enable();
+  app.addHook('onClose', async () => {
+    loopDelay.disable();
+  });
+
   app.get(`${V}/health`, async (_request, reply) => {
     try {
       // Synchronous ping: better-sqlite3 throws immediately if the DB is closed
@@ -175,12 +192,21 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
       const m = Math.floor((uptimeSeconds % 3600) / 60);
       const s = Math.floor(uptimeSeconds % 60);
 
+      const loop = {
+        p50_ms: toMs(loopDelay.percentile(50)),
+        p99_ms: toMs(loopDelay.percentile(99)),
+        max_ms: toMs(loopDelay.max),
+      };
+      loopDelay.reset();
+
       return {
         status: 'ok',
         uptime: `${d}d ${h}h ${m}m ${s}s`,
         uptime_s: Math.floor(uptimeSeconds),
         db: 'connected',
         version: versionPath,
+        event_loop_delay: loop,
+        rss_mb: Math.round((process.memoryUsage.rss() / BYTES_PER_MB) * 10) / 10,
       };
     } catch (err) {
       logger.error('Health check failed', { err });
@@ -191,10 +217,11 @@ export const buildApp = async (deps: AppDeps = {}): Promise<FastifyInstance> => 
   app.get(`${V}/health/ready`, async (_request, reply) => {
     try {
       getSqlite().prepare('SELECT 1').get();
-      return { ready: true };
     } catch {
       return reply.code(503).send({ ready: false });
     }
+    if (!recognition.ready) return reply.code(503).send({ ready: false });
+    return { ready: true };
   });
 
   return app;
