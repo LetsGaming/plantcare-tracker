@@ -39,7 +39,15 @@ describe("reduced motion", () => {
     expect(source).not.toContain("max-height: 1000px");
   });
 
-  it("stops the skeleton shimmer under reduced motion", () => {
+  it("pulses the skeleton with opacity instead of animating the background", () => {
+    const source = component("StateBlock");
+    expect(source).not.toContain("background-position");
+    expect(source).not.toContain("background-size");
+    const keyframes = source.slice(source.indexOf("@keyframes skeleton-pulse"));
+    expect(keyframes).toContain("opacity");
+  });
+
+  it("stops the skeleton pulse under reduced motion", () => {
     expect(reducedBlock(component("StateBlock"))).toContain("animation: none");
   });
 

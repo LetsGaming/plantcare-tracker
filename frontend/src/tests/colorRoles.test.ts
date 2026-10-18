@@ -31,7 +31,6 @@ describe("clay means overdue only", () => {
     "theme/custom.css",
     "theme/variables.css",
     "components/overview/ItemsOverview.vue",
-    "components/ui/PlantPlaceholder.vue",
   ];
   const clay = /--ion-color-secondary|color="secondary"|--clay-wash/;
 

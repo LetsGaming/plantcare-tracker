@@ -188,10 +188,6 @@ ion-card {
   background: var(--surface-raised);
 }
 
-ion-img::part(image) {
-  border-radius: var(--radius-sm);
-}
-
 ion-toast {
   --white-space: pre-wrap;
   --border-radius: var(--radius-md);
