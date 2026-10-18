@@ -136,21 +136,15 @@ const main = async () => {
     log(`creating ${substrateCount} substrates`);
     const substrateIds = [];
     for (let i = 0; i < substrateCount; i++) {
+      const components = [];
+      for (let j = 0; j < Math.min(COMPONENTS_PER_SUBSTRATE, componentIds.length); j++) {
+        components.push({ componentId: componentIds[(i + j) % componentIds.length], parts: j + 1 });
+      }
       const created = await ctx.call("POST", "/substrates", {
         token: userToken,
-        json: { name: `${PREFIX}substrate-${i + 1}`, isPublic: false },
+        json: { name: `${PREFIX}substrate-${i + 1}`, isPublic: false, ...(components.length > 0 ? { components } : {}) },
       });
       substrateIds.push(created.substrate_id);
-      if (componentIds.length > 0) {
-        const components = [];
-        for (let j = 0; j < Math.min(COMPONENTS_PER_SUBSTRATE, componentIds.length); j++) {
-          components.push({ componentId: componentIds[(i + j) % componentIds.length], parts: j + 1 });
-        }
-        await ctx.call("POST", `/substrates/${created.substrate_id}/components`, {
-          token: userToken,
-          json: { components },
-        });
-      }
     }
 
     log(`creating ${plantCount} plants`);

@@ -59,20 +59,14 @@ export default {
     ctx.state.substrates = {};
     for (const entry of SUBSTRATES) {
       const token = ctx.token(entry.owner);
-      const created = await ctx.call("POST", "/substrates", {
-        token,
-        json: { name: entry.name, isPublic: entry.isPublic },
-      });
       const components = Object.entries(entry.parts).map(([name, parts]) => ({
         componentId: ctx.state.components[name],
         parts,
       }));
-      if (components.length > 0) {
-        await ctx.call("POST", `/substrates/${created.substrate_id}/components`, {
-          token,
-          json: { components },
-        });
-      }
+      const created = await ctx.call("POST", "/substrates", {
+        token,
+        json: { name: entry.name, isPublic: entry.isPublic, ...(components.length > 0 ? { components } : {}) },
+      });
       ctx.state.substrates[entry.name] = created.substrate_id;
     }
   },
